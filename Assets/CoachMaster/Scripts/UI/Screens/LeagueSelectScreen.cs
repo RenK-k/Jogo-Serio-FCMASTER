@@ -18,21 +18,37 @@ namespace CoachMaster.UI.Screens
         static void AddLeagueCard(Transform parent, ScreenRouter router, League league)
         {
             var panel = UiFactory.Panel(parent, league.Id, UiTheme.Panel);
-            UiFactory.LayoutElement(panel.GetComponent<Image>(), 168);
-            var column = UiFactory.Column(panel, "Inner", 6, new RectOffset(20, 20, 16, 16), stretch: true, controlChildHeight: true);
+            UiFactory.LayoutElement(panel.GetComponent<Image>(), 148);
+            var row = UiFactory.Row(panel, "Inner", 18, new RectOffset(20, 20, 16, 16), true);
 
-            var title = UiFactory.Label(column.transform, "Name", league.Name, 28, UiTheme.Text, TextAnchor.MiddleLeft, FontStyle.Bold);
-            UiFactory.LayoutElement(title, 32);
-            var desc = UiFactory.Label(column.transform, "Desc", league.Description, 18, UiTheme.Muted);
-            UiFactory.LayoutElement(desc, 44);
+            var accent = UiFactory.Panel(row.transform, "Tier", UiTheme.Accent);
+            var accentLe = accent.gameObject.AddComponent<LayoutElement>();
+            accentLe.minWidth = 8;
+            accentLe.preferredWidth = 8;
+            accentLe.flexibleWidth = 0;
 
-            var choose = UiFactory.Button(column.transform, "Escolher " + league.Name, () =>
+            var copy = UiFactory.Column(row.transform, "Copy", 6, new RectOffset(0, 0, 0, 0), false, true);
+            var copyLe = copy.gameObject.AddComponent<LayoutElement>();
+            copyLe.flexibleWidth = 1;
+            var title = UiFactory.Label(copy.transform, "Name", league.Name.ToUpperInvariant(), 26, UiTheme.Text, TextAnchor.MiddleLeft, FontStyle.Bold);
+            UiFactory.LayoutElement(title, 30);
+            var desc = UiFactory.Label(copy.transform, "Desc", league.Description, 16, UiTheme.Muted);
+            UiFactory.LayoutElement(desc, 48);
+            var meta = UiFactory.Label(copy.transform, "Meta", $"{league.ClubCount} clubes  ·  {league.ShortName}", 14, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            UiFactory.LayoutElement(meta, 22);
+
+            var choose = UiFactory.Button(row.transform, "SELECIONAR", () =>
             {
                 router.Session.Draft.LeagueId = league.Id;
                 router.Session.Draft.ClubId = null;
+                router.Session.PrepareLeague(league.Id);
                 router.Show("clubs");
             }, UiTheme.Accent);
-            UiFactory.LayoutElement(choose, 42);
+            UiFactory.LayoutElement(choose, 48);
+            var chooseSize = choose.GetComponent<LayoutElement>();
+            chooseSize.minWidth = 180;
+            chooseSize.preferredWidth = 180;
+            chooseSize.flexibleWidth = 0;
         }
     }
 }

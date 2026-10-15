@@ -11,7 +11,9 @@ namespace CoachMaster.Domain
 
         public GameCalendar(DateTime currentDate)
         {
-            CurrentDate = currentDate.Date;
+            CurrentDate = currentDate.TimeOfDay == TimeSpan.Zero
+                ? currentDate.Date.AddHours(8)
+                : currentDate;
         }
 
         public string WeekdayName
@@ -31,16 +33,28 @@ namespace CoachMaster.Domain
             }
         }
 
+        public string ClockText => CurrentDate.ToString("HH:mm");
+
         public string LongDateText
         {
             get
             {
                 var culture = CultureInfo.GetCultureInfo("pt-PT");
-                return $"{WeekdayName}, {CurrentDate.ToString("d 'de' MMMM 'de' yyyy", culture)}";
+                return $"{WeekdayName}, {CurrentDate.ToString("d 'de' MMMM", culture)}  ·  {ClockText}";
             }
         }
 
         public string SeasonLabel => $"{CurrentDate.Year}/{CurrentDate.Year + 1}";
+
+        public void AdvanceHours(double hours)
+        {
+            CurrentDate = CurrentDate.AddHours(hours);
+        }
+
+        public void SetInstant(DateTime instant)
+        {
+            CurrentDate = instant;
+        }
 
         public void AdvanceDays(int days)
         {

@@ -17,15 +17,23 @@ namespace CoachMaster.UI.Screens
             UiFactory.FullScreen(Root.transform, "Background", UiTheme.Canvas);
 
             var page = UiFactory.Column(Root.transform, "CareerPage", 0, new RectOffset(44, 44, 30, 30), true, true);
-            var header = UiFactory.Panel(page.transform, "Header", UiTheme.Panel);
+            var header = UiFactory.Panel(page.transform, "Header", UiTheme.Header);
             UiFactory.LayoutElement(header.GetComponent<Image>(), 100);
-            var headerColumn = UiFactory.Column(header, "HeaderContent", 4, new RectOffset(24, 24, 16, 16), true, true);
-            var clubName = UiFactory.Label(headerColumn.transform, "ClubName", club.Name, 30, UiTheme.Text, TextAnchor.MiddleLeft, FontStyle.Bold);
-            UiFactory.LayoutElement(clubName, 38);
+            var headerRow = UiFactory.Row(header, "HeaderRow", 16, new RectOffset(16, 24, 10, 10), true);
+            var kit = KitView.Create(headerRow.transform, club, new Vector2(64, 80), false);
+            var kitLe = kit.gameObject.AddComponent<LayoutElement>();
+            kitLe.minWidth = 64;
+            kitLe.preferredWidth = 64;
+            kitLe.flexibleWidth = 0;
+            var headerColumn = UiFactory.Column(headerRow.transform, "HeaderContent", 4, new RectOffset(0, 0, 8, 8), false, true);
+            var headerColLe = headerColumn.gameObject.AddComponent<LayoutElement>();
+            headerColLe.flexibleWidth = 1;
+            var clubName = UiFactory.Label(headerColumn.transform, "ClubName", club.Name.ToUpperInvariant(), 28, UiTheme.Text, TextAnchor.MiddleLeft, FontStyle.Bold);
+            UiFactory.LayoutElement(clubName, 34);
             var details = UiFactory.Label(headerColumn.transform, "CareerDetails",
                 $"{career.Calendar.LongDateText}     ·     {career.League.Name} {career.Calendar.SeasonLabel}     ·     Mister {career.Coach.Name}",
-                17, UiTheme.Muted, TextAnchor.MiddleLeft);
-            UiFactory.LayoutElement(details, 28);
+                16, UiTheme.Muted, TextAnchor.MiddleLeft);
+            UiFactory.LayoutElement(details, 24);
 
             var tabsRow = new GameObject("PageTabs", typeof(RectTransform), typeof(HorizontalLayoutGroup));
             tabsRow.transform.SetParent(page.transform, false);
@@ -41,7 +49,10 @@ namespace CoachMaster.UI.Screens
 
             var contentHost = new GameObject("TabContent", typeof(RectTransform));
             contentHost.transform.SetParent(page.transform, false);
-            UiFactory.LayoutElement(contentHost.GetComponent<RectTransform>(), 440);
+            var contentLe = contentHost.AddComponent<LayoutElement>();
+            contentLe.minHeight = 360;
+            contentLe.flexibleHeight = 1;
+            contentLe.preferredHeight = 720;
 
             var home = BuildHome(contentHost.transform, career, club);
             var news = BuildNews(contentHost.transform, career, club);
@@ -55,32 +66,16 @@ namespace CoachMaster.UI.Screens
             var navigator = Root.AddComponent<CareerTabNavigator>();
             navigator.Configure(tabButtons, new[] { home.gameObject, news.gameObject, team.gameObject, staff.gameObject });
 
-            var footer = new GameObject("Footer", typeof(RectTransform), typeof(HorizontalLayoutGroup));
-            footer.transform.SetParent(page.transform, false);
-            UiFactory.LayoutElement(footer.GetComponent<RectTransform>(), 54);
-            var footerLayout = footer.GetComponent<HorizontalLayoutGroup>();
-            footerLayout.childAlignment = TextAnchor.MiddleRight;
-            footerLayout.childControlWidth = false;
-            footerLayout.childControlHeight = false;
-            footerLayout.childForceExpandWidth = false;
-            footerLayout.childForceExpandHeight = false;
-            var exit = UiFactory.Button(footer.transform, "Sair para o menu", () =>
-            {
-                router.Session.ClearCareer();
-                router.Show("main");
-            }, UiTheme.Danger);
-            UiFactory.LayoutElement(exit, 44);
-            exit.GetComponent<LayoutElement>().preferredWidth = 210;
         }
 
         static RectTransform BuildHome(Transform parent, CareerState career, Club club)
         {
-            var panel = UiFactory.Panel(parent, "HomePage", UiTheme.Accent);
+            var panel = UiFactory.Panel(parent, "HomePage", UiTheme.Panel);
             UiFactory.Stretch(panel);
             AddGoldFrame(panel);
             var column = UiFactory.Column(panel, "HomeContent", 12, new RectOffset(24, 24, 20, 20), true, true);
 
-            var heading = UiFactory.Label(column.transform, "Welcome", "Visão geral", 26, UiTheme.ButtonText, TextAnchor.MiddleLeft, FontStyle.Bold);
+            var heading = UiFactory.Label(column.transform, "Welcome", "VISÃO GERAL", 24, UiTheme.Text, TextAnchor.MiddleLeft, FontStyle.Bold);
             UiFactory.LayoutElement(heading, 36);
 
             var scroll = UiFactory.Scroll(column.transform, out var content);
@@ -89,7 +84,7 @@ namespace CoachMaster.UI.Screens
             scrollLe.minHeight = 180;
             AddInfoCard(content, "O clube", $"{club.PublicTeamState}\nIdentidade atual: {club.Tactics.Formation} · {club.Tactics.Summary}", 100);
             AddInfoCard(content, "Calendário", $"{career.Calendar.LongDateText}\nÉ o primeiro dia da tua carreira. Ainda não existem jogos registados no calendário.", 92);
-            var staffHeading = UiFactory.Label(content, "StaffHeading", "O que diz o staff", 21, UiTheme.ButtonText, TextAnchor.MiddleLeft, FontStyle.Bold);
+            var staffHeading = UiFactory.Label(content, "StaffHeading", "O que diz o staff", 21, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
             UiFactory.LayoutElement(staffHeading, 32);
             foreach (var member in club.Staff)
                 AddStaffCard(content, member, 76);
@@ -98,11 +93,11 @@ namespace CoachMaster.UI.Screens
 
         static RectTransform BuildNews(Transform parent, CareerState career, Club club)
         {
-            var panel = UiFactory.Panel(parent, "NewsPage", UiTheme.Accent);
+            var panel = UiFactory.Panel(parent, "NewsPage", UiTheme.Panel);
             UiFactory.Stretch(panel);
             AddGoldFrame(panel);
             var column = UiFactory.Column(panel, "NewsContent", 10, new RectOffset(24, 24, 18, 18), true, true);
-            var heading = UiFactory.Label(column.transform, "NewsHeading", "Notícias do clube", 25, UiTheme.ButtonText, TextAnchor.MiddleLeft, FontStyle.Bold);
+            var heading = UiFactory.Label(column.transform, "NewsHeading", "NOTÍCIAS DO CLUBE", 24, UiTheme.Text, TextAnchor.MiddleLeft, FontStyle.Bold);
             UiFactory.LayoutElement(heading, 34);
             var scroll = UiFactory.Scroll(column.transform, out var content);
             var scrollLe = scroll.gameObject.AddComponent<LayoutElement>();
@@ -127,11 +122,11 @@ namespace CoachMaster.UI.Screens
         static RectTransform BuildTeam(Transform parent, ScreenRouter router)
         {
             var career = router.Session.Career;
-            var panel = UiFactory.Panel(parent, "TeamPage", UiTheme.Accent);
+            var panel = UiFactory.Panel(parent, "TeamPage", UiTheme.Panel);
             UiFactory.Stretch(panel);
             AddGoldFrame(panel);
             var column = UiFactory.Column(panel, "TeamContent", 8, new RectOffset(18, 18, 16, 16), true, true);
-            var heading = UiFactory.Label(column.transform, "TeamHeading", "Plantel · vista tática", 24, UiTheme.ButtonText, TextAnchor.MiddleLeft, FontStyle.Bold);
+            var heading = UiFactory.Label(column.transform, "TeamHeading", "PLANTEL · VISTA TÁTICA", 24, UiTheme.Text, TextAnchor.MiddleLeft, FontStyle.Bold);
             UiFactory.LayoutElement(heading, 34);
             var teamArea = new GameObject("TeamArea", typeof(RectTransform), typeof(HorizontalLayoutGroup));
             teamArea.transform.SetParent(column.transform, false);
@@ -173,20 +168,20 @@ namespace CoachMaster.UI.Screens
                 position.x = Mathf.Clamp(position.x + spread, 0.08f, 0.92f);
                 AddPlayerMarker(field.transform, player, position, jerseyPrimary, jerseySecondary);
             }
-            var note = UiFactory.Label(column.transform, "TeamNote", "Cada camisola representa um jogador do plantel. C identifica o capitão.", 14, UiTheme.ButtonText, TextAnchor.MiddleLeft);
+            var note = UiFactory.Label(column.transform, "TeamNote", "Cada camisola representa um jogador do plantel. C identifica o capitão.", 14, UiTheme.Muted, TextAnchor.MiddleLeft);
             UiFactory.LayoutElement(note, 22);
             return panel;
         }
 
         static RectTransform BuildStaff(Transform parent, Club club)
         {
-            var panel = UiFactory.Panel(parent, "StaffPage", UiTheme.Accent);
+            var panel = UiFactory.Panel(parent, "StaffPage", UiTheme.Panel);
             UiFactory.Stretch(panel);
             AddGoldFrame(panel);
             var column = UiFactory.Column(panel, "StaffContent", 12, new RectOffset(24, 24, 20, 20), true, true);
-            var heading = UiFactory.Label(column.transform, "StaffHeading", "Equipa técnica", 26, UiTheme.ButtonText, TextAnchor.MiddleLeft, FontStyle.Bold);
+            var heading = UiFactory.Label(column.transform, "StaffHeading", "EQUIPA TÉCNICA", 24, UiTheme.Text, TextAnchor.MiddleLeft, FontStyle.Bold);
             UiFactory.LayoutElement(heading, 38);
-            var intro = UiFactory.Label(column.transform, "StaffIntro", "Conhece as pessoas que vão trabalhar contigo no clube.", 16, UiTheme.ButtonText, TextAnchor.MiddleLeft);
+            var intro = UiFactory.Label(column.transform, "StaffIntro", "Conhece as pessoas que vão trabalhar contigo no clube.", 16, UiTheme.Muted, TextAnchor.MiddleLeft);
             UiFactory.LayoutElement(intro, 28);
             var scroll = UiFactory.Scroll(column.transform, out var content);
             var scrollLe = scroll.gameObject.AddComponent<LayoutElement>();
@@ -339,7 +334,7 @@ namespace CoachMaster.UI.Screens
         static void AddGoldFrame(Transform panel)
         {
             var frame = panel.gameObject.AddComponent<Outline>();
-            frame.effectColor = UiTheme.ButtonText;
+            frame.effectColor = UiTheme.Accent;
             frame.effectDistance = new Vector2(2, -2);
             frame.useGraphicAlpha = true;
         }
@@ -426,7 +421,7 @@ namespace CoachMaster.UI.Screens
     public sealed class CareerTabNavigator : MonoBehaviour
     {
         static readonly Color ActiveTab = UiTheme.Accent;
-        static readonly Color InactiveTab = new Color(0.13f, 0.25f, 0.39f, 1f);
+        static readonly Color InactiveTab = UiTheme.PanelAlt;
         readonly List<Button> _buttons = new List<Button>();
         GameObject[] _pages;
         int _selected;

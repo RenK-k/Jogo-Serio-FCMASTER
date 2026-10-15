@@ -45,4 +45,15 @@ namespace CoachMaster.Domain
         Insecure,
         Ambitious
     }
+
+    public enum KitPattern
+    {
+        Solid,
+        VerticalStripes,
+        HorizontalHoops,
+        Sash,
+        Halves,
+        ChestBand,
+        Pinstripe
+    }
 }

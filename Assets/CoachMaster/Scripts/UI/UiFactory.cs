@@ -75,7 +75,7 @@ namespace CoachMaster.UI
             button.colors = colors;
             button.onClick.AddListener(() => onClick());
 
-            var textColor = color == UiTheme.Accent ? UiTheme.ButtonText : UiTheme.Text;
+            var textColor = UiTheme.ButtonText;
             var text = Label(rect, "Label", label, 22, textColor, TextAnchor.MiddleCenter, FontStyle.Bold);
             Stretch(text.rectTransform);
             var padding = text.GetComponent<RectTransform>();
@@ -145,6 +145,24 @@ namespace CoachMaster.UI
             scroll.movementType = ScrollRect.MovementType.Clamped;
             scroll.scrollSensitivity = 28f;
             return scroll;
+        }
+
+        public static HorizontalLayoutGroup Row(Transform parent, string name, int spacing, RectOffset padding, bool stretch = false)
+        {
+            var go = new GameObject(name, typeof(RectTransform), typeof(HorizontalLayoutGroup));
+            var rect = go.GetComponent<RectTransform>();
+            rect.SetParent(parent, false);
+            if (stretch)
+                Stretch(rect);
+            var layout = go.GetComponent<HorizontalLayoutGroup>();
+            layout.spacing = spacing;
+            layout.padding = padding;
+            layout.childAlignment = TextAnchor.MiddleLeft;
+            layout.childControlHeight = true;
+            layout.childControlWidth = true;
+            layout.childForceExpandHeight = true;
+            layout.childForceExpandWidth = false;
+            return layout;
         }
 
         public static VerticalLayoutGroup Column(Transform parent, string name, int spacing, RectOffset padding, bool stretch = false, bool controlChildHeight = false)

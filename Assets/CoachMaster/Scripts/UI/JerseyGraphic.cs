@@ -30,14 +30,14 @@ namespace CoachMaster.UI
             vertexHelper.Clear();
             var rect = GetPixelAdjustedRect();
             var center = new Vector2(rect.center.x, rect.center.y);
-            vertexHelper.AddVert(center, Color.white, new Vector2(0.5f, 0.5f));
+            vertexHelper.AddVert(center, color, new Vector2(0.5f, 0.5f));
 
             for (var i = 0; i < Shape.Length; i++)
             {
                 var point = new Vector2(
                     Mathf.Lerp(rect.xMin, rect.xMax, Shape[i].x),
                     Mathf.Lerp(rect.yMin, rect.yMax, Shape[i].y));
-                vertexHelper.AddVert(point, Color.white, Shape[i]);
+                vertexHelper.AddVert(point, color, Shape[i]);
             }
 
             for (var i = 0; i < Shape.Length; i++)

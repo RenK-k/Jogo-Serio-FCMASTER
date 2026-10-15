@@ -15,8 +15,24 @@ namespace CoachMaster.UI.Screens
             var club = router.Session.Catalog.Clubs[router.Session.Draft.ClubId];
             ScreenChrome.Page(Root.transform, club.Name, $"{club.City}  ·  Fundado em {club.FoundedYear}  ·  {club.Stadium}", () => router.Show("clubs"), out var body);
 
-            var scroll = UiFactory.Scroll(body.transform, out var content);
+            var split = UiFactory.Row(body.transform, "Split", 18, new RectOffset(0, 0, 0, 0), false);
+            var splitLe = split.gameObject.AddComponent<LayoutElement>();
+            splitLe.flexibleHeight = 1;
+            splitLe.minHeight = 220;
+
+            var kitColumn = UiFactory.Column(split.transform, "KitColumn", 10, new RectOffset(0, 0, 0, 0), false, true);
+            var kitColLe = kitColumn.gameObject.AddComponent<LayoutElement>();
+            kitColLe.minWidth = 220;
+            kitColLe.preferredWidth = 240;
+            kitColLe.flexibleWidth = 0;
+            var kit = KitView.Create(kitColumn.transform, club, new Vector2(220, 280), true);
+            UiFactory.LayoutElement(kit, 280);
+            var kitName = UiFactory.Label(kitColumn.transform, "KitName", "EQUIPAMENTO PRINCIPAL", 13, UiTheme.Accent, TextAnchor.MiddleCenter, FontStyle.Bold);
+            UiFactory.LayoutElement(kitName, 20);
+
+            var scroll = UiFactory.Scroll(split.transform, out var content);
             var scrollLe = scroll.gameObject.AddComponent<LayoutElement>();
+            scrollLe.flexibleWidth = 1;
             scrollLe.flexibleHeight = 1;
             scrollLe.minHeight = 200;
 
@@ -31,7 +47,7 @@ namespace CoachMaster.UI.Screens
             AddBlock(content, "Equipa técnica", StaffText(club));
             AddBlock(content, "Plantel", SquadText(router, club));
 
-            var choose = UiFactory.Button(body.transform, "Escolher este clube", () => router.Show("create"), UiTheme.Accent);
+            var choose = UiFactory.Button(body.transform, "ESCOLHER ESTE CLUBE", () => router.Show("create"), UiTheme.Accent);
             UiFactory.LayoutElement(choose, 52);
         }
 
@@ -39,12 +55,12 @@ namespace CoachMaster.UI.Screens
         {
             var panel = UiFactory.Panel(parent, title, UiTheme.Panel);
             var column = UiFactory.Column(panel, "Inner", 6, new RectOffset(16, 16, 12, 12), stretch: true, controlChildHeight: true);
-            var heading = UiFactory.Label(column.transform, "H", title, 18, UiTheme.Accent, TextAnchor.UpperLeft, FontStyle.Bold);
-            UiFactory.LayoutElement(heading, 24);
-            var text = UiFactory.Label(column.transform, "B", body, 18, UiTheme.Text);
+            var heading = UiFactory.Label(column.transform, "H", title.ToUpperInvariant(), 16, UiTheme.Accent, TextAnchor.UpperLeft, FontStyle.Bold);
+            UiFactory.LayoutElement(heading, 22);
+            var text = UiFactory.Label(column.transform, "B", body, 17, UiTheme.Text);
             var height = EstimateHeight(body);
             UiFactory.LayoutElement(text, height);
-            UiFactory.LayoutElement(panel.GetComponent<Image>(), 24 + height + 28);
+            UiFactory.LayoutElement(panel.GetComponent<Image>(), 22 + height + 26);
         }
 
         static float EstimateHeight(string body)

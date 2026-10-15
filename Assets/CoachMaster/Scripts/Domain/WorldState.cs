@@ -7,6 +7,7 @@ namespace CoachMaster.Domain
         public List<League> Leagues { get; } = new List<League>();
         public Dictionary<string, Club> Clubs { get; } = new Dictionary<string, Club>();
         public Dictionary<string, Player> Players { get; } = new Dictionary<string, Player>();
+        public HashSet<string> LoadedLeagueIds { get; } = new HashSet<string>();
 
         public IEnumerable<Club> ClubsInLeague(string leagueId)
         {

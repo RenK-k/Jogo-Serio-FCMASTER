@@ -16,6 +16,10 @@ namespace CoachMaster.UI.Screens
                 () => router.Show("club"),
                 out var body);
 
+            var preview = KitView.Create(body.transform, club, new Vector2(160, 200), false);
+            UiFactory.LayoutElement(preview, 200);
+            preview.gameObject.AddComponent<LayoutElement>().preferredWidth = 160;
+
             var field = UiFactory.Input(body.transform, "Nome do treinador");
             UiFactory.LayoutElement(field, 52);
             field.text = router.Session.Draft.CoachName;
@@ -23,7 +27,7 @@ namespace CoachMaster.UI.Screens
             var error = UiFactory.Label(body.transform, "Error", "", 18, new Color(0.85f, 0.45f, 0.4f));
             UiFactory.LayoutElement(error, 28);
 
-            var confirm = UiFactory.Button(body.transform, "Assumir o clube", () =>
+            var confirm = UiFactory.Button(body.transform, "ASSUMIR O CLUBE", () =>
             {
                 var name = field.text == null ? "" : field.text.Trim();
                 if (name.Length < 2)

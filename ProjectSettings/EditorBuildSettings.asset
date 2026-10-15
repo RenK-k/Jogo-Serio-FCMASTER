@@ -6,8 +6,26 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/Scenes/SampleScene.unity
+    path: Assets/Scenes/MainMenu.unity
     guid: 8c9cfa26abfee488c85f1582747f6a02
+  - enabled: 1
+    path: Assets/Scenes/LeagueSelect.unity
+    guid: 9d86f2356d5d41bf8dcd74669aaf7c7e
+  - enabled: 1
+    path: Assets/Scenes/TeamSelect.unity
+    guid: 593ebd8e05094f89abbce19cbe25a69f
+  - enabled: 1
+    path: Assets/Scenes/ClubInfo.unity
+    guid: 9cbdbd0a61bf4de5b30ee429676a44a0
+  - enabled: 1
+    path: Assets/Scenes/CreateCareer.unity
+    guid: f9e5d744940d479da341737d98de443e
+  - enabled: 1
+    path: Assets/Scenes/CareerHub.unity
+    guid: b113c21a244e4bbda5bcde391a933548
+  - enabled: 1
+    path: Assets/Scenes/MatchDay.unity
+    guid: e2ca0ee323044f36b88c719d70261b9d
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}
   m_UseUCBPForAssetBundles: 0

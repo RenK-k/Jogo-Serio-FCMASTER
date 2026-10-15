@@ -14,8 +14,11 @@ namespace CoachMaster.Domain
         public string History { get; set; }
         public string PublicReputation { get; set; }
         public int Reputation { get; set; }
+        public string KitSlug { get; set; }
         public string JerseyPrimaryHex { get; set; }
         public string JerseySecondaryHex { get; set; }
+        public string JerseyShortsHex { get; set; }
+        public KitPattern KitPattern { get; set; }
         public ClubFinance Finance { get; set; }
         public TacticalIdentity Tactics { get; set; }
         public List<string> BoardObjectives { get; set; } = new List<string>();

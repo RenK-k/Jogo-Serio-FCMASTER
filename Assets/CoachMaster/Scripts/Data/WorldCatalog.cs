@@ -5,10 +5,10 @@ namespace CoachMaster.Data
 {
     public static class WorldCatalog
     {
-        public static WorldState Create()
+        public static WorldState CreateShell()
         {
             var world = new WorldState();
-            var atlas = new League
+            world.Leagues.Add(new League
             {
                 Id = Ids.League("atlas"),
                 Name = "Liga Atlas",
@@ -16,8 +16,8 @@ namespace CoachMaster.Data
                 Tier = LeagueTier.First,
                 Description = "A principal competição do país. Oito clubes disputam o título e a permanência.",
                 ClubCount = 8
-            };
-            var horizonte = new League
+            });
+            world.Leagues.Add(new League
             {
                 Id = Ids.League("horizonte"),
                 Name = "Liga Horizonte",
@@ -25,12 +25,34 @@ namespace CoachMaster.Data
                 Tier = LeagueTier.Second,
                 Description = "A segunda liga do país. Seis clubes lutam pela subida à Liga Atlas.",
                 ClubCount = 6
-            };
-            world.Leagues.Add(atlas);
-            world.Leagues.Add(horizonte);
-            AddAtlasClubs(world, atlas.Id);
-            AddHorizonteClubs(world, horizonte.Id);
+            });
             return world;
+        }
+
+        public static WorldState Create()
+        {
+            var world = CreateShell();
+            EnsureAllClubs(world);
+            return world;
+        }
+
+        public static void EnsureAllClubs(WorldState world)
+        {
+            foreach (var league in world.Leagues)
+                EnsureLeagueClubs(world, league.Id);
+        }
+
+        public static void EnsureLeagueClubs(WorldState world, string leagueId)
+        {
+            if (world.LoadedLeagueIds.Contains(leagueId))
+                return;
+
+            if (leagueId == Ids.League("atlas"))
+                AddAtlasClubs(world, leagueId);
+            else if (leagueId == Ids.League("horizonte"))
+                AddHorizonteClubs(world, leagueId);
+
+            world.LoadedLeagueIds.Add(leagueId);
         }
 
         static void AddAtlasClubs(WorldState world, string leagueId)
@@ -544,6 +566,7 @@ namespace CoachMaster.Data
         static void AddClub(WorldState world, string leagueId, ClubDefinition def)
         {
             var clubId = Ids.Club(def.Slug);
+            var kit = KitSpec(def.Slug);
             var club = new Club
             {
                 Id = clubId,
@@ -556,8 +579,11 @@ namespace CoachMaster.Data
                 History = def.History,
                 PublicReputation = def.PublicReputation,
                 Reputation = def.Reputation,
-                JerseyPrimaryHex = KitColors(def.Slug)[0],
-                JerseySecondaryHex = KitColors(def.Slug)[1],
+                KitSlug = def.Slug,
+                JerseyPrimaryHex = kit.Primary,
+                JerseySecondaryHex = kit.Secondary,
+                JerseyShortsHex = kit.Shorts,
+                KitPattern = kit.Pattern,
                 Finance = def.Finance,
                 Tactics = def.Tactics,
                 BoardObjectives = def.BoardObjectives,
@@ -593,25 +619,41 @@ namespace CoachMaster.Data
             world.Clubs.Add(club.Id, club);
         }
 
-        static string[] KitColors(string slug)
+        static KitLook KitSpec(string slug)
         {
             switch (slug)
             {
-                case "norte-maritimo": return new[] { "#1769AA", "#F4F4F0" };
-                case "sporting-colina": return new[] { "#16804A", "#F6F1D5" };
-                case "uniao-valverde": return new[] { "#F4F1E8", "#C93036" };
-                case "atletico-ribeira": return new[] { "#C92A35", "#172A4B" };
-                case "real-monte-alto": return new[] { "#E5B627", "#1C3053" };
-                case "academica-prado": return new[] { "#242424", "#F2F0E8" };
-                case "estrela-alcantara": return new[] { "#C13B46", "#F4E8D8" };
-                case "ferroviario": return new[] { "#781D37", "#E4C7B5" };
-                case "serra-nova": return new[] { "#327649", "#E9E3C2" };
-                case "portuarios": return new[] { "#267AA8", "#E7A03A" };
-                case "laranjais": return new[] { "#E87825", "#193C66" };
-                case "vila-do-rio": return new[] { "#35A9B2", "#F4EBDD" };
-                case "sc-penhas": return new[] { "#E2C32E", "#245B40" };
-                case "independente-bruma": return new[] { "#737D89", "#202A3B" };
-                default: return new[] { "#F2B91C", "#163A60" };
+                case "norte-maritimo": return new KitLook("#1769AA", "#F4F4F0", "#0E3F6A", KitPattern.HorizontalHoops);
+                case "sporting-colina": return new KitLook("#16804A", "#F6F1D5", "#0F4C2C", KitPattern.VerticalStripes);
+                case "uniao-valverde": return new KitLook("#F4F1E8", "#C93036", "#C93036", KitPattern.ChestBand);
+                case "atletico-ribeira": return new KitLook("#C92A35", "#172A4B", "#172A4B", KitPattern.VerticalStripes);
+                case "real-monte-alto": return new KitLook("#E5B627", "#1C3053", "#1C3053", KitPattern.Sash);
+                case "academica-prado": return new KitLook("#242424", "#F2F0E8", "#1A1A1A", KitPattern.Solid);
+                case "estrela-alcantara": return new KitLook("#C13B46", "#F4E8D8", "#F4E8D8", KitPattern.VerticalStripes);
+                case "ferroviario": return new KitLook("#781D37", "#E4C7B5", "#4A1222", KitPattern.HorizontalHoops);
+                case "serra-nova": return new KitLook("#327649", "#E9E3C2", "#E9E3C2", KitPattern.Solid);
+                case "portuarios": return new KitLook("#267AA8", "#E7A03A", "#E7A03A", KitPattern.Halves);
+                case "laranjais": return new KitLook("#E87825", "#193C66", "#193C66", KitPattern.Solid);
+                case "vila-do-rio": return new KitLook("#35A9B2", "#F4EBDD", "#F4EBDD", KitPattern.ChestBand);
+                case "sc-penhas": return new KitLook("#E2C32E", "#245B40", "#245B40", KitPattern.VerticalStripes);
+                case "independente-bruma": return new KitLook("#737D89", "#202A3B", "#202A3B", KitPattern.Pinstripe);
+                default: return new KitLook("#F2B91C", "#163A60", "#163A60", KitPattern.Solid);
+            }
+        }
+
+        readonly struct KitLook
+        {
+            public readonly string Primary;
+            public readonly string Secondary;
+            public readonly string Shorts;
+            public readonly KitPattern Pattern;
+
+            public KitLook(string primary, string secondary, string shorts, KitPattern pattern)
+            {
+                Primary = primary;
+                Secondary = secondary;
+                Shorts = shorts;
+                Pattern = pattern;
             }
         }
 
