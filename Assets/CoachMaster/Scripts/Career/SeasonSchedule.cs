@@ -21,15 +21,42 @@ namespace CoachMaster.Career
 
                 clubs.Sort((a, b) => string.CompareOrdinal(a.Id, b.Id));
                 foreach (var club in clubs)
-                {
-                    career.Table.Add(new LeagueTableRow { ClubId = club.Id });
-                }
+                    career.Table.Add(new LeagueTableRow { ClubId = club.Id, LeagueId = league.Id });
+
+                if (league.Tier == LeagueTier.Continental)
+                    continue;
 
                 AddRoundRobin(career, league.Id, clubs, GameCalendar.SeasonStart.AddDays(34), false);
                 AddRoundRobin(career, league.Id, clubs, GameCalendar.SeasonStart.AddDays(34 + clubs.Count * 7), true);
             }
 
+            AddChampions(career);
             career.Fixtures.Sort((a, b) => a.Date.CompareTo(b.Date));
+        }
+
+        static void AddChampions(CareerState career)
+        {
+            var leagueId = "league:campeoes";
+            var invited = new List<Club>();
+            foreach (var league in career.World.Leagues)
+            {
+                if (league.Tier != LeagueTier.First)
+                    continue;
+                var clubs = new List<Club>();
+                foreach (var club in career.World.Clubs.Values)
+                {
+                    if (club.LeagueId == league.Id)
+                        clubs.Add(club);
+                }
+
+                clubs.Sort((a, b) => b.Reputation.CompareTo(a.Reputation));
+                for (var i = 0; i < clubs.Count && i < 2; i++)
+                    invited.Add(clubs[i]);
+            }
+
+            foreach (var club in invited)
+                career.Table.Add(new LeagueTableRow { ClubId = club.Id, LeagueId = leagueId });
+            AddRoundRobin(career, leagueId, invited, GameCalendar.SeasonStart.AddDays(20), false);
         }
 
         static void AddRoundRobin(CareerState career, string leagueId, List<Club> clubs, DateTime start, bool reverse)
@@ -112,15 +139,17 @@ namespace CoachMaster.Career
         public static void ApplyResult(CareerState career, Fixture fixture)
         {
             fixture.Played = true;
-            ApplyTeam(career, fixture.HomeClubId, fixture.HomeGoals, fixture.AwayGoals);
-            ApplyTeam(career, fixture.AwayClubId, fixture.AwayGoals, fixture.HomeGoals);
+            ApplyTeam(career, fixture.LeagueId, fixture.HomeClubId, fixture.HomeGoals, fixture.AwayGoals);
+            ApplyTeam(career, fixture.LeagueId, fixture.AwayClubId, fixture.AwayGoals, fixture.HomeGoals);
         }
 
-        static void ApplyTeam(CareerState career, string clubId, int scored, int conceded)
+        static void ApplyTeam(CareerState career, string leagueId, string clubId, int scored, int conceded)
         {
             foreach (var row in career.Table)
             {
                 if (row.ClubId != clubId)
+                    continue;
+                if (!string.IsNullOrEmpty(row.LeagueId) && row.LeagueId != leagueId)
                     continue;
                 row.Played++;
                 row.GoalsFor += scored;

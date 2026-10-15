@@ -17,7 +17,7 @@ namespace CoachMaster.Career
                     Name = coachName.Trim(),
                     ClubId = clubId
                 },
-                Calendar = new GameCalendar(GameCalendar.SeasonStart),
+                Calendar = new GameCalendar(GameCalendar.Takeover),
                 Knowledge = new CoachKnowledge()
             };
             SeasonSchedule.Build(career);

@@ -14,6 +14,14 @@ namespace CoachMaster.Career
         public List<CareerMoment> Upcoming { get; } = new List<CareerMoment>();
         public CareerMoment Current { get; set; }
         public List<string> Notebook { get; } = new List<string>();
+        public List<CoachNote> Board { get; } = new List<CoachNote>();
+        public List<PaperStory> Press { get; } = new List<PaperStory>();
+        public HashSet<string> Scouted { get; } = new HashSet<string>();
+        public HashSet<string> Listed { get; } = new HashSet<string>();
+        public HashSet<string> ScoutedPlayers { get; } = new HashSet<string>();
+        public HashSet<string> Loans { get; } = new HashSet<string>();
+        public List<ScoutJob> ScoutJobs { get; } = new List<ScoutJob>();
+        public List<PlayerNote> PlayerNotes { get; } = new List<PlayerNote>();
 
         public Fixture NextUserFixture()
         {
@@ -46,5 +54,17 @@ namespace CoachMaster.Career
                 return null;
             }
         }
+    }
+
+    public sealed class PlayerNote
+    {
+        public string PlayerId { get; set; }
+        public string Text { get; set; }
+    }
+
+    public sealed class ScoutJob
+    {
+        public string PlayerId { get; set; }
+        public long Due { get; set; }
     }
 }

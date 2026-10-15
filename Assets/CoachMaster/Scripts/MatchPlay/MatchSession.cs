@@ -25,10 +25,40 @@ namespace CoachMaster.MatchPlay
         public MatchPhase Phase { get; set; } = MatchPhase.FirstHalf;
         public string LastEvent { get; set; } = "O árbitro dá início à partida.";
         public string TeamTalk { get; set; }
+        public string Flash { get; set; }
+        public string FlashPlayerId { get; set; }
+        public Dictionary<string, int> GoalsScored { get; } = new Dictionary<string, int>();
+        public Dictionary<string, int> Assists { get; } = new Dictionary<string, int>();
+        public Dictionary<string, int> PenaltyGoals { get; } = new Dictionary<string, int>();
+        public Dictionary<string, int> Bookings { get; } = new Dictionary<string, int>();
+        public int FlashSerial { get; set; }
         public float AttackBoost { get; set; }
         public float DefenseBoost { get; set; }
         public bool Finished { get; set; }
         public Dictionary<string, string> Names { get; } = new Dictionary<string, string>();
+        public Dictionary<string, Player> People { get; } = new Dictionary<string, Player>();
+        public Dictionary<string, float> Ratings { get; } = new Dictionary<string, float>();
+        public List<MatchNote> Notes { get; } = new List<MatchNote>();
+        public float HomePossession { get; set; }
+        public float AwayPossession { get; set; }
+        public int HomeShots { get; set; }
+        public int AwayShots { get; set; }
+        public int HomeChances { get; set; }
+        public int AwayChances { get; set; }
+
+        public void AddNote(string text, string kind)
+        {
+            var minute = (int)Minute;
+            if (minute < 0)
+                minute = 0;
+            Notes.Add(new MatchNote { Minute = minute, Text = text, Kind = kind });
+            LastEvent = text;
+        }
+
+        public float RatingOf(string id)
+        {
+            return Ratings.TryGetValue(id, out var value) ? value : 6f;
+        }
 
         public static MatchSession Create(CareerState career, Fixture fixture)
         {
@@ -43,8 +73,21 @@ namespace CoachMaster.MatchPlay
             FillSquad(career, match.Home, match.HomeOnField, match.HomeBench);
             FillSquad(career, match.Away, match.AwayOnField, match.AwayBench);
             foreach (var player in career.World.Players.Values)
+            {
                 match.Names[player.Id] = player.FullName;
+                match.People[player.Id] = player;
+            }
+            SeedRatings(match, match.HomeOnField, 6.4f);
+            SeedRatings(match, match.AwayOnField, 6.4f);
+            SeedRatings(match, match.HomeBench, 6f);
+            SeedRatings(match, match.AwayBench, 6f);
             return match;
+        }
+
+        static void SeedRatings(MatchSession match, List<string> ids, float value)
+        {
+            foreach (var id in ids)
+                match.Ratings[id] = value;
         }
 
         static void FillSquad(CareerState career, Club club, List<string> onField, List<string> bench)
@@ -52,19 +95,30 @@ namespace CoachMaster.MatchPlay
             var players = new List<Player>();
             foreach (var id in club.PlayerIds)
                 players.Add(career.World.Players[id]);
-            players.Sort((a, b) => PositionRank(a.Position).CompareTo(PositionRank(b.Position)));
-            for (var i = 0; i < players.Count; i++)
+            var available = new List<Player>();
+            var hurt = new List<Player>();
+            foreach (var player in players)
             {
-                if (onField.Count < 11)
-                    onField.Add(players[i].Id);
+                if (player.Injury != null && player.Injury.IsInjured)
+                    hurt.Add(player);
                 else
-                    bench.Add(players[i].Id);
+                    available.Add(player);
             }
-        }
 
-        static int PositionRank(PlayerPosition position)
-        {
-            return (int)position;
+            var eleven = new List<Player>();
+            var rest = new List<Player>();
+            StartingShape.Resolve(available, club, eleven, rest);
+            foreach (var player in eleven)
+                onField.Add(player.Id);
+            foreach (var player in rest)
+                bench.Add(player.Id);
+            foreach (var player in hurt)
+                bench.Add(player.Id);
+            while (onField.Count < 11 && bench.Count > 0)
+            {
+                onField.Add(bench[0]);
+                bench.RemoveAt(0);
+            }
         }
 
         static TacticalIdentity Copy(TacticalIdentity src)
@@ -76,6 +130,9 @@ namespace CoachMaster.MatchPlay
                 BuildUp = src.BuildUp,
                 FullBacks = src.FullBacks,
                 DefensiveLine = src.DefensiveLine,
+                Width = string.IsNullOrEmpty(src.Width) ? "Largura normal" : src.Width,
+                Tempo = string.IsNullOrEmpty(src.Tempo) ? "Ritmo normal" : src.Tempo,
+                PassingStyle = string.IsNullOrEmpty(src.PassingStyle) ? "Passe misto" : src.PassingStyle,
                 FormerCoachName = src.FormerCoachName,
                 Summary = src.Summary
             };
@@ -88,5 +145,12 @@ namespace CoachMaster.MatchPlay
         HalfTime,
         SecondHalf,
         FullTime
+    }
+
+    public sealed class MatchNote
+    {
+        public int Minute;
+        public string Text;
+        public string Kind;
     }
 }

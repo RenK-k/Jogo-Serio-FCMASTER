@@ -24,6 +24,7 @@ namespace CoachMaster.Career
         public int[] MoraleDelta;
         public int[] FatigueDelta;
         public bool Answered;
+        public string BoardLine;
     }
 
     public static class CareerMoments
@@ -34,6 +35,7 @@ namespace CoachMaster.Career
             career.Current = null;
             QueueUntil(career, 1);
             Pull(career);
+            Newsroom.EnsureSeed(career);
         }
 
         public static void Continue(CareerState career)
@@ -57,17 +59,30 @@ namespace CoachMaster.Career
             player.Morale = Clamp(player.Morale + moment.MoraleDelta[choice]);
             player.Fatigue = Clamp(player.Fatigue + moment.FatigueDelta[choice]);
             moment.Body += "\n\nTu: " + moment.Replies[choice] + "\n\n" + moment.FollowUps[choice];
+            if (moment.FollowUps[choice].Contains("fisioterapeuta") || moment.FollowUps[choice].Contains("coxear") || moment.FollowUps[choice].Contains("não apoia"))
+            {
+                player.Injury.IsInjured = true;
+                player.Injury.Description = "Lesão muscular";
+                player.Injury.DaysRemaining = choice == 0 ? 8 : 16;
+            }
+
+            if (moment.FollowUps[choice].Contains("Muda o movimento"))
+            {
+                if (player.Duty == "Cortar para dentro")
+                    player.Duty = "Ficar aberto";
+                else if (player.Duty == "Ficar aberto")
+                    player.Duty = "Cortar para dentro";
+            }
             career.Notebook.Insert(0, career.Calendar.ClockText + "  " + player.FullName + " — conversa no centro de treinos.");
         }
 
-        public static void AfterMatch(CareerState career, int homeGoals, int awayGoals, bool userHome)
+        public static void AfterMatch(CareerState career, int homeGoals, int awayGoals, bool userHome, string homeName, string awayName, string motm = null, string motmMark = null)
         {
             career.Current = null;
             career.Upcoming.Clear();
             var when = career.Calendar.CurrentDate.Date.AddHours(19);
             if (when < career.Calendar.CurrentDate)
-                when = career.Calendar.CurrentDate.AddHours(2);
-            career.Calendar.SetInstant(when);
+                career.Calendar.SetInstant(when);
             var tone = userHome
                 ? (homeGoals > awayGoals ? "O balneário fala baixo, mas há sorrisos contidos." : homeGoals == awayGoals ? "Ninguém grita. Ninguém festeja." : "Há toalhas no chão e ninguém se olha.")
                 : (awayGoals > homeGoals ? "No autocarro, dois jogadores ainda discutem o golo sofrido." : "A viagem de regresso é longa e quase muda.");
@@ -79,10 +94,32 @@ namespace CoachMaster.Career
                 Body = tone + "\n\nO adjunto espera que sejas tu a puxar a primeira conversa. Ninguém te entrega um relatório de humor."
             };
             career.Notebook.Insert(0, "Jogo terminado. O que sentiste no balneário fica contigo.");
+            career.Board.Insert(0, new CoachNote
+            {
+                Day = career.Calendar.WeekdayName,
+                Hour = career.Calendar.ClockText,
+                When = career.Calendar.CurrentDate,
+                Text = tone
+            });
+            Newsroom.PublishMatch(career, homeName, awayName, homeGoals, awayGoals, userHome, motm, motmMark);
+            if (career.Calendar.CurrentDate.Day % 4 == 0)
+                Newsroom.PublishTransfer(career);
         }
 
         static void Pull(CareerState career)
         {
+            if (career.Current != null && !string.IsNullOrEmpty(career.Current.BoardLine))
+            {
+                career.Board.Insert(0, new CoachNote
+                {
+                    Day = career.Calendar.WeekdayName,
+                    Hour = career.Calendar.ClockText,
+                    When = career.Calendar.CurrentDate,
+                    Text = career.Current.BoardLine
+                });
+                career.Current.BoardLine = null;
+            }
+
             QueueUntil(career, 1);
             if (career.Upcoming.Count == 0)
             {
@@ -121,147 +158,240 @@ namespace CoachMaster.Career
         {
             var before = career.Upcoming.Count;
             var match = MatchOn(career, day);
-            TryAdd(career, notBefore, day.AddHours(9), "Chegada", Arrival(career), MomentKind.Note, null, null);
-            TryAdd(career, notBefore, day.AddHours(11), "Treino", TrainingClue(career), MomentKind.Note, null, null);
+            TryAdd(career, notBefore, day.AddHours(9), "Chegada", "chegada");
+            TryAdd(career, notBefore, day.AddHours(11), "Treino", "treino");
             if (match == null)
-                TryAdd(career, notBefore, day.AddHours(16), "Tarde no clube", Afternoon(career), MomentKind.Note, null, null);
+                TryAdd(career, notBefore, day.AddHours(16), "Tarde no clube", "tarde");
             else
             {
-                career.Upcoming.Add(new CareerMoment
+                var kick = day.AddHours(16);
+                if (kick > notBefore)
                 {
-                    When = day.AddHours(16),
-                    Title = "Hora do jogo",
-                    Body = "O relvado está aberto. O que viste nas horas anteriores é tudo o que tens. Ninguém te mostra cansaço numa barra.",
-                    Kind = MomentKind.Match,
-                    Fixture = match
-                });
+                    career.Upcoming.Add(new CareerMoment
+                    {
+                        When = kick,
+                        Title = "Hora do jogo",
+                        Body = MomentScript.MatchCall(career, match),
+                        Kind = MomentKind.Match,
+                        Fixture = match,
+                        BoardLine = MomentScript.MatchBoard(career, match)
+                    });
+                }
+                Newsroom.PublishPreview(career, match);
             }
 
             if ((day.Day + career.Club.Name.Length) % 2 == 0)
                 TryTalk(career, notBefore, day.AddHours(13));
             else
-                TryAdd(career, notBefore, day.AddHours(18), "Corredor", StaffClue(career), MomentKind.Note, null, null);
-
+                TryAdd(career, notBefore, day.AddHours(18), "No clube", "clube");
             return career.Upcoming.Count - before;
         }
 
-        static void TryAdd(CareerState career, DateTime notBefore, DateTime when, string title, string body, MomentKind kind, string playerId, Fixture fixture)
+        static void TryAdd(CareerState career, DateTime notBefore, DateTime when, string title, string slot)
         {
-            if (when < notBefore)
+            if (when <= notBefore)
                 return;
             career.Upcoming.Add(new CareerMoment
             {
                 When = when,
                 Title = title,
-                Body = body,
-                Kind = kind,
+                Body = MomentScript.Compose(career, when, slot, out var board, out var playerId),
+                Kind = MomentKind.Note,
                 PlayerId = playerId,
-                Fixture = fixture
+                BoardLine = board
             });
         }
 
         static void TryTalk(CareerState career, DateTime notBefore, DateTime when)
         {
-            if (when < notBefore)
+            if (when <= notBefore)
                 return;
             var player = PickPlayer(career, when);
             if (player == null)
                 return;
-            career.Upcoming.Add(BuildTalk(player, when));
+            career.Upcoming.Add(BuildTalk(career, player, when));
         }
 
-        static CareerMoment BuildTalk(Player player, DateTime when)
+        static CareerMoment BuildTalk(CareerState career, Player player, DateTime when)
         {
-            var tired = player.Fatigue >= 68;
-            var low = player.Morale < 42;
-            var high = player.Morale > 74;
+            var other = Other(career, player);
+            var seed = player.FullName.Length * 17 + when.DayOfYear + career.Club.DressingRoomTension + career.Board.Count;
+            var scene = seed % 7;
             string opener;
-            if (tired && low)
-                opener = player.FullName + " encosta-se à parede do corredor. \"Se me meteres hoje outra vez a fazer o mesmo, não sei se as pernas aguentam. Não é desculpa. É o que eu sinto.\"";
-            else if (tired)
-                opener = player.FullName + " bebe água devagar. \"O corpo está pesado. Não me peças para te dizer um número. Olha para mim no último exercício.\"";
-            else if (low)
-                opener = player.FullName + " evita o teu olhar. \"No balneário falam de mim como se eu já não contasse. Queria ouvir isso de ti, não dos outros.\"";
-            else if (high)
-                opener = player.FullName + " procura-te de propósito. \"Estou bem. Se precisares de alguém para puxar o grupo esta tarde, eu fico.\"";
-            else
-                opener = player.FullName + " fala baixo, ao pé da porta. \"Não tenho nada de especial para dizer. Só queria saber se me viste no treino.\"";
+            string[] replies;
+            string[] follow;
+            int[] morale;
+            int[] fatigue;
+            if (player.Injury != null && player.Injury.IsInjured)
+                scene = 3;
+            else if (player.Fatigue >= 72)
+                scene = 0;
+            else if (player.Morale < 38)
+                scene = 2;
 
-            return new CareerMoment
+            switch (scene)
+            {
+                case 0:
+                    opener = player.FullName + " pára a meio do exercício e apoia as mãos nos joelhos.\n\n\"As pernas não aguentam mais este bloco. Se continuar, saio a coxear.\"";
+                    replies = new[]
+                    {
+                        "\"Sai. O preparador vê-te agora e o último exercício fica feito sem ti.\"",
+                        "\"Faz mais um sprint. Se for teatro, nota-se. Se for verdade, paras a seguir.\"",
+                        "\"O grupo não pára por uma pessoa. Volta para a fila.\""
+                    };
+                    follow = new[]
+                    {
+                        "Sai sem discutir. No banco, alonga a coxa e não volta a pedir.",
+                        "Faz o sprint curto. Não reclama. Também não te olha.",
+                        "Volta para a fila. O resto do grupo abranda sem tu mandares."
+                    };
+                    morale = new[] { 6, -4, -8 };
+                    fatigue = new[] { -14, 8, 4 };
+                    break;
+                case 1:
+                    opener = player.FullName + " aponta para " + other.FullName + ", à frente do grupo.\n\n\"No balneário já não se ouve o capitão. Hoje, " + other.FullName + " e outro discutiram à frente de toda a gente. Alguém tem de pôr ordem.\"";
+                    replies = new[]
+                    {
+                        "\"Chamo o capitão. Isto resolve-se aqui, à frente do grupo, e acaba hoje.\"",
+                        "\"O exercício muda. A discussão fica para depois, se ainda existir.\"",
+                        "\"Fico do lado de " + other.FullName + ". O outro cala-se e volta ao lugar.\""
+                    };
+                    follow = new[]
+                    {
+                        "O capitão fala baixo. A discussão acaba, mas o vestiário fica mais tenso.",
+                        "Ninguém insiste. O exercício seguinte é feito em silêncio.",
+                        other.FullName + " agradece com a cabeça. O outro vira as costas."
+                    };
+                    morale = new[] { 3, -2, -9 };
+                    fatigue = new[] { 0, -2, 2 };
+                    break;
+                case 2:
+                    opener = player.FullName + " espera-te à porta do balneário.\n\n\"Não jogo. Se a ideia é continuar assim, diz-me de uma vez. Não me deixes a adivinhar até sábado.\"";
+                    replies = new[]
+                    {
+                        "\"Contas para o próximo jogo. O lugar é teu, se o corpo responder.\"",
+                        "\"A decisão vê-se no treino, não neste corredor. Mostra-me hoje.\"",
+                        "\"Entra. Não tenho resposta para ti agora.\""
+                    };
+                    follow = new[]
+                    {
+                        "Assente, quase aliviado. O resto da tarde treina como se o lugar já fosse dele.",
+                        "Fica à espera de mais. Não recebe. Volta na mesma.",
+                        "Entra, senta-se e não volta a tocar na bola."
+                    };
+                    morale = new[] { 8, 1, -11 };
+                    fatigue = new[] { -4, 0, 2 };
+                    break;
+                case 3:
+                    opener = player.FullName + " senta-se no relvado e segura a coxa.\n\n\"Não é cansaço. Qualquer coisa cedeu no último corte. Não consigo apoiar o pé.\"";
+                    replies = new[]
+                    {
+                        "\"Paro o treino. O fisioterapeuta vê-te já.\"",
+                        "\"Acaba este exercício e falamos a seguir.\"",
+                        "\"É dor de esforço. Continua e diz-me se piorar.\""
+                    };
+                    follow = new[]
+                    {
+                        "O fisioterapeuta tira-o. Fica de fora dos próximos dias.",
+                        "Acaba a coxear. À noite a coxa está dura.",
+                        "Continua. A meio do exercício já não apoia o pé."
+                    };
+                    morale = new[] { 2, -3, -8 };
+                    fatigue = new[] { -6, 6, 10 };
+                    break;
+                case 4:
+                    opener = "O " + career.Club.Tactics.Formation + " está no quadro. " + player.FullName + " aponta para o seu lado.\n\n\"A instrução que tenho é " + DutyOf(player) + ". Se me deixares jogar assim, o lado abre-se. Se me prenderes à linha, o jogo morre.\"";
+                    replies = new[]
+                    {
+                        "\"Cumpre a instrução que já está no quadro. É essa que o grupo treinou.\"",
+                        "\"Inverte. Se cortas, ficas aberto. Se ficas aberto, cortas.\"",
+                        "\"Repete o mesmo lance. A instrução não muda hoje.\""
+                    };
+                    follow = new[]
+                    {
+                        "Treina o lance duas vezes e o lado percebe o que queres.",
+                        "Muda o movimento. No primeiro minuto engana-se. No segundo já não.",
+                        "O lance repete-se igual. Ele cumpre, sem acreditar."
+                    };
+                    morale = new[] { 5, 1, -4 };
+                    fatigue = new[] { 2, 3, 4 };
+                    break;
+                case 5:
+                    opener = player.FullName + " e " + other.FullName + " empurram-se junto à garrafa de água.\n\n" + player.FullName + ": \"Isto vem de ontem. Ele fechou-me o espaço no último exercício e ainda acha que foi falta minha.\"";
+                    replies = new[]
+                    {
+                        "Separas os dois e falas com cada um, longe do grupo.",
+                        "\"Resolvam isso entre vocês. Eu tenho um treino para orientar.\"",
+                        "\"Os dois fazem uma série extra. A discussão acabou.\""
+                    };
+                    follow = new[]
+                    {
+                        "Separam-se. Não se falam, mas o treino continua.",
+                        "Afastam-se cinco minutos depois, ainda zangados.",
+                        "Fazem a série. O resto do grupo olha para ti, não para eles."
+                    };
+                    morale = new[] { 2, -3, -6 };
+                    fatigue = new[] { 0, 0, 8 };
+                    break;
+                default:
+                    opener = "Antes do jogo, " + player.FullName + " pede-te um minuto no corredor.\n\n\"Não me chega ouvir a formação. Quero saber se conto contigo quando a coisa apertar.\"";
+                    replies = new[]
+                    {
+                        "\"Contas. Quando apertar, a bola passa por ti.\"",
+                        "\"Conta quem estiver melhor às três da tarde. Isso inclui-te, se fores tu.\"",
+                        "Não respondes. Entras para a sala e deixas a pergunta no corredor."
+                    };
+                    follow = new[]
+                    {
+                        "Sai da conversa direito. No aquecimento é o primeiro a falar.",
+                        "Encolhe os ombros. Vai aquecer na mesma.",
+                        "Fica no corredor mais um segundo. Depois entra atrás de ti."
+                    };
+                    morale = new[] { 7, 0, -5 };
+                    fatigue = new[] { -2, 0, 1 };
+                    break;
+            }
+
+            var moment = new CareerMoment
             {
                 When = when,
                 Title = "Conversa · " + player.FullName,
                 Body = opener,
                 Kind = MomentKind.Talk,
                 PlayerId = player.Id,
-                Replies = new[]
-                {
-                    "Ouve sem interromper e tira-o do exercício mais duro.",
-                    "Diz que conta contigo, mas que o grupo precisa dele na mesma.",
-                    "Cortas a conversa e mandas-o voltar ao trabalho."
-                },
-                FollowUps = new[]
-                {
-                    "Ele assente, quase aliviado. No exercício seguinte já não arrasta os pés da mesma maneira.",
-                    "Fica em silêncio um segundo. Depois volta para o meio dos colegas sem pedir mais nada.",
-                    "A mandíbula fecha-se. Não discute. Também não volta a olhar para ti até ao fim da tarde."
-                },
-                MoraleDelta = new[] { low ? 8 : 4, 2, -10 },
-                FatigueDelta = new[] { -12, -4, 6 }
+                Replies = replies,
+                FollowUps = follow,
+                MoraleDelta = morale,
+                FatigueDelta = fatigue,
+                BoardLine = player.FullName + " procurou-te antes de voltares ao relvado."
             };
+            if (scene == 3)
+                moment.BoardLine = player.FullName + " queixou-se da coxa no treino.";
+            return moment;
         }
 
-        static string Arrival(CareerState career)
+        static string DutyOf(Player player)
         {
-            return "Passas o portão do centro de treinos. " + career.Club.DressingRoomAtmosphere +
-                   " Ninguém te entrega uma folha com estados de espírito. Tens de ouvir o que dizem e o que evitam dizer.";
+            return string.IsNullOrEmpty(player.Duty) ? "sem instrução definida" : player.Duty;
         }
 
-        static string TrainingClue(CareerState career)
+        static string Trim(string value)
         {
-            var players = Squad(career);
-            Player heaviest = null;
-            Player quietest = null;
-            foreach (var player in players)
+            if (string.IsNullOrEmpty(value))
+                return "";
+            return value.Length > 90 ? value.Substring(0, 90) : value;
+        }
+
+        static Player Other(CareerState career, Player player)
+        {
+            foreach (var id in career.Club.PlayerIds)
             {
-                if (heaviest == null || player.Fatigue > heaviest.Fatigue)
-                    heaviest = player;
-                if (quietest == null || player.Morale < quietest.Morale)
-                    quietest = player;
+                var other = career.World.Players[id];
+                if (other.Id != player.Id)
+                    return other;
             }
 
-            var lines = "O adjunto não te dá percentagens. Aponta com o queixo.\n\n";
-            if (heaviest != null)
-                lines += ClueBody(heaviest) + "\n";
-            if (quietest != null && quietest != heaviest)
-                lines += ClueMood(quietest);
-            return lines;
-        }
-
-        static string Afternoon(CareerState career)
-        {
-            return career.Club.PublicTeamState + "\n\nPassam as horas de almoço. Um grupo fica na mesa, outro sai logo. Repara em quem não se senta com o capitão.";
-        }
-
-        static string StaffClue(CareerState career)
-        {
-            var physio = "O fisioterapeuta";
-            foreach (var member in career.Club.Staff)
-            {
-                if (member.Role == StaffRole.Physiotherapist)
-                    physio = member.FullName;
-            }
-
-            return physio + " cruza-se contigo no corredor e baixa a voz. \"Há quem esteja a compensar com o corpo o que não diz na boca. Não vou pôr nomes num papel. Se quiseres, chama-os um a um.\"";
-        }
-
-        public static string ClueBody(Player player)
-        {
-            if (player.Fatigue >= 75)
-                return player.FullName + " pede para apertar os atacadores duas vezes e chega sempre um passo atrasado à fila.";
-            if (player.Fatigue >= 55)
-                return player.FullName + " cumpre, mas o último sprint fica curto. Não se queixa. Também não pede para repetir.";
-            return player.FullName + " muda de direção sem perder o pé. Não parece estar a poupar-se.";
+            return player;
         }
 
         public static string ClueMood(Player player)
@@ -280,7 +410,7 @@ namespace CoachMaster.Career
             var players = Squad(career);
             if (players.Count == 0)
                 return null;
-            return players[when.Day % players.Count];
+            return players[(when.Day + career.Board.Count + career.Club.DressingRoomTension) % players.Count];
         }
 
         static List<Player> Squad(CareerState career)

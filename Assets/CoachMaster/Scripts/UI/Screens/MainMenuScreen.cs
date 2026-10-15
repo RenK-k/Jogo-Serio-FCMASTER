@@ -25,7 +25,7 @@ namespace CoachMaster.UI.Screens
 
             var brand = UiFactory.Label(column.transform, "Brand", "COACH MASTER", 18, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
             UiFactory.LayoutElement(brand, 24);
-            var title = UiFactory.Label(column.transform, "Title", "MODO CARREIRA", 64, UiTheme.Text, TextAnchor.MiddleLeft, FontStyle.Bold);
+            var title = UiFactory.Label(column.transform, "Title", "SIMULADOR DE TREINADOR", 48, UiTheme.Text, TextAnchor.MiddleLeft, FontStyle.Bold);
             UiFactory.LayoutElement(title, 72);
             var tag = UiFactory.Label(column.transform, "Tag", "Escolhe um clube, assume o banco e constrói a tua história.", 20, UiTheme.Muted, TextAnchor.MiddleLeft);
             UiFactory.LayoutElement(tag, 32);
@@ -39,7 +39,7 @@ namespace CoachMaster.UI.Screens
             spacerBottom.transform.SetParent(column.transform, false);
             spacerBottom.GetComponent<LayoutElement>().flexibleHeight = 1;
 
-            var foot = UiFactory.Label(column.transform, "Foot", "Seleciona um clube  ·  Camisolas em Resources/Kits", 14, UiTheme.Muted, TextAnchor.MiddleLeft);
+            var foot = UiFactory.Label(column.transform, "Foot", "Seleciona um clube.", 14, UiTheme.Muted, TextAnchor.MiddleLeft);
             UiFactory.LayoutElement(foot, 22);
         }
     }

@@ -20,7 +20,7 @@ namespace CoachMaster.UI.Screens
             var header = UiFactory.Panel(page.transform, "Header", UiTheme.Header);
             UiFactory.LayoutElement(header.GetComponent<Image>(), 100);
             var headerRow = UiFactory.Row(header, "HeaderRow", 16, new RectOffset(16, 24, 10, 10), true);
-            var kit = KitView.Create(headerRow.transform, club, new Vector2(64, 80), false);
+            var kit = KitView.Create(headerRow.transform, club, new Vector2(64, 80));
             var kitLe = kit.gameObject.AddComponent<LayoutElement>();
             kitLe.minWidth = 64;
             kitLe.preferredWidth = 64;

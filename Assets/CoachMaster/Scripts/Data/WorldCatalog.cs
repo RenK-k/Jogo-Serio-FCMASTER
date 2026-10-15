@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using CoachMaster.Domain;
+using CoachMaster.UI;
 
 namespace CoachMaster.Data
 {
@@ -26,7 +27,35 @@ namespace CoachMaster.Data
                 Description = "A segunda liga do país. Seis clubes lutam pela subida à Liga Atlas.",
                 ClubCount = 6
             });
+            AddDivision(world, "inglesa", "Liga Inglesa", "Inglaterra", true);
+            AddDivision(world, "inglesa-2", "Liga Inglesa 2", "Inglaterra", false);
+            AddDivision(world, "francesa", "Liga Francesa", "França", true);
+            AddDivision(world, "francesa-2", "Liga Francesa 2", "França", false);
+            AddDivision(world, "espanhola", "Liga Espanhola", "Espanha", true);
+            AddDivision(world, "espanhola-2", "Liga Espanhola 2", "Espanha", false);
+            world.Leagues.Add(new League
+            {
+                Id = Ids.League("campeoes"),
+                Name = "Liga dos Campeões",
+                ShortName = "Campeões",
+                Tier = LeagueTier.Continental,
+                Description = "Os melhores de cada primeira divisão. Não se escolhe clube aqui: a classificação aparece na carreira.",
+                ClubCount = 8
+            });
             return world;
+        }
+
+        static void AddDivision(WorldState world, string slug, string name, string country, bool first)
+        {
+            world.Leagues.Add(new League
+            {
+                Id = Ids.League(slug),
+                Name = name,
+                ShortName = country,
+                Tier = first ? LeagueTier.First : LeagueTier.Second,
+                Description = (first ? "Primeira" : "Segunda") + " divisão de " + country + ". Oito clubes.",
+                ClubCount = 8
+            });
         }
 
         public static WorldState Create()
@@ -51,8 +80,11 @@ namespace CoachMaster.Data
                 AddAtlasClubs(world, leagueId);
             else if (leagueId == Ids.League("horizonte"))
                 AddHorizonteClubs(world, leagueId);
+            else if (leagueId != Ids.League("campeoes"))
+                AddGeneratedDivision(world, leagueId);
 
             world.LoadedLeagueIds.Add(leagueId);
+            FaceBook.Deal(world);
         }
 
         static void AddAtlasClubs(WorldState world, string leagueId)
@@ -551,16 +583,21 @@ namespace CoachMaster.Data
             };
         }
 
-        static List<StaffMember> Staff(string slug, string assistant, string gk, string fitness, string physio)
+        static List<StaffMember> Staff(string slug, string assistant, string gk, string fitness, string physio, int reputation = 74)
         {
             var clubId = Ids.Club(slug);
-            return new List<StaffMember>
+            var list = new List<StaffMember>
             {
                 new StaffMember { Id = Ids.Staff(slug, "adjunto"), ClubId = clubId, FullName = assistant, Role = StaffRole.AssistantCoach },
                 new StaffMember { Id = Ids.Staff(slug, "gr"), ClubId = clubId, FullName = gk, Role = StaffRole.GoalkeeperCoach },
                 new StaffMember { Id = Ids.Staff(slug, "fisico"), ClubId = clubId, FullName = fitness, Role = StaffRole.FitnessCoach },
-                new StaffMember { Id = Ids.Staff(slug, "fisio"), ClubId = clubId, FullName = physio, Role = StaffRole.Physiotherapist }
+                new StaffMember { Id = Ids.Staff(slug, "fisio"), ClubId = clubId, FullName = physio, Role = StaffRole.Physiotherapist },
+                new StaffMember { Id = Ids.Staff(slug, "olheiro"), ClubId = clubId, FullName = "Olheiro " + assistant, Role = StaffRole.Scout }
             };
+            var floor = reputation >= 70 ? 13 : 10;
+            foreach (var member in list)
+                member.Judgement = floor + Hash(member.FullName + member.Role) % 5;
+            return list;
         }
 
         static void AddClub(WorldState world, string leagueId, ClubDefinition def)
@@ -599,7 +636,7 @@ namespace CoachMaster.Data
             var numberToId = new Dictionary<int, string>();
             foreach (var raw in def.Players)
             {
-                var player = ParsePlayer(clubId, def.Slug, raw);
+                var player = ParsePlayer(clubId, def.Slug, raw, def.Reputation);
                 world.Players.Add(player.Id, player);
                 club.PlayerIds.Add(player.Id);
                 numberToId[player.SquadNumber] = player.Id;
@@ -657,30 +694,33 @@ namespace CoachMaster.Data
             }
         }
 
-        static Player ParsePlayer(string clubId, string slug, string raw)
+        static Player ParsePlayer(string clubId, string slug, string raw, int clubReputation)
         {
             var bits = raw.Split('|');
             var number = int.Parse(bits[0]);
             var seed = Hash($"{slug}:{number}:{bits[2]}");
+            var nationality = FaceBook.Nation(seed);
             return new Player
             {
                 Id = Ids.Player(slug, number),
                 ClubId = clubId,
-                FullName = bits[2],
+                FullName = FaceBook.PersonName(nationality, seed),
                 Age = int.Parse(bits[3]),
                 SquadNumber = number,
                 Position = ParsePosition(bits[1]),
                 PreferredFoot = bits[4] == "L" ? PreferredFoot.Left : bits[4] == "B" ? PreferredFoot.Both : PreferredFoot.Right,
-                Nationality = "Portugal",
+                Nationality = nationality,
                 IsCaptain = bits.Length > 5 && bits[5] == "C",
                 IsViceCaptain = bits.Length > 5 && bits[5] == "V",
                 Morale = Range(seed, 38, 86),
-                Fatigue = Range(seed >> 3, 12, 55),
+                Fatigue = Range(seed >> 3, 6, 24),
                 Fitness = Range(seed >> 5, 62, 94),
                 Form = Range(seed >> 7, 40, 78),
                 Motivation = Range(seed >> 9, 45, 88),
                 Injury = new InjuryState(),
-                Personality = (PersonalityTrait)(seed % 7)
+                Personality = (PersonalityTrait)(seed % 7),
+                Attributes = PlayerAttributes.Roll(seed, ParsePosition(bits[1]), clubReputation),
+                Duty = IndividualOrders.For(ParsePosition(bits[1]), seed)
             };
         }
 
@@ -700,6 +740,69 @@ namespace CoachMaster.Data
                 case "PL": return PlayerPosition.Striker;
                 default: return PlayerPosition.CentralMidfielder;
             }
+        }
+
+        static void AddGeneratedDivision(WorldState world, string leagueId)
+        {
+            var slug = leagueId.StartsWith("league:") ? leagueId.Substring(7) : leagueId;
+            var names = DivisionNames(slug);
+            var first = !slug.EndsWith("-2");
+            var country = slug.StartsWith("francesa") ? "França" : slug.StartsWith("espanhola") ? "Espanha" : "Inglaterra";
+            for (var i = 0; i < names.Length; i++)
+            {
+                var clubSlug = slug + "-" + i;
+                var reputation = first ? 70 + (7 - i) * 2 : 46 + (7 - i);
+                AddClub(world, leagueId, new ClubDefinition
+                {
+                    Slug = clubSlug,
+                    Name = names[i],
+                    ShortName = names[i],
+                    City = country,
+                    Stadium = "Estádio de " + names[i],
+                    FoundedYear = 1898 + i * 7,
+                    History = names[i] + " disputa a " + (first ? "primeira" : "segunda") + " divisão de " + country + ".",
+                    PublicReputation = first ? "Clube da primeira divisão." : "Clube a lutar pela subida.",
+                    Reputation = reputation,
+                    Finance = Fin(first ? 5000000 - i * 280000 : 1600000 - i * 80000, first ? 160000 : 70000, first ? 900000 : 250000, "As contas acompanham o tamanho do clube."),
+                    Tactics = Identity(i % 2 == 0 ? "4-3-3" : "4-4-2", "Pressão média", "Construção curta", "Laterais equilibrados", "Linha média", "Treinador anterior"),
+                    BoardObjectives = Obj("Pontuar com regularidade", "Manter o balneário calmo"),
+                    DressingRoomAtmosphere = "O grupo espera um plano claro.",
+                    PublicTeamState = "A pré-época ainda não mostrou o verdadeiro nível.",
+                    HiddenInternalProblems = "Há um ou outro desentendimento, nada que feche o balneário.",
+                    PublicCoachVacancyNote = "O banco está vago.",
+                    HiddenDismissalTruth = "O anterior saiu por resultados e por falta de plano.",
+                    DressingRoomTension = 30 + i * 3,
+                    Staff = Staff(clubSlug, "Adjunto " + (i + 1), "Guarda-redes " + (i + 1), "Físico " + (i + 1), "Fisio " + (i + 1), reputation),
+                    Players = Squad(clubSlug),
+                    Relations = new string[0]
+                });
+            }
+        }
+
+        static string[] DivisionNames(string slug)
+        {
+            switch (slug)
+            {
+                case "inglesa": return new[] { "Northbridge", "Royal Wharf", "Millford", "Ashfield", "Crown Park", "Severn", "Harbour", "Port Albion" };
+                case "inglesa-2": return new[] { "Red Docks", "Old Market", "Hilltown", "River End", "Coal Lane", "Westmere", "Kingswell", "Lowgate" };
+                case "francesa": return new[] { "Nord Lumière", "Saint-Rive", "Montclair", "Port-Cèdre", "Val d'Or", "Roche Bleue", "Cap Levant", "Atelier" };
+                case "francesa-2": return new[] { "Basse Ville", "Pont Neuf", "Les Dunes", "Gare Sud", "Coteau", "Marelle", "Quai Nord", "Bois Court" };
+                case "espanhola": return new[] { "Costa Real", "Monte Sol", "Río Alto", "Puerto Sur", "Villa Norte", "Sierra", "Bahía", "Campo Viejo" };
+                default: return new[] { "Río Chico", "Pueblo", "La Cuesta", "Mar Menor", "Olivares", "Travesía", "Altozano", "Ribera" };
+            }
+        }
+
+        static string[] Squad(string slug)
+        {
+            return new[]
+            {
+                "1|GR|" + slug + "0|29|R", "12|GR|" + slug + "1|22|R",
+                "2|LD|" + slug + "2|26|R", "3|DC|" + slug + "3|30|R|C", "4|DC|" + slug + "4|27|R", "5|LE|" + slug + "5|25|L",
+                "6|MDC|" + slug + "6|28|R", "8|MC|" + slug + "7|24|R", "10|MO|" + slug + "8|23|R",
+                "7|ED|" + slug + "9|26|R", "11|EE|" + slug + "10|24|L", "9|PL|" + slug + "11|29|R",
+                "14|MC|" + slug + "12|21|R", "15|DC|" + slug + "13|22|R", "16|PL|" + slug + "14|20|R",
+                "17|LD|" + slug + "15|23|R", "18|LE|" + slug + "16|22|L", "19|MC|" + slug + "17|19|R"
+            };
         }
 
         static int Hash(string value)

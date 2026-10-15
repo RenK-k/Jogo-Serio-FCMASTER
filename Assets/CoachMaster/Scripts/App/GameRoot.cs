@@ -15,6 +15,7 @@ namespace CoachMaster.App
 
         public GameSession Session { get; private set; }
         public MatchSession LiveMatch { get; set; }
+        [SerializeField] GameAudioLibrary _audioLibrary;
 
         void Awake()
         {
@@ -32,6 +33,13 @@ namespace CoachMaster.App
             EnsureUiInput();
             if (GetComponent<ControlChrome>() == null)
                 gameObject.AddComponent<ControlChrome>();
+            if (GetComponent<AudioSettingsOverlay>() == null)
+                gameObject.AddComponent<AudioSettingsOverlay>();
+            if (_audioLibrary == null)
+                _audioLibrary = Resources.Load<GameAudioLibrary>("GameAudioLibrary");
+            if (_audioLibrary == null)
+                _audioLibrary = Resources.Load<GameAudioLibrary>("Audio/GameAudioLibrary");
+            GameAudio.Bind(_audioLibrary);
         }
 
         void OnDestroy()
@@ -103,6 +111,11 @@ namespace CoachMaster.App
         public void StartCareer()
         {
             Career = CareerFactory.Create(Draft.CoachName, Draft.ClubId, Data.WorldCatalog.Create());
+        }
+
+        public void Restore(CareerState career)
+        {
+            Career = career;
         }
 
         public void ClearCareer()

@@ -30,6 +30,7 @@ namespace CoachMaster.Domain
         public int GoalsFor { get; set; }
         public int GoalsAgainst { get; set; }
         public int Points { get; set; }
+        public string LeagueId { get; set; }
         public int GoalDifference => GoalsFor - GoalsAgainst;
     }
 }

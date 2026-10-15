@@ -29,6 +29,10 @@ namespace CoachMaster.Domain
         public string HiddenDismissalTruth { get; set; }
         public int DressingRoomTension { get; set; }
         public List<string> PlayerIds { get; set; } = new List<string>();
+        public List<string> ManualLineup { get; set; } = new List<string>();
+        public string PenaltyTakerId { get; set; }
+        public string CornerTakerId { get; set; }
+        public string FreeKickTakerId { get; set; }
         public List<StaffMember> Staff { get; set; } = new List<StaffMember>();
         public List<PlayerRelation> Relations { get; set; } = new List<PlayerRelation>();
     }

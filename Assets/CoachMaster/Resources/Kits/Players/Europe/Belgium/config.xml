@@ -1,0 +1,52 @@
+<record>
+	<!-- resource manager options -->
+
+	<!-- dont preload anything in this folder -->
+	<boolean id="preload" value="false"/>
+
+	<!-- turn off auto mapping -->
+	<boolean id="amap" value="false"/>
+
+	<!-- logo mappings - generated with FM XML for Mac -->
+	<list id="maps">
+		<record from="IMG_2025-09-24-010054" to="graphics/pictures/person/IMG_2025-09-24-010054/portrait"/>
+		<record from="IMG_2025-09-24-014235" to="graphics/pictures/person/IMG_2025-09-24-014235/portrait"/>
+		<record from="IMG_2025-09-24-094737" to="graphics/pictures/person/IMG_2025-09-24-094737/portrait"/>
+		<record from="IMG_2025-09-24-095053" to="graphics/pictures/person/IMG_2025-09-24-095053/portrait"/>
+		<record from="IMG_2025-09-25-003634 19.53.12" to="graphics/pictures/person/IMG_2025-09-25-003634 19.53.12/portrait"/>
+		<record from="IMG_2025-09-25-150135" to="graphics/pictures/person/IMG_2025-09-25-150135/portrait"/>
+		<record from="IMG_2025-09-26-015817" to="graphics/pictures/person/IMG_2025-09-26-015817/portrait"/>
+		<record from="IMG_2025-09-26-225302" to="graphics/pictures/person/IMG_2025-09-26-225302/portrait"/>
+		<record from="IMG_2025-09-26-225324" to="graphics/pictures/person/IMG_2025-09-26-225324/portrait"/>
+		<record from="IMG_2025-09-26-225336" to="graphics/pictures/person/IMG_2025-09-26-225336/portrait"/>
+		<record from="IMG_2025-09-26-225346" to="graphics/pictures/person/IMG_2025-09-26-225346/portrait"/>
+		<record from="IMG_2025-09-26-230046" to="graphics/pictures/person/IMG_2025-09-26-230046/portrait"/>
+		<record from="IMG_2025-09-26-230103" to="graphics/pictures/person/IMG_2025-09-26-230103/portrait"/>
+		<record from="IMG_2025-09-26-230116" to="graphics/pictures/person/IMG_2025-09-26-230116/portrait"/>
+		<record from="IMG_2025-09-26-230137" to="graphics/pictures/person/IMG_2025-09-26-230137/portrait"/>
+		<record from="IMG_2025-09-27-012323" to="graphics/pictures/person/IMG_2025-09-27-012323/portrait"/>
+		<record from="IMG_2025-09-27-012339" to="graphics/pictures/person/IMG_2025-09-27-012339/portrait"/>
+		<record from="IMG_2025-09-27-012351" to="graphics/pictures/person/IMG_2025-09-27-012351/portrait"/>
+		<record from="IMG_2025-09-27-012516" to="graphics/pictures/person/IMG_2025-09-27-012516/portrait"/>
+		<record from="IMG_2025-09-27-014602" to="graphics/pictures/person/IMG_2025-09-27-014602/portrait"/>
+		<record from="IMG_2025-09-30-010420" to="graphics/pictures/person/IMG_2025-09-30-010420/portrait"/>
+		<record from="IMG_2025-09-30-010451" to="graphics/pictures/person/IMG_2025-09-30-010451/portrait"/>
+		<record from="IMG_2025-09-30-010513" to="graphics/pictures/person/IMG_2025-09-30-010513/portrait"/>
+		<record from="IMG_2025-09-30-010528" to="graphics/pictures/person/IMG_2025-09-30-010528/portrait"/>
+		<record from="IMG_2025-09-30-010544" to="graphics/pictures/person/IMG_2025-09-30-010544/portrait"/>
+		<record from="IMG_2025-09-30-010600" to="graphics/pictures/person/IMG_2025-09-30-010600/portrait"/>
+		<record from="IMG_2025-09-30-010616" to="graphics/pictures/person/IMG_2025-09-30-010616/portrait"/>
+		<record from="IMG_2025-09-30-010630" to="graphics/pictures/person/IMG_2025-09-30-010630/portrait"/>
+		<record from="IMG_2025-09-30-010649" to="graphics/pictures/person/IMG_2025-09-30-010649/portrait"/>
+		<record from="IMG_2025-09-30-010702" to="graphics/pictures/person/IMG_2025-09-30-010702/portrait"/>
+		<record from="IMG_2025-09-30-090308" to="graphics/pictures/person/IMG_2025-09-30-090308/portrait"/>
+		<record from="IMG_2025-09-30-094223" to="graphics/pictures/person/IMG_2025-09-30-094223/portrait"/>
+		<record from="IMG_2025-09-30-094236" to="graphics/pictures/person/IMG_2025-09-30-094236/portrait"/>
+		<record from="IMG_2025-09-30-094246" to="graphics/pictures/person/IMG_2025-09-30-094246/portrait"/>
+		<record from="IMG_2025-09-30-094258" to="graphics/pictures/person/IMG_2025-09-30-094258/portrait"/>
+		<record from="IMG_2025-09-30-094309" to="graphics/pictures/person/IMG_2025-09-30-094309/portrait"/>
+		<record from="IMG_2025-09-30-094320" to="graphics/pictures/person/IMG_2025-09-30-094320/portrait"/>
+		<record from="IMG_2025-09-30-094803" to="graphics/pictures/person/IMG_2025-09-30-094803/portrait"/>
+		<record from="IMG_2025-10-01-000515" to="graphics/pictures/person/IMG_2025-10-01-000515/portrait"/>
+	</list>
+</record>

@@ -20,5 +20,8 @@ namespace CoachMaster.Domain
         public int Motivation { get; set; }
         public InjuryState Injury { get; set; } = new InjuryState();
         public PersonalityTrait Personality { get; set; }
+        public PlayerAttributes Attributes { get; set; } = new PlayerAttributes();
+        public string PortraitPath { get; set; }
+        public string Duty { get; set; }
     }
 }

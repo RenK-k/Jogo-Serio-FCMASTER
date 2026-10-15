@@ -25,7 +25,7 @@ namespace CoachMaster.UI.Screens
             kitColLe.minWidth = 220;
             kitColLe.preferredWidth = 240;
             kitColLe.flexibleWidth = 0;
-            var kit = KitView.Create(kitColumn.transform, club, new Vector2(220, 280), true);
+            var kit = KitView.Create(kitColumn.transform, club, new Vector2(220, 280));
             UiFactory.LayoutElement(kit, 280);
             var kitName = UiFactory.Label(kitColumn.transform, "KitName", "EQUIPAMENTO PRINCIPAL", 13, UiTheme.Accent, TextAnchor.MiddleCenter, FontStyle.Bold);
             UiFactory.LayoutElement(kitName, 20);

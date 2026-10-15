@@ -9,14 +9,11 @@ namespace CoachMaster.UI
         {
             Parse(club.JerseyPrimaryHex, out var primary);
             Parse(club.JerseySecondaryHex, out var secondary);
-            Parse(string.IsNullOrEmpty(club.JerseyShortsHex) ? club.JerseySecondaryHex : club.JerseyShortsHex, out var shorts);
             var pixels = new Color32[width * height];
             for (var i = 0; i < pixels.Length; i++)
                 pixels[i] = new Color32(0, 0, 0, 0);
 
             FillShirt(pixels, width, height, club.KitPattern, primary, secondary);
-            FillShorts(pixels, width, height, shorts);
-            FillSocks(pixels, width, height, primary, secondary);
             DrawCollar(pixels, width, height, secondary);
             DrawNumber(pixels, width, height, Contrast(primary, secondary));
 
@@ -43,44 +40,6 @@ namespace CoachMaster.UI
                     if (v > 0.78f && v < 0.90f && u > 0.42f && u < 0.58f)
                         color = Shade(color, 0.82f);
                     pixels[y * w + x] = color;
-                }
-            }
-        }
-
-        static void FillShorts(Color32[] pixels, int w, int h, Color32 shorts)
-        {
-            for (var y = 0; y < h; y++)
-            {
-                var v = y / (float)(h - 1);
-                if (v < 0.28f || v > 0.46f)
-                    continue;
-                for (var x = 0; x < w; x++)
-                {
-                    var u = x / (float)(w - 1);
-                    if (u < 0.30f || u > 0.70f)
-                        continue;
-                    var crease = Mathf.Abs(u - 0.5f) < 0.015f ? 0.85f : 1f;
-                    pixels[y * w + x] = Shade(shorts, crease);
-                }
-            }
-        }
-
-        static void FillSocks(Color32[] pixels, int w, int h, Color32 primary, Color32 secondary)
-        {
-            for (var y = 0; y < h; y++)
-            {
-                var v = y / (float)(h - 1);
-                if (v < 0.06f || v > 0.26f)
-                    continue;
-                for (var x = 0; x < w; x++)
-                {
-                    var u = x / (float)(w - 1);
-                    var left = u > 0.30f && u < 0.44f;
-                    var right = u > 0.56f && u < 0.70f;
-                    if (!left && !right)
-                        continue;
-                    var band = v > 0.20f && v < 0.23f;
-                    pixels[y * w + x] = band ? secondary : primary;
                 }
             }
         }
@@ -127,11 +86,11 @@ namespace CoachMaster.UI
 
         static bool InsideShirt(float u, float v)
         {
-            if (v < 0.44f || v > 0.97f)
+            if (v < 0.08f || v > 0.96f)
                 return false;
-            var sleeve = v > 0.72f && v < 0.90f && (u < 0.22f || u > 0.78f) && u > 0.04f && u < 0.96f;
-            var body = u > 0.24f && u < 0.76f && v < 0.94f;
-            var neckCut = v > 0.90f && u > 0.42f && u < 0.58f;
+            var sleeve = v > 0.62f && v < 0.86f && (u < 0.28f || u > 0.72f) && u > 0.04f && u < 0.96f;
+            var body = u > 0.28f && u < 0.72f;
+            var neckCut = v > 0.88f && u > 0.4f && u < 0.6f;
             return (body || sleeve) && !neckCut;
         }
 

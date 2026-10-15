@@ -26,11 +26,13 @@ namespace CoachMaster.UI
 
             if (_hint != null)
                 _hint.text = UsingKeyboard
-                    ? "Enter  Selecionar     Esc  Voltar     Setas  Navegar     1 2 3  Responder"
+                    ? "Rato  Selecionar     Enter  Avançar     Esc  Voltar     M  Música"
                     : "A  Selecionar     B  Voltar     Direção  Navegar";
 
             if (Typing())
                 return;
+
+            TryMouse();
 
             var back = UsingKeyboard
                 ? Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame
@@ -120,6 +122,69 @@ namespace CoachMaster.UI
                 _index = _buttons.Count - 1;
         }
 
+        DragVolume _drag;
+
+        void TryMouse()
+        {
+            var mouse = Mouse.current;
+            if (mouse == null)
+                return;
+            var screen = mouse.position.ReadValue();
+            var canvas = FindFirstObjectByType<Canvas>();
+            Camera cam = null;
+            if (canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay)
+                cam = canvas.worldCamera;
+
+            if (_drag != null)
+            {
+                if (EventSystem.current != null)
+                {
+                    var dragData = new PointerEventData(EventSystem.current);
+                    dragData.position = screen;
+                    if (mouse.leftButton.isPressed)
+                        _drag.OnDrag(dragData);
+                }
+
+                if (mouse.leftButton.wasReleasedThisFrame)
+                    _drag = null;
+                return;
+            }
+
+            if (!mouse.leftButton.wasPressedThisFrame)
+                return;
+
+            if (Time.unscaledTime < BroadcastUi.ClickLock)
+                return;
+
+            RefreshButtons();
+            for (var i = _buttons.Count - 1; i >= 0; i--)
+            {
+                var rect = _buttons[i].GetComponent<RectTransform>();
+                if (rect == null || !RectTransformUtility.RectangleContainsScreenPoint(rect, screen, cam))
+                    continue;
+                if (_buttons[i].GetComponent<SquadDragCard>() != null)
+                    return;
+                _buttons[i].onClick.Invoke();
+                return;
+            }
+
+            if (EventSystem.current == null)
+                return;
+            var data = new PointerEventData(EventSystem.current);
+            data.position = screen;
+            var hits = new List<RaycastResult>();
+            EventSystem.current.RaycastAll(data, hits);
+            for (var i = 0; i < hits.Count; i++)
+            {
+                var drag = hits[i].gameObject.GetComponentInParent<DragVolume>();
+                if (drag == null)
+                    continue;
+                _drag = drag;
+                drag.OnPointerDown(data);
+                return;
+            }
+        }
+
         void Move(int delta)
         {
             if (_buttons.Count == 0)
@@ -132,13 +197,45 @@ namespace CoachMaster.UI
 
         void PressCurrent()
         {
-            if (_index < 0 || _index >= _buttons.Count)
+            if (_index < 0 || _index >= _buttons.Count || IsBack(_buttons[_index]))
             {
-                Move(1);
+                var pick = ForwardIndex();
+                if (pick < 0)
+                    return;
+                _index = pick;
+                Paint();
+                _buttons[pick].onClick.Invoke();
                 return;
             }
 
             _buttons[_index].onClick.Invoke();
+        }
+
+        int ForwardIndex()
+        {
+            var prefer = new[] { "NovaCarreira", "Continuar", "Confirm", "Choose", "Select", "PlayMatch" };
+            foreach (var name in prefer)
+            {
+                for (var i = 0; i < _buttons.Count; i++)
+                {
+                    if (_buttons[i].gameObject.name == name)
+                        return i;
+                }
+            }
+
+            for (var i = 0; i < _buttons.Count; i++)
+            {
+                if (!IsBack(_buttons[i]))
+                    return i;
+            }
+
+            return -1;
+        }
+
+        static bool IsBack(Button button)
+        {
+            var name = button.gameObject.name;
+            return name == "Back" || name == "CloseAudio" || name == "FECHAR";
         }
 
         void PressNamed(string name)

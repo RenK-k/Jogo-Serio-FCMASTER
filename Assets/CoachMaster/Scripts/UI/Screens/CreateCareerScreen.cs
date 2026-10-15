@@ -16,7 +16,7 @@ namespace CoachMaster.UI.Screens
                 () => router.Show("club"),
                 out var body);
 
-            var preview = KitView.Create(body.transform, club, new Vector2(160, 200), false);
+            var preview = KitView.Create(body.transform, club, new Vector2(160, 200));
             UiFactory.LayoutElement(preview, 200);
             preview.gameObject.AddComponent<LayoutElement>().preferredWidth = 160;
 

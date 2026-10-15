@@ -28,7 +28,7 @@ namespace CoachMaster.UI.Screens
             var hint = UiFactory.Label(
                 body.transform,
                 "KitHint",
-                "Podes substituir qualquer camisola largando um PNG em Assets/CoachMaster/Resources/Kits/ com o nome do clube, por exemplo norte-maritimo.png.",
+                "Cada clube traz a camisola da época.",
                 14,
                 UiTheme.Muted);
             UiFactory.LayoutElement(hint, 36);
@@ -40,7 +40,7 @@ namespace CoachMaster.UI.Screens
             UiFactory.LayoutElement(panel.GetComponent<Image>(), 132);
             var row = UiFactory.Row(panel, "Inner", 16, new RectOffset(12, 16, 10, 10), true);
 
-            var kit = KitView.Create(row.transform, club, new Vector2(92, 112), true);
+            var kit = KitView.Create(row.transform, club, new Vector2(92, 112));
             var kitLe = kit.gameObject.AddComponent<LayoutElement>();
             kitLe.minWidth = 92;
             kitLe.preferredWidth = 92;

@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d849a77d77bcc4e4484ed73705a271a9, type: 3}
+  m_Name: GameAudioLibrary
+  m_EditorClassIdentifier: 
+  Click: {fileID: 8300000, guid: 57bba84f0f69a114cbdfdd567ea28057, type: 3}
+  Goal: {fileID: 8300000, guid: a88a88345c8606b49aea4735d5bc23d8, type: 3}
+  Whistle: {fileID: 8300000, guid: a51d134f85872d9439ac8f6ee39a5097, type: 3}
+  Foul: {fileID: 8300000, guid: a51d134f85872d9439ac8f6ee39a5097, type: 3}
+  Injury: {fileID: 8300000, guid: a51d134f85872d9439ac8f6ee39a5097, type: 3}
+  YellowCard: {fileID: 8300000, guid: a51d134f85872d9439ac8f6ee39a5097, type: 3}
+  RedCard: {fileID: 8300000, guid: a51d134f85872d9439ac8f6ee39a5097, type: 3}
+  Corner: {fileID: 8300000, guid: a51d134f85872d9439ac8f6ee39a5097, type: 3}
+  ThrowIn: {fileID: 8300000, guid: a51d134f85872d9439ac8f6ee39a5097, type: 3}
+  Kickoff: {fileID: 8300000, guid: a51d134f85872d9439ac8f6ee39a5097, type: 3}
+  Crowd: {fileID: 8300000, guid: 1c0ee886b72135842a50fda08136e1e7, type: 3}
+  MusicTracks:
+  - {fileID: 8300000, guid: 612fd88ba19ecbf4e927b9e2d98b85bd, type: 3}
+  - {fileID: 8300000, guid: dcf93ea0ddcf3f04dad8321cb6a3c440, type: 3}
+  - {fileID: 8300000, guid: 0ec901022278ebd4da2f2392d471275e, type: 3}
+  - {fileID: 8300000, guid: b5a619ab7c65f3a49b35ee6b3f45689c, type: 3}
+  - {fileID: 8300000, guid: fda77c94187c4be41a3ab70e9d92cb2a, type: 3}
+  - {fileID: 8300000, guid: 7e0007fb02b741342907b075b5028a6d, type: 3}
+  - {fileID: 8300000, guid: 6f426e6d1d350784a8bec06d32fc742e, type: 3}
+  - {fileID: 8300000, guid: 75c8d092f3254a3408315434fc4a6d48, type: 3}

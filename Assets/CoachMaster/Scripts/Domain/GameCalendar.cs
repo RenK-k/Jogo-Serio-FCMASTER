@@ -6,6 +6,8 @@ namespace CoachMaster.Domain
     public sealed class GameCalendar
     {
         public static readonly DateTime SeasonStart = new DateTime(2026, 7, 13);
+        public static readonly DateTime FirstKickoff = SeasonStart.AddDays(34);
+        public static readonly DateTime Takeover = FirstKickoff.AddDays(-14);
 
         public DateTime CurrentDate { get; private set; }
 

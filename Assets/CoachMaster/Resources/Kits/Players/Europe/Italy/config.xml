@@ -1,0 +1,42 @@
+<record>
+	<!-- resource manager options -->
+
+	<!-- dont preload anything in this folder -->
+	<boolean id="preload" value="false"/>
+
+	<!-- turn off auto mapping -->
+	<boolean id="amap" value="false"/>
+
+	<!-- logo mappings - generated with FM XML for Mac -->
+	<list id="maps">
+		<record from="IMG_2025-09-25-120635" to="graphics/pictures/person/IMG_2025-09-25-120635/portrait"/>
+		<record from="IMG_2025-09-25-150057" to="graphics/pictures/person/IMG_2025-09-25-150057/portrait"/>
+		<record from="IMG_2025-09-25-150122" to="graphics/pictures/person/IMG_2025-09-25-150122/portrait"/>
+		<record from="IMG_2025-09-25-150201" to="graphics/pictures/person/IMG_2025-09-25-150201/portrait"/>
+		<record from="IMG_2025-09-30-110709" to="graphics/pictures/person/IMG_2025-09-30-110709/portrait"/>
+		<record from="IMG_2025-10-01-120732" to="graphics/pictures/person/IMG_2025-10-01-120732/portrait"/>
+		<record from="IMG_2025-10-01-120746" to="graphics/pictures/person/IMG_2025-10-01-120746/portrait"/>
+		<record from="IMG_2025-10-01-120757" to="graphics/pictures/person/IMG_2025-10-01-120757/portrait"/>
+		<record from="IMG_2025-10-01-120805" to="graphics/pictures/person/IMG_2025-10-01-120805/portrait"/>
+		<record from="IMG_2025-10-01-120813" to="graphics/pictures/person/IMG_2025-10-01-120813/portrait"/>
+		<record from="IMG_2025-10-01-120825" to="graphics/pictures/person/IMG_2025-10-01-120825/portrait"/>
+		<record from="IMG_2025-10-01-120836" to="graphics/pictures/person/IMG_2025-10-01-120836/portrait"/>
+		<record from="IMG_2025-10-01-120847" to="graphics/pictures/person/IMG_2025-10-01-120847/portrait"/>
+		<record from="IMG_2025-10-01-123657" to="graphics/pictures/person/IMG_2025-10-01-123657/portrait"/>
+		<record from="IMG_2025-10-01-123708" to="graphics/pictures/person/IMG_2025-10-01-123708/portrait"/>
+		<record from="IMG_2025-10-01-123750" to="graphics/pictures/person/IMG_2025-10-01-123750/portrait"/>
+		<record from="IMG_2025-10-01-123801" to="graphics/pictures/person/IMG_2025-10-01-123801/portrait"/>
+		<record from="IMG_2025-10-01-123811" to="graphics/pictures/person/IMG_2025-10-01-123811/portrait"/>
+		<record from="IMG_2025-10-01-123822" to="graphics/pictures/person/IMG_2025-10-01-123822/portrait"/>
+		<record from="IMG_2025-10-01-132633" to="graphics/pictures/person/IMG_2025-10-01-132633/portrait"/>
+		<record from="IMG_2025-10-01-132644" to="graphics/pictures/person/IMG_2025-10-01-132644/portrait"/>
+		<record from="IMG_2025-10-01-132652" to="graphics/pictures/person/IMG_2025-10-01-132652/portrait"/>
+		<record from="IMG_2025-10-01-132701" to="graphics/pictures/person/IMG_2025-10-01-132701/portrait"/>
+		<record from="IMG_2025-10-01-132709" to="graphics/pictures/person/IMG_2025-10-01-132709/portrait"/>
+		<record from="IMG_2025-10-01-132721" to="graphics/pictures/person/IMG_2025-10-01-132721/portrait"/>
+		<record from="IMG_2025-10-01-143537" to="graphics/pictures/person/IMG_2025-10-01-143537/portrait"/>
+		<record from="IMG_2025-10-01-143548" to="graphics/pictures/person/IMG_2025-10-01-143548/portrait"/>
+		<record from="IMG_2025-10-01-143557" to="graphics/pictures/person/IMG_2025-10-01-143557/portrait"/>
+		<record from="IMG_2025-10-23-004839" to="graphics/pictures/person/IMG_2025-10-23-004839/portrait"/>
+	</list>
+</record>

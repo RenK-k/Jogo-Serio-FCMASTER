@@ -30,6 +30,7 @@ namespace CoachMaster.Presentation
                 case CoachMaster.Domain.StaffRole.GoalkeeperCoach: return "Treinador de guarda-redes";
                 case CoachMaster.Domain.StaffRole.FitnessCoach: return "Preparador físico";
                 case CoachMaster.Domain.StaffRole.Physiotherapist: return "Fisioterapeuta";
+                case CoachMaster.Domain.StaffRole.Scout: return "Olheiro";
                 default: return role.ToString();
             }
         }

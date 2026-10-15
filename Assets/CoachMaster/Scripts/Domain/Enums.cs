@@ -3,7 +3,8 @@ namespace CoachMaster.Domain
     public enum LeagueTier
     {
         First = 1,
-        Second = 2
+        Second = 2,
+        Continental = 3
     }
 
     public enum PlayerPosition
@@ -32,7 +33,8 @@ namespace CoachMaster.Domain
         AssistantCoach,
         GoalkeeperCoach,
         FitnessCoach,
-        Physiotherapist
+        Physiotherapist,
+        Scout
     }
 
     public enum PersonalityTrait
