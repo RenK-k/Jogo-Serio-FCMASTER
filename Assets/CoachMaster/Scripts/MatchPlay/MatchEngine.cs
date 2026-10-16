@@ -52,8 +52,7 @@ namespace CoachMaster.MatchPlay
         {
             _match = match;
             _rng = new System.Random(match.Fixture.Id.GetHashCode());
-            Ball = new Vector2(0.5f, 0.5f);
-            BallTarget = PlayerSpot(true, 9);
+            Kickoff(true);
         }
 
         public void Tick(float dt, float minutesPerSecond)
@@ -179,6 +178,8 @@ namespace CoachMaster.MatchPlay
 
         public Vector2 PlayerSpot(bool home, int index)
         {
+            if (ActionKind == "kickoff" && home == _match.HomeHasBall && index == _match.BallHolder)
+                return new Vector2(0.5f, home ? 0.46f : 0.54f);
             if (_pieceLive && home == _pieceHome && index == _pieceTaker)
                 return _pieceSpot;
             if (_pieceLive && home != _pieceHome)
@@ -678,12 +679,52 @@ namespace CoachMaster.MatchPlay
             _match.Phase = MatchPhase.SecondHalf;
             if (_match.Minute < 45f)
                 _match.Minute = 45f;
-            _match.HomeHasBall = false;
+            Kickoff(false);
+            _match.AddNote("Segunda parte. O jogo recomeça no meio-campo.", "half");
+        }
+
+        void Kickoff(bool home)
+        {
+            _pieceLive = false;
+            _pieceKind = "";
+            _curl = 0f;
+            _finishNext = false;
+            _headerNext = false;
+            _settle = 0f;
+            _intended = -1;
+            BallHeight = 0f;
+            _flightApex = 0f;
+            _match.HomeHasBall = home;
+            _match.BallHolder = CentreTaker(home);
             Ball = new Vector2(0.5f, 0.5f);
-            BallTarget = PlayerSpot(false, 9);
-            _match.AddNote("Segunda parte. O jogo recomeça.", "half");
+            BallTarget = Ball;
+            _drawn = Ball;
+            _drawnReady = true;
+            Travel = 0.15f;
+            Hold = 1.15f;
             ActionTime = 0.8f;
             ActionKind = "kickoff";
+        }
+
+        int CentreTaker(bool home)
+        {
+            var tactics = home ? _match.HomeTactics : _match.AwayTactics;
+            if (tactics == null)
+                return 8;
+            var best = 8;
+            var bestDist = 99f;
+            for (var i = 1; i < 11; i++)
+            {
+                var spot = FormationSpot(home, i);
+                var dist = Mathf.Abs(spot.y - 0.5f) + Mathf.Abs(spot.x - 0.5f) * 0.35f;
+                if (dist < bestDist)
+                {
+                    bestDist = dist;
+                    best = i;
+                }
+            }
+
+            return best;
         }
 
         public bool TrySub(bool home, int fieldIndex, int benchIndex)
@@ -819,7 +860,9 @@ namespace CoachMaster.MatchPlay
                 shoot += 0.95f + (attr == null ? 0f : (attr.Finishing - 10) * 0.05f) + (attr == null ? 0f : (attr.Composure - 10) * 0.02f);
             else if (depth > 0.78f)
                 shoot += 0.42f + (attr == null ? 0f : (attr.Finishing - 12) * 0.03f);
-            else if (depth > 0.7f && carrier != null && (carrier.HasTrait(PlayerTrait.RemateEmJeito) || (tactics != null && tactics.AttackIdea != null && tactics.AttackIdea.IndexOf("Remate", StringComparison.OrdinalIgnoreCase) >= 0)))
+            else if (depth > 0.62f && carrier != null && carrier.HasTrait(PlayerTrait.RemateDeLonge))
+                shoot += 0.34f;
+            else if (depth > 0.7f && carrier != null && (carrier.HasTrait(PlayerTrait.RemateEmJeito) || carrier.HasTrait(PlayerTrait.Potente) || (tactics != null && tactics.AttackIdea != null && tactics.AttackIdea.IndexOf("Remate", StringComparison.OrdinalIgnoreCase) >= 0)))
                 shoot += 0.28f;
             if (room > 0.14f && depth > 0.8f)
                 shoot += 0.22f;
@@ -903,8 +946,13 @@ namespace CoachMaster.MatchPlay
                     urge -= 0.4f;
                 if (finish <= 8f)
                     urge -= 0.35f;
-                if (depth < 0.72f && finish < 14f && (carrier == null || !carrier.HasTrait(PlayerTrait.RemateEmJeito)))
+                var distanceShooter = carrier != null && (carrier.HasTrait(PlayerTrait.RemateDeLonge) || carrier.HasTrait(PlayerTrait.Potente));
+                if (depth < 0.72f && finish < 14f && (carrier == null || (!carrier.HasTrait(PlayerTrait.RemateEmJeito) && !distanceShooter)))
                     urge -= 0.28f;
+                if (carrier != null && carrier.HasTrait(PlayerTrait.RemateDeLonge) && depth >= 0.62f && depth < 0.8f)
+                    urge += 0.22f;
+                if (carrier != null && carrier.HasTrait(PlayerTrait.RemateRasteiro) && depth > 0.8f)
+                    urge += 0.08f;
                 if (carrier != null && carrier.HasTrait(PlayerTrait.Finalizador))
                     urge += 0.16f;
                 if (carrier != null && carrier.HasTrait(PlayerTrait.RemateEmJeito))
@@ -1492,7 +1540,10 @@ namespace CoachMaster.MatchPlay
                 return;
             }
 
-            if (depth < 0.58f && !penalty && !header)
+            Player shooterPlayer = null;
+            _match.People.TryGetValue(shooterId, out shooterPlayer);
+            var fromFar = shooterPlayer != null && shooterPlayer.HasTrait(PlayerTrait.RemateDeLonge);
+            if (depth < 0.58f && !penalty && !header && !(fromFar && depth >= 0.6f))
             {
                 Pass(home);
                 return;
@@ -1504,8 +1555,7 @@ namespace CoachMaster.MatchPlay
             var wall = home ? _match.DefenseBoost : 0f;
             var personal = 0.0;
             var aim = 0.55;
-            Player shooterPlayer = null;
-            if (_match.People.TryGetValue(shooterId, out shooterPlayer) && shooterPlayer.Attributes != null)
+            if (shooterPlayer != null && shooterPlayer.Attributes != null)
             {
                 personal += (shooterPlayer.Attributes.Finishing - 10) * 0.016;
                 personal += (PlayerAttributes.Overall(shooterPlayer) - 74) * 0.004;
@@ -1566,14 +1616,24 @@ namespace CoachMaster.MatchPlay
             var onTarget = goal || (!post && shotRoll < chance + 0.22 + aim * 0.25);
             var bigSave = onTarget && !goal && keeper != null && keeper.Attributes != null && (keeper.Attributes.Reflexes >= 14 || chance > 0.3);
             var narrow = !goal && !onTarget && !post && central > 0.42f && depth > 0.76f;
-            var how = bicycle ? "Chilena de " + shooter + "." : header ? "Cabeceamento de " + shooter + "." : "Remate de " + shooter + ".";
+            var driven = shooterPlayer != null && shooterPlayer.HasTrait(PlayerTrait.Potente);
+            var low = shooterPlayer != null && shooterPlayer.HasTrait(PlayerTrait.RemateRasteiro);
+            var placed = shooterPlayer != null && shooterPlayer.HasTrait(PlayerTrait.RemateEmJeito);
+            var how = bicycle ? "Chilena de " + shooter + "."
+                : header ? "Cabeceamento de " + shooter + "."
+                : low ? "Remate rasteiro de " + shooter + "."
+                : fromFar && depth < 0.78f ? "Remate de longe de " + shooter + "."
+                : driven ? "Remate potente de " + shooter + "."
+                : placed ? "Remate colocado de " + shooter + "."
+                : "Remate de " + shooter + ".";
+            var shotApex = header ? 0.34f : low ? 0.03f : driven ? 0.62f : fromFar ? 0.5f : placed ? 0.2f : 0.28f;
             Travel = depth > 0.86f ? 0.55f : 0.9f;
             if (goal)
             {
                 BallTarget = home ? new Vector2(0.5f, 0.985f) : new Vector2(0.5f, 0.015f);
                 ActionKind = "goal";
                 Hold = 1.8f;
-                Launch(0.16f);
+                Launch(shotApex);
                 if (home) _match.HomeChances++;
                 else _match.AwayChances++;
                 if (home) _match.HomeGoals++;
@@ -1602,7 +1662,7 @@ namespace CoachMaster.MatchPlay
                 BallTarget = home ? new Vector2(0.5f, 0.86f) : new Vector2(0.5f, 0.14f);
                 ActionKind = "shot";
                 Hold = 0.45f;
-                Launch(0.12f);
+                Launch(Mathf.Max(0.08f, shotApex * 0.7f));
                 Bump(shooterId, 0.12f);
                 _match.LastEvent = bigSave ? "Grande defesa. " + how : how + " O guarda-redes defende.";
                 if (bigSave)
@@ -1630,7 +1690,7 @@ namespace CoachMaster.MatchPlay
             }
             ActionKind = "shot";
             Hold = 0.2f;
-            Launch(post ? 0.2f : 0.48f);
+            Launch(post ? Mathf.Max(shotApex, 0.2f) : shotApex);
             Bump(shooterId, 0.04f);
             _match.HomeHasBall = home;
             _match.BallHolder = index;

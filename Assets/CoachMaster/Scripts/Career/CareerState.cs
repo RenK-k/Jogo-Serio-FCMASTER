@@ -29,13 +29,13 @@ namespace CoachMaster.Career
         {
             foreach (var fixture in Fixtures)
             {
-                if (!fixture.Played && fixture.Involves(Coach.ClubId) && fixture.Date.Date >= Calendar.CurrentDate.Date)
+                if (!fixture.Played && !fixture.Walkover && fixture.Involves(Coach.ClubId) && fixture.Date.Date >= Calendar.CurrentDate.Date)
                     return fixture;
             }
 
             foreach (var fixture in Fixtures)
             {
-                if (!fixture.Played && fixture.Involves(Coach.ClubId))
+                if (!fixture.Played && !fixture.Walkover && fixture.Involves(Coach.ClubId))
                     return fixture;
             }
 

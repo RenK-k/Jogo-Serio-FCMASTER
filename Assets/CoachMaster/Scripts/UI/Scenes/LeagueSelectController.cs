@@ -66,15 +66,6 @@ namespace CoachMaster.UI.Scenes
                 var league = leagues[i];
                 var card = BroadcastUi.Panel(content, "League" + i, new Color(0.1f, 0.04f, 0.2f, 0.72f), true);
                 BroadcastUi.Preferred(card, 132);
-                var art = LeagueBackdrop.First(league.Id);
-                if (art != null)
-                {
-                    var photo = BroadcastUi.Solid(card.transform, "Art", Color.white, false);
-                    BroadcastUi.Stretch(photo.rectTransform);
-                    photo.sprite = art;
-                    photo.preserveAspect = false;
-                    photo.color = new Color(1f, 1f, 1f, 0.55f);
-                }
                 var tier = league.Tier == LeagueTier.First ? "1ª DIVISÃO" : "2ª DIVISÃO";
                 var badge = BroadcastUi.Label(card.transform, "Tier", tier, 14, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
                 BroadcastUi.Place(badge.rectTransform, 0.04f, 0.68f, 0.4f, 0.9f);

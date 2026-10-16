@@ -3,6 +3,7 @@ using CoachMaster.Domain;
 using CoachMaster.MatchPlay;
 using CoachMaster.UI;
 using UnityEngine;
+using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.SceneManagement;
@@ -40,6 +41,7 @@ namespace CoachMaster.App
             if (_audioLibrary == null)
                 _audioLibrary = Resources.Load<GameAudioLibrary>("Audio/GameAudioLibrary");
             GameAudio.Bind(_audioLibrary);
+            DisplayPrefs.Boot();
         }
 
         void OnDestroy()
@@ -52,6 +54,18 @@ namespace CoachMaster.App
         {
             SquadDragCard.Release();
             EnsureUiInput();
+            FitCanvases();
+        }
+
+        static void FitCanvases()
+        {
+            var scalers = FindObjectsByType<CanvasScaler>(FindObjectsSortMode.None);
+            for (var i = 0; i < scalers.Length; i++)
+            {
+                scalers[i].uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+                scalers[i].referenceResolution = new Vector2(1920, 1080);
+                scalers[i].screenMatchMode = CanvasScaler.ScreenMatchMode.Shrink;
+            }
         }
 
         public static void EnsureUiInput()

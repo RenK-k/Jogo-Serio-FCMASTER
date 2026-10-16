@@ -84,6 +84,9 @@ namespace CoachMaster.Data
             else if (leagueId != Ids.League("campeoes"))
                 AddGeneratedDivision(world, leagueId);
 
+            if (leagueId != Ids.League("campeoes"))
+                PadLeague(world, leagueId);
+
             world.LoadedLeagueIds.Add(leagueId);
             FaceBook.Deal(world);
         }
@@ -770,7 +773,7 @@ namespace CoachMaster.Data
             var bits = raw.Split('|');
             var number = int.Parse(bits[0]);
             var seed = Hash($"{slug}:{number}:{bits[2]}");
-            var nationality = FaceBook.Nation(seed);
+            var nationality = FaceBook.NationForClub(slug, seed);
             var player = new Player
             {
                 Id = Ids.Player(slug, number),
@@ -813,6 +816,102 @@ namespace CoachMaster.Data
                 case "PL": return PlayerPosition.Striker;
                 default: return PlayerPosition.CentralMidfielder;
             }
+        }
+
+        static void PadLeague(WorldState world, string leagueId)
+        {
+            var slug = leagueId.StartsWith("league:") ? leagueId.Substring(7) : leagueId;
+            var target = TargetClubs(slug);
+            var have = 0;
+            foreach (var club in world.Clubs.Values)
+            {
+                if (club.LeagueId == leagueId)
+                    have++;
+            }
+
+            var country = slug.StartsWith("francesa") ? "França" : slug.StartsWith("espanhola") ? "Espanha" : slug.StartsWith("inglesa") ? "Inglaterra" : "Portugal";
+            var first = slug != "horizonte" && !slug.EndsWith("-2");
+            for (var i = have; i < target; i++)
+            {
+                var clubSlug = slug + "-x" + i;
+                var name = ExtraName(slug, i);
+                var reputation = first ? 58 + (target - i) : 40 + (target - i);
+                AddClub(world, leagueId, new ClubDefinition
+                {
+                    Slug = clubSlug,
+                    Name = name,
+                    ShortName = name,
+                    City = country,
+                    Stadium = "Estádio de " + name,
+                    FoundedYear = 1904 + i * 3,
+                    History = name + " entra na " + (first ? "primeira" : "segunda") + " divisão de " + country + ".",
+                    PublicReputation = first ? "Clube da primeira divisão." : "Clube a lutar pela subida.",
+                    Reputation = reputation,
+                    Finance = Fin(first ? 2800000 : 900000, first ? 110000 : 48000, first ? 400000 : 120000, "As contas acompanham o tamanho do clube."),
+                    Tactics = Identity(i % 2 == 0 ? "4-3-3" : "4-4-2", "Pressão média", "Construção curta", "Laterais equilibrados", "Linha média", "Treinador anterior"),
+                    BoardObjectives = Obj("Pontuar com regularidade", "Manter o balneário calmo"),
+                    DressingRoomAtmosphere = "O grupo espera um plano claro.",
+                    PublicTeamState = "A pré-época ainda não mostrou o verdadeiro nível.",
+                    HiddenInternalProblems = "Há um ou outro desentendimento, nada que feche o balneário.",
+                    PublicCoachVacancyNote = "O banco está vago.",
+                    HiddenDismissalTruth = "O anterior saiu por resultados e por falta de plano.",
+                    DressingRoomTension = 28 + i,
+                    Staff = Staff(clubSlug,
+                        FaceBook.PersonName(country, Hash(clubSlug + ":adjunto")),
+                        FaceBook.PersonName(country, Hash(clubSlug + ":gr")),
+                        FaceBook.PersonName(country, Hash(clubSlug + ":fisico")),
+                        FaceBook.PersonName(country, Hash(clubSlug + ":fisio")),
+                        reputation),
+                    Players = Squad(clubSlug),
+                    Relations = new string[0]
+                });
+            }
+
+            foreach (var league in world.Leagues)
+            {
+                if (league.Id != leagueId)
+                    continue;
+                league.ClubCount = target;
+                if (!string.IsNullOrEmpty(league.Description))
+                {
+                    league.Description = league.Description.Replace("Oito", target.ToString());
+                    league.Description = league.Description.Replace("Seis", target.ToString());
+                }
+                break;
+            }
+        }
+
+        static int TargetClubs(string slug)
+        {
+            var faces = 32;
+            if (slug.StartsWith("inglesa"))
+                faces = 41;
+            else if (slug.StartsWith("francesa"))
+                faces = 40;
+            else if (slug.StartsWith("espanhola"))
+                faces = 31;
+            var second = slug == "horizonte" || slug.EndsWith("-2");
+            var count = second ? faces / 4 + 2 : faces / 3 + 2;
+            var floor = second ? 8 : 10;
+            if (count < floor)
+                count = floor;
+            if (count > 16)
+                count = 16;
+            return count;
+        }
+
+        static string ExtraName(string slug, int index)
+        {
+            string[] bank;
+            if (slug.StartsWith("inglesa"))
+                bank = new[] { "Stonebridge", "Fairhaven", "East Wharf", "Lockside", "Moorfield", "Queenswell", "Blackwater", "Highgate Town", "South Pier", "New Alden" };
+            else if (slug.StartsWith("francesa"))
+                bank = new[] { "Bellevue", "Saint-Marc", "Port-Neuf", "Les Ormes", "Cap Ouest", "Ville Haute", "Quai Blanc", "Roche Claire", "Bois Vert", "Anse" };
+            else if (slug.StartsWith("espanhola"))
+                bank = new[] { "Villa Sol", "Puerto Nuevo", "Los Pinos", "Ribera Alta", "Monte Claro", "Campo Sur", "La Caleta", "Oliva", "Travesía Norte", "Bahía Chica" };
+            else
+                bank = new[] { "Atlético da Ribeira", "União do Cais", "Sporting da Serra", "Nacional do Oeste", "Oriental", "Real das Dunas", "Racing do Vale", "Olímpico", "Estrela do Sul", "Vitória da Foz" };
+            return bank[index % bank.Length];
         }
 
         static void AddGeneratedDivision(WorldState world, string leagueId)

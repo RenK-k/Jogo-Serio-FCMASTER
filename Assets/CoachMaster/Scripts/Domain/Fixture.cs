@@ -14,6 +14,8 @@ namespace CoachMaster.Domain
         public int HomeGoals { get; set; }
         public int AwayGoals { get; set; }
 
+        public bool Walkover => !string.IsNullOrEmpty(HomeClubId) && HomeClubId == AwayClubId;
+
         public bool Involves(string clubId) => HomeClubId == clubId || AwayClubId == clubId;
 
         public string OpponentId(string clubId) => HomeClubId == clubId ? AwayClubId : HomeClubId;

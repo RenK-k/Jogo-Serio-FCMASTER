@@ -24,6 +24,9 @@ namespace CoachMaster.UI.Scenes
         Text _phoneAppTitle;
         float _phoneSlide;
         bool _phoneOpen;
+        string _phoneApp = "Mensagens";
+        bool _phoneInThread;
+        readonly HashSet<string> _phoneAnswered = new HashSet<string>();
         Text _dateLine;
         Text _homeTitle;
         Text _homeBody;
@@ -102,7 +105,7 @@ namespace CoachMaster.UI.Scenes
 
             var root = BroadcastUi.Mount(this);
             BroadcastUi.Backdrop(root);
-            LeagueBackdrop.Paint(root, _career.Club.LeagueId);
+            LeagueBackdrop.Paint(root, HubLeagueId());
             BuildHeader(root);
             BuildPhone(root);
             BuildTabs(root);
@@ -233,6 +236,15 @@ namespace CoachMaster.UI.Scenes
                 return;
             }
 
+            if (_phoneInThread)
+            {
+                _phoneInThread = false;
+                if (_phoneAppTitle != null)
+                    _phoneAppTitle.text = _phoneApp;
+                FillPhone(_phoneApp);
+                return;
+            }
+
             if (_phonePage != null && _phonePage.activeSelf)
             {
                 ShowPhoneHome();
@@ -256,6 +268,8 @@ namespace CoachMaster.UI.Scenes
                 _phoneApps.SetActive(false);
             if (_phonePage != null)
                 _phonePage.SetActive(true);
+            _phoneApp = name;
+            _phoneInThread = false;
             if (_phoneAppTitle != null)
                 _phoneAppTitle.text = name;
             FillPhone(name);
@@ -267,93 +281,231 @@ namespace CoachMaster.UI.Scenes
                 return;
             Clear(_phoneList);
             var notes = PhoneNotes();
+            var shown = 0;
             for (var i = 0; i < notes.Count; i++)
             {
                 var note = notes[i];
-                if (!PhoneMatches(app, note.Who))
+                if (!PhoneMatches(app, note.Channel))
                     continue;
+                shown++;
+                var captured = note;
                 var row = BroadcastUi.Panel(_phoneList, "Msg" + i, new Color(1f, 1f, 1f, 0.06f));
-                BroadcastUi.Preferred(row, 86);
+                BroadcastUi.Preferred(row, 92);
+                BroadcastUi.Hit(row, () => OpenThread(captured));
+                var tag = note.Channel == "jogador" ? "JOGADOR" : note.Channel == "clube" ? "CLUBE" : note.Channel == "staff" ? "STAFF" : note.Channel == "jornal" ? "JORNAL" : "AGENDA";
                 var who = BroadcastUi.Label(row.transform, "Who", note.Who, 15, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
-                BroadcastUi.Place(who.rectTransform, 0.04f, 0.58f, 0.96f, 0.94f);
+                who.raycastTarget = false;
+                BroadcastUi.Place(who.rectTransform, 0.05f, 0.62f, 0.68f, 0.94f);
+                var kind = BroadcastUi.Label(row.transform, "Tag", tag, 11, UiTheme.Muted, TextAnchor.MiddleRight, FontStyle.Bold);
+                kind.raycastTarget = false;
+                BroadcastUi.Place(kind.rectTransform, 0.62f, 0.62f, 0.96f, 0.94f);
                 var body = BroadcastUi.Label(row.transform, "Body", note.Text, 14, Color.white, TextAnchor.UpperLeft);
-                BroadcastUi.Place(body.rectTransform, 0.04f, 0.06f, 0.96f, 0.58f);
+                body.raycastTarget = false;
+                BroadcastUi.Place(body.rectTransform, 0.05f, 0.06f, 0.96f, 0.6f);
+            }
+
+            if (shown == 0)
+            {
+                var empty = BroadcastUi.Label(_phoneList, "Empty", "Sem mensagens nesta app.", 14, UiTheme.Muted, TextAnchor.MiddleLeft);
+                BroadcastUi.Preferred(empty, 48);
             }
         }
 
-        static bool PhoneMatches(string app, string who)
+        static bool PhoneMatches(string app, string channel)
         {
             if (app == "Mensagens")
-                return true;
+                return channel == "jogador" || channel == "clube";
             if (app == "Plantel")
-                return who.Contains("jogador");
+                return channel == "jogador";
             if (app == "Mercado")
-                return who.Contains("clube");
+                return channel == "clube";
             if (app == "Staff")
-                return who.Contains("equipa");
+                return channel == "staff";
             if (app == "Calendário")
-                return who.Contains("Adjunto") || who.Contains("equipa");
-            return true;
+                return channel == "calendario";
+            if (app == "Jornais")
+                return channel == "jornal";
+            return false;
+        }
+
+        void OpenThread(PhoneNote note)
+        {
+            if (_phoneList == null)
+                return;
+            _phoneInThread = true;
+            if (_phoneAppTitle != null)
+                _phoneAppTitle.text = note.Who;
+            Clear(_phoneList);
+            var card = BroadcastUi.Panel(_phoneList, "Thread", new Color(1f, 1f, 1f, 0.06f));
+            BroadcastUi.Preferred(card, 150);
+            var body = BroadcastUi.Label(card.transform, "Body", note.Text, 15, Color.white, TextAnchor.UpperLeft);
+            BroadcastUi.Place(body.rectTransform, 0.06f, 0.08f, 0.94f, 0.92f);
+            var key = note.Key;
+            if (_phoneAnswered.Contains(key))
+            {
+                AddPhoneLine("Já respondeste a esta mensagem.");
+                return;
+            }
+
+            if (note.Channel == "jogador" && _career.World.Players.TryGetValue(note.PlayerId ?? "", out var player))
+            {
+                AddPhoneChoice("Conta comigo no próximo jogo.", () => AnswerPlayer(player, key, 6, "Contei-lhe que pode contar com minutos."));
+                AddPhoneChoice("O lugar ganha-se no treino.", () => AnswerPlayer(player, key, player.Personality == PersonalityTrait.Temperamental || player.Personality == PersonalityTrait.Ambitious ? -3 : 1, "Disse-lhe que o lugar se ganha no treino."));
+                AddPhoneChoice("Falamos a sós amanhã.", () => AnswerPlayer(player, key, 3, "Marquei uma conversa a sós."));
+                return;
+            }
+
+            if (note.Channel == "clube")
+            {
+                AddPhoneChoice("Não está à venda.", () => AnswerClub(note, key, "Recusei a abordagem. O jogador não está à venda."));
+                AddPhoneChoice("O adjunto ouve a proposta.", () => AnswerClub(note, key, "Pedi ao adjunto para ouvir a proposta."));
+                AddPhoneChoice("Agora não há conversa.", () => AnswerClub(note, key, "Fechei a conversa com o outro clube."));
+            }
+        }
+
+        void AddPhoneChoice(string label, Action action)
+        {
+            var button = BroadcastUi.Button(_phoneList, "Choice", label, action, new Color(0.16f, 0.45f, 0.62f, 1f), Color.white, 14);
+            var layout = button.gameObject.AddComponent<LayoutElement>();
+            layout.preferredHeight = 48;
+            layout.minHeight = 48;
+        }
+
+        void AddPhoneLine(string text)
+        {
+            var row = BroadcastUi.Panel(_phoneList, "Note", new Color(0.12f, 0.45f, 0.55f, 0.35f));
+            BroadcastUi.Preferred(row, 64);
+            var label = BroadcastUi.Label(row.transform, "Body", text, 14, Color.white, TextAnchor.MiddleLeft);
+            BroadcastUi.Place(label.rectTransform, 0.06f, 0.08f, 0.94f, 0.92f);
+        }
+
+        void AnswerPlayer(Player player, string key, int morale, string line)
+        {
+            if (_phoneAnswered.Contains(key))
+                return;
+            if (player != null)
+                player.Morale = Mathf.Clamp(player.Morale + morale, 1, 99);
+            _phoneAnswered.Add(key);
+            _career.Notebook.Insert(0, _career.Calendar.ClockText + "  " + (player == null ? "Plantel" : player.FullName) + " — " + line);
+            ClosePhoneChoices();
+            AddPhoneLine(line);
+        }
+
+        void AnswerClub(PhoneNote note, string key, string line)
+        {
+            if (_phoneAnswered.Contains(key))
+                return;
+            _phoneAnswered.Add(key);
+            _career.Notebook.Insert(0, _career.Calendar.ClockText + "  " + note.Who + " — " + line);
+            ClosePhoneChoices();
+            AddPhoneLine(line);
+        }
+
+        void ClosePhoneChoices()
+        {
+            if (_phoneList == null)
+                return;
+            for (var i = _phoneList.childCount - 1; i >= 0; i--)
+            {
+                var child = _phoneList.GetChild(i);
+                if (child.name == "Choice")
+                    Destroy(child.gameObject);
+            }
         }
 
         List<PhoneNote> PhoneNotes()
         {
             var list = new List<PhoneNote>();
             var club = _career.Club;
+            var squad = new List<Player>();
+            foreach (var id in club.PlayerIds)
+            {
+                if (_career.World.Players.TryGetValue(id, out var player))
+                    squad.Add(player);
+            }
+
             Fixture next = null;
             foreach (var fixture in _career.Fixtures)
             {
-                if (fixture.Played || !fixture.Involves(club.Id))
+                if (fixture.Played || fixture.Walkover || !fixture.Involves(club.Id))
                     continue;
                 if (next == null || fixture.Date < next.Date)
                     next = fixture;
             }
 
-            var assistant = StaffReport.Find(club, StaffRole.AssistantCoach);
-            var assistantName = assistant == null ? "Adjunto" : assistant.FullName;
-            if (next != null && _career.World.Clubs.TryGetValue(next.OpponentId(club.Id), out var foe))
-                list.Add(new PhoneNote(assistantName + "  ·  equipa técnica", "O próximo jogo é com o " + foe.Name + ". Queres fechar o onze ou mexer na linha?"));
-            else
-                list.Add(new PhoneNote(assistantName + "  ·  equipa técnica", "O plantel está à espera da tua palavra para o próximo treino."));
+            Club foe = null;
+            if (next != null)
+                _career.World.Clubs.TryGetValue(next.OpponentId(club.Id), out foe);
 
-            var fitness = StaffReport.Find(club, StaffRole.FitnessCoach);
+            var seen = new HashSet<string>();
+            Player low = null;
             Player tired = null;
-            foreach (var id in club.PlayerIds)
+            Player captain = null;
+            Player star = null;
+            Player youth = null;
+            foreach (var player in squad)
             {
-                if (!_career.World.Players.TryGetValue(id, out var player))
-                    continue;
+                if (low == null || player.Morale < low.Morale)
+                    low = player;
                 if (tired == null || player.Fatigue > tired.Fatigue)
                     tired = player;
+                if (player.IsCaptain)
+                    captain = player;
+                if (star == null || PlayerAttributes.Overall(player) > PlayerAttributes.Overall(star))
+                    star = player;
+                if (player.Position != PlayerPosition.Goalkeeper && player.Age <= 21 && (youth == null || player.Age < youth.Age))
+                    youth = player;
             }
 
-            if (tired != null)
-                list.Add(new PhoneNote((fitness == null ? "Preparador" : fitness.FullName) + "  ·  equipa técnica", tired.FullName + " acusa o esforço. Se jogar seguido, o rendimento cai."));
-
-            Player voice = null;
-            foreach (var id in club.PlayerIds)
+            if (low != null && low.Morale < 72)
+                AddPlayerNote(list, seen, low, PlayerVoice(low, club));
+            if (tired != null && tired.Fatigue >= 58)
+                AddPlayerNote(list, seen, tired, tired.FullName.Split(' ')[0] + " escreveu: as pernas estão pesadas. Se jogar seguido, o rendimento cai.");
+            if (captain != null)
+                AddPlayerNote(list, seen, captain, captain.Morale >= 60
+                    ? "O grupo está contigo. Se quiseres, falo com eles antes do treino."
+                    : "O balneário está inquieto. Vale a pena uma palavra tua antes do próximo jogo.");
+            foreach (var player in squad)
             {
-                if (_career.World.Players.TryGetValue(id, out var player) && player.Position != PlayerPosition.Goalkeeper)
-                {
-                    voice = player;
-                    break;
-                }
+                if (player.Position == PlayerPosition.Goalkeeper || seen.Contains(player.Id))
+                    continue;
+                if (player.Personality != PersonalityTrait.Ambitious && player.Personality != PersonalityTrait.Outspoken)
+                    continue;
+                var benched = club.ManualLineup != null && club.ManualLineup.Count >= 11 && !club.ManualLineup.Contains(player.Id);
+                if (!benched && player.Morale >= 55)
+                    continue;
+                AddPlayerNote(list, seen, player, PlayerVoice(player, club));
+                break;
             }
-
-            if (voice != null)
-                list.Add(new PhoneNote(voice.FullName + "  ·  jogador", "Mister, quero minutos. Se o papel não estiver claro, o meu agente vai falar contigo."));
 
             Club buyer = null;
+            Club lender = null;
             foreach (var other in _career.World.Clubs.Values)
             {
-                if (other.Id != club.Id)
-                {
+                if (other.Id == club.Id || other.LeagueId != club.LeagueId)
+                    continue;
+                if (buyer == null || other.Reputation > buyer.Reputation)
                     buyer = other;
-                    break;
-                }
+                if (other.Reputation < club.Reputation && (lender == null || other.Reputation < lender.Reputation))
+                    lender = other;
             }
 
-            if (buyer != null && voice != null)
-                list.Add(new PhoneNote(buyer.Name + "  ·  clube", "Temos interesse em " + voice.FullName + ". Se o abrires à transferência, fazemos uma proposta."));
+            if (buyer != null && star != null && buyer.Id != club.Id)
+                list.Add(new PhoneNote(buyer.Name, "Temos interesse em " + star.FullName + ". Se o abrires à transferência, fazemos uma proposta a sério.", "clube", star.Id, buyer.Id));
+            if (lender != null && youth != null && lender.Id != (buyer == null ? "" : buyer.Id))
+                list.Add(new PhoneNote(lender.Name, "O " + youth.FullName + " encaixa no nosso plantel. Aceitam um empréstimo até ao fim da época?", "clube", youth.Id, lender.Id));
+            if (foe != null)
+                list.Add(new PhoneNote(foe.Name, "O próximo jogo é nosso. " + next.Date.ToString("dd/MM") + ", " + (next.IsHome(club.Id) ? "em tua casa" : "no nosso campo") + ". Até lá.", "clube", null, foe.Id));
+
+            var assistant = StaffReport.Find(club, StaffRole.AssistantCoach);
+            list.Add(new PhoneNote(assistant == null ? "Adjunto" : assistant.FullName, foe == null
+                ? "O plantel está à espera da tua palavra para o próximo treino."
+                : "O próximo jogo é com o " + foe.Name + ". Queres fechar o onze ou mexer na linha?", "staff", null, null));
+            if (tired != null && tired.Fatigue >= 58)
+            {
+                var fitness = StaffReport.Find(club, StaffRole.FitnessCoach);
+                list.Add(new PhoneNote(fitness == null ? "Preparador" : fitness.FullName, tired.FullName + " acusa o esforço. Um dia mais leve evita uma lesão.", "staff", tired.Id, null));
+            }
 
             if (_career.Targets.Count > 0)
             {
@@ -370,30 +522,79 @@ namespace CoachMaster.UI.Scenes
                     if (!string.IsNullOrEmpty(target.ClubId))
                         _career.World.Clubs.TryGetValue(target.ClubId, out owner);
                     var scout = StaffReport.Find(club, StaffRole.Scout);
-                    list.Add(new PhoneNote((scout == null ? "Olheiro" : scout.FullName) + "  ·  equipa técnica", target.FullName + " continua na tua lista" + (owner == null ? "." : ". O " + owner.Name + " pode ouvir uma oferta.")));
+                    list.Add(new PhoneNote(scout == null ? "Olheiro" : scout.FullName, target.FullName + " continua na tua lista" + (owner == null ? "." : ". O " + owner.Name + " pode ouvir uma oferta."), "staff", target.Id, owner == null ? null : owner.Id));
                 }
             }
 
             var physio = StaffReport.Find(club, StaffRole.Physiotherapist);
-            foreach (var id in club.PlayerIds)
+            foreach (var player in squad)
             {
-                if (!_career.World.Players.TryGetValue(id, out var player) || player.Injury == null || !player.Injury.IsInjured)
+                if (player.Injury == null || !player.Injury.IsInjured)
                     continue;
-                list.Add(new PhoneNote((physio == null ? "Fisioterapeuta" : physio.FullName) + "  ·  equipa técnica", player.FullName + ": " + player.Injury.Description + ". Faltam " + player.Injury.DaysRemaining + " dias."));
+                var hurt = string.IsNullOrEmpty(player.Injury.Description) ? "lesão" : player.Injury.Description;
+                list.Add(new PhoneNote(physio == null ? "Fisioterapeuta" : physio.FullName, player.FullName + ": " + hurt + ". Faltam " + player.Injury.DaysRemaining + " dias.", "staff", player.Id, null));
                 break;
             }
+
+            if (next != null && foe != null)
+                list.Add(new PhoneNote("Calendário", next.Date.ToString("dd/MM") + "  ·  " + (next.IsHome(club.Id) ? "Casa" : "Fora") + " contra " + foe.Name + ".", "calendario", null, foe.Id));
+            else
+                list.Add(new PhoneNote("Calendário", "Não há jogo marcado nos próximos dias.", "calendario", null, null));
+
+            if (_career.Press.Count > 0 && !string.IsNullOrEmpty(_career.Press[0].Headline))
+                list.Add(new PhoneNote(string.IsNullOrEmpty(_career.Press[0].Paper) ? "Imprensa" : _career.Press[0].Paper, _career.Press[0].Headline, "jornal", null, null));
+            else
+                list.Add(new PhoneNote("Imprensa", "Os jornais ainda não fecharam a edição de hoje.", "jornal", null, null));
 
             return list;
         }
 
-        struct PhoneNote
+        static void AddPlayerNote(List<PhoneNote> list, HashSet<string> seen, Player player, string text)
+        {
+            if (player == null || seen.Contains(player.Id) || string.IsNullOrEmpty(text))
+                return;
+            seen.Add(player.Id);
+            list.Add(new PhoneNote(player.FullName, text, "jogador", player.Id, player.ClubId));
+        }
+
+        static string PlayerVoice(Player player, Club club)
+        {
+            var first = player.FullName.Split(' ')[0];
+            var benched = club.ManualLineup != null && club.ManualLineup.Count >= 11 && !club.ManualLineup.Contains(player.Id);
+            if (player.Injury != null && player.Injury.IsInjured)
+                return first + ": estou de fora. Quero saber o plano para quando voltar.";
+            if (player.Morale < 40 && player.Personality == PersonalityTrait.Temperamental)
+                return "Não estou a perceber o meu papel. Ou falamos, ou isto vai azedar.";
+            if (player.Morale < 40 && player.Personality == PersonalityTrait.Insecure)
+                return "Sinto que já não contas comigo. Diz-me se estou errado.";
+            if (player.Morale < 48)
+                return "O balneário nota o meu estado. Preciso de uma conversa clara.";
+            if (benched && (player.Personality == PersonalityTrait.Ambitious || player.Personality == PersonalityTrait.Outspoken))
+                return "Quero o lugar. Se o onze não me incluir, o meu agente vai perguntar porquê.";
+            if (player.Personality == PersonalityTrait.Professional)
+                return "Estou pronto. Diz-me o que queres de mim no próximo jogo.";
+            if (player.Personality == PersonalityTrait.Leader)
+                return "O grupo ouve-te. Se o plano estiver claro, eu trato do resto do balneário.";
+            return "Mister, quando puderes, troca duas palavras comigo sobre o meu papel.";
+        }
+
+        sealed class PhoneNote
         {
             public string Who;
             public string Text;
-            public PhoneNote(string who, string text)
+            public string Channel;
+            public string PlayerId;
+            public string ClubId;
+            public string Key;
+
+            public PhoneNote(string who, string text, string channel, string playerId, string clubId)
             {
                 Who = who;
                 Text = text;
+                Channel = channel;
+                PlayerId = playerId;
+                ClubId = clubId;
+                Key = channel + "|" + (playerId ?? "") + "|" + (clubId ?? "") + "|" + who;
             }
         }
 
@@ -1308,7 +1509,7 @@ namespace CoachMaster.UI.Scenes
             var moreId = leagueId;
             var more = BroadcastUi.Button(card.transform, "More", "DETALHES", () => OpenLeagueStats(moreId), new Color(1f, 1f, 1f, 0.12f), Color.white, 11);
             BroadcastUi.Place(more.GetComponent<RectTransform>(), 0.64f, 0.9f, 0.97f, 0.99f);
-            var siglas = BroadcastUi.Label(card.transform, "Siglas", "Pts    J   V-E-D    GM-GS", 11, UiTheme.Accent, TextAnchor.MiddleRight, FontStyle.Bold);
+            var siglas = BroadcastUi.Label(card.transform, "Siglas", "PONTOS", 11, UiTheme.Accent, TextAnchor.MiddleRight, FontStyle.Bold);
             BroadcastUi.Place(siglas.rectTransform, 0.4f, 0.82f, 0.98f, 0.91f);
             var rows = new List<LeagueTableRow>();
             foreach (var row in _career.Table)
@@ -1325,13 +1526,28 @@ namespace CoachMaster.UI.Scenes
                 var diff = b.GoalDifference.CompareTo(a.GoalDifference);
                 return diff != 0 ? diff : b.GoalsFor.CompareTo(a.GoalsFor);
             });
-            var step = rows.Count == 0 ? 0.1f : 0.7f / Mathf.Max(1, rows.Count);
+            var indexes = new List<int>();
+            var mineIndex = -1;
             for (var i = 0; i < rows.Count; i++)
             {
+                if (rows[i].ClubId == _career.Club.Id)
+                    mineIndex = i;
+                if (i < 4)
+                    indexes.Add(i);
+            }
+
+            if (mineIndex >= 4)
+                indexes.Add(mineIndex);
+            else if (rows.Count > 4)
+                indexes.Add(4);
+            var step = 0.62f / 5f;
+            for (var n = 0; n < indexes.Count; n++)
+            {
+                var i = indexes[n];
                 var row = rows[i];
-                var y = 0.78f - (i + 1) * step;
+                var y = 0.78f - (n + 1) * step;
                 var mineRow = row.ClubId == _career.Club.Id;
-                var line = BroadcastUi.Zone(card.transform, "R" + i, 0.03f, y, 0.97f, y + step - 0.004f);
+                var line = BroadcastUi.Zone(card.transform, "R" + i, 0.03f, y, 0.97f, y + step - 0.008f);
                 Club club = null;
                 if (_career.World.Clubs.ContainsKey(row.ClubId))
                     club = _career.World.Clubs[row.ClubId];
@@ -1339,12 +1555,16 @@ namespace CoachMaster.UI.Scenes
                 crest.rectTransform.anchorMin = crest.rectTransform.anchorMax = new Vector2(0.08f, 0.5f);
                 crest.rectTransform.sizeDelta = new Vector2(18, 18);
                 var name = club == null ? row.ClubId : club.ShortName;
-                var text = (i + 1) + "  " + name;
-                var stats = row.Points + " pts   " + row.Played + "J  " + row.Won + "-" + row.Drawn + "-" + row.Lost + "  " + row.GoalsFor + "-" + row.GoalsAgainst;
-                var label = BroadcastUi.Label(line, "N", text, 12, mineRow ? UiTheme.Score : Color.white, TextAnchor.MiddleLeft, mineRow ? FontStyle.Bold : FontStyle.Normal);
-                BroadcastUi.Place(label.rectTransform, 0.16f, 0.08f, 0.48f, 0.92f);
-                var numbers = BroadcastUi.Label(line, "S", stats, 11, mineRow ? UiTheme.Score : UiTheme.Muted, TextAnchor.MiddleRight);
-                BroadcastUi.Place(numbers.rectTransform, 0.52f, 0.08f, 0.98f, 0.92f);
+                var label = BroadcastUi.Label(line, "N", (i + 1) + "  " + name, 14, mineRow ? UiTheme.Score : Color.white, TextAnchor.MiddleLeft, mineRow ? FontStyle.Bold : FontStyle.Normal);
+                BroadcastUi.Place(label.rectTransform, 0.16f, 0.08f, 0.72f, 0.92f);
+                var numbers = BroadcastUi.Label(line, "S", row.Points + " pts", 14, mineRow ? UiTheme.Score : UiTheme.Muted, TextAnchor.MiddleRight, FontStyle.Bold);
+                BroadcastUi.Place(numbers.rectTransform, 0.7f, 0.08f, 0.98f, 0.92f);
+            }
+
+            if (rows.Count > indexes.Count)
+            {
+                var moreLine = BroadcastUi.Label(card.transform, "Rest", "+" + (rows.Count - indexes.Count) + " clubes em Detalhes", 12, UiTheme.Muted, TextAnchor.MiddleLeft);
+                BroadcastUi.Place(moreLine.rectTransform, 0.06f, 0.02f, 0.94f, 0.12f);
             }
         }
 
@@ -1872,7 +2092,7 @@ namespace CoachMaster.UI.Scenes
             _career = career;
             var root = BroadcastUi.CreateDesign(transform);
             BroadcastUi.Backdrop(root);
-            LeagueBackdrop.Paint(root, _career.Club.LeagueId);
+            LeagueBackdrop.Paint(root, HubLeagueId());
             BuildHeader(root);
             BuildPhone(root);
             BuildTabs(root);
@@ -1909,7 +2129,7 @@ namespace CoachMaster.UI.Scenes
             if (art != null)
             {
                 var image = art.GetComponent<Image>();
-                var sprite = LeagueBackdrop.First(_career.Club.LeagueId);
+                var sprite = LeagueBackdrop.First(HubLeagueId());
                 if (image != null && sprite != null)
                     image.sprite = sprite;
             }
@@ -2191,8 +2411,9 @@ namespace CoachMaster.UI.Scenes
             var rows = new List<Fixture>();
             foreach (var fixture in _career.Fixtures)
             {
-                if (fixture.Involves(_career.Coach.ClubId))
-                    rows.Add(fixture);
+                if (fixture.Walkover || !fixture.Involves(_career.Coach.ClubId))
+                    continue;
+                rows.Add(fixture);
             }
 
             var culture = CultureInfo.GetCultureInfo("pt-PT");
@@ -2232,7 +2453,9 @@ namespace CoachMaster.UI.Scenes
                 badge.rectTransform.sizeDelta = new Vector2(52, 52);
                 var name = BroadcastUi.Label(card.transform, "Name", opp.Name, 20, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
                 BroadcastUi.Place(name.rectTransform, 0.24f, 0.52f, 0.78f, 0.9f);
-                var note = BroadcastUi.Label(card.transform, "Note", AssistantNote(opp), 14, UiTheme.Muted, TextAnchor.MiddleLeft);
+                var competition = SeasonSchedule.Competition(fixture.LeagueId);
+                var noteText = string.IsNullOrEmpty(competition) ? AssistantNote(opp) : competition;
+                var note = BroadcastUi.Label(card.transform, "Note", noteText, 14, UiTheme.Muted, TextAnchor.MiddleLeft);
                 BroadcastUi.Place(note.rectTransform, 0.24f, 0.08f, 0.8f, 0.5f);
                 var verdict = BroadcastUi.Label(card.transform, "Verdict", mark, 22, markColor, TextAnchor.MiddleCenter, FontStyle.Bold);
                 BroadcastUi.Place(verdict.rectTransform, 0.78f, 0.2f, 0.86f, 0.8f);
@@ -2714,24 +2937,130 @@ namespace CoachMaster.UI.Scenes
                     name = league.Name;
             }
 
-            OpenModal(name, "Números da época nesta prova.", false);
-            AddHead("Melhores marcadores");
-            AddBody(SeasonBook.List(_career, leagueId, "golos"));
-            AddHead("Assistências");
-            AddBody(SeasonBook.List(_career, leagueId, "assist"));
-            AddHead("Melhores médias");
-            AddBody(SeasonBook.List(_career, leagueId, "media"));
-            AddHead("Clubes com mais golos");
-            AddBody(ClubStat(leagueId, "gm"));
-            AddHead("Clubes com menos golos sofridos");
-            AddBody(ClubStat(leagueId, "gs"));
-            AddHead("Mais vitórias");
-            AddBody(ClubStat(leagueId, "v"));
-            AddHead("Melhor diferença de golos");
-            AddBody(ClubStat(leagueId, "dg"));
+            OpenModal(name, "A tabela completa e os números da época.", false);
+            BroadcastUi.Place(_modalLead.rectTransform, 0.05f, 0.82f, 0.7f, 0.88f);
+            var card = _modal.transform.Find("Card");
+            var tabs = BroadcastUi.Zone(card, "StatsTabs", 0.04f, 0.72f, 0.96f, 0.81f);
+            var scroll = card.Find("Scroll") as RectTransform;
+            if (scroll != null)
+                BroadcastUi.Place(scroll, 0.04f, 0.08f, 0.96f, 0.7f);
+            var labels = new[] { "Tabela", "Marcadores", "Assistências", "Médias", "Clubes" };
+            var buttons = new Button[labels.Length];
+            for (var i = 0; i < labels.Length; i++)
+            {
+                var page = i;
+                var x0 = i / (float)labels.Length;
+                var x1 = (i + 1) / (float)labels.Length;
+                buttons[i] = BroadcastUi.Button(tabs, "Tab" + i, labels[i], () =>
+                {
+                    PaintLeaguePage(leagueId, page, buttons);
+                }, new Color(1f, 1f, 1f, 0.08f), Color.white, 14);
+                BroadcastUi.Place(buttons[i].GetComponent<RectTransform>(), x0 + 0.008f, 0.08f, x1 - 0.008f, 0.92f);
+            }
+
+            PaintLeaguePage(leagueId, 0, buttons);
         }
 
-        string ClubStat(string leagueId, string kind)
+        void PaintLeaguePage(string leagueId, int page, Button[] tabs)
+        {
+            Clear(_modalBody);
+            if (tabs != null)
+            {
+                for (var i = 0; i < tabs.Length; i++)
+                {
+                    if (tabs[i] == null)
+                        continue;
+                    var on = i == page;
+                    tabs[i].GetComponent<Image>().color = on ? UiTheme.Accent : new Color(1f, 1f, 1f, 0.08f);
+                    var label = tabs[i].GetComponentInChildren<Text>();
+                    if (label != null)
+                        label.color = on ? UiTheme.ButtonText : Color.white;
+                }
+            }
+
+            if (page == 0)
+            {
+                FillFullTable(leagueId);
+                return;
+            }
+
+            if (page == 1)
+            {
+                AddHead("Melhores marcadores");
+                AddRanks(SeasonBook.Ranks(_career, leagueId, "golos"));
+                return;
+            }
+
+            if (page == 2)
+            {
+                AddHead("Assistências");
+                AddRanks(SeasonBook.Ranks(_career, leagueId, "assist"));
+                return;
+            }
+
+            if (page == 3)
+            {
+                AddHead("Melhores médias");
+                AddRanks(SeasonBook.Ranks(_career, leagueId, "media"));
+                return;
+            }
+
+            AddHead("Clubes com mais golos");
+            AddClubRanks(leagueId, "gm");
+            AddHead("Clubes com menos golos sofridos");
+            AddClubRanks(leagueId, "gs");
+            AddHead("Mais vitórias");
+            AddClubRanks(leagueId, "v");
+            AddHead("Melhor diferença de golos");
+            AddClubRanks(leagueId, "dg");
+        }
+
+        void FillFullTable(string leagueId)
+        {
+            var rows = new List<LeagueTableRow>();
+            foreach (var row in _career.Table)
+            {
+                if (row.LeagueId == leagueId)
+                    rows.Add(row);
+            }
+
+            rows.Sort((a, b) =>
+            {
+                var points = b.Points.CompareTo(a.Points);
+                if (points != 0)
+                    return points;
+                var diff = b.GoalDifference.CompareTo(a.GoalDifference);
+                return diff != 0 ? diff : b.GoalsFor.CompareTo(a.GoalsFor);
+            });
+            if (rows.Count == 0)
+            {
+                AddLine("Ainda não há jogos fechados.");
+                return;
+            }
+
+            AddHead("Pts    J    V-E-D    GM-GS");
+            for (var i = 0; i < rows.Count; i++)
+            {
+                var row = rows[i];
+                var club = _career.World.Clubs.ContainsKey(row.ClubId) ? _career.World.Clubs[row.ClubId].ShortName : row.ClubId;
+                var value = row.Points + "    " + row.Played + "    " + row.Won + "-" + row.Drawn + "-" + row.Lost + "    " + row.GoalsFor + "-" + row.GoalsAgainst;
+                AddRankRow(i + 1, club, row.ClubId == _career.Club.Id ? "o teu clube" : "", value);
+            }
+        }
+
+        void AddRanks(List<SeasonRank> rows)
+        {
+            if (rows == null || rows.Count == 0)
+            {
+                AddLine("Ainda não há números nesta lista.");
+                return;
+            }
+
+            for (var i = 0; i < rows.Count; i++)
+                AddRankRow(i + 1, rows[i].Name, rows[i].Club, rows[i].Value);
+        }
+
+        void AddClubRanks(string leagueId, string kind)
         {
             var rows = new List<LeagueTableRow>();
             foreach (var row in _career.Table)
@@ -2749,18 +3078,47 @@ namespace CoachMaster.UI.Scenes
             else
                 rows.Sort((a, b) => b.GoalDifference.CompareTo(a.GoalDifference));
             if (rows.Count == 0)
-                return "Ainda não há jogos fechados.";
-            var text = "";
+            {
+                AddLine("Ainda não há jogos fechados.");
+                return;
+            }
+
             var shown = Mathf.Min(5, rows.Count);
             for (var i = 0; i < shown; i++)
             {
                 var row = rows[i];
                 var club = _career.World.Clubs.ContainsKey(row.ClubId) ? _career.World.Clubs[row.ClubId].ShortName : row.ClubId;
                 var value = kind == "gm" ? row.GoalsFor + " golos" : kind == "gs" ? row.GoalsAgainst + " sofridos" : kind == "v" ? row.Won + " vitórias" : (row.GoalDifference > 0 ? "+" : "") + row.GoalDifference;
-                text += (i + 1) + ". " + club + "  —  " + value + "\n";
+                AddRankRow(i + 1, club, "", value);
+            }
+        }
+
+        void AddRankRow(int place, string name, string club, string value)
+        {
+            var tone = place == 1
+                ? new Color(0.42f, 0.28f, 0.08f, 0.96f)
+                : place == 2
+                    ? new Color(0.22f, 0.2f, 0.24f, 0.96f)
+                    : place == 3
+                        ? new Color(0.28f, 0.14f, 0.08f, 0.96f)
+                        : new Color(0.1f, 0.04f, 0.2f, 0.94f);
+            var row = BroadcastUi.Panel(_modalBody, "Rank" + place + name, tone, true);
+            var layout = row.gameObject.AddComponent<LayoutElement>();
+            layout.preferredHeight = 48;
+            layout.minHeight = 48;
+            var placeColor = place == 1 ? new Color(1f, 0.82f, 0.35f) : place == 2 ? new Color(0.86f, 0.88f, 0.92f) : place == 3 ? new Color(0.86f, 0.58f, 0.34f) : UiTheme.Muted;
+            var index = BroadcastUi.Label(row.transform, "Place", place.ToString(), 20, placeColor, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(index.rectTransform, 0.02f, 0.12f, 0.12f, 0.88f);
+            var who = BroadcastUi.Label(row.transform, "Who", name, 16, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(who.rectTransform, 0.14f, string.IsNullOrEmpty(club) ? 0.12f : 0.4f, 0.72f, 0.9f);
+            if (!string.IsNullOrEmpty(club))
+            {
+                var side = BroadcastUi.Label(row.transform, "Club", club, 13, UiTheme.Muted, TextAnchor.MiddleLeft);
+                BroadcastUi.Place(side.rectTransform, 0.14f, 0.08f, 0.72f, 0.42f);
             }
 
-            return text.Trim();
+            var mark = BroadcastUi.Label(row.transform, "Value", value, 16, UiTheme.Score, TextAnchor.MiddleRight, FontStyle.Bold);
+            BroadcastUi.Place(mark.rectTransform, 0.68f, 0.12f, 0.97f, 0.88f);
         }
 
         void AddBody(string text)
@@ -2774,20 +3132,22 @@ namespace CoachMaster.UI.Scenes
             if (_modalLineSize <= 0)
                 _modalLineSize = 16;
             Clear(_modalBody);
-            var oldFace = _modal.transform.Find("Card/Face");
-            if (oldFace != null)
-                Destroy(oldFace.gameObject);
-            var oldPortrait = _modal.transform.Find("Card/Portrait");
-            if (oldPortrait != null)
-                Destroy(oldPortrait.gameObject);
-            var oldOvr = _modal.transform.Find("Card/Ovr");
-            if (oldOvr != null)
-                Destroy(oldOvr.gameObject);
-            var oldBadge = _modal.transform.Find("Card/OvrBadge");
-            if (oldBadge != null)
-                Destroy(oldBadge.gameObject);
+            var card = _modal.transform.Find("Card");
+            if (card != null)
+            {
+                for (var i = card.childCount - 1; i >= 0; i--)
+                {
+                    var child = card.GetChild(i);
+                    if (child.name == "Title" || child.name == "Lead" || child.name == "Scroll" || child.name == "Close" || child.name == "Action")
+                        continue;
+                    Destroy(child.gameObject);
+                }
+            }
             BroadcastUi.Place(_modalTitle.rectTransform, 0.08f, 0.88f, 0.96f, 0.97f);
             BroadcastUi.Place(_modalLead.rectTransform, 0.05f, 0.78f, 0.95f, 0.88f);
+            var scroll = _modal.transform.Find("Card/Scroll") as RectTransform;
+            if (scroll != null)
+                BroadcastUi.Place(scroll, 0.04f, 0.16f, 0.96f, 0.72f);
             _modalTitle.text = title;
             _modalLead.text = lead;
             _modalAction.gameObject.SetActive(action);
@@ -2930,13 +3290,22 @@ namespace CoachMaster.UI.Scenes
             return venue + " vs " + opp.Name;
         }
 
-        static List<Player> Squad(Club club)
+        string HubLeagueId()
+        {
+            var next = _career == null ? null : _career.NextUserFixture();
+            var fixtureLeague = next == null ? null : next.LeagueId;
+            var clubLeague = _career != null && _career.Club != null ? _career.Club.LeagueId : null;
+            return LeagueBackdrop.ForFixture(fixtureLeague, clubLeague);
+        }
+
+        List<Player> Squad(Club club)
         {
             var list = new List<Player>();
-            var world = GameRoot.Instance.Session.Career.World;
+            if (club == null || club.PlayerIds == null || _career == null || _career.World == null)
+                return list;
             foreach (var id in club.PlayerIds)
             {
-                if (world.Players.TryGetValue(id, out var player))
+                if (_career.World.Players.TryGetValue(id, out var player))
                     list.Add(player);
             }
 

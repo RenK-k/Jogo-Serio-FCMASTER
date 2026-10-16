@@ -82,6 +82,9 @@ namespace CoachMaster.UI.Scenes
         Button[] _presetButtons;
         Text _tacticNote;
         RectTransform _roleHost;
+        RectTransform _tacticPitch;
+        RectTransform _tacticOrders;
+        string _tacticFocus;
         bool _watchEvent;
         HalfIdea[] _halfIdeas;
         Text _plan;
@@ -248,6 +251,20 @@ namespace CoachMaster.UI.Scenes
             var awayCrest = SceneBind.Get<Image>(root, "Scoreboard/Away/Crest");
             if (awayCrest != null)
                 awayCrest.sprite = CrestStudio.For(_match.Away);
+            var art = root.Find("LeagueArt");
+            if (art != null)
+            {
+                var image = art.GetComponent<Image>();
+                var sprite = LeagueBackdrop.First(LeagueBackdrop.ForFixture(_match.Fixture == null ? null : _match.Fixture.LeagueId, _career.Club.LeagueId));
+                if (image != null && sprite != null)
+                    image.sprite = sprite;
+            }
+            var leagueLabel = SceneBind.Get<Text>(root, "Wordmark/League");
+            if (leagueLabel != null)
+            {
+                var champions = _match.Fixture != null && _match.Fixture.LeagueId != null && _match.Fixture.LeagueId.Contains("campeoes");
+                leagueLabel.text = LeagueTitle(champions).ToUpperInvariant();
+            }
             _score = SceneBind.Get<Text>(root, "Scoreboard/Score");
             _clock = SceneBind.Get<Text>(root, "Scoreboard/Clock");
             _plan = SceneBind.Get<Text>(root, "Plan");
@@ -305,6 +322,7 @@ namespace CoachMaster.UI.Scenes
             _tactics = root.Find("TacticsPanel").gameObject;
             _tacticNote = SceneBind.Get<Text>(root, "TacticsPanel/Card/Note");
             _roleHost = root.Find("TacticsPanel/Card/RoleList") as RectTransform;
+            EnsureLiveTactics();
             SceneBind.Wire(root.Find("TacticsPanel/Card/CloseTactics"), CloseTactics);
             _presetButtons = new Button[TacticPresets.Names.Length];
             for (var i = 0; i < _presetButtons.Length; i++)
@@ -410,8 +428,14 @@ namespace CoachMaster.UI.Scenes
 
         void BuildInto(Transform root)
         {
-            var champions = _match.Fixture != null && _match.Fixture.LeagueId != null && _match.Fixture.LeagueId.Contains("campeoes");
-            if (champions)
+            var artId = LeagueBackdrop.ForFixture(_match.Fixture == null ? null : _match.Fixture.LeagueId, _career.Club.LeagueId);
+            var champions = artId != null && artId.Contains("campeoes");
+            if (LeagueBackdrop.First(artId) != null)
+            {
+                BroadcastUi.Backdrop(root);
+                LeagueBackdrop.Paint(root, artId);
+            }
+            else if (champions)
                 BroadcastUi.ChampionsNight(root);
             else
                 BroadcastUi.Backdrop(root);
@@ -791,41 +815,151 @@ namespace CoachMaster.UI.Scenes
 
             _tacticNote = BroadcastUi.Label(card, "Note", "", 16, Color.white, TextAnchor.UpperLeft);
             _tacticNote.verticalOverflow = VerticalWrapMode.Truncate;
-            BroadcastUi.Place(_tacticNote.rectTransform, 0.36f, 0.78f, 0.96f, 0.9f);
-            var roles = BroadcastUi.Label(card, "Roles", "FUNÇÕES INDIVIDUAIS", 13, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
-            BroadcastUi.Place(roles.rectTransform, 0.36f, 0.72f, 0.96f, 0.78f);
-            _roleHost = BroadcastUi.Zone(card, "RoleList", 0.36f, 0.03f, 0.96f, 0.72f);
+            BroadcastUi.Place(_tacticNote.rectTransform, 0.34f, 0.86f, 0.97f, 0.98f);
+            var grass = BroadcastUi.Panel(card, "TacticGrass", new Color(0.05f, 0.16f, 0.08f, 1f));
+            BroadcastUi.Place(grass.rectTransform, 0.34f, 0.34f, 0.97f, 0.86f);
+            BroadcastUi.DrawPitch(grass.rectTransform, new Color(0.12f, 0.46f, 0.22f));
+            _tacticPitch = BroadcastUi.Zone(card, "TacticPitch", 0.34f, 0.34f, 0.97f, 0.86f);
+            _tacticOrders = BroadcastUi.Zone(card, "TacticOrders", 0.34f, 0.03f, 0.97f, 0.32f);
             _tactics.SetActive(false);
+        }
+
+        void EnsureLiveTactics()
+        {
+            if (_tactics == null)
+                return;
+            var card = _tactics.transform.Find("Card");
+            if (card == null)
+                return;
+            _tacticPitch = card.Find("TacticPitch") as RectTransform;
+            _tacticOrders = card.Find("TacticOrders") as RectTransform;
+            if (_tacticPitch != null && _tacticOrders != null)
+                return;
+            var old = card.Find("RoleList");
+            if (old != null)
+                old.gameObject.SetActive(false);
+            var roles = card.Find("Roles");
+            if (roles != null)
+                roles.gameObject.SetActive(false);
+            if (card.Find("TacticGrass") == null)
+            {
+                var grass = BroadcastUi.Panel(card, "TacticGrass", new Color(0.05f, 0.16f, 0.08f, 1f));
+                BroadcastUi.Place(grass.rectTransform, 0.34f, 0.34f, 0.97f, 0.86f);
+                BroadcastUi.DrawPitch(grass.rectTransform, new Color(0.12f, 0.46f, 0.22f));
+            }
+
+            if (_tacticPitch == null)
+                _tacticPitch = BroadcastUi.Zone(card, "TacticPitch", 0.34f, 0.34f, 0.97f, 0.86f);
+            if (_tacticOrders == null)
+                _tacticOrders = BroadcastUi.Zone(card, "TacticOrders", 0.34f, 0.03f, 0.97f, 0.32f);
+            if (_tacticNote != null)
+                BroadcastUi.Place(_tacticNote.rectTransform, 0.34f, 0.86f, 0.97f, 0.98f);
         }
 
         void DrawRoles()
         {
-            if (_roleHost == null || _match == null)
+            EnsureLiveTactics();
+            var tactics = UserTactics();
+            if (_tacticNote != null && _match != null)
+                _tacticNote.text = TacticPresets.Describe(TacticPresets.IndexOf(tactics));
+            if (_tacticPitch == null || _match == null)
                 return;
-            for (var i = _roleHost.childCount - 1; i >= 0; i--)
-                Destroy(_roleHost.GetChild(i).gameObject);
-            if (_tacticNote != null)
-                _tacticNote.text = TacticPresets.Describe(TacticPresets.IndexOf(UserTactics()));
-            var field = UserHome() ? _match.HomeOnField : _match.AwayOnField;
-            var count = Mathf.Min(field.Count, 11);
-            for (var i = 0; i < count; i++)
+            for (var i = _tacticPitch.childCount - 1; i >= 0; i--)
+                Destroy(_tacticPitch.GetChild(i).gameObject);
+            var home = UserHome();
+            var field = home ? _match.HomeOnField : _match.AwayOnField;
+            var club = home ? _match.Home : _match.Away;
+            var lines = StartingShape.Lines(tactics == null ? null : tactics.Formation);
+            var cursor = 0;
+            var rows = lines.Length;
+            Player focus = null;
+            for (var row = 0; row < rows; row++)
             {
-                var player = PlayerOf(field[i]);
-                if (player == null)
-                    continue;
-                var y1 = 1f - i * (1f / count);
-                var y0 = y1 - (1f / count) + 0.008f;
-                var duty = string.IsNullOrEmpty(player.Duty) ? "Equilibrar" : player.Duty;
-                var label = player.SquadNumber + "  " + BroadcastUi.ShortName(player.FullName) + "    ·    " + duty;
-                var who = player;
-                var row = BroadcastUi.Button(_roleHost, "Role" + i, label, () =>
+                var count = lines[row];
+                var y = rows == 1 ? 0.5f : 0.16f + row * (0.68f / (rows - 1));
+                for (var col = 0; col < count && cursor < field.Count; col++)
                 {
-                    var options = IndividualOrders.ForPosition(who.Position);
-                    var index = Array.IndexOf(options, who.Duty);
-                    who.Duty = options[(index + 1 + options.Length) % options.Length];
+                    var player = PlayerOf(field[cursor]);
+                    cursor++;
+                    if (player == null)
+                        continue;
+                    if (player.Id == _tacticFocus)
+                        focus = player;
+                    var spot = TacticSpot(_tacticPitch, player, club, player.Id == _tacticFocus);
+                    spot.anchorMin = spot.anchorMax = new Vector2((count - col) / (count + 1f), y);
+                    spot.sizeDelta = new Vector2(108, 92);
+                }
+            }
+
+            DrawTacticOrders(focus);
+        }
+
+        RectTransform TacticSpot(Transform parent, Player player, Club club, bool selected)
+        {
+            var card = BroadcastUi.Panel(parent, "T" + player.Id, selected ? new Color(0.16f, 0.42f, 0.78f, 0.96f) : new Color(0.1f, 0.04f, 0.18f, 0.94f), true);
+            if (card.GetComponent<RectMask2D>() == null)
+                card.gameObject.AddComponent<RectMask2D>();
+            var who = player;
+            BroadcastUi.Hit(card, () =>
+            {
+                _tacticFocus = who.Id;
+                DrawRoles();
+            });
+            var shirt = club == null ? UiTheme.Accent : BroadcastUi.Parse(club.JerseyPrimaryHex, UiTheme.Accent);
+            var number = BroadcastUi.Label(card.transform, "No", player.SquadNumber.ToString(), 42, new Color(shirt.r, shirt.g, shirt.b, 0.22f), TextAnchor.MiddleCenter, FontStyle.Bold);
+            number.raycastTarget = false;
+            BroadcastUi.Place(number.rectTransform, 0.04f, 0.04f, 0.96f, 0.96f);
+            var faceGo = new GameObject("Face", typeof(RectTransform), typeof(Image));
+            var face = faceGo.GetComponent<Image>();
+            face.sprite = FaceBook.For(player) ?? PortraitStudio.For(player.Id);
+            face.preserveAspect = true;
+            face.raycastTarget = false;
+            face.rectTransform.SetParent(card.transform, false);
+            BroadcastUi.Place(face.rectTransform, 0.22f, 0.48f, 0.78f, 0.96f);
+            var name = BroadcastUi.Label(card.transform, "Name", BroadcastUi.ShortName(player.FullName).ToUpperInvariant(), 11, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            name.raycastTarget = false;
+            BroadcastUi.Place(name.rectTransform, 0.02f, 0.28f, 0.98f, 0.5f);
+            var duty = string.IsNullOrEmpty(player.Duty) ? "Equilibrar" : player.Duty;
+            var meta = BroadcastUi.Label(card.transform, "Meta", duty, 10, UiTheme.Accent, TextAnchor.MiddleCenter, FontStyle.Bold);
+            meta.raycastTarget = false;
+            BroadcastUi.Place(meta.rectTransform, 0.02f, 0.04f, 0.98f, 0.28f);
+            return card.rectTransform;
+        }
+
+        void DrawTacticOrders(Player focus)
+        {
+            if (_tacticOrders == null)
+                return;
+            for (var i = _tacticOrders.childCount - 1; i >= 0; i--)
+                Destroy(_tacticOrders.GetChild(i).gameObject);
+            if (focus == null)
+            {
+                var hint = BroadcastUi.Label(_tacticOrders, "Hint", "Toca num jogador do onze. As instruções aparecem aqui.", 15, Color.white, TextAnchor.MiddleLeft);
+                BroadcastUi.Place(hint.rectTransform, 0.02f, 0.15f, 0.98f, 0.85f);
+                return;
+            }
+
+            var current = string.IsNullOrEmpty(focus.Duty) ? "Equilibrar" : focus.Duty;
+            var head = BroadcastUi.Label(_tacticOrders, "Head", BroadcastUi.ShortName(focus.FullName).ToUpperInvariant() + "  ·  " + current, 14, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(head.rectTransform, 0.02f, 0.78f, 0.98f, 0.98f);
+            var options = IndividualOrders.ForPosition(focus.Position);
+            for (var i = 0; i < options.Length; i++)
+            {
+                var duty = options[i];
+                var on = duty == current;
+                var col = i % 2;
+                var row = i / 2;
+                var x0 = 0.01f + col * 0.5f;
+                var y1 = 0.74f - row * 0.24f;
+                var who = focus;
+                var chosen = duty;
+                var button = BroadcastUi.Button(_tacticOrders, "Duty" + i, chosen, () =>
+                {
+                    who.Duty = chosen;
+                    _tacticFocus = who.Id;
                     DrawRoles();
-                }, new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 13);
-                BroadcastUi.Place(row.GetComponent<RectTransform>(), 0f, y0, 1f, y1 - 0.004f);
+                }, on ? UiTheme.Accent : new Color(0.22f, 0.12f, 0.38f, 1f), on ? UiTheme.ButtonText : Color.white, 13);
+                BroadcastUi.Place(button.GetComponent<RectTransform>(), x0, y1 - 0.2f, x0 + 0.48f, y1);
             }
         }
 
@@ -1547,10 +1681,12 @@ namespace CoachMaster.UI.Scenes
 
             _queueOff = field[fieldIndex];
             _queueOn = incoming.Id;
-            if (_match.Phase == MatchPhase.HalfTime || _engine.DeadBall)
+            var stopped = _match.Phase == MatchPhase.HalfTime || _engine.DeadBall || (_subsMenu != null && _subsMenu.activeSelf);
+            if (stopped)
             {
                 TryQueuedSub();
                 DrawSubPitch();
+                RefreshSides();
                 return;
             }
 
@@ -1580,7 +1716,8 @@ namespace CoachMaster.UI.Scenes
         {
             if (string.IsNullOrEmpty(_queueOff) || string.IsNullOrEmpty(_queueOn))
                 return;
-            if (!_engine.DeadBall && _match.Phase != MatchPhase.HalfTime)
+            var stopped = _engine.DeadBall || _match.Phase == MatchPhase.HalfTime || (_subsMenu != null && _subsMenu.activeSelf);
+            if (!stopped)
                 return;
             var home = UserHome();
             var field = home ? _match.HomeOnField : _match.AwayOnField;

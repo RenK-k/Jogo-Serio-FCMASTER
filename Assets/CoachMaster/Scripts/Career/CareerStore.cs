@@ -32,8 +32,11 @@ namespace CoachMaster.Career
                 var hurt = player.Injury != null && player.Injury.IsInjured ? "1" : "0";
                 var days = player.Injury == null ? 0 : player.Injury.DaysRemaining;
                 var desc = player.Injury == null ? "" : player.Injury.Description;
-                lines.Add("player|" + player.Id + "|" + player.Morale + "|" + player.Fatigue + "|" + Esc(player.Duty) + "|" + (player.IsCaptain ? "1" : "0") + "|" + hurt + "|" + days + "|" + Esc(desc) + "|" + player.ClubId);
+                lines.Add("player|" + player.Id + "|" + player.Morale + "|" + player.Fatigue + "|" + Esc(player.Duty) + "|" + (player.IsCaptain ? "1" : "0") + "|" + hurt + "|" + days + "|" + Esc(desc) + "|" + player.ClubId + "|" + player.Age);
             }
+
+            foreach (var club in career.World.Clubs.Values)
+                lines.Add("club|" + club.Id + "|" + club.LeagueId);
 
             foreach (var fixture in career.Fixtures)
                 lines.Add("fixture|" + fixture.Id + "|" + (fixture.Played ? "1" : "0") + "|" + fixture.HomeGoals + "|" + fixture.AwayGoals + "|" + fixture.LeagueId + "|" + fixture.HomeClubId + "|" + fixture.AwayClubId + "|" + fixture.Date.Ticks);
@@ -102,6 +105,19 @@ namespace CoachMaster.Career
             career.Press.Clear();
             career.Board.Clear();
             career.Notebook.Clear();
+            var savedCalendar = false;
+            foreach (var raw in lines)
+            {
+                if (raw.StartsWith("fixture|"))
+                    savedCalendar = true;
+            }
+
+            if (savedCalendar)
+            {
+                career.Fixtures.Clear();
+                career.Table.Clear();
+            }
+
             foreach (var raw in lines)
             {
                 var bits = Split(raw);
@@ -127,6 +143,10 @@ namespace CoachMaster.Career
                         break;
                     case "player":
                         ApplyPlayer(career, bits);
+                        break;
+                    case "club":
+                        if (bits.Length > 2 && career.World.Clubs.TryGetValue(bits[1], out var savedClub))
+                            savedClub.LeagueId = bits[2];
                         break;
                     case "fixture":
                         ApplyFixture(career, bits);
@@ -264,6 +284,8 @@ namespace CoachMaster.Career
             player.Injury.Description = Un(bits[8]);
             if (!string.IsNullOrEmpty(bits[9]))
                 player.ClubId = bits[9];
+            if (bits.Length > 10 && int.TryParse(bits[10], out var age) && age > 15)
+                player.Age = age;
         }
 
         static void ApplyFixture(CareerState career, string[] bits)
@@ -296,6 +318,23 @@ namespace CoachMaster.Career
                 StampFixture(fixture, played, homeGoals, awayGoals);
                 return;
             }
+
+            if (bits.Length < 9)
+                return;
+            long createdTicks;
+            long.TryParse(bits[8], out createdTicks);
+            career.Fixtures.Add(new Fixture
+            {
+                Id = bits[1],
+                Played = played,
+                HomeGoals = homeGoals,
+                AwayGoals = awayGoals,
+                LeagueId = bits[5],
+                HomeClubId = bits[6],
+                AwayClubId = bits[7],
+                Date = createdTicks == 0 ? career.Calendar.CurrentDate.Date : new System.DateTime(createdTicks),
+                Restored = true
+            });
         }
 
         static void StampFixture(Fixture fixture, bool played, int homeGoals, int awayGoals)
@@ -330,6 +369,26 @@ namespace CoachMaster.Career
                 row.Points = pts;
                 return;
             }
+
+            int.TryParse(bits[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out var freshPlayed);
+            int.TryParse(bits[4], out var freshWon);
+            int.TryParse(bits[5], out var freshDrawn);
+            int.TryParse(bits[6], out var freshLost);
+            int.TryParse(bits[7], out var freshGf);
+            int.TryParse(bits[8], out var freshGa);
+            int.TryParse(bits[9], out var freshPts);
+            career.Table.Add(new LeagueTableRow
+            {
+                LeagueId = bits[1],
+                ClubId = bits[2],
+                Played = freshPlayed,
+                Won = freshWon,
+                Drawn = freshDrawn,
+                Lost = freshLost,
+                GoalsFor = freshGf,
+                GoalsAgainst = freshGa,
+                Points = freshPts
+            });
         }
 
         static string[] Split(string raw)

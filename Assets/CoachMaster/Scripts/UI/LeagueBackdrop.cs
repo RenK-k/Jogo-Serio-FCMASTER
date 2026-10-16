@@ -22,6 +22,15 @@ namespace CoachMaster.UI
             return all[0];
         }
 
+        public static string ForFixture(string fixtureLeagueId, string clubLeagueId)
+        {
+            if (!string.IsNullOrEmpty(fixtureLeagueId) && fixtureLeagueId.Contains("campeoes"))
+                return "league:campeoes";
+            if (!string.IsNullOrEmpty(fixtureLeagueId) && !fixtureLeagueId.StartsWith("cup:") && First(fixtureLeagueId) != null)
+                return fixtureLeagueId;
+            return string.IsNullOrEmpty(clubLeagueId) ? "league:atlas" : clubLeagueId;
+        }
+
         public static void Paint(Transform root, string leagueId)
         {
             var sprite = First(leagueId);

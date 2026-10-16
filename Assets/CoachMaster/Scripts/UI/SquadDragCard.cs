@@ -117,8 +117,6 @@ namespace CoachMaster.UI
             _blockFrame = Time.frameCount;
             if (Player == null || EventSystem.current == null)
                 return;
-            if (Bench && OnSwapWithField == null)
-                return;
             var target = FindTarget(eventData);
             if (target == null)
                 return;

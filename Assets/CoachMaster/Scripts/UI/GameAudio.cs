@@ -165,13 +165,6 @@ namespace CoachMaster.UI
 
         public static void Tick()
         {
-            if (_whistleLeft > 0 && Time.unscaledTime >= _nextWhistle)
-            {
-                Whistle();
-                _whistleLeft--;
-                _nextWhistle = Time.unscaledTime + 0.48f;
-            }
-
             if (!Application.isFocused)
             {
                 _unfocused = true;
@@ -221,12 +214,6 @@ namespace CoachMaster.UI
             _crowd.clip = clip;
             _crowd.loop = true;
             _crowd.Play();
-        }
-
-        public static void StopCrowd()
-        {
-            if (_crowd != null)
-                _crowd.Stop();
         }
 
         public static void StopMusic()
@@ -282,6 +269,13 @@ namespace CoachMaster.UI
                 if (clip == null)
                     continue;
                 var name = clip.name.ToLowerInvariant();
+                if (Contains(name, "golo", "goal"))
+                    library.Goal = library.Goal ?? clip;
+                else if (Contains(name, "whistle", "apito"))
+                {
+                    library.Whistle = library.Whistle ?? clip;
+                    library.Kickoff = library.Kickoff ?? clip;
+                }
                 if (Contains(name, "bicicleta", "chilena", "bicycle"))
                     library.BicycleKick = library.BicycleKick ?? clip;
                 else if (Contains(name, "trave", "poste", "post"))
@@ -297,13 +291,6 @@ namespace CoachMaster.UI
                 else if (Contains(name, "golo casa", "home goal"))
                     library.HomeGoal = library.HomeGoal ?? clip;
                 else if (Contains(name, "golo", "goal"))
-                    library.Goal = library.Goal ?? clip;
-                else if (Contains(name, "whistle", "apito"))
-                {
-                    library.Whistle = library.Whistle ?? clip;
-                    library.Kickoff = library.Kickoff ?? clip;
-                }
-                else if (Contains(name, "crowd", "torcida", "publico", "público", "fas", "fans"))
                     library.Crowd = library.Crowd ?? clip;
                 else if (Contains(name, "foul", "falta"))
                     library.Foul = library.Foul ?? clip;
@@ -378,15 +365,26 @@ namespace CoachMaster.UI
             return cut;
         }
 
+        static void PlayClip(AudioClip assigned, string resourceFallback)
+        {
+            var clip = assigned != null ? assigned : LoadResource(resourceFallback);
+            if (clip == null)
+                return;
+            Ensure();
+            _effects.PlayOneShot(clip, _effectVolume);
+        }
+
         static void React(string key, AudioClip clip)
         {
-            if (clip == null)
+            if (clip == null || string.IsNullOrEmpty(key))
                 return;
             if (_reaction != null && _reaction.isPlaying)
                 return;
             if (key == _reactionKey && Time.unscaledTime < _reactionLock)
                 return;
             Ensure();
+            if (_reaction == null)
+                return;
             _reactionKey = key;
             var window = key.Contains("goal") ? 2.3f : 1.5f;
             _reactionLock = Time.unscaledTime + window;
@@ -397,13 +395,13 @@ namespace CoachMaster.UI
             _reaction.Play();
         }
 
-        static void PlayClip(AudioClip assigned, string resourceFallback)
+        public static void StopCrowd()
         {
-            var clip = assigned != null ? assigned : LoadResource(resourceFallback);
-            if (clip == null)
-                return;
-            Ensure();
-            _effects.PlayOneShot(clip, _effectVolume);
+            if (_crowd != null)
+                _crowd.Stop();
+            if (_reaction != null)
+                _reaction.Stop();
+            _reactUntil = 0f;
         }
 
         static void StartMusic(AudioClip clip)

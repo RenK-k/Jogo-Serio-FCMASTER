@@ -43,6 +43,12 @@ namespace CoachMaster.Career
             if (career.Current != null && career.Current.Kind == MomentKind.Match && !career.Current.Fixture.Played)
                 return;
 
+            if (SeasonSchedule.TryRoll(career))
+            {
+                Begin(career);
+                return;
+            }
+
             Pull(career);
         }
 
@@ -448,7 +454,7 @@ namespace CoachMaster.Career
         {
             foreach (var fixture in career.Fixtures)
             {
-                if (!fixture.Played && fixture.Involves(career.Coach.ClubId) && fixture.Date.Date == day.Date)
+                if (!fixture.Played && !fixture.Walkover && fixture.Involves(career.Coach.ClubId) && fixture.Date.Date == day.Date)
                     return fixture;
             }
 

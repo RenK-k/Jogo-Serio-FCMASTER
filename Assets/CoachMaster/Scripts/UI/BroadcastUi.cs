@@ -30,7 +30,7 @@ namespace CoachMaster.UI
             {
                 scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
                 scaler.referenceResolution = new Vector2(1920, 1080);
-                scaler.matchWidthOrHeight = 0.5f;
+                scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Shrink;
             }
 
             canvas.pixelPerfect = true;
@@ -47,6 +47,7 @@ namespace CoachMaster.UI
                     child.SetActive(false);
                 }
 
+                RestoreShapes(design);
                 return design;
             }
 
@@ -69,8 +70,16 @@ namespace CoachMaster.UI
         {
             if (canvas == null)
                 return null;
-            for (var i = canvas.childCount - 1; i >= 0; i--)
-                UnityEngine.Object.DestroyImmediate(canvas.GetChild(i).gameObject);
+            var stale = new System.Collections.Generic.List<GameObject>();
+            for (var i = 0; i < canvas.childCount; i++)
+                stale.Add(canvas.GetChild(i).gameObject);
+            for (var i = 0; i < stale.Count; i++)
+            {
+                if (stale[i] == null)
+                    continue;
+                stale[i].SetActive(false);
+                UnityEngine.Object.DestroyImmediate(stale[i]);
+            }
             var go = new GameObject("Design", typeof(RectTransform));
             var rect = go.GetComponent<RectTransform>();
             rect.SetParent(canvas, false);
@@ -338,10 +347,64 @@ namespace CoachMaster.UI
             Dot(pitch, new Vector2(0.88f, 0.5f), 8f, line);
             var ring = Solid(pitch, "CenterRing", line);
             ring.sprite = Ring;
+            ring.type = Image.Type.Simple;
+            ring.preserveAspect = true;
             ring.rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
             ring.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            ring.rectTransform.sizeDelta = new Vector2(118, 118);
+            ring.rectTransform.sizeDelta = new Vector2(92, 92);
             Dot(pitch, new Vector2(0.5f, 0.5f), 8f, line);
+        }
+
+        public static void RestoreShapes(Transform root)
+        {
+            if (root == null)
+                return;
+            var images = root.GetComponentsInChildren<Image>(true);
+            for (var i = 0; i < images.Length; i++)
+            {
+                var image = images[i];
+                if (image == null)
+                    continue;
+                var name = image.gameObject.name;
+                if (name == "CenterRing")
+                {
+                    image.sprite = Ring;
+                    image.type = Image.Type.Simple;
+                    image.preserveAspect = true;
+                    image.rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+                    image.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+                    image.rectTransform.sizeDelta = new Vector2(92, 92);
+                    continue;
+                }
+
+                if (name == "Ball" || name == "BallShadow" || name == "Dot" || name == "Pill" || TokenName(name))
+                {
+                    image.sprite = Circle;
+                    image.type = Image.Type.Simple;
+                    continue;
+                }
+
+                if (image.GetComponent<Button>() != null || (image.sprite == null && image.type == Image.Type.Sliced))
+                {
+                    image.sprite = Round;
+                    image.type = Image.Type.Sliced;
+                }
+            }
+        }
+
+        static bool TokenName(string name)
+        {
+            if (string.IsNullOrEmpty(name) || name.Length < 2 || name.Length > 3)
+                return false;
+            if (name[0] != 'H' && name[0] != 'A')
+                return false;
+            for (var i = 1; i < name.Length; i++)
+            {
+                if (name[i] < '0' || name[i] > '9')
+                    return false;
+            }
+
+            return true;
         }
 
         public static void Preferred(Component component, float height, float width = -1f, float flexWidth = -1f)

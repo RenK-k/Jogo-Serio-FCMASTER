@@ -28,6 +28,8 @@ namespace CoachMaster.Domain
                 case PlayerTrait.Potente: return "Remate potente";
                 case PlayerTrait.Cruzador: return "Cruzador";
                 case PlayerTrait.Cabeceador: return "Jogo aéreo";
+                case PlayerTrait.RemateRasteiro: return "Remate rasteiro";
+                case PlayerTrait.RemateDeLonge: return "Remate de longe";
                 default: return "Equilibrado";
             }
         }
@@ -48,6 +50,8 @@ namespace CoachMaster.Domain
                 case PlayerTrait.Potente: return "O remate sai tenso.";
                 case PlayerTrait.Cruzador: return "Procura a linha e o cruzamento.";
                 case PlayerTrait.Cabeceador: return "Ganha bolas altas.";
+                case PlayerTrait.RemateRasteiro: return "Procura o remate baixo, junto ao relvado.";
+                case PlayerTrait.RemateDeLonge: return "Arrisca de fora da área.";
                 default: return "Joga de forma equilibrada.";
             }
         }
@@ -129,15 +133,13 @@ namespace CoachMaster.Domain
                 var mind = attr == null ? 10 : attr.Decisions;
                 var power = attr == null ? 10 : attr.Strength;
                 ranked.Add(new KeyValuePair<PlayerTrait, int>(PlayerTrait.Rapido, pace));
-                ranked.Add(new KeyValuePair<PlayerTrait, int>(PlayerTrait.RemateEmJeito, (finish + cool) / 2));
                 ranked.Add(new KeyValuePair<PlayerTrait, int>(PlayerTrait.ImuneAPressao, cool));
                 ranked.Add(new KeyValuePair<PlayerTrait, int>(PlayerTrait.Driblador, dribble));
-                ranked.Add(new KeyValuePair<PlayerTrait, int>(PlayerTrait.Finalizador, finish));
+                ranked.Add(new KeyValuePair<PlayerTrait, int>(PlayerTrait.Finalizador, finish >= 14 ? finish : finish - 4));
                 ranked.Add(new KeyValuePair<PlayerTrait, int>(PlayerTrait.Visionario, (pass + mind) / 2));
                 ranked.Add(new KeyValuePair<PlayerTrait, int>(PlayerTrait.Marcador, tackle));
                 ranked.Add(new KeyValuePair<PlayerTrait, int>(PlayerTrait.Trabalhador, work));
                 ranked.Add(new KeyValuePair<PlayerTrait, int>(PlayerTrait.Frieza, (cool + mind) / 2));
-                ranked.Add(new KeyValuePair<PlayerTrait, int>(PlayerTrait.Potente, (power + finish) / 2));
                 ranked.Add(new KeyValuePair<PlayerTrait, int>(PlayerTrait.Cruzador, cross));
                 ranked.Add(new KeyValuePair<PlayerTrait, int>(PlayerTrait.Cabeceador, (power + (attr == null ? 10 : attr.Positioning)) / 2));
             }
@@ -155,7 +157,42 @@ namespace CoachMaster.Domain
 
             if (picked.Count == 0)
                 picked.Add(ranked[(seed & 0x7fffffff) % ranked.Count].Key);
+            if (player.Position != PlayerPosition.Goalkeeper)
+            {
+                var shot = ShotStyle(player, seed);
+                if (shot != null && !picked.Contains(shot.Value))
+                {
+                    if (picked.Count >= 3)
+                        picked.RemoveAt(picked.Count - 1);
+                    picked.Add(shot.Value);
+                }
+            }
+
             return picked;
+        }
+
+        static PlayerTrait? ShotStyle(Player player, int seed)
+        {
+            var attr = player.Attributes;
+            var finish = attr == null ? 10 : attr.Finishing;
+            var power = attr == null ? 10 : attr.Strength;
+            var cool = attr == null ? 10 : attr.Composure;
+            var attack = player.Position == PlayerPosition.Striker || player.Position == PlayerPosition.LeftWinger || player.Position == PlayerPosition.RightWinger || player.Position == PlayerPosition.AttackingMidfielder;
+            var midfield = player.Position == PlayerPosition.CentralMidfielder || player.Position == PlayerPosition.DefensiveMidfielder || player.Position == PlayerPosition.AttackingMidfielder;
+            if (!attack && !midfield && finish < 12)
+                return null;
+            if (finish < 9 && !attack)
+                return null;
+            var roll = (seed & 0x7fffffff) % 100;
+            if (midfield && !attack && roll < 45)
+                return PlayerTrait.RemateDeLonge;
+            if (power >= finish + 1 && roll < 62)
+                return PlayerTrait.Potente;
+            if (roll < 78)
+                return PlayerTrait.RemateRasteiro;
+            if (cool >= 12 || finish >= 14)
+                return PlayerTrait.RemateEmJeito;
+            return roll % 2 == 0 ? PlayerTrait.RemateRasteiro : PlayerTrait.Potente;
         }
     }
 }

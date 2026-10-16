@@ -20,6 +20,9 @@ namespace CoachMaster.UI
 
         Button _save;
         Button _quit;
+        Button _window;
+        Button _vsync;
+        Button _quality;
         float _savedUntil;
         Image _saveImage;
 
@@ -70,46 +73,70 @@ namespace CoachMaster.UI
             var dim = BroadcastUi.Solid(canvasGo.transform, "Dim", new Color(0.03f, 0.01f, 0.08f, 0.72f), true);
             BroadcastUi.Stretch(dim.rectTransform);
             var card = BroadcastUi.Panel(canvasGo.transform, "Card", new Color(0.1f, 0.04f, 0.2f, 0.98f), true);
-            BroadcastUi.Place(card.rectTransform, 0.08f, 0.06f, 0.92f, 0.94f);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Shrink;
             var title = BroadcastUi.Label(card.transform, "Title", "MÚSICA", 32, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(title.rectTransform, 0.04f, 0.9f, 0.5f, 0.98f);
+            var dim = BroadcastUi.Solid(canvasGo.transform, "Dim", new Color(0.03f, 0.01f, 0.08f, 0.94f), true);
+            BroadcastUi.Stretch(dim.rectTransform);
+            var card = BroadcastUi.Panel(canvasGo.transform, "Card", new Color(0.1f, 0.04f, 0.2f, 1f), true);
+            BroadcastUi.Place(card.rectTransform, 0.08f, 0.08f, 0.92f, 0.92f);
+            var title = BroadcastUi.Label(card.transform, "Title", "DEFINIÇÕES", 32, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
             BroadcastUi.Place(title.rectTransform, 0.04f, 0.9f, 0.5f, 0.98f);
             var close = BroadcastUi.CloseX(card.transform, "CloseAudio", Toggle);
             BroadcastUi.Place(close.GetComponent<RectTransform>(), 0.9f, 0.9f, 0.97f, 0.98f);
 
-            _now = BroadcastUi.Label(card.transform, "Now", "", 20, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
-            BroadcastUi.Place(_now.rectTransform, 0.04f, 0.82f, 0.7f, 0.9f);
-            _repeat = BroadcastUi.Button(card.transform, "Repeat", "REPETIR", () =>
+            var sound = BroadcastUi.Panel(card.transform, "Sound", new Color(1f, 1f, 1f, 0.05f));
+            BroadcastUi.Place(sound.rectTransform, 0.03f, 0.16f, 0.49f, 0.88f);
+            var soundHead = BroadcastUi.Label(sound.transform, "Head", "MÚSICA", 18, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(soundHead.rectTransform, 0.06f, 0.88f, 0.94f, 0.98f);
+            _now = BroadcastUi.Label(sound.transform, "Now", "", 16, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+            _now.horizontalOverflow = HorizontalWrapMode.Wrap;
+            _now.verticalOverflow = VerticalWrapMode.Truncate;
+            BroadcastUi.Place(_now.rectTransform, 0.06f, 0.74f, 0.94f, 0.86f);
+            _repeat = BroadcastUi.Button(sound.transform, "Repeat", "REPETIR", () =>
             {
                 GameAudio.Repeat = !GameAudio.Repeat;
                 Refresh();
             }, new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 16);
-            BroadcastUi.Place(_repeat.GetComponent<RectTransform>(), 0.72f, 0.82f, 0.96f, 0.9f);
+            BroadcastUi.Place(_repeat.GetComponent<RectTransform>(), 0.06f, 0.62f, 0.94f, 0.72f);
+            Caption(sound.transform, "Música", 0.54f);
+            _musicSlider = VolumeWide(sound.transform, "Music", 0.46f, GameAudio.MusicVolume, GameAudio.SetMusicVolume);
+            Caption(sound.transform, "Efeitos", 0.38f);
+            _effectSlider = VolumeWide(sound.transform, "Effects", 0.3f, GameAudio.EffectVolume, GameAudio.SetEffectVolume);
+            Caption(sound.transform, "Público", 0.22f);
+            _crowdSlider = VolumeWide(sound.transform, "Crowd", 0.14f, GameAudio.CrowdVolume, GameAudio.SetCrowdVolume);
+            Step(sound.transform, "Anterior", () => { GameAudio.PreviousTrack(); Refresh(); }, 0.06f, 0.02f, 0.42f, 0.1f);
+            Step(sound.transform, "Seguinte", () => { GameAudio.NextTrack(); Refresh(); }, 0.52f, 0.02f, 0.42f, 0.1f);
 
-            LabelAt(card.transform, "Música", 0.74f);
-            _musicSlider = Volume(card.transform, "Music", 0.73f, GameAudio.MusicVolume, GameAudio.SetMusicVolume);
-            LabelAt(card.transform, "Efeitos", 0.66f);
-            _effectSlider = Volume(card.transform, "Effects", 0.65f, GameAudio.EffectVolume, GameAudio.SetEffectVolume);
-            LabelAt(card.transform, "Público", 0.58f);
-            _crowdSlider = Volume(card.transform, "Crowd", 0.57f, GameAudio.CrowdVolume, GameAudio.SetCrowdVolume);
+            var screen = BroadcastUi.Panel(card.transform, "ScreenBox", new Color(1f, 1f, 1f, 0.05f));
+            BroadcastUi.Place(screen.rectTransform, 0.51f, 0.16f, 0.97f, 0.88f);
+            var screenHead = BroadcastUi.Label(screen.transform, "Head", "ECRÃ", 18, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(screenHead.rectTransform, 0.06f, 0.88f, 0.94f, 0.98f);
+            var hint = BroadcastUi.Label(screen.transform, "Hint", "F11 alterna entre janela e ecrã inteiro. A imagem encolhe por igual.", 15, UiTheme.Muted, TextAnchor.UpperLeft);
+            BroadcastUi.Place(hint.rectTransform, 0.06f, 0.74f, 0.94f, 0.86f);
+            _window = Step(screen.transform, "Janela", () => { DisplayPrefs.ToggleFullscreen(); Refresh(); }, 0.06f, 0.6f, 0.88f, 0.12f);
+            Step(screen.transform, "1280x720", () => { DisplayPrefs.SetSize(1280, 720); Refresh(); }, 0.06f, 0.46f, 0.28f, 0.12f);
+            Step(screen.transform, "1600x900", () => { DisplayPrefs.SetSize(1600, 900); Refresh(); }, 0.36f, 0.46f, 0.28f, 0.12f);
+            Step(screen.transform, "1920x1080", () => { DisplayPrefs.SetSize(1920, 1080); Refresh(); }, 0.66f, 0.46f, 0.28f, 0.12f);
+            _vsync = Step(screen.transform, "VSync", () => { DisplayPrefs.ToggleVsync(); Refresh(); }, 0.06f, 0.3f, 0.88f, 0.12f);
+            _quality = Step(screen.transform, "Qualidade", () => { DisplayPrefs.CycleQuality(); Refresh(); }, 0.06f, 0.14f, 0.88f, 0.12f);
 
-            _save = Step(card.transform, "Guardar", ConfirmSave, 0.5f, 0.22f);
-            _quit = Step(card.transform, "Sair", LeaveToMenu, 0.74f, 0.22f);
+            _save = Step(card.transform, "Guardar", ConfirmSave, 0.03f, 0.03f, 0.46f, 0.1f);
+            _quit = Step(card.transform, "Sair", LeaveToMenu, 0.51f, 0.03f, 0.46f, 0.1f);
             ApplyCareerButtons();
-
-            Step(card.transform, "Anterior", () => { GameAudio.PreviousTrack(); Refresh(); }, 0.04f, 0.05f, 0.44f, 0.13f);
-            Step(card.transform, "Seguinte", () => { GameAudio.NextTrack(); Refresh(); }, 0.52f, 0.05f, 0.44f, 0.13f);
         }
 
-        static void LabelAt(Transform parent, string text, float y)
+        static void Caption(Transform parent, string text, float y)
         {
-            var label = BroadcastUi.Label(parent, text, text, 16, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
-            BroadcastUi.Place(label.rectTransform, 0.04f, y, 0.24f, y + 0.05f);
+            var label = BroadcastUi.Label(parent, text, text, 15, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(label.rectTransform, 0.06f, y, 0.94f, y + 0.07f);
         }
 
-        DragVolume Volume(Transform parent, string name, float y, float value, UnityEngine.Events.UnityAction<float> changed)
+        DragVolume VolumeWide(Transform parent, string name, float y, float value, UnityEngine.Events.UnityAction<float> changed)
         {
-            var go = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(DragVolume));
-            var rect = go.GetComponent<RectTransform>();
+            var bar = Volume(parent, name, y, value, changed);
+            BroadcastUi.Place(bar.GetComponent<RectTransform>(), 0.06f, y, 0.94f, y + 0.07f);
+            return bar;
             rect.SetParent(parent, false);
             BroadcastUi.Place(rect, 0.26f, y, 0.96f, y + 0.045f);
             var bg = go.GetComponent<Image>();
@@ -203,6 +230,18 @@ namespace CoachMaster.UI
         {
             if (UnityEngine.EventSystems.EventSystem.current == null || UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject == null)
                 return false;
+            SetCaption(_window, DisplayPrefs.WindowLabel);
+            SetCaption(_vsync, DisplayPrefs.VsyncLabel);
+            SetCaption(_quality, DisplayPrefs.QualityLabel);
+        }
+
+        static void SetCaption(Button button, string caption)
+        {
+            if (button == null)
+                return;
+            var label = button.GetComponentInChildren<Text>();
+            if (label != null)
+                label.text = caption;
             var field = UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject.GetComponent<InputField>();
             return field != null && field.isFocused;
         }

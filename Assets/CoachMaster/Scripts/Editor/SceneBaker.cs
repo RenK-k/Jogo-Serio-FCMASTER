@@ -78,6 +78,9 @@ namespace CoachMaster.EditorTools
 
                 var match = MatchSession.Create(career, fixture);
                 Paint("Assets/Scenes/MatchDay.unity", canvas => canvas.GetComponent<MatchDayController>().BakeDesign(career, match));
+                var folder = Path.GetDirectoryName(Marker);
+                if (!string.IsNullOrEmpty(folder))
+                    Directory.CreateDirectory(folder);
                 File.WriteAllText(Marker, "ok");
                 AssetDatabase.Refresh();
                 Debug.Log("Ecrãs gravados nas scenes. Podes mover os objetos dentro de Design.");
@@ -99,8 +102,24 @@ namespace CoachMaster.EditorTools
             var scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Single);
             var canvas = UnityEngine.Object.FindAnyObjectByType<Canvas>();
             build(canvas);
+            DropLooseRoots();
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
+        }
+
+        static void DropLooseRoots()
+        {
+            var transforms = UnityEngine.Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            for (var i = 0; i < transforms.Length; i++)
+            {
+                var transform = transforms[i];
+                if (transform == null || transform.parent != null)
+                    continue;
+                var go = transform.gameObject;
+                if (go.GetComponent<Camera>() != null || go.GetComponent<Canvas>() != null || go.GetComponent<UnityEngine.EventSystems.EventSystem>() != null)
+                    continue;
+                UnityEngine.Object.DestroyImmediate(go);
+            }
         }
     }
 }

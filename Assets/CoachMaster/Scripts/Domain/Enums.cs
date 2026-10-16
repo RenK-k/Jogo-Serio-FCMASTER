@@ -61,7 +61,9 @@ namespace CoachMaster.Domain
         Frieza,
         Potente,
         Cruzador,
-        Cabeceador
+        Cabeceador,
+        RemateRasteiro,
+        RemateDeLonge
     }
 
     public enum KitPattern

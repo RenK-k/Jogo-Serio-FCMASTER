@@ -5,6 +5,13 @@ using CoachMaster.MatchPlay;
 
 namespace CoachMaster.Career
 {
+    public sealed class SeasonRank
+    {
+        public string Name;
+        public string Club;
+        public string Value;
+    }
+
     public sealed class SeasonLine
     {
         public string PlayerId;
@@ -80,6 +87,17 @@ namespace CoachMaster.Career
 
         public static string List(CareerState career, string leagueId, string kind)
         {
+            var rows = Ranks(career, leagueId, kind);
+            if (rows.Count == 0)
+                return "Ainda não há números nesta lista.";
+            var text = new StringBuilder();
+            for (var i = 0; i < rows.Count; i++)
+                text.Append(i + 1).Append(". ").Append(rows[i].Name).Append("  (").Append(rows[i].Club).Append(")  —  ").Append(rows[i].Value).Append('\n');
+            return text.ToString().Trim();
+        }
+
+        public static List<SeasonRank> Ranks(CareerState career, string leagueId, string kind)
+        {
             var rows = new List<SeasonLine>();
             foreach (var line in career.Season)
             {
@@ -102,23 +120,26 @@ namespace CoachMaster.Career
                 rows.Sort((a, b) => b.Assists.CompareTo(a.Assists));
             else
                 rows.Sort((a, b) => Average(b).CompareTo(Average(a)));
-            if (rows.Count == 0)
-                return "Ainda não há números nesta lista.";
-            var text = new StringBuilder();
-            var shown = rows.Count < 8 ? rows.Count : 8;
-            for (var i = 0; i < shown; i++)
+
+            var shown = new List<SeasonRank>();
+            var count = rows.Count < 8 ? rows.Count : 8;
+            for (var i = 0; i < count; i++)
             {
                 var line = rows[i];
                 career.World.Players.TryGetValue(line.PlayerId, out var player);
                 var clubName = "";
                 if (player != null && career.World.Clubs.TryGetValue(player.ClubId, out var club))
                     clubName = club.ShortName;
-                var who = player == null ? line.PlayerId : player.FullName;
                 var value = kind == "golos" ? line.Goals + " golos" : kind == "assist" ? line.Assists + " assistências" : Average(line).ToString("0.00");
-                text.Append(i + 1).Append(". ").Append(who).Append("  (").Append(clubName).Append(")  —  ").Append(value).Append('\n');
+                shown.Add(new SeasonRank
+                {
+                    Name = player == null ? line.PlayerId : player.FullName,
+                    Club = clubName,
+                    Value = value
+                });
             }
 
-            return text.ToString().Trim();
+            return shown;
         }
 
         static float Average(SeasonLine line)
