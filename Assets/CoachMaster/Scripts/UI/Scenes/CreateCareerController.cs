@@ -1,5 +1,6 @@
 using CoachMaster.App;
 using CoachMaster.Career;
+using CoachMaster.Domain;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
@@ -18,7 +19,74 @@ namespace CoachMaster.UI.Scenes
             }
 
             var club = session.Catalog.Clubs[session.Draft.ClubId];
-            var root = BroadcastUi.Mount(this);
+            if (transform.Find("Design") != null)
+            {
+                BindName(BroadcastUi.Mount(this), session, club);
+                return;
+            }
+
+            Paint(session, club, false);
+        }
+
+        public void BakeDesign(GameSession session)
+        {
+            if (string.IsNullOrEmpty(session.Draft.LeagueId))
+                session.Draft.LeagueId = Ids.League("atlas");
+            session.PrepareLeague(session.Draft.LeagueId);
+            if (string.IsNullOrEmpty(session.Draft.ClubId))
+            {
+                foreach (var club in session.Catalog.ClubsInLeague(session.Draft.LeagueId))
+                {
+                    session.Draft.ClubId = club.Id;
+                    break;
+                }
+            }
+
+            if (session.Catalog.Clubs.ContainsKey(session.Draft.ClubId))
+                Paint(session, session.Catalog.Clubs[session.Draft.ClubId], true);
+        }
+
+        void BindName(Transform root, GameSession session, Club club)
+        {
+            SceneBind.Wire(root.Find("Header/Back"), () => GameRoot.Instance.Open(SceneNames.ClubInfo));
+            var title = SceneBind.Get<Text>(root, "Card/Club");
+            if (title != null)
+                title.text = club.Name.ToUpperInvariant();
+            var crest = SceneBind.Get<Image>(root, "Card/Crest");
+            if (crest != null)
+                crest.sprite = CrestStudio.For(club);
+            var field = SceneBind.Get<InputField>(root, "Card/Input");
+            var error = SceneBind.Get<Text>(root, "Card/Error");
+            if (field != null && !string.IsNullOrEmpty(session.Draft.CoachName))
+                field.text = session.Draft.CoachName;
+            SceneBind.Wire(root.Find("Card/Confirm"), () => ConfirmName(session, field, error));
+            if (field != null)
+            {
+                field.onSubmit.RemoveAllListeners();
+                field.onEndEdit.RemoveAllListeners();
+                field.onSubmit.AddListener(text => ConfirmName(session, field, error));
+            }
+        }
+
+        void ConfirmName(GameSession session, InputField field, Text error)
+        {
+            var name = field == null || field.text == null ? "" : field.text.Trim();
+            if (name.Length < 2)
+            {
+                if (error != null)
+                    error.text = "Escreve o nome do treinador.";
+                return;
+            }
+
+            session.Draft.CoachName = name;
+            session.StartCareer();
+            CareerStore.Save(session.Career);
+            GameRoot.Instance.Open(SceneNames.CareerHub);
+        }
+
+        void Paint(GameSession session, Club club, bool bake)
+        {
+            var root = bake ? BroadcastUi.CreateDesign(transform) : BroadcastUi.Mount(this);
             BroadcastUi.Backdrop(root);
             BroadcastUi.Wordmark(root, "Novo treinador");
             LeagueSelectController.Header(root, "O TEU NOME", "Vais assumir o " + club.Name + ".", () => GameRoot.Instance.Open(SceneNames.ClubInfo));

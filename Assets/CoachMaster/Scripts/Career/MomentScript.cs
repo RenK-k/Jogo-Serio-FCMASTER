@@ -29,28 +29,74 @@ namespace CoachMaster.Career
                 case "treino":
                     body = staff + " não te passa uma folha. " + place + ", " + gesture + " " + Contrast(other, seed / 13) + "\n\nO " + career.Club.Tactics.Formation + " continua a ser o desenho do relvado. Ninguém te confirma se o grupo ainda acredita nele.";
                     if (focus.Fatigue >= 60)
-                        board = focus.FullName + " ficou curto no último exercício. Fica registado, sem número.";
+                        board = focus.FullName + " ficou curto no exercício. " + Voice(focus);
                     break;
                 case "tarde":
                     body = career.Club.PublicTeamState + "\n\n" + Meal(captain, focus, other, seed);
                     if (focus != captain && focus.Morale + 20 < captain.Morale)
-                        board = "O capitão " + captain.FullName + " não junta o grupo. " + focus.FullName + " come à parte e não lhe responde.";
+                        board = focus.FullName + " come à parte. " + Voice(focus);
                     else if (career.Club.DressingRoomTension >= 65 && seed % 2 == 0)
-                        board = "A mesa do almoço partiu-se em dois grupos. " + captain.FullName + " ficou com metade.";
+                        board = "A mesa partiu-se. " + captain.FullName + " ficou com metade e " + focus.FullName + " com a outra.";
                     break;
                 case "clube":
                     body = staff + " encontra-te " + place + ". " + Private(focus, other, seed) + "\n\nNão assina por baixo. Diz que, se quiseres nomes, tens de os chamar tu.";
                     if (focus.Morale < 45)
-                        board = staff + " avisou, sem papel, que " + focus.FullName + " anda afastado do grupo.";
+                        board = focus.FullName + " anda afastado. " + Voice(focus);
                     break;
                 default:
                     body = "Entras no " + career.Club.Name + ". " + career.Club.DressingRoomAtmosphere + " " + gesture + " " + Contrast(other, seed / 9);
                     if (seed % 4 == 0)
-                        board = "Chegada: " + focus.FullName + " foi dos primeiros. " + other.FullName + " chegou sem falar com ninguém.";
+                        board = focus.FullName + " chegou cedo. " + other.FullName + " entrou sem falar. " + Voice(focus);
                     break;
             }
 
+            body += "\n\n" + focus.FullName + " " + Voice(focus) + " " + Habit(focus, seed);
             return body;
+        }
+
+        public static string Voice(Player player)
+        {
+            if (player == null)
+                return "fica na dele.";
+            switch (player.Personality)
+            {
+                case PersonalityTrait.Outspoken:
+                    return "diz o que pensa, mesmo à frente do grupo.";
+                case PersonalityTrait.Leader:
+                    return "puxa os outros sem esperar que lho peçam.";
+                case PersonalityTrait.Temperamental:
+                    return "fecha a cara à primeira contrariedade.";
+                case PersonalityTrait.Professional:
+                    return "faz o trabalho e deixa o resto em silêncio.";
+                case PersonalityTrait.Insecure:
+                    return "olha para o lado antes de falar.";
+                case PersonalityTrait.Ambitious:
+                    return "mede o dia pelo lugar que quer ocupar.";
+                default:
+                    return "observa e só entra quando o chamam.";
+            }
+        }
+
+        static string Habit(Player player, int seed)
+        {
+            if (player.HasTrait(PlayerTrait.Trabalhador))
+                return "Fica no relvado depois dos outros.";
+            if (player.HasTrait(PlayerTrait.Driblador))
+                return "No último exercício ainda tenta um drible a mais.";
+            if (player.HasTrait(PlayerTrait.Finalizador) || player.HasTrait(PlayerTrait.RemateEmJeito))
+                return "Pede a última bola para rematar, não para passar.";
+            if (player.HasTrait(PlayerTrait.Marcador))
+                return "Sai do treino a falar da marcação, não do golo.";
+            if (player.Position == PlayerPosition.Goalkeeper)
+                return "Fica à baliza quando o resto já vai para o balneário.";
+            var lines = new[]
+            {
+                "Come sozinho quando o dia corre mal.",
+                "Procura o capitão no corredor, sem fazer cena.",
+                "Ri-se alto no aquecimento e cala-se no balneário.",
+                "Guarda o lugar do costume e não o troca."
+            };
+            return lines[System.Math.Abs(seed) % lines.Length];
         }
 
         public static string MatchCall(CareerState career, Fixture fixture)

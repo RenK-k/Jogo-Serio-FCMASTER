@@ -93,7 +93,7 @@ namespace CoachMaster.UI
                     var key = Key(pair.Key, sprite);
                     used.Add(key);
                     player.PortraitPath = key;
-                    ByPlayer[player.Id] = Head(sprite);
+                    ByPlayer[player.Id] = Center(sprite);
                 }
             }
         }
@@ -112,34 +112,10 @@ namespace CoachMaster.UI
                 if (pool.Length > 0)
                     sprite = pool[Mod((player.Id + player.FullName).GetHashCode(), pool.Length)];
             }
-            sprite = Head(sprite);
+            sprite = Center(sprite);
             if (sprite != null)
                 ByPlayer[player.Id] = sprite;
             return sprite;
-        }
-
-        static Sprite Head(Sprite sprite)
-        {
-            if (sprite == null)
-                return null;
-            var rect = sprite.rect;
-            if (rect.height > rect.width * 1.15f && rect.height > 8f)
-            {
-                var side = Mathf.Min(rect.width * 0.92f, rect.height * 0.62f);
-                var head = new Rect(rect.x + (rect.width - side) * 0.5f, rect.y + rect.height - side - rect.height * 0.02f, side, side);
-                try
-                {
-                    var made = Sprite.Create(sprite.texture, head, new Vector2(0.5f, 0.45f), sprite.pixelsPerUnit, 0, SpriteMeshType.FullRect);
-                    made.name = sprite.name;
-                    return made;
-                }
-                catch
-                {
-                    return Center(sprite);
-                }
-            }
-
-            return Center(sprite);
         }
 
         static Sprite[] AllFaces()
@@ -153,17 +129,19 @@ namespace CoachMaster.UI
 
         static Sprite Center(Sprite sprite)
         {
-            if (sprite == null)
-                return null;
-            var pivot = sprite.pivot;
-            var rect = sprite.rect;
-            if (rect.width < 2f || rect.height < 2f)
+            if (sprite == null || sprite.texture == null)
                 return sprite;
-            if (Mathf.Abs(pivot.x - rect.width * 0.5f) < 2f && Mathf.Abs(pivot.y - rect.height * 0.5f) < 2f)
+            var tex = sprite.texture;
+            var full = new Rect(0f, 0f, tex.width, tex.height);
+            var rect = sprite.rect;
+            var pivot = sprite.pivot;
+            var covers = Mathf.Abs(rect.x) < 1f && Mathf.Abs(rect.y) < 1f && Mathf.Abs(rect.width - full.width) < 2f && Mathf.Abs(rect.height - full.height) < 2f;
+            var centered = Mathf.Abs(pivot.x - rect.width * 0.5f) < 2f && Mathf.Abs(pivot.y - rect.height * 0.5f) < 2f;
+            if (covers && centered)
                 return sprite;
             try
             {
-                var made = Sprite.Create(sprite.texture, rect, new Vector2(0.5f, 0.5f), sprite.pixelsPerUnit, 0, SpriteMeshType.FullRect);
+                var made = Sprite.Create(tex, full, new Vector2(0.5f, 0.5f), sprite.pixelsPerUnit, 0, SpriteMeshType.FullRect);
                 made.name = sprite.name;
                 return made;
             }

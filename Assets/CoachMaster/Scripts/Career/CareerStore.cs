@@ -53,6 +53,8 @@ namespace CoachMaster.Career
                 lines.Add("sjob|" + job.PlayerId + "|" + job.Due);
             foreach (var note in career.PlayerNotes)
                 lines.Add("pnote|" + note.PlayerId + "|" + Esc(note.Text));
+            foreach (var line in career.Season)
+                lines.Add("stat|" + line.PlayerId + "|" + line.Goals + "|" + line.Assists + "|" + line.Apps + "|" + line.RatingSum.ToString(CultureInfo.InvariantCulture) + "|" + line.Rated);
             File.WriteAllLines(PathFile, lines, Encoding.UTF8);
         }
 
@@ -197,6 +199,19 @@ namespace CoachMaster.Career
                         if (bits.Length > 2)
                             career.PlayerNotes.Add(new PlayerNote { PlayerId = bits[1], Text = Un(bits[2]) });
                         break;
+                    case "stat":
+                        if (bits.Length > 6)
+                        {
+                            int goals, assists, apps, rated;
+                            float sum;
+                            int.TryParse(bits[2], out goals);
+                            int.TryParse(bits[3], out assists);
+                            int.TryParse(bits[4], out apps);
+                            float.TryParse(bits[5], NumberStyles.Float, CultureInfo.InvariantCulture, out sum);
+                            int.TryParse(bits[6], out rated);
+                            career.Season.Add(new SeasonLine { PlayerId = bits[1], Goals = goals, Assists = assists, Apps = apps, RatingSum = sum, Rated = rated });
+                        }
+                        break;
                 }
             }
 
@@ -206,6 +221,7 @@ namespace CoachMaster.Career
             career.Upcoming.Clear();
             CareerMoments.Continue(career);
             SeasonSchedule.RebuildTable(career);
+            SeasonBook.Backfill(career);
             session.Restore(career);
             return career;
         }

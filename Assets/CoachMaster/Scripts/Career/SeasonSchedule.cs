@@ -143,6 +143,8 @@ namespace CoachMaster.Career
                 fixture.HomeGoals = Goals(rng, home - away);
                 fixture.AwayGoals = Goals(rng, away - home);
                 ApplyResult(career, fixture);
+                SeasonBook.CreditScoreline(career, fixture.HomeClubId, fixture.HomeGoals, fixture.AwayGoals);
+                SeasonBook.CreditScoreline(career, fixture.AwayClubId, fixture.AwayGoals, fixture.HomeGoals);
             }
         }
 

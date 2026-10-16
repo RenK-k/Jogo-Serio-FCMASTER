@@ -12,6 +12,7 @@ namespace CoachMaster.Domain
         public string PassingStyle { get; set; }
         public string AttackIdea { get; set; }
         public string Marking { get; set; }
+        public string Preset { get; set; }
         public string FormerCoachName { get; set; }
         public string Summary { get; set; }
     }

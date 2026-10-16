@@ -16,6 +16,9 @@ namespace CoachMaster.UI
 
         Canvas _canvas;
         RectTransform _ghost;
+        Vector2 _grab;
+        CanvasGroup _fade;
+        float _fadeAlpha = 1f;
         static readonly List<RaycastResult> Hits = new List<RaycastResult>();
 
         static bool _dragActive;
@@ -64,19 +67,39 @@ namespace CoachMaster.UI
             _dragActive = true;
             _dragSince = Time.unscaledTime;
             _canvas = GetComponentInParent<Canvas>();
-            var image = GetComponent<Image>();
-            if (image == null)
-                return;
-            var go = new GameObject("DragGhost", typeof(RectTransform), typeof(CanvasGroup), typeof(Image));
-            _ghost = go.GetComponent<RectTransform>();
-            _ghost.SetParent(_canvas.transform, false);
             var source = transform as RectTransform;
-            _ghost.sizeDelta = source != null && source.rect.size.sqrMagnitude > 4f ? source.rect.size : new Vector2(120f, 90f);
-            var ghostImage = go.GetComponent<Image>();
-            ghostImage.color = new Color(image.color.r, image.color.g, image.color.b, 0.72f);
-            ghostImage.raycastTarget = false;
-            go.GetComponent<CanvasGroup>().blocksRaycasts = false;
-            UpdateGhost(eventData);
+            if (_canvas == null || source == null)
+                return;
+            var clone = Instantiate(gameObject, _canvas.transform, false);
+            clone.name = "DragGhost";
+            foreach (var extra in clone.GetComponents<SquadDragCard>())
+                Destroy(extra);
+            foreach (var button in clone.GetComponents<Button>())
+                Destroy(button);
+            var group = clone.GetComponent<CanvasGroup>();
+            if (group == null)
+                group = clone.AddComponent<CanvasGroup>();
+            group.blocksRaycasts = false;
+            group.interactable = false;
+            group.alpha = 1f;
+            foreach (var graphic in clone.GetComponentsInChildren<Graphic>(true))
+                graphic.raycastTarget = false;
+            _ghost = clone.GetComponent<RectTransform>();
+            _ghost.anchorMin = _ghost.anchorMax = new Vector2(0.5f, 0.5f);
+            _ghost.pivot = new Vector2(0.5f, 0.5f);
+            _ghost.sizeDelta = source.rect.size.sqrMagnitude > 4f ? source.rect.size : new Vector2(96f, 72f);
+            var canvasRect = _canvas.transform as RectTransform;
+            var camera = eventData.pressEventCamera;
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRect, RectTransformUtility.WorldToScreenPoint(camera, source.position), camera, out var cardLocal);
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRect, eventData.position, camera, out var pointerLocal);
+            _grab = cardLocal - pointerLocal;
+            _ghost.localPosition = cardLocal;
+            _ghost.SetAsLastSibling();
+            _fade = GetComponent<CanvasGroup>();
+            if (_fade == null)
+                _fade = gameObject.AddComponent<CanvasGroup>();
+            _fadeAlpha = _fade.alpha;
+            _fade.alpha = 0.28f;
         }
 
         public void OnDrag(PointerEventData eventData)
@@ -86,9 +109,7 @@ namespace CoachMaster.UI
 
         public void OnEndDrag(PointerEventData eventData)
         {
-            if (_ghost != null)
-                Destroy(_ghost.gameObject);
-            _ghost = null;
+            DropGhost();
             if (!_dragging)
                 return;
             _dragging = false;
@@ -108,14 +129,21 @@ namespace CoachMaster.UI
 
         void OnDisable()
         {
-            if (_ghost != null)
-                Destroy(_ghost.gameObject);
-            _ghost = null;
+            DropGhost();
             if (!_dragging)
                 return;
             _dragging = false;
             _dragActive = false;
             _blockFrame = Time.frameCount;
+        }
+
+        void DropGhost()
+        {
+            if (_ghost != null)
+                Destroy(_ghost.gameObject);
+            _ghost = null;
+            if (_fade != null)
+                _fade.alpha = _fadeAlpha;
         }
 
         SquadDragCard FindTarget(PointerEventData eventData)
@@ -149,7 +177,7 @@ namespace CoachMaster.UI
             if (_ghost == null || _canvas == null)
                 return;
             RectTransformUtility.ScreenPointToLocalPointInRectangle(_canvas.transform as RectTransform, eventData.position, eventData.pressEventCamera, out var local);
-            _ghost.localPosition = local;
+            _ghost.localPosition = local + _grab;
         }
     }
 }

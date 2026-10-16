@@ -28,7 +28,98 @@ namespace CoachMaster.UI.Scenes
             }
 
             session.PrepareLeague(session.Draft.LeagueId);
-            var root = BroadcastUi.Mount(this);
+            if (transform.Find("Design") != null)
+            {
+                BindClubs(BroadcastUi.Mount(this), session);
+                return;
+            }
+
+            Paint(session, false);
+        }
+
+        public void BakeDesign(GameSession session)
+        {
+            if (string.IsNullOrEmpty(session.Draft.LeagueId))
+                session.Draft.LeagueId = Ids.League("atlas");
+            session.PrepareLeague(session.Draft.LeagueId);
+            Paint(session, true);
+        }
+
+        void BindClubs(Transform root, GameSession session)
+        {
+            SceneBind.Wire(root.Find("Header/Back"), () => GameRoot.Instance.Open(SceneNames.LeagueSelect));
+            _crest = SceneBind.Get<Image>(root, "Preview/Crest");
+            _kit = SceneBind.Get<Image>(root, "Preview/Kit");
+            _name = SceneBind.Get<Text>(root, "Preview/ClubName");
+            _meta = SceneBind.Get<Text>(root, "Preview/Meta");
+            _reputation = SceneBind.Get<Text>(root, "Preview/Reputation");
+            _squad = SceneBind.Get<Text>(root, "Preview/Squad");
+            SceneBind.Wire(root.Find("Preview/Choose"), () =>
+            {
+                if (_selected == null)
+                    return;
+                session.Draft.ClubId = _selected.Id;
+                GameRoot.Instance.Open(SceneNames.ClubInfo);
+            });
+            var content = root.Find("Clubs/Content");
+            for (var i = content.childCount - 1; i >= 0; i--)
+                Destroy(content.GetChild(i).gameObject);
+            foreach (var club in session.Catalog.ClubsInLeague(session.Draft.LeagueId))
+                _clubs.Add(club);
+            _clubs.Sort((a, b) => string.CompareOrdinal(a.Name, b.Name));
+            for (var i = 0; i < _clubs.Count; i++)
+            {
+                var club = _clubs[i];
+                var index = i;
+                var card = BroadcastUi.Panel(content, "Club" + i, new Color(0.1f, 0.04f, 0.2f, 0.72f), true);
+                BroadcastUi.Preferred(card, 118);
+                _cards.Add(card);
+                var crestGo = new GameObject("Crest", typeof(RectTransform), typeof(Image));
+                var crestRect = crestGo.GetComponent<RectTransform>();
+                crestRect.SetParent(card.transform, false);
+                crestRect.anchorMin = new Vector2(0.03f, 0.52f);
+                crestRect.anchorMax = new Vector2(0.14f, 0.92f);
+                crestRect.offsetMin = Vector2.zero;
+                crestRect.offsetMax = Vector2.zero;
+                var crest = crestGo.GetComponent<Image>();
+                crest.raycastTarget = false;
+                crest.preserveAspect = true;
+                crest.sprite = CrestStudio.For(club);
+                var kitGo = new GameObject("Kit", typeof(RectTransform), typeof(Image));
+                var kitRect = kitGo.GetComponent<RectTransform>();
+                kitRect.SetParent(card.transform, false);
+                kitRect.anchorMin = new Vector2(0.03f, 0.06f);
+                kitRect.anchorMax = new Vector2(0.14f, 0.5f);
+                kitRect.offsetMin = Vector2.zero;
+                kitRect.offsetMax = Vector2.zero;
+                var kit = kitGo.GetComponent<Image>();
+                kit.raycastTarget = false;
+                kit.preserveAspect = true;
+                KitView.Apply(kit, club);
+                var name = BroadcastUi.Label(card.transform, "Name", club.Name.ToUpperInvariant(), 20, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+                BroadcastUi.Place(name.rectTransform, 0.17f, 0.48f, 0.96f, 0.9f);
+                var meta = BroadcastUi.Label(card.transform, "Meta", club.City + "   ·   " + club.Stadium, 14, UiTheme.Muted, TextAnchor.MiddleLeft);
+                BroadcastUi.Place(meta.rectTransform, 0.17f, 0.1f, 0.96f, 0.48f);
+                BroadcastUi.Hit(card, () =>
+                {
+                    if (_selected == club)
+                    {
+                        session.Draft.ClubId = club.Id;
+                        GameRoot.Instance.Open(SceneNames.ClubInfo);
+                        return;
+                    }
+
+                    Select(index);
+                });
+            }
+
+            if (_clubs.Count > 0)
+                Select(0);
+        }
+
+        void Paint(GameSession session, bool bake)
+        {
+            var root = bake ? BroadcastUi.CreateDesign(transform) : BroadcastUi.Mount(this);
             BroadcastUi.Backdrop(root);
             var league = LeagueName(session);
             BroadcastUi.Wordmark(root, league);

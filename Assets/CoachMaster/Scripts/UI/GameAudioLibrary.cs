@@ -20,6 +20,15 @@ namespace CoachMaster.UI
         public AudioClip Kickoff;
         public AudioClip Crowd;
 
+        [Header("Reações da bancada")]
+        public AudioClip HomeGoal;
+        public AudioClip AwayGoal;
+        public AudioClip BicycleKick;
+        public AudioClip ShotWide;
+        public AudioClip ShotPost;
+        public AudioClip BigSave;
+        public AudioClip Penalty;
+
         [Header("Música (até 10 faixas)")]
         public AudioClip[] MusicTracks = new AudioClip[10];
     }

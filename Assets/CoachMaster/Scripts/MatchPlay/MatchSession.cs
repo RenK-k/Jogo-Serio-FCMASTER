@@ -135,6 +135,7 @@ namespace CoachMaster.MatchPlay
                 PassingStyle = string.IsNullOrEmpty(src.PassingStyle) ? "Passe misto" : src.PassingStyle,
                 AttackIdea = string.IsNullOrEmpty(src.AttackIdea) ? "Equilibrado" : src.AttackIdea,
                 Marking = string.IsNullOrEmpty(src.Marking) ? "Marcação mista" : src.Marking,
+                Preset = src.Preset,
                 FormerCoachName = src.FormerCoachName,
                 Summary = src.Summary
             };

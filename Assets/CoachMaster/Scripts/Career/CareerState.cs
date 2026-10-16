@@ -23,6 +23,7 @@ namespace CoachMaster.Career
         public HashSet<string> Loans { get; } = new HashSet<string>();
         public List<ScoutJob> ScoutJobs { get; } = new List<ScoutJob>();
         public List<PlayerNote> PlayerNotes { get; } = new List<PlayerNote>();
+        public List<SeasonLine> Season { get; } = new List<SeasonLine>();
 
         public Fixture NextUserFixture()
         {

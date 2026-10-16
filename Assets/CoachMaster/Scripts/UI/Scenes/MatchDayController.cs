@@ -73,17 +73,24 @@ namespace CoachMaster.UI.Scenes
         bool _fullWhistle;
         GameObject _tactics;
         GameObject _subsMenu;
-        RectTransform _subHost;
+        RectTransform _subPitch;
+        RectTransform _subBench;
+        Text _subStatus;
         Button[] _pressButtons;
         Button[] _lineButtons;
         Button[] _ideaButtons;
+        Button[] _presetButtons;
+        Text _tacticNote;
+        RectTransform _roleHost;
+        bool _watchEvent;
+        HalfIdea[] _halfIdeas;
+        Text _plan;
+        RectTransform _locker;
         string[] _pressOptions;
         string[] _lineOptions;
         string[] _ideaOptions;
         string _queueOff;
         string _queueOn;
-        string _pickOff;
-        string _pickOn;
         bool _subFromPause;
         RectTransform _timeline;
         Text _homePoss;
@@ -111,7 +118,22 @@ namespace CoachMaster.UI.Scenes
             _engine = new MatchEngine(_match);
             GameAudio.Kickoff();
             GameAudio.StartCrowd();
+            if (transform.Find("Design") != null)
+            {
+                BroadcastUi.Mount(this);
+                BindMatch(transform.Find("Design"));
+                Show(BoardTab.Fitness);
+                return;
+            }
+
             Build();
+        }
+
+        public void BakeDesign(CareerState career, MatchSession match)
+        {
+            _career = career;
+            _match = match;
+            BuildInto(BroadcastUi.CreateDesign(transform));
         }
 
         void Update()
@@ -124,11 +146,16 @@ namespace CoachMaster.UI.Scenes
                 if (!_halfWhistle)
                 {
                     _halfWhistle = true;
-                    GameAudio.Whistle();
+                    GameAudio.Whistles(2);
+                    FillLocker();
                 }
-                _halfTime.SetActive(true);
+                var changing = _subsMenu != null && _subsMenu.activeSelf;
+                _halfTime.SetActive(!changing);
+                if (changing)
+                    _subsMenu.transform.SetAsLastSibling();
                 _footer.SetActive(false);
                 RefreshHud();
+                TryQueuedSub();
                 return;
             }
 
@@ -137,7 +164,7 @@ namespace CoachMaster.UI.Scenes
                 if (!_fullWhistle)
                 {
                     _fullWhistle = true;
-                    GameAudio.Whistle();
+                    GameAudio.Whistles(3);
                     GameAudio.StopCrowd();
                 }
                 _fullTime.SetActive(true);
@@ -169,7 +196,7 @@ namespace CoachMaster.UI.Scenes
                 SetFooter(true);
             }
 
-            if (!_paused)
+            if (!_paused && !_watchEvent)
                 _engine.Tick(Time.deltaTime, _speed);
             TryQueuedSub();
 
@@ -204,7 +231,185 @@ namespace CoachMaster.UI.Scenes
 
         void Build()
         {
-            var root = BroadcastUi.Mount(this);
+            BuildInto(BroadcastUi.Mount(this));
+        }
+
+        void BindMatch(Transform root)
+        {
+            var homeName = SceneBind.Get<Text>(root, "Scoreboard/Home/Name");
+            if (homeName != null)
+                homeName.text = _match.Home.ShortName;
+            var awayName = SceneBind.Get<Text>(root, "Scoreboard/Away/Name");
+            if (awayName != null)
+                awayName.text = _match.Away.ShortName;
+            var homeCrest = SceneBind.Get<Image>(root, "Scoreboard/Home/Crest");
+            if (homeCrest != null)
+                homeCrest.sprite = CrestStudio.For(_match.Home);
+            var awayCrest = SceneBind.Get<Image>(root, "Scoreboard/Away/Crest");
+            if (awayCrest != null)
+                awayCrest.sprite = CrestStudio.For(_match.Away);
+            _score = SceneBind.Get<Text>(root, "Scoreboard/Score");
+            _clock = SceneBind.Get<Text>(root, "Scoreboard/Clock");
+            _plan = SceneBind.Get<Text>(root, "Plan");
+            _ticker = SceneBind.Get<Text>(root, "Ticker");
+            _flash = SceneBind.Get<Text>(root, "Flash");
+            _eventCard = root.Find("EventCard").gameObject;
+            _eventFace = SceneBind.Get<Image>(root, "EventCard/EventFace");
+            _eventStrip = SceneBind.Get<Image>(root, "EventCard/Strip");
+            _eventWho = SceneBind.Get<Text>(root, "EventCard/Who");
+            _fitnessPage = root.Find("Fitness").gameObject;
+            _homeCol = CaptureColumn(root.Find("Fitness/HomeXi"), true);
+            _awayCol = CaptureColumn(root.Find("Fitness/AwayXi"), false);
+            _pitch = root.Find("Fitness/PitchZone/Pitch") as RectTransform;
+            _homeColor = BroadcastUi.Parse(_match.Home.JerseyPrimaryHex, Color.white);
+            _awayColor = BroadcastUi.Parse(_match.Away.JerseyPrimaryHex, new Color(0.85f, 0.2f, 0.2f));
+            _homeTokens = CaptureTokens(true, _homeColor);
+            _awayTokens = CaptureTokens(false, _awayColor);
+            var ball = root.Find("Fitness/PitchZone/Pitch/Ball");
+            if (ball != null)
+            {
+                _ball = ball as RectTransform;
+                _ballImage = ball.GetComponent<Image>();
+            }
+
+            var shadow = root.Find("Fitness/PitchZone/Pitch/BallShadow");
+            if (shadow != null)
+                _ballShadow = shadow.GetComponent<Image>();
+            _ratingsPage = root.Find("Ratings").gameObject;
+            _homeRatings = SceneBind.Get<Text>(root, "Ratings/HomeRatings");
+            _awayRatings = SceneBind.Get<Text>(root, "Ratings/AwayRatings");
+            _statsPage = root.Find("Stats").gameObject;
+            _homePoss = SceneBind.Get<Text>(root, "Stats/HomePoss/Value");
+            _homeShots = SceneBind.Get<Text>(root, "Stats/HomeShots/Value");
+            _homeChances = SceneBind.Get<Text>(root, "Stats/HomeChances/Value");
+            _awayPoss = SceneBind.Get<Text>(root, "Stats/AwayPoss/Value");
+            _awayShots = SceneBind.Get<Text>(root, "Stats/AwayShots/Value");
+            _awayChances = SceneBind.Get<Text>(root, "Stats/AwayChances/Value");
+            _timeline = root.Find("Stats/TimelineCard/Timeline/Content") as RectTransform;
+            _tabs = new Button[3];
+            _tabs[0] = SceneBind.Wire(root.Find("Tabs/TabFit"), () => Show(BoardTab.Fitness));
+            _tabs[1] = SceneBind.Wire(root.Find("Tabs/TabRate"), () => Show(BoardTab.Ratings));
+            _tabs[2] = SceneBind.Wire(root.Find("Tabs/TabStats"), () => Show(BoardTab.Stats));
+            _footer = root.Find("Footer").gameObject;
+            SceneBind.Wire(root.Find("Footer/Pause"), OpenPause);
+            SceneBind.Wire(root.Find("Footer/QuickTactics"), OpenTactics);
+            SceneBind.Wire(root.Find("Footer/QuickSub"), () => OpenSubs(false));
+            var speed = SceneBind.Wire(root.Find("Footer/Speed"), CycleSpeed);
+            _speedLabel = speed == null ? null : speed.GetComponentInChildren<Text>();
+            _pause = root.Find("PausePanel").gameObject;
+            _pauseBody = SceneBind.Get<Text>(root, "PausePanel/Card/Tactics");
+            SceneBind.Wire(root.Find("PausePanel/Dim"), ResumeMatch);
+            SceneBind.Wire(root.Find("PausePanel/Card/Resume"), ResumeMatch);
+            SceneBind.Wire(root.Find("PausePanel/Card/OpenTactics"), OpenTactics);
+            SceneBind.Wire(root.Find("PausePanel/Card/OpenSubs"), () => OpenSubs(true));
+            _tactics = root.Find("TacticsPanel").gameObject;
+            _tacticNote = SceneBind.Get<Text>(root, "TacticsPanel/Card/Note");
+            _roleHost = root.Find("TacticsPanel/Card/RoleList") as RectTransform;
+            SceneBind.Wire(root.Find("TacticsPanel/Card/CloseTactics"), CloseTactics);
+            _presetButtons = new Button[TacticPresets.Names.Length];
+            for (var i = 0; i < _presetButtons.Length; i++)
+            {
+                var index = i;
+                _presetButtons[i] = SceneBind.Wire(root.Find("TacticsPanel/Card/Preset" + i), () =>
+                {
+                    TacticPresets.Apply(UserTactics(), index);
+                    TouchSummary();
+                    DrawRoles();
+                });
+            }
+
+            _shape = root.Find("Shape").gameObject;
+            _shapeHost = root.Find("Shape/Card/Players") as RectTransform;
+            SceneBind.Wire(root.Find("Shape/Card/CloseShape"), () =>
+            {
+                _shape.SetActive(false);
+                if (_tactics != null)
+                    _tactics.SetActive(true);
+            });
+            var forms = new[] { "4-3-3", "4-2-3-1", "4-4-2", "3-4-3", "5-4-1" };
+            _formationButtons = new Button[forms.Length];
+            for (var i = 0; i < forms.Length; i++)
+            {
+                var formation = forms[i];
+                _formationButtons[i] = SceneBind.Wire(root.Find("Shape/Card/Form" + i), () => PickFormation(formation));
+            }
+
+            _halfTime = root.Find("HalfTime").gameObject;
+            _locker = root.Find("HalfTime/Card/Voices") as RectTransform;
+            SceneBind.Wire(root.Find("HalfTime/Card/LeaveAssistant"), LeaveToAssistant);
+            SceneBind.Wire(root.Find("HalfTime/Card/HalfSubs"), () => OpenSubs(true));
+            _fullTime = root.Find("FullTime").gameObject;
+            _fullResult = SceneBind.Get<Text>(root, "FullTime/Card/Result");
+            SceneBind.Wire(root.Find("FullTime/Card/Continue"), FinishMatch);
+            _subsMenu = root.Find("SubsMenu").gameObject;
+            _subStatus = SceneBind.Get<Text>(root, "SubsMenu/Card/Status");
+            _subPitch = root.Find("SubsMenu/Card/Pitch") as RectTransform;
+            _subBench = root.Find("SubsMenu/Card/Bench") as RectTransform;
+            SceneBind.Wire(root.Find("SubsMenu/Card/CloseSubs"), CloseSubs);
+        }
+
+        SideColumn CaptureColumn(Transform area, bool home)
+        {
+            var col = new SideColumn();
+            col.Root = area.gameObject;
+            col.Xi = SceneBind.Wire(area.Find(home ? "HomeXiTab" : "AwayXiTab"), () =>
+            {
+                if (home) _homeXi = true;
+                else _awayXi = true;
+                _slow = 0f;
+            });
+            col.Bench = SceneBind.Wire(area.Find(home ? "HomeBenchTab" : "AwayBenchTab"), () =>
+            {
+                if (home) _homeXi = false;
+                else _awayXi = false;
+                _slow = 0f;
+            });
+            col.Numbers = new Text[11];
+            col.Names = new Text[11];
+            col.Fills = new Image[11];
+            col.Scores = new Text[11];
+            col.Marks = new Text[11];
+            col.Cards = new Image[11];
+            col.Balls = new Image[11];
+            col.GoalMarks = new Text[11];
+            col.Boots = new Image[11];
+            col.Pens = new Text[11];
+            col.Rows = new GameObject[11];
+            for (var i = 0; i < 11; i++)
+            {
+                var row = area.Find("Row" + i);
+                col.Rows[i] = row.gameObject;
+                col.Numbers[i] = row.Find("Num").GetComponent<Text>();
+                col.Names[i] = row.Find("Name").GetComponent<Text>();
+                col.Marks[i] = row.Find("Card").GetComponent<Text>();
+                col.Cards[i] = row.Find("CardRect").GetComponent<Image>();
+                col.Balls[i] = row.Find("Ball").GetComponent<Image>();
+                col.GoalMarks[i] = row.Find("Ball/Goals").GetComponent<Text>();
+                col.Boots[i] = row.Find("Boot").GetComponent<Image>();
+                col.Pens[i] = row.Find("Pen").GetComponent<Text>();
+                col.Fills[i] = row.Find("Bar/Fill").GetComponent<Image>();
+                col.Scores[i] = row.Find("Score").GetComponent<Text>();
+            }
+
+            return col;
+        }
+
+        Token[] CaptureTokens(bool home, Color color)
+        {
+            var list = new Token[11];
+            for (var i = 0; i < 11; i++)
+            {
+                var rect = _pitch.Find((home ? "H" : "A") + i) as RectTransform;
+                var image = rect.GetComponent<Image>();
+                image.color = color;
+                list[i] = new Token { Rect = rect, Number = rect.Find("N").GetComponent<Text>() };
+            }
+
+            return list;
+        }
+
+        void BuildInto(Transform root)
+        {
             var champions = _match.Fixture != null && _match.Fixture.LeagueId != null && _match.Fixture.LeagueId.Contains("campeoes");
             if (champions)
                 BroadcastUi.ChampionsNight(root);
@@ -237,8 +442,10 @@ namespace CoachMaster.UI.Scenes
             BroadcastUi.Place(_clock.rectTransform, 0.36f, 0.02f, 0.64f, 0.34f);
             var away = BroadcastUi.Zone(bar, "Away", 0.64f, 0.08f, 0.98f, 0.92f);
             TeamSide(away, _match.Away, false);
+            _plan = BroadcastUi.Label(root, "Plan", "", 14, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(_plan.rectTransform, 0.04f, 0.755f, 0.2f, 0.795f);
             _ticker = BroadcastUi.Label(root, "Ticker", "", 16, UiTheme.Muted, TextAnchor.MiddleCenter);
-            BroadcastUi.Place(_ticker.rectTransform, 0.18f, 0.755f, 0.82f, 0.795f);
+            BroadcastUi.Place(_ticker.rectTransform, 0.2f, 0.755f, 0.82f, 0.795f);
             _flash = BroadcastUi.Label(root, "Flash", "", 42, UiTheme.Score, TextAnchor.MiddleCenter, FontStyle.Bold);
             BroadcastUi.Place(_flash.rectTransform, 0.3f, 0.58f, 0.7f, 0.7f);
             _flash.gameObject.SetActive(false);
@@ -561,47 +768,65 @@ namespace CoachMaster.UI.Scenes
 
         void BuildTactics(Transform root)
         {
-            _tactics = Overlay(root, "TacticsPanel", 0.08f, 0.08f, 0.92f, 0.92f, out var card);
-            var title = BroadcastUi.Label(card, "Title", "TÁTICAS RÁPIDAS", 26, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
-            BroadcastUi.Place(title.rectTransform, 0.08f, 0.86f, 0.84f, 0.97f);
-            var formation = BroadcastUi.Button(card, "OpenFormation", "FORMAÇÃO", OpenShape, UiTheme.Accent, UiTheme.ButtonText, 16);
-            BroadcastUi.Place(formation.GetComponent<RectTransform>(), 0.08f, 0.7f, 0.42f, 0.84f);
+            _tactics = Overlay(root, "TacticsPanel", 0.06f, 0.06f, 0.94f, 0.94f, out var card);
+            var title = BroadcastUi.Label(card, "Title", "TÁTICAS RÁPIDAS", 26, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(title.rectTransform, 0.04f, 0.9f, 0.7f, 0.98f);
             var close = BroadcastUi.CloseX(card, "CloseTactics", CloseTactics);
-            BroadcastUi.Place(close.GetComponent<RectTransform>(), 0.88f, 0.88f, 0.97f, 0.98f);
-            _pressOptions = new[] { "Pressão alta", "Pressão média", "Pressão baixa" };
-            _lineOptions = new[] { "Linha muito alta", "Linha defensiva alta", "Linha defensiva média", "Linha defensiva baixa", "Linha muito baixa" };
-            var pressHint = BroadcastUi.Label(card, "PressHint", "Quanto cedo a equipa fecha o adversário com a posse.", 13, UiTheme.Muted, TextAnchor.MiddleLeft);
-            BroadcastUi.Place(pressHint.rectTransform, 0.08f, 0.58f, 0.92f, 0.66f);
-            _pressButtons = ChoiceRow(card, "Pressão", 0.44f, _pressOptions, value =>
+            BroadcastUi.Place(close.GetComponent<RectTransform>(), 0.88f, 0.9f, 0.97f, 0.98f);
+            var side = BroadcastUi.Label(card, "Side", "PLANOS", 13, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(side.rectTransform, 0.04f, 0.84f, 0.32f, 0.9f);
+            _presetButtons = new Button[TacticPresets.Names.Length];
+            for (var i = 0; i < TacticPresets.Names.Length; i++)
             {
-                UserTactics().Pressing = value;
-                TouchSummary();
-            }, true);
-            var lineHint = BroadcastUi.Label(card, "LineHint", "Altura da linha defensiva e do bloco quando não há bola.", 13, UiTheme.Muted, TextAnchor.MiddleLeft);
-            BroadcastUi.Place(lineHint.rectTransform, 0.08f, 0.34f, 0.92f, 0.42f);
-            _lineButtons = ChoiceRow(card, "Linha", 0.22f, _lineOptions, value =>
-            {
-                UserTactics().DefensiveLine = value;
-                TouchSummary();
-            }, true);
-            _ideaOptions = new[] { "Equilibrado", "Tiki-taka", "Posse", "Cruzamentos", "Jogo direto", "Bolas longas", "Remates de longe", "Contra-ataque" };
-            var ideaHint = BroadcastUi.Label(card, "IdeaHint", "A ideia com a bola. Cruzamentos procuram a ala. Tiki-taka pede apoios curtos.", 13, UiTheme.Muted, TextAnchor.MiddleLeft);
-            BroadcastUi.Place(ideaHint.rectTransform, 0.08f, 0.15f, 0.92f, 0.21f);
-            _ideaButtons = new Button[_ideaOptions.Length];
-            var ideaSpan = 0.92f / _ideaOptions.Length;
-            for (var i = 0; i < _ideaOptions.Length; i++)
-            {
-                var option = _ideaOptions[i];
-                var x0 = 0.04f + i * ideaSpan;
-                _ideaButtons[i] = BroadcastUi.Button(card, "Idea" + i, ShortIdea(option), () =>
+                var index = i;
+                var y1 = 0.8f - i * 0.15f;
+                _presetButtons[i] = BroadcastUi.Button(card, "Preset" + i, TacticPresets.Names[i], () =>
                 {
-                    UserTactics().AttackIdea = option;
+                    TacticPresets.Apply(UserTactics(), index);
                     TouchSummary();
-                    PaintChoices();
-                }, new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 11);
-                BroadcastUi.Place(_ideaButtons[i].GetComponent<RectTransform>(), x0, 0.03f, x0 + ideaSpan - 0.008f, 0.14f);
+                    DrawRoles();
+                }, new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 15);
+                BroadcastUi.Place(_presetButtons[i].GetComponent<RectTransform>(), 0.04f, y1 - 0.12f, 0.32f, y1);
             }
+
+            _tacticNote = BroadcastUi.Label(card, "Note", "", 16, Color.white, TextAnchor.UpperLeft);
+            _tacticNote.verticalOverflow = VerticalWrapMode.Truncate;
+            BroadcastUi.Place(_tacticNote.rectTransform, 0.36f, 0.78f, 0.96f, 0.9f);
+            var roles = BroadcastUi.Label(card, "Roles", "FUNÇÕES INDIVIDUAIS", 13, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(roles.rectTransform, 0.36f, 0.72f, 0.96f, 0.78f);
+            _roleHost = BroadcastUi.Zone(card, "RoleList", 0.36f, 0.03f, 0.96f, 0.72f);
             _tactics.SetActive(false);
+        }
+
+        void DrawRoles()
+        {
+            if (_roleHost == null || _match == null)
+                return;
+            for (var i = _roleHost.childCount - 1; i >= 0; i--)
+                Destroy(_roleHost.GetChild(i).gameObject);
+            if (_tacticNote != null)
+                _tacticNote.text = TacticPresets.Describe(TacticPresets.IndexOf(UserTactics()));
+            var field = UserHome() ? _match.HomeOnField : _match.AwayOnField;
+            var count = Mathf.Min(field.Count, 11);
+            for (var i = 0; i < count; i++)
+            {
+                var player = PlayerOf(field[i]);
+                if (player == null)
+                    continue;
+                var y1 = 1f - i * (1f / count);
+                var y0 = y1 - (1f / count) + 0.008f;
+                var duty = string.IsNullOrEmpty(player.Duty) ? "Equilibrar" : player.Duty;
+                var label = player.SquadNumber + "  " + BroadcastUi.ShortName(player.FullName) + "    ·    " + duty;
+                var who = player;
+                var row = BroadcastUi.Button(_roleHost, "Role" + i, label, () =>
+                {
+                    var options = IndividualOrders.ForPosition(who.Position);
+                    var index = Array.IndexOf(options, who.Duty);
+                    who.Duty = options[(index + 1 + options.Length) % options.Length];
+                    DrawRoles();
+                }, new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 13);
+                BroadcastUi.Place(row.GetComponent<RectTransform>(), 0f, y0, 1f, y1 - 0.004f);
+            }
         }
 
         void OpenTactics()
@@ -613,6 +838,7 @@ namespace CoachMaster.UI.Scenes
             _tactics.SetActive(true);
             SetFooter(false);
             PaintChoices();
+            DrawRoles();
             RefreshPlan();
         }
 
@@ -842,10 +1068,15 @@ namespace CoachMaster.UI.Scenes
         void PaintChoices()
         {
             var ours = UserTactics();
-            PaintOption(_pressButtons, _pressOptions, ours.Pressing);
-            PaintOption(_lineButtons, _lineOptions, ours.DefensiveLine);
-            var idea = string.IsNullOrEmpty(ours.AttackIdea) ? "Equilibrado" : ours.AttackIdea;
-            PaintOption(_ideaButtons, _ideaOptions, idea);
+            if (_presetButtons == null)
+                return;
+            var active = TacticPresets.Active(ours);
+            for (var i = 0; i < _presetButtons.Length; i++)
+            {
+                var on = TacticPresets.Names[i] == active;
+                _presetButtons[i].GetComponent<Image>().color = on ? UiTheme.Accent : new Color(0.22f, 0.12f, 0.38f, 1f);
+                _presetButtons[i].GetComponentInChildren<Text>().color = on ? UiTheme.ButtonText : Color.white;
+            }
         }
 
         static void PaintOption(Button[] buttons, string[] options, string current)
@@ -862,38 +1093,233 @@ namespace CoachMaster.UI.Scenes
 
         void BuildHalf(Transform root)
         {
-            _halfTime = Modal(root, "HalfTime", out var card);
-            var title = BroadcastUi.Label(card, "Title", "INTERVALO", 28, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
-            BroadcastUi.Place(title.rectTransform, 0.08f, 0.78f, 0.92f, 0.94f);
-            var body = BroadcastUi.Label(card, "Body", "O balneário espera a tua palavra antes da segunda parte.", 18, UiTheme.Muted, TextAnchor.MiddleCenter);
-            BroadcastUi.Place(body.rectTransform, 0.1f, 0.68f, 0.9f, 0.8f);
-            TalkButton(card, "TalkCalm", "MANTER A CALMA", 0.54f, () =>
+            _halfTime = Overlay(root, "HalfTime", 0.03f, 0.03f, 0.97f, 0.97f, out var card);
+            var background = BroadcastUi.Solid(card, "Locker", new Color(0.1f, 0.05f, 0.16f, 1f), false);
+            BroadcastUi.Stretch(background.rectTransform);
+            background.preserveAspect = false;
+            background.type = Image.Type.Simple;
+            var room = Resources.LoadAll<Sprite>("Balneario");
+            if (room != null && room.Length > 0 && room[0] != null)
             {
-                _match.DefenseBoost += 0.06f;
-                Talk("Mantém a calma. Fechamos os espaços e saímos com critério.");
-            });
-            TalkButton(card, "TalkDemand", "EXIGIR INTENSIDADE", 0.36f, () =>
-            {
-                _match.AttackBoost += 0.04f;
-                _match.DefenseBoost += 0.03f;
-                Talk("Exijo mais intensidade. Quero cada segunda bola.");
-            });
-            TalkButton(card, "TalkAttack", "SUBIR AS LINHAS", 0.18f, () =>
-            {
-                UserTactics().Pressing = "Pressão alta";
-                UserTactics().BuildUp = "Construção curta";
-                UserTactics().DefensiveLine = "Linha defensiva alta";
-                _match.AttackBoost += 0.08f;
-                Talk("Vamos subir as linhas e atacar mais.");
-            });
+                background.sprite = room[0];
+                background.color = Color.white;
+            }
+
+            var shade = BroadcastUi.Solid(card, "Shade", new Color(0.03f, 0.01f, 0.08f, 0.38f), false);
+            BroadcastUi.Stretch(shade.rectTransform);
+            var title = BroadcastUi.Label(card, "Title", "BALNEÁRIO", 28, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(title.rectTransform, 0.05f, 0.88f, 0.7f, 0.97f);
+            _locker = BroadcastUi.Zone(card, "Voices", 0.03f, 0.12f, 0.97f, 0.88f);
+            var leave = BroadcastUi.Button(card, "LeaveAssistant", "DEIXAR AO ADJUNTO", LeaveToAssistant, new Color(1f, 1f, 1f, 0.14f), Color.white, 16);
+            BroadcastUi.Place(leave.GetComponent<RectTransform>(), 0.08f, 0.015f, 0.58f, 0.07f);
+            var changes = BroadcastUi.Button(card, "HalfSubs", "SUBSTITUIÇÕES", () => OpenSubs(true), UiTheme.Accent, UiTheme.ButtonText, 16);
+            BroadcastUi.Place(changes.GetComponent<RectTransform>(), 0.6f, 0.015f, 0.94f, 0.07f);
             _halfTime.SetActive(false);
         }
 
-        void TalkButton(Transform card, string name, string label, float y, UnityEngine.Events.UnityAction action)
+        void FillLocker()
         {
-            var button = BroadcastUi.Button(card, name, label, null, new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 18);
-            button.onClick.AddListener(action);
-            BroadcastUi.Place(button.GetComponent<RectTransform>(), 0.1f, y, 0.9f, y + 0.14f);
+            if (_locker == null || _match == null)
+                return;
+            for (var i = _locker.childCount - 1; i >= 0; i--)
+                Destroy(_locker.GetChild(i).gameObject);
+            var field = UserHome() ? _match.HomeOnField : _match.AwayOnField;
+            var ours = UserHome() ? _match.HomeGoals : _match.AwayGoals;
+            var theirs = UserHome() ? _match.AwayGoals : _match.HomeGoals;
+            var voices = LockerVoices(field);
+            _halfIdeas = new HalfIdea[voices.Length];
+            for (var slot = 0; slot < voices.Length; slot++)
+            {
+                var player = voices[slot];
+                var kind = slot == 0 ? 0 : player.IsCaptain && player != voices[0] ? 1 : 2;
+                var idea = IdeaFor(player, kind, ours, theirs);
+                _halfIdeas[slot] = idea;
+                var x0 = 0.02f + slot * 0.33f;
+                var index = slot;
+                var hit = BroadcastUi.Panel(_locker, "Voice" + slot, new Color(0.05f, 0.02f, 0.1f, 0.28f), true);
+                BroadcastUi.Place(hit.rectTransform, x0, 0.02f, x0 + 0.31f, 0.98f);
+                var button = hit.gameObject.AddComponent<Button>();
+                button.targetGraphic = hit;
+                button.onClick.AddListener(() => ChooseIdea(index));
+                var face = FaceImage(player);
+                face.rectTransform.SetParent(hit.transform, false);
+                BroadcastUi.Place(face.rectTransform, 0.18f, 0.48f, 0.82f, 0.96f);
+                var tag = kind == 0 ? "ÁS" : kind == 1 ? "CAPITÃO" : "PLANTEL";
+                var who = BroadcastUi.Label(hit.transform, "Who", tag + "  ·  " + BroadcastUi.ShortName(player.FullName), 14, UiTheme.Accent, TextAnchor.MiddleCenter, FontStyle.Bold);
+                BroadcastUi.Place(who.rectTransform, 0.04f, 0.34f, 0.96f, 0.46f);
+                var line = BroadcastUi.Label(hit.transform, "Say", idea.Speech, 15, Color.white, TextAnchor.UpperCenter);
+                line.verticalOverflow = VerticalWrapMode.Truncate;
+                BroadcastUi.Place(line.rectTransform, 0.04f, 0.04f, 0.96f, 0.34f);
+            }
+        }
+
+        Player[] LockerVoices(List<string> field)
+        {
+            var players = new List<Player>();
+            for (var i = 0; i < field.Count; i++)
+            {
+                var player = PlayerOf(field[i]);
+                if (player != null && player.Position != PlayerPosition.Goalkeeper)
+                    players.Add(player);
+            }
+
+            if (players.Count == 0)
+                return new Player[0];
+            players.Sort((a, b) => AceRank(b).CompareTo(AceRank(a)));
+            var ace = players[0];
+            Player captain = null;
+            foreach (var player in players)
+            {
+                if (player.IsCaptain)
+                    captain = player;
+            }
+
+            if (captain == null || captain == ace)
+            {
+                captain = players.Count > 1 ? players[1] : ace;
+                foreach (var player in players)
+                {
+                    if (player != ace && player.IsViceCaptain)
+                        captain = player;
+                }
+            }
+
+            Player loose = null;
+            var start = Mathf.Abs((ace.FullName ?? "").Length + (int)_match.Minute) % players.Count;
+            for (var n = 0; n < players.Count; n++)
+            {
+                var candidate = players[(start + n) % players.Count];
+                if (candidate != ace && candidate != captain)
+                {
+                    loose = candidate;
+                    break;
+                }
+            }
+
+            var voices = new List<Player> { ace };
+            if (captain != null && captain != ace)
+                voices.Add(captain);
+            if (loose != null && loose != ace && loose != captain)
+                voices.Add(loose);
+            return voices.ToArray();
+        }
+
+        static int AceRank(Player player)
+        {
+            if (player == null || player.Attributes == null)
+                return 0;
+            return player.Attributes.Finishing + player.Attributes.Passing + player.Attributes.Pace + player.Attributes.Composure + PlayerAttributes.Overall(player);
+        }
+
+        HalfIdea IdeaFor(Player player, int slot, int ours, int theirs)
+        {
+            var who = BroadcastUi.ShortName(player.FullName);
+            var idea = new HalfIdea { PlayerId = player.Id, Preset = -1 };
+            if (slot == 0)
+            {
+                idea.Speech = ours < theirs
+                    ? who + ": Deixem-me entre linhas. Quando a bola chegar, eu remato."
+                    : who + ": Eu fico na área. Se me acharem de frente, eu finalizo.";
+                idea.Done = who + " pede a bola para finalizar. A segunda parte vai procurar o remate.";
+                idea.Duty = player.Position == PlayerPosition.LeftWinger || player.Position == PlayerPosition.RightWinger
+                    ? "Cortar para dentro ofensivo"
+                    : "Ficar na área";
+                idea.Attack = 0.05f;
+                return idea;
+            }
+
+            if (slot == 1)
+            {
+                if (ours <= theirs)
+                {
+                    idea.Speech = who + ": Subimos o bloco. Não deixo o médio deles pensar.";
+                    idea.Done = who + " puxa a linha para cima e aumenta a pressão.";
+                    idea.Preset = 2;
+                    idea.Attack = 0.04f;
+                }
+                else
+                {
+                    idea.Speech = who + ": Fechamos o meio e só saímos quando houver espaço.";
+                    idea.Done = who + " pede o bloco mais baixo e saída em contra-ataque.";
+                    idea.Preset = 3;
+                    idea.Defense = 0.05f;
+                }
+
+                return idea;
+            }
+
+            if (player.Position == PlayerPosition.LeftWinger || player.Position == PlayerPosition.RightWinger)
+            {
+                idea.Speech = who + ": Eu corto para dentro equilibrado e só apareço se estiver desmarcado.";
+                idea.Duty = "Cortar para dentro equilibrado";
+            }
+            else if (player.Position == PlayerPosition.LeftBack || player.Position == PlayerPosition.RightBack)
+            {
+                idea.Speech = who + ": Eu fico defensivo e só subo quando a ala estiver livre.";
+                idea.Duty = "Defensivo";
+            }
+            else
+            {
+                idea.Speech = who + ": Eu faço só a desmarcação curta, para receber de frente.";
+                idea.Duty = "Só desmarcação";
+            }
+
+            idea.Done = who + " muda a função: " + idea.Duty + ".";
+            idea.Attack = 0.02f;
+            return idea;
+        }
+
+        void ChooseIdea(int index)
+        {
+            if (_halfIdeas == null || index < 0 || index >= _halfIdeas.Length)
+            {
+                Talk("A segunda parte começa.");
+                return;
+            }
+
+            ApplyIdea(_halfIdeas[index]);
+        }
+
+        void ApplyIdea(HalfIdea idea)
+        {
+            if (idea.Preset >= 0)
+                TacticPresets.Apply(UserTactics(), idea.Preset);
+            if (!string.IsNullOrEmpty(idea.Duty))
+            {
+                var player = PlayerOf(idea.PlayerId);
+                if (player != null)
+                    player.Duty = idea.Duty;
+            }
+
+            _match.AttackBoost += idea.Attack;
+            _match.DefenseBoost += idea.Defense;
+            Talk(idea.Done);
+        }
+
+        static Image FaceImage(Player player)
+        {
+            var go = new GameObject("Face", typeof(RectTransform), typeof(Image));
+            var image = go.GetComponent<Image>();
+            image.sprite = FaceBook.For(player) ?? PortraitStudio.For(player.Id);
+            image.preserveAspect = true;
+            image.raycastTarget = false;
+            return image;
+        }
+
+        void LeaveToAssistant()
+        {
+            if (_halfIdeas == null || _halfIdeas.Length == 0)
+            {
+                Talk("O adjunto mantém o plano.");
+                return;
+            }
+
+            var pick = Mathf.Abs(_match.HomeGoals + _match.AwayGoals + (int)_match.Minute) % _halfIdeas.Length;
+            var idea = _halfIdeas[pick];
+            var player = PlayerOf(idea.PlayerId);
+            var name = player == null ? "um jogador" : BroadcastUi.ShortName(player.FullName);
+            idea.Done = "O adjunto fica com a ideia de " + name + ". " + idea.Done;
+            ApplyIdea(idea);
         }
 
         void BuildFull(Transform root)
@@ -965,99 +1391,182 @@ namespace CoachMaster.UI.Scenes
             _speedLabel.text = "Ritmo " + label;
         }
 
+        void LateUpdate()
+        {
+            if (_match == null || !SquadDragCard.ConsumeSwap(out var incoming, out var fieldIndex, out var fromField))
+                return;
+            ApplyDragSub(incoming, fieldIndex, fromField);
+        }
+
         void OpenSubs(bool fromPause)
         {
-            if (_match.HomeBench.Count == 0 || _match.HomeSubsLeft <= 0)
+            var bench = UserHome() ? _match.HomeBench : _match.AwayBench;
+            if (bench.Count == 0)
                 return;
             _subFromPause = fromPause;
             _paused = true;
-            _pause.SetActive(false);
-            _tactics.SetActive(false);
+            if (_pause != null)
+                _pause.SetActive(false);
+            if (_tactics != null)
+                _tactics.SetActive(false);
             SetFooter(false);
-            _pickOff = null;
-            _pickOn = null;
-            DrawSubLists();
+            DrawSubPitch();
             _subsMenu.SetActive(true);
+            _subsMenu.transform.SetAsLastSibling();
         }
 
         void BuildSubs(Transform root)
         {
-            _subsMenu = Overlay(root, "SubsMenu", 0.12f, 0.1f, 0.88f, 0.9f, out var card);
-            var title = BroadcastUi.Label(card, "Title", "SUBSTITUIÇÃO", 24, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
-            BroadcastUi.Place(title.rectTransform, 0.04f, 0.9f, 0.6f, 0.98f);
+            _subsMenu = Overlay(root, "SubsMenu", 0.04f, 0.05f, 0.96f, 0.95f, out var card);
+            var title = BroadcastUi.Label(card, "Title", "SUBSTITUIÇÕES", 24, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(title.rectTransform, 0.04f, 0.9f, 0.46f, 0.98f);
+            _subStatus = BroadcastUi.Label(card, "Status", "", 15, UiTheme.Muted, TextAnchor.MiddleRight);
+            BroadcastUi.Place(_subStatus.rectTransform, 0.4f, 0.9f, 0.86f, 0.98f);
             var close = BroadcastUi.CloseX(card, "CloseSubs", CloseSubs);
             BroadcastUi.Place(close.GetComponent<RectTransform>(), 0.88f, 0.88f, 0.97f, 0.98f);
-            var confirm = BroadcastUi.Button(card, "ConfirmSub", "CONFIRMAR", QueueSub, UiTheme.Accent, UiTheme.ButtonText, 16);
-            BroadcastUi.Place(confirm.GetComponent<RectTransform>(), 0.32f, 0.03f, 0.68f, 0.12f);
-            _subHost = BroadcastUi.Zone(card, "Lists", 0.03f, 0.14f, 0.97f, 0.88f);
+            var pitch = BroadcastUi.Panel(card, "PitchBg", new Color(0.05f, 0.16f, 0.08f, 1f));
+            BroadcastUi.Place(pitch.rectTransform, 0.04f, 0.28f, 0.96f, 0.88f);
+            BroadcastUi.DrawPitch(pitch.rectTransform, new Color(0.12f, 0.46f, 0.22f));
+            _subPitch = BroadcastUi.Zone(card, "Pitch", 0.04f, 0.28f, 0.96f, 0.88f);
+            var benchTitle = BroadcastUi.Label(card, "BenchTitle", "SUPLENTES", 14, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(benchTitle.rectTransform, 0.04f, 0.2f, 0.3f, 0.26f);
+            _subBench = BroadcastUi.Zone(card, "Bench", 0.04f, 0.03f, 0.96f, 0.2f);
             _subsMenu.SetActive(false);
         }
 
-        void DrawSubLists()
+        void DrawSubPitch()
         {
-            for (var i = _subHost.childCount - 1; i >= 0; i--)
-                Destroy(_subHost.GetChild(i).gameObject);
-            var outTitle = BroadcastUi.Label(_subHost, "Out", "SAI", 14, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
-            BroadcastUi.Place(outTitle.rectTransform, 0.02f, 0.92f, 0.46f, 1f);
-            var inTitle = BroadcastUi.Label(_subHost, "In", "ENTRA", 14, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
-            BroadcastUi.Place(inTitle.rectTransform, 0.52f, 0.92f, 0.96f, 1f);
-            for (var i = 0; i < _match.HomeOnField.Count && i < 11; i++)
-            {
-                var id = _match.HomeOnField[i];
-                var y = 0.84f - i * 0.075f;
-                var button = SubButton(_subHost, id, true, 0.02f, y);
-                if (id == _pickOff)
-                    button.GetComponent<Image>().color = UiTheme.Accent;
-            }
-
-            for (var i = 0; i < _match.HomeBench.Count && i < 11; i++)
-            {
-                var id = _match.HomeBench[i];
-                var y = 0.84f - i * 0.075f;
-                var button = SubButton(_subHost, id, false, 0.52f, y);
-                if (id == _pickOn)
-                    button.GetComponent<Image>().color = UiTheme.Accent;
-            }
-        }
-
-        Button SubButton(Transform parent, string id, bool off, float x, float y)
-        {
-            var player = PlayerOf(id);
-            var label = player == null ? "Jogador" : player.SquadNumber + "  " + BroadcastUi.ShortName(player.FullName) + "  " + PresentationLabels.Position(player.Position);
-            var button = BroadcastUi.Button(parent, (off ? "Off" : "On") + id, label, () =>
-            {
-                if (off) _pickOff = id;
-                else _pickOn = id;
-                DrawSubLists();
-            }, new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 14);
-            BroadcastUi.Place(button.GetComponent<RectTransform>(), x, y - 0.06f, x + 0.44f, y);
-            return button;
-        }
-
-        void QueueSub()
-        {
-            if (string.IsNullOrEmpty(_pickOff) || string.IsNullOrEmpty(_pickOn))
+            if (_subPitch == null)
                 return;
-            _queueOff = _pickOff;
-            _queueOn = _pickOn;
-            _subsMenu.SetActive(false);
-            _match.LastEvent = "Substituição pronta. Entra quando o jogo parar.";
-            if (_engine.DeadBall)
-                TryQueuedSub();
-            if (!_subFromPause)
-                ResumeMatch();
-            else
+            for (var i = _subPitch.childCount - 1; i >= 0; i--)
+                Destroy(_subPitch.GetChild(i).gameObject);
+            for (var i = _subBench.childCount - 1; i >= 0; i--)
+                Destroy(_subBench.GetChild(i).gameObject);
+            var home = UserHome();
+            var field = home ? _match.HomeOnField : _match.AwayOnField;
+            var bench = home ? _match.HomeBench : _match.AwayBench;
+            var left = home ? _match.HomeSubsLeft : _match.AwaySubsLeft;
+            var club = home ? _match.Home : _match.Away;
+            if (_subStatus != null)
+                _subStatus.text = left > 0 ? "Arrasta o suplente para o lugar. Restam " + left + "." : "Sem substituições.";
+            var lines = StartingShape.Lines(UserTactics().Formation);
+            var cursor = 0;
+            var rows = lines.Length;
+            for (var row = 0; row < rows; row++)
             {
-                _paused = true;
-                _pause.SetActive(true);
-                _pause.transform.SetAsLastSibling();
-                SetFooter(false);
+                var count = lines[row];
+                var y = rows == 1 ? 0.5f : 0.14f + row * (0.72f / (rows - 1));
+                for (var col = 0; col < count && cursor < field.Count; col++)
+                {
+                    var index = cursor;
+                    var player = PlayerOf(field[cursor]);
+                    if (player != null)
+                    {
+                        var card = SubCard(_subPitch, player, club, false, index);
+                        card.anchorMin = card.anchorMax = new Vector2((count - col) / (count + 1f), y);
+                        card.sizeDelta = new Vector2(118, 104);
+                    }
+                    cursor++;
+                }
             }
+
+            var shown = Mathf.Min(bench.Count, 9);
+            for (var i = 0; i < shown; i++)
+            {
+                var player = PlayerOf(bench[i]);
+                if (player == null)
+                    continue;
+                var card = SubCard(_subBench, player, club, true, i);
+                card.anchorMin = card.anchorMax = new Vector2((i + 0.5f) / shown, 0.5f);
+                card.sizeDelta = new Vector2(118, 104);
+            }
+        }
+
+        RectTransform SubCard(Transform parent, Player player, Club club, bool bench, int index)
+        {
+            var card = BroadcastUi.Panel(parent, "S" + player.Id, new Color(0.1f, 0.04f, 0.18f, 0.94f), true);
+            if (card.GetComponent<RectMask2D>() == null)
+                card.gameObject.AddComponent<RectMask2D>();
+            var drag = card.gameObject.AddComponent<SquadDragCard>();
+            drag.Player = player;
+            drag.Bench = bench;
+            drag.FieldIndex = index;
+            var shirt = BroadcastUi.Parse(club.JerseyPrimaryHex, UiTheme.Accent);
+            var number = BroadcastUi.Label(card.transform, "No", player.SquadNumber.ToString(), 64, new Color(shirt.r, shirt.g, shirt.b, 0.22f), TextAnchor.MiddleCenter, FontStyle.Bold);
+            number.resizeTextForBestFit = true;
+            number.resizeTextMinSize = 10;
+            number.resizeTextMaxSize = 120;
+            BroadcastUi.Place(number.rectTransform, 0.04f, 0.04f, 0.96f, 0.96f);
+            var faceGo = new GameObject("Face", typeof(RectTransform), typeof(Image));
+            var face = faceGo.GetComponent<Image>();
+            face.sprite = FaceBook.For(player) ?? PortraitStudio.For(player.Id);
+            face.preserveAspect = true;
+            face.raycastTarget = false;
+            face.rectTransform.SetParent(card.transform, false);
+            BroadcastUi.Place(face.rectTransform, 0.18f, 0.46f, 0.82f, 0.96f);
+            var name = BroadcastUi.Label(card.transform, "Name", BroadcastUi.ShortName(player.FullName).ToUpperInvariant(), 12, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(name.rectTransform, 0.04f, 0.28f, 0.96f, 0.48f);
+            var meta = BroadcastUi.Label(card.transform, "Meta", PresentationLabels.Position(player.Position), 11, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(meta.rectTransform, 0.04f, 0.14f, 0.96f, 0.3f);
+            var form = BroadcastUi.Label(card.transform, "Form", "OVR " + PlayerAttributes.Overall(player) + "   Cans. " + player.Fatigue, 11, UiTheme.Accent, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(form.rectTransform, 0.02f, 0.01f, 0.98f, 0.16f);
+            return card.rectTransform;
+        }
+
+        void ApplyDragSub(Player incoming, int fieldIndex, int fromField)
+        {
+            if (incoming == null)
+                return;
+            var home = UserHome();
+            var field = home ? _match.HomeOnField : _match.AwayOnField;
+            var bench = home ? _match.HomeBench : _match.AwayBench;
+            if (fieldIndex < 0 || fieldIndex >= field.Count)
+                return;
+            if (fromField >= 0)
+            {
+                if (fromField >= field.Count || fromField == fieldIndex)
+                    return;
+                var swap = field[fromField];
+                field[fromField] = field[fieldIndex];
+                field[fieldIndex] = swap;
+                _match.LastEvent = "Troca de posições em campo.";
+                DrawSubPitch();
+                RefreshSides();
+                return;
+            }
+
+            var benchIndex = bench.IndexOf(incoming.Id);
+            if (benchIndex < 0)
+                return;
+            var left = home ? _match.HomeSubsLeft : _match.AwaySubsLeft;
+            if (left <= 0)
+            {
+                _match.LastEvent = "Já não há substituições.";
+                return;
+            }
+
+            _queueOff = field[fieldIndex];
+            _queueOn = incoming.Id;
+            if (_match.Phase == MatchPhase.HalfTime || _engine.DeadBall)
+            {
+                TryQueuedSub();
+                DrawSubPitch();
+                return;
+            }
+
+            _match.LastEvent = "Substituição pronta. Entra na próxima paragem.";
+            DrawSubPitch();
         }
 
         void CloseSubs()
         {
             _subsMenu.SetActive(false);
+            if (_match != null && _match.Phase == MatchPhase.HalfTime)
+            {
+                _halfTime.SetActive(true);
+                _halfTime.transform.SetAsLastSibling();
+                return;
+            }
             if (_subFromPause)
             {
                 _pause.SetActive(true);
@@ -1073,13 +1582,18 @@ namespace CoachMaster.UI.Scenes
                 return;
             if (!_engine.DeadBall && _match.Phase != MatchPhase.HalfTime)
                 return;
-            var off = _match.HomeOnField.IndexOf(_queueOff);
-            var on = _match.HomeBench.IndexOf(_queueOn);
+            var home = UserHome();
+            var field = home ? _match.HomeOnField : _match.AwayOnField;
+            var bench = home ? _match.HomeBench : _match.AwayBench;
+            var off = field.IndexOf(_queueOff);
+            var on = bench.IndexOf(_queueOn);
             _queueOff = null;
             _queueOn = null;
             if (off < 0 || on < 0)
                 return;
-            _engine.TrySub(true, off, on);
+            _engine.TrySub(home, off, on);
+            if (_subsMenu != null && _subsMenu.activeSelf)
+                DrawSubPitch();
             _slow = 0f;
             RefreshPlan();
         }
@@ -1120,6 +1634,7 @@ namespace CoachMaster.UI.Scenes
             }
             CareerMoments.AfterMatch(career, _match.HomeGoals, _match.AwayGoals, userHome, _match.Home.ShortName, _match.Away.ShortName, motm, best < 0 ? null : best.ToString("0.0"));
             SeasonSchedule.RebuildTable(career);
+            SeasonBook.CreditLive(career, _match);
             CareerStore.Save(career);
             GameRoot.Instance.LiveMatch = null;
             GameRoot.Instance.Open(SceneNames.CareerHub);
@@ -1128,6 +1643,8 @@ namespace CoachMaster.UI.Scenes
         void RefreshHud()
         {
             _score.text = _match.HomeGoals + "  -  " + _match.AwayGoals;
+            if (_plan != null)
+                _plan.text = TacticPresets.Active(UserTactics());
             _clock.text = Clock(_match.Minute);
             _ticker.text = _match.LastEvent;
             if (_heard != _match.LastEvent)
@@ -1142,11 +1659,12 @@ namespace CoachMaster.UI.Scenes
                 _flash.text = _match.Flash;
                 _flash.gameObject.SetActive(!string.IsNullOrEmpty(_match.Flash));
                 _flash.transform.SetAsLastSibling();
-                _flashLeft = 2.4f;
-                GameAudio.ForFlash(_match.Flash);
                 var person = PlayerOf(_match.FlashPlayerId);
                 var text = _match.Flash ?? "";
                 var important = text.Contains("CART") || text.Contains("LES") || text.Contains("GOLO") || text.Contains("FALTA") || text.Contains("PEN") || text.Contains("CANTO");
+                _watchEvent = text.Contains("CART") || text.Contains("LES") || text.Contains("FALTA") || text.Contains("PEN");
+                _flashLeft = _watchEvent ? 3.4f : 2.4f;
+                GameAudio.ForFlash(_match.Flash);
                 _flash.transform.SetParent(_eventCard.transform, false);
                 BroadcastUi.Place(_flash.rectTransform, 0.08f, 0.72f, 0.58f, 0.94f);
                 _eventCard.SetActive(important);
@@ -1172,6 +1690,7 @@ namespace CoachMaster.UI.Scenes
                 _flashLeft -= Time.deltaTime;
                     if (_flashLeft <= 0f)
                     {
+                        _watchEvent = false;
                         _flash.gameObject.SetActive(false);
                         if (_eventCard != null)
                             _eventCard.SetActive(false);
@@ -1212,11 +1731,9 @@ namespace CoachMaster.UI.Scenes
             _ball.anchorMin = ball;
             _ball.anchorMax = ball;
             var lift = Mathf.Clamp01(_engine.BallHeight);
-            var cross = _engine.ActionKind == "cross";
-            var swell = cross ? lift * lift : 0f;
-            var size = 14f * (1f + swell * 0.5f);
-            _ball.sizeDelta = new Vector2(size, size);
-            _ball.anchoredPosition = new Vector2(0f, swell * 22f);
+            _ball.sizeDelta = new Vector2(14f, 14f);
+            _ball.localScale = Vector3.one * (1f + lift);
+            _ball.anchoredPosition = Vector2.zero;
             if (_ballShadow != null)
             {
                 _ballShadow.rectTransform.anchorMin = ball;
@@ -1271,11 +1788,7 @@ namespace CoachMaster.UI.Scenes
                 return;
             }
 
-            var spot = token.Rect.anchorMin;
-            spot.y = Mathf.Clamp(spot.y + dive * 0.045f, 0.04f, 0.96f);
-            token.Rect.anchorMin = spot;
-            token.Rect.anchorMax = spot;
-            token.Rect.localRotation = Quaternion.Euler(0f, 0f, dive * -32f);
+            token.Rect.localRotation = Quaternion.Euler(0f, 0f, dive * -18f);
         }
 
         void RefreshSides()
@@ -1442,6 +1955,7 @@ namespace CoachMaster.UI.Scenes
             var on = bench.Count == 0 ? "—" : NameAt(bench, _subOn % bench.Count);
             var tactics = UserTactics();
             var body =
+                "Plano  " + TacticPresets.Active(tactics) + "\n" +
                 "Formação  " + tactics.Formation + "\n\n" +
                 tactics.Pressing + "\n" +
                 tactics.BuildUp + "\n" +
@@ -1535,6 +2049,17 @@ namespace CoachMaster.UI.Scenes
             var whole = Mathf.FloorToInt(minute);
             var seconds = Mathf.FloorToInt((minute - whole) * 60f);
             return whole + ":" + seconds.ToString("00");
+        }
+
+        sealed class HalfIdea
+        {
+            public string Speech;
+            public string Done;
+            public int Preset = -1;
+            public string Duty;
+            public string PlayerId;
+            public float Attack;
+            public float Defense;
         }
 
         sealed class Token

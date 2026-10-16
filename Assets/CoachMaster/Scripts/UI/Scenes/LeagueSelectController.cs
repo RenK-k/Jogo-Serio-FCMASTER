@@ -12,10 +12,50 @@ namespace CoachMaster.UI.Scenes
         void Start()
         {
             var session = GameRoot.Require().Session;
-            var root = BroadcastUi.Mount(this);
+            if (transform.Find("Design") != null)
+            {
+                BindLeagues(BroadcastUi.Mount(this), session);
+                return;
+            }
+
+            Paint(session, false);
+        }
+
+        public void BakeDesign(GameSession session)
+        {
+            Paint(session, true);
+        }
+
+        void BindLeagues(Transform root, GameSession session)
+        {
+            SceneBind.Wire(root.Find("Header/Back"), () => GameRoot.Instance.Open(SceneNames.MainMenu));
+            var content = root.Find("Leagues/Content");
+            var leagues = new List<League>(session.Catalog.Leagues);
+            leagues.RemoveAll(league => league.Tier == LeagueTier.Continental);
+            for (var i = 0; i < leagues.Count; i++)
+            {
+                var league = leagues[i];
+                var card = content.Find("League" + i);
+                if (card == null)
+                    continue;
+                System.Action choose = () =>
+                {
+                    session.Draft.LeagueId = league.Id;
+                    session.Draft.ClubId = null;
+                    session.PrepareLeague(league.Id);
+                    GameRoot.Instance.Open(SceneNames.TeamSelect);
+                };
+                SceneBind.Wire(card, choose);
+                SceneBind.Wire(card.Find("Select"), choose);
+            }
+        }
+
+        void Paint(GameSession session, bool bake)
+        {
+            var root = bake ? BroadcastUi.CreateDesign(transform) : BroadcastUi.Mount(this);
             BroadcastUi.Backdrop(root);
             BroadcastUi.Wordmark(root, "Escolha a liga");
-            Header(root, "LIGAS", "Atlas, Inglaterra, França e Espanha. Cada país tem duas divisões.", () => GameRoot.Instance.Open(SceneNames.MainMenu));
+            Header(root, "LIGAS", "Portugal, Inglaterra, França e Espanha. Cada país tem duas divisões.", () => GameRoot.Instance.Open(SceneNames.MainMenu));
 
             var scroll = BroadcastUi.Scroll(root, "Leagues", out var content);
             BroadcastUi.Place(scroll.GetComponent<RectTransform>(), 0.08f, 0.1f, 0.92f, 0.78f);
@@ -26,6 +66,15 @@ namespace CoachMaster.UI.Scenes
                 var league = leagues[i];
                 var card = BroadcastUi.Panel(content, "League" + i, new Color(0.1f, 0.04f, 0.2f, 0.72f), true);
                 BroadcastUi.Preferred(card, 132);
+                var art = LeagueBackdrop.First(league.Id);
+                if (art != null)
+                {
+                    var photo = BroadcastUi.Solid(card.transform, "Art", Color.white, false);
+                    BroadcastUi.Stretch(photo.rectTransform);
+                    photo.sprite = art;
+                    photo.preserveAspect = false;
+                    photo.color = new Color(1f, 1f, 1f, 0.55f);
+                }
                 var tier = league.Tier == LeagueTier.First ? "1ª DIVISÃO" : "2ª DIVISÃO";
                 var badge = BroadcastUi.Label(card.transform, "Tier", tier, 14, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
                 BroadcastUi.Place(badge.rectTransform, 0.04f, 0.68f, 0.4f, 0.9f);

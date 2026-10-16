@@ -12,49 +12,98 @@ namespace CoachMaster.UI.Scenes
             GameRoot.Require();
             GameRoot.EnsureUiInput();
             GameAudio.Music();
-            var root = BroadcastUi.Mount(this);
+            if (transform.Find("Design") != null)
+            {
+                BindMenu(BroadcastUi.Mount(this));
+                return;
+            }
+
+            BuildMenu(BroadcastUi.Mount(this), GameRoot.Instance.Session);
+        }
+
+        public void BakeDesign(GameSession session)
+        {
+            BuildMenu(BroadcastUi.CreateDesign(transform), session);
+        }
+
+        void BindMenu(Transform root)
+        {
+            var session = GameRoot.Instance.Session;
+            SceneBind.Wire(root.Find("MenuCard/NovaCarreira"), OpenCareer);
+            SceneBind.Wire(root.Find("MenuCard/Definicoes"), OpenSettings);
+            SceneBind.Wire(root.Find("MenuCard/Sair"), LeaveGame);
+            var career = session.Career;
+            if (career == null && CareerStore.Exists)
+                career = CareerStore.TryLoad(session);
+            var resume = root.Find("MenuCard/Continuar");
+            if (career != null)
+            {
+                if (resume == null)
+                {
+                    var button = BroadcastUi.Button(root.Find("MenuCard"), "Continuar", "CONTINUAR  ·  " + career.Club.ShortName, () => GameRoot.Instance.Open(SceneNames.CareerHub), new Color(1f, 1f, 1f, 0.12f), Color.white, 18);
+                    BroadcastUi.Place(button.GetComponent<RectTransform>(), 0.08f, 0.36f, 0.92f, 0.48f);
+                }
+                else
+                {
+                    resume.gameObject.SetActive(true);
+                    resume.GetComponentInChildren<Text>().text = "CONTINUAR  ·  " + career.Club.ShortName;
+                    SceneBind.Wire(resume, () => GameRoot.Instance.Open(SceneNames.CareerHub));
+                }
+            }
+            else if (resume != null)
+                resume.gameObject.SetActive(false);
+        }
+
+        void OpenSettings()
+        {
+            var audio = GameRoot.Instance.GetComponent<AudioSettingsOverlay>();
+            if (audio != null)
+                audio.Toggle();
+        }
+
+        void BuildMenu(Transform root, GameSession session)
+        {
             if (root == null)
                 return;
 
             BroadcastUi.Backdrop(root);
-            BroadcastUi.Wordmark(root, "Simulador de treinador");
 
-            var kicker = BroadcastUi.Label(root, "Kicker", "SIMULADOR DE TREINADOR", 18, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
-            BroadcastUi.Place(kicker.rectTransform, 0.07f, 0.7f, 0.46f, 0.76f);
+            var titleShade = BroadcastUi.Label(root, "TitleShade", "SIMULADOR\nDE TREINADOR", 64, new Color(0f, 0f, 0f, 0.45f), TextAnchor.UpperLeft, FontStyle.Bold);
+            BroadcastUi.Place(titleShade.rectTransform, 0.078f, 0.38f, 0.49f, 0.7f);
             var title = BroadcastUi.Label(root, "Title", "SIMULADOR\nDE TREINADOR", 64, Color.white, TextAnchor.UpperLeft, FontStyle.Bold);
-            BroadcastUi.Place(title.rectTransform, 0.07f, 0.4f, 0.48f, 0.7f);
+            BroadcastUi.Place(title.rectTransform, 0.07f, 0.4f, 0.48f, 0.72f);
             var tag = BroadcastUi.Label(root, "Tag", "Escolhe um clube, assume o banco e constrói a época. O jogo mostra o que se vê do banco: conversas, escolhas e o resultado.", 22, UiTheme.Muted, TextAnchor.UpperLeft);
-            BroadcastUi.Place(tag.rectTransform, 0.07f, 0.24f, 0.46f, 0.4f);
+            tag.verticalOverflow = VerticalWrapMode.Truncate;
+            BroadcastUi.Place(tag.rectTransform, 0.07f, 0.22f, 0.46f, 0.38f);
 
-            var card = BroadcastUi.Panel(root, "MenuCard", new Color(0.08f, 0.03f, 0.16f, 0.55f), true);
+            var shadow = BroadcastUi.Panel(root, "MenuShadow", new Color(0f, 0f, 0f, 0.55f), false);
+            BroadcastUi.Place(shadow.rectTransform, 0.565f, 0.15f, 0.965f, 0.74f);
+            var card = BroadcastUi.Panel(root, "MenuCard", new Color(0.1f, 0.04f, 0.2f, 0.92f), true);
             BroadcastUi.Place(card.rectTransform, 0.54f, 0.18f, 0.94f, 0.78f);
+            var lip = BroadcastUi.Solid(card.transform, "Lip", new Color(1f, 1f, 1f, 0.16f), false);
+            BroadcastUi.Place(lip.rectTransform, 0f, 0.94f, 1f, 1f);
             var cardTitle = BroadcastUi.Label(card.transform, "CardTitle", "ENTRAR NO BANCO", 16, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
-            BroadcastUi.Place(cardTitle.rectTransform, 0.08f, 0.84f, 0.9f, 0.94f);
+            BroadcastUi.Place(cardTitle.rectTransform, 0.08f, 0.86f, 0.92f, 0.95f);
             var cardBody = BroadcastUi.Label(card.transform, "CardBody", "Uma carreira nova começa pela liga. O clube, o plantel e o balneário aparecem antes de assinares.", 18, UiTheme.Muted, TextAnchor.UpperLeft);
-            BroadcastUi.Place(cardBody.rectTransform, 0.08f, 0.8f, 0.9f, 0.84f);
+            cardBody.verticalOverflow = VerticalWrapMode.Truncate;
+            BroadcastUi.Place(cardBody.rectTransform, 0.08f, 0.7f, 0.92f, 0.85f);
 
             var start = BroadcastUi.Button(card.transform, "NovaCarreira", "NOVA CARREIRA", OpenCareer, UiTheme.Accent, UiTheme.ButtonText, 22);
-            BroadcastUi.Place(start.GetComponent<RectTransform>(), 0.08f, 0.62f, 0.92f, 0.78f);
+            BroadcastUi.Place(start.GetComponent<RectTransform>(), 0.08f, 0.52f, 0.92f, 0.66f);
 
-            var session = GameRoot.Instance.Session;
             var career = session.Career;
             if (career == null && CareerStore.Exists)
                 career = CareerStore.TryLoad(session);
             if (career != null)
             {
                 var resume = BroadcastUi.Button(card.transform, "Continuar", "CONTINUAR  ·  " + career.Club.ShortName, () => GameRoot.Instance.Open(SceneNames.CareerHub), new Color(1f, 1f, 1f, 0.12f), Color.white, 18);
-                BroadcastUi.Place(resume.GetComponent<RectTransform>(), 0.08f, 0.44f, 0.92f, 0.58f);
+                BroadcastUi.Place(resume.GetComponent<RectTransform>(), 0.08f, 0.36f, 0.92f, 0.48f);
             }
 
-            var settings = BroadcastUi.Button(card.transform, "Definicoes", "DEFINIÇÕES", () =>
-            {
-                var audio = GameRoot.Instance.GetComponent<AudioSettingsOverlay>();
-                if (audio != null)
-                    audio.Toggle();
-            }, new Color(1f, 1f, 1f, 0.12f), Color.white, 18);
-            BroadcastUi.Place(settings.GetComponent<RectTransform>(), 0.08f, 0.26f, 0.92f, 0.4f);
+            var settings = BroadcastUi.Button(card.transform, "Definicoes", "DEFINIÇÕES", OpenSettings, new Color(1f, 1f, 1f, 0.12f), Color.white, 18);
+            BroadcastUi.Place(settings.GetComponent<RectTransform>(), 0.08f, 0.2f, 0.92f, 0.32f);
             var quit = BroadcastUi.Button(card.transform, "Sair", "SAIR", LeaveGame, new Color(1f, 1f, 1f, 0.08f), Color.white, 18);
-            BroadcastUi.Place(quit.GetComponent<RectTransform>(), 0.08f, 0.08f, 0.92f, 0.22f);
+            BroadcastUi.Place(quit.GetComponent<RectTransform>(), 0.08f, 0.05f, 0.92f, 0.16f);
 
             var hint = BroadcastUi.Label(root, "ControlHint", "Clica para entrar     Enter  avançar     Esc  voltar", 15, UiTheme.Muted, TextAnchor.MiddleLeft);
             BroadcastUi.Place(hint.rectTransform, 0.07f, 0.008f, 0.7f, 0.05f);

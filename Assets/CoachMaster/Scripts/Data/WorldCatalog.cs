@@ -13,27 +13,27 @@ namespace CoachMaster.Data
             world.Leagues.Add(new League
             {
                 Id = Ids.League("atlas"),
-                Name = "Liga Atlas",
-                ShortName = "Atlas",
+                Name = "Liga Portugal",
+                ShortName = "Liga Portugal",
                 Tier = LeagueTier.First,
-                Description = "A principal competição do país. Oito clubes disputam o título e a permanência.",
+                Description = "A principal competição de Portugal. Oito clubes disputam o título e a permanência.",
                 ClubCount = 8
             });
             world.Leagues.Add(new League
             {
                 Id = Ids.League("horizonte"),
-                Name = "Liga Horizonte",
-                ShortName = "Horizonte",
+                Name = "Liga Portugal 2",
+                ShortName = "Liga Portugal 2",
                 Tier = LeagueTier.Second,
-                Description = "A segunda liga do país. Seis clubes lutam pela subida à Liga Atlas.",
+                Description = "A segunda liga de Portugal. Seis clubes lutam pela subida à Liga Portugal.",
                 ClubCount = 6
             });
-            AddDivision(world, "inglesa", "Liga Inglesa", "Inglaterra", true);
-            AddDivision(world, "inglesa-2", "Liga Inglesa 2", "Inglaterra", false);
-            AddDivision(world, "francesa", "Liga Francesa", "França", true);
-            AddDivision(world, "francesa-2", "Liga Francesa 2", "França", false);
-            AddDivision(world, "espanhola", "Liga Espanhola", "Espanha", true);
-            AddDivision(world, "espanhola-2", "Liga Espanhola 2", "Espanha", false);
+            AddDivision(world, "inglesa", "Premier League", "Inglaterra", true);
+            AddDivision(world, "inglesa-2", "League Two", "Inglaterra", false);
+            AddDivision(world, "francesa", "Ligue 1", "França", true);
+            AddDivision(world, "francesa-2", "Ligue 2", "França", false);
+            AddDivision(world, "espanhola", "LaLiga", "Espanha", true);
+            AddDivision(world, "espanhola-2", "LaLiga Hyper", "Espanha", false);
             world.Leagues.Add(new League
             {
                 Id = Ids.League("campeoes"),
@@ -52,7 +52,7 @@ namespace CoachMaster.Data
             {
                 Id = Ids.League(slug),
                 Name = name,
-                ShortName = country,
+                ShortName = name,
                 Tier = first ? LeagueTier.First : LeagueTier.Second,
                 Description = (first ? "Primeira" : "Segunda") + " divisão de " + country + ". Oito clubes.",
                 ClubCount = 8
@@ -367,7 +367,7 @@ namespace CoachMaster.Data
                 Stadium = "Municipal da Serra",
                 FoundedYear = 1974,
                 History = "Clube de montanha, recém-chegado ao primeiro plano da segunda liga. Cresceu com uma direção ambiciosa e um público fiel.",
-                PublicReputation = "Promovido com mérito, ainda a adaptar-se ao rigor da Liga Horizonte.",
+                PublicReputation = "Promovido com mérito, ainda a adaptar-se ao rigor da Liga Portugal 2.",
                 Reputation = 42,
                 Finance = Fin(320000, 52000, 40000, "O orçamento é curto. Qualquer despesa extra precisa de aprovação da direção."),
                 Tactics = Identity("4-4-2", "Pressão média", "Jogo direto", "Laterais ofensivos", "Linha média", "Rui Tavares"),
@@ -375,7 +375,7 @@ namespace CoachMaster.Data
                 DressingRoomAtmosphere = "Entusiasmado, por vezes ingénuo.",
                 PublicTeamState = "O plantel acredita na subida. Falta perceber se essa crença se aguenta ao primeiro revés.",
                 HiddenInternalProblems = "Dois avançados não se entendem na área. O capitão cobre falhas que a direção ainda não vê.",
-                PublicCoachVacancyNote = "Rui Tavares saiu para um clube da Liga Atlas, deixando o cargo vago.",
+                PublicCoachVacancyNote = "Rui Tavares saiu para um clube da Liga Portugal, deixando o cargo vago.",
                 HiddenDismissalTruth = "A versão pública é uma saída por convite. Por dentro, Tavares já tinha perdido a paciência com interferências da direção nos treinos.",
                 DressingRoomTension = 33,
                 Staff = Staff("serra-nova", "Paulo Minhoto", "José Rolo", "Ana Borges", "Hugo Vale"),
@@ -400,13 +400,13 @@ namespace CoachMaster.Data
                 Stadium = "Estádio do Doca",
                 FoundedYear = 1951,
                 History = "Clube portuário, físico e orgulhoso. Costuma ser candidato à subida e raramente aceita épocas cinzentas.",
-                PublicReputation = "Candidato natural à Liga Atlas, com pressão alta da massa adepta.",
+                PublicReputation = "Candidato natural à Liga Portugal, com pressão alta da massa adepta.",
                 Reputation = 50,
                 Finance = Fin(900000, 70000, 120000, "Há alguma folga, mas a direção quer o regresso à primeira liga sem despesismo."),
                 Tactics = Identity("4-3-3", "Pressão alta", "Construção mista", "Laterais ofensivos", "Linha alta", "Carlos Magalhães"),
                 BoardObjectives = Obj("Subir de divisão", "Ganhar em casa com autoridade", "Recuperar jogadores-chave da última época"),
                 DressingRoomAtmosphere = "Ambicioso e impaciente.",
-                PublicTeamState = "O plantel sente que devia já estar na Liga Atlas. Essa ideia está presente em quase todas as conversas.",
+                PublicTeamState = "O plantel sente que devia já estar na Liga Portugal. Essa ideia está presente em quase todas as conversas.",
                 HiddenInternalProblems = "O guarda-redes titular e o capitão não se falam desde um golo sofrido no playoff. O grupo dividiu-se.",
                 PublicCoachVacancyNote = "Carlos Magalhães foi despedido após falhar a subida no último jogo.",
                 HiddenDismissalTruth = "Magalhães foi responsabilizado pela gestão do grupo no playoff, não apenas pelo resultado.",

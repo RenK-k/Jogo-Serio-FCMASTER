@@ -21,7 +21,68 @@ namespace CoachMaster.UI.Scenes
             }
 
             var club = session.Catalog.Clubs[session.Draft.ClubId];
-            var root = BroadcastUi.Mount(this);
+            if (transform.Find("Design") != null)
+            {
+                BindClub(BroadcastUi.Mount(this), session, club);
+                return;
+            }
+
+            Paint(session, club, false);
+        }
+
+        public void BakeDesign(GameSession session)
+        {
+            if (string.IsNullOrEmpty(session.Draft.LeagueId))
+                session.Draft.LeagueId = Ids.League("atlas");
+            session.PrepareLeague(session.Draft.LeagueId);
+            if (string.IsNullOrEmpty(session.Draft.ClubId))
+            {
+                foreach (var club in session.Catalog.ClubsInLeague(session.Draft.LeagueId))
+                {
+                    session.Draft.ClubId = club.Id;
+                    break;
+                }
+            }
+
+            if (session.Catalog.Clubs.ContainsKey(session.Draft.ClubId))
+                Paint(session, session.Catalog.Clubs[session.Draft.ClubId], true);
+        }
+
+        void BindClub(Transform root, GameSession session, Club club)
+        {
+            SceneBind.Wire(root.Find("Header/Back"), () => GameRoot.Instance.Open(SceneNames.TeamSelect));
+            var title = SceneBind.Get<Text>(root, "Header/Title");
+            if (title != null)
+                title.text = club.Name.ToUpperInvariant();
+            var sub = SceneBind.Get<Text>(root, "Header/Subtitle");
+            if (sub != null)
+                sub.text = club.City + "   ·   " + club.FoundedYear + "   ·   " + club.Stadium;
+            var crest = SceneBind.Get<Image>(root, "KitCard/Crest");
+            if (crest != null)
+                crest.sprite = CrestStudio.For(club);
+            var kit = SceneBind.Get<Image>(root, "KitCard/Kit");
+            if (kit != null)
+                KitView.Apply(kit, club);
+            var heading = SceneBind.Get<Text>(root, "Plantel/Title");
+            if (heading != null)
+                heading.text = "PLANTEL  ·  " + club.Tactics.Formation;
+            var body = SceneBind.Get<Text>(root, "Historia/Scroll/Content/Body");
+            if (body != null)
+                BroadcastUi.SetWrapped(body, History(club), 200);
+            var field = root.Find("Plantel/Field") as RectTransform;
+            if (field != null)
+            {
+                for (var i = field.childCount - 1; i >= 0; i--)
+                    Destroy(field.GetChild(i).gameObject);
+                PlaceFormation(field, session, club);
+            }
+
+            SceneBind.Wire(root.Find("Choose"), () => GameRoot.Instance.Open(SceneNames.CreateCareer));
+        }
+
+        void Paint(GameSession session, Club club, bool bake)
+        {
+            var root = bake ? BroadcastUi.CreateDesign(transform) : BroadcastUi.Mount(this);
             BroadcastUi.Backdrop(root);
             BroadcastUi.Wordmark(root, club.ShortName);
             LeagueSelectController.Header(root, club.Name.ToUpperInvariant(), club.City + "   ·   " + club.FoundedYear + "   ·   " + club.Stadium, () => GameRoot.Instance.Open(SceneNames.TeamSelect));

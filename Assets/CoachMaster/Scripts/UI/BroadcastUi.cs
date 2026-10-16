@@ -36,6 +36,20 @@ namespace CoachMaster.UI
             canvas.pixelPerfect = true;
 
             var root = canvas.transform;
+            var design = root.Find("Design") as RectTransform;
+            if (design != null)
+            {
+                for (var i = root.childCount - 1; i >= 0; i--)
+                {
+                    var child = root.GetChild(i).gameObject;
+                    if (child.transform == design)
+                        continue;
+                    child.SetActive(false);
+                }
+
+                return design;
+            }
+
             var runtime = new GameObject("Runtime", typeof(RectTransform));
             var runtimeRect = runtime.GetComponent<RectTransform>();
             runtimeRect.SetParent(root, false);
@@ -49,6 +63,19 @@ namespace CoachMaster.UI
             }
 
             return runtimeRect;
+        }
+
+        public static RectTransform CreateDesign(Transform canvas)
+        {
+            if (canvas == null)
+                return null;
+            for (var i = canvas.childCount - 1; i >= 0; i--)
+                UnityEngine.Object.DestroyImmediate(canvas.GetChild(i).gameObject);
+            var go = new GameObject("Design", typeof(RectTransform));
+            var rect = go.GetComponent<RectTransform>();
+            rect.SetParent(canvas, false);
+            Stretch(rect);
+            return rect;
         }
 
         public static void Backdrop(Transform parent)
