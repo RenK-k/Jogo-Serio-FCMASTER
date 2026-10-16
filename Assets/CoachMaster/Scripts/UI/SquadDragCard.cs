@@ -18,15 +18,51 @@ namespace CoachMaster.UI
         RectTransform _ghost;
         static readonly List<RaycastResult> Hits = new List<RaycastResult>();
 
-        public static bool Holding { get; private set; }
-        bool _releaseHold;
+        static bool _dragActive;
+        static float _dragSince;
+        static int _blockFrame = -1;
+        static Player _pendingPlayer;
+        static int _pendingIndex = -1;
+        static int _pendingFrom = -1;
+        bool _dragging;
+
+        public static bool Holding
+        {
+            get
+            {
+                if (_dragActive && Time.unscaledTime > _dragSince + 8f)
+                    _dragActive = false;
+                return _dragActive || Time.frameCount <= _blockFrame;
+            }
+        }
+
+        public static void Release()
+        {
+            _dragActive = false;
+            _blockFrame = -1;
+            _pendingPlayer = null;
+            _pendingIndex = -1;
+            _pendingFrom = -1;
+        }
+
+        public static bool ConsumeSwap(out Player player, out int fieldIndex, out int fromField)
+        {
+            player = _pendingPlayer;
+            fieldIndex = _pendingIndex;
+            fromField = _pendingFrom;
+            _pendingPlayer = null;
+            _pendingIndex = -1;
+            _pendingFrom = -1;
+            return player != null && fieldIndex >= 0;
+        }
 
         public void OnBeginDrag(PointerEventData eventData)
         {
-            if (!Bench || Player == null)
+            if (Player == null || (!Bench && FieldIndex < 0))
                 return;
-            Holding = true;
-            _releaseHold = false;
+            _dragging = true;
+            _dragActive = true;
+            _dragSince = Time.unscaledTime;
             _canvas = GetComponentInParent<Canvas>();
             var image = GetComponent<Image>();
             if (image == null)
@@ -34,7 +70,8 @@ namespace CoachMaster.UI
             var go = new GameObject("DragGhost", typeof(RectTransform), typeof(CanvasGroup), typeof(Image));
             _ghost = go.GetComponent<RectTransform>();
             _ghost.SetParent(_canvas.transform, false);
-            _ghost.sizeDelta = (transform as RectTransform).sizeDelta;
+            var source = transform as RectTransform;
+            _ghost.sizeDelta = source != null && source.rect.size.sqrMagnitude > 4f ? source.rect.size : new Vector2(120f, 90f);
             var ghostImage = go.GetComponent<Image>();
             ghostImage.color = new Color(image.color.r, image.color.g, image.color.b, 0.72f);
             ghostImage.raycastTarget = false;
@@ -52,20 +89,33 @@ namespace CoachMaster.UI
             if (_ghost != null)
                 Destroy(_ghost.gameObject);
             _ghost = null;
-            _releaseHold = true;
-            if (!Bench || Player == null || OnSwapWithField == null || EventSystem.current == null)
+            if (!_dragging)
+                return;
+            _dragging = false;
+            _dragActive = false;
+            _blockFrame = Time.frameCount;
+            if (Player == null || EventSystem.current == null)
+                return;
+            if (Bench && OnSwapWithField == null)
                 return;
             var target = FindTarget(eventData);
-            if (target != null)
-                OnSwapWithField(Player, target.FieldIndex);
+            if (target == null)
+                return;
+            _pendingPlayer = Player;
+            _pendingIndex = target.FieldIndex;
+            _pendingFrom = Bench ? -1 : FieldIndex;
         }
 
-        void LateUpdate()
+        void OnDisable()
         {
-            if (!_releaseHold)
+            if (_ghost != null)
+                Destroy(_ghost.gameObject);
+            _ghost = null;
+            if (!_dragging)
                 return;
-            _releaseHold = false;
-            Holding = false;
+            _dragging = false;
+            _dragActive = false;
+            _blockFrame = Time.frameCount;
         }
 
         SquadDragCard FindTarget(PointerEventData eventData)

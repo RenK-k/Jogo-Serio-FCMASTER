@@ -33,6 +33,8 @@ namespace CoachMaster.UI
                 scaler.matchWidthOrHeight = 0.5f;
             }
 
+            canvas.pixelPerfect = true;
+
             var root = canvas.transform;
             var runtime = new GameObject("Runtime", typeof(RectTransform));
             var runtimeRect = runtime.GetComponent<RectTransform>();
@@ -63,6 +65,27 @@ namespace CoachMaster.UI
             var shade = Solid(parent, "TopShade", new Color(0.05f, 0.02f, 0.1f, 0.28f));
             Place(shade.rectTransform, 0f, 0.9f, 1f, 1f);
             var floor = Solid(parent, "Floor", UiTheme.Footer, true);
+            Place(floor.rectTransform, 0f, 0f, 1f, 0.055f);
+        }
+
+        public static void ChampionsNight(Transform parent)
+        {
+            var bg = Solid(parent, "Backdrop", new Color(0.03f, 0.1f, 0.28f, 1f), true);
+            Stretch(bg.rectTransform);
+            var wash = Solid(parent, "Night", new Color(0.05f, 0.16f, 0.42f, 1f));
+            Stretch(wash.rectTransform);
+            for (var i = 0; i < 42; i++)
+            {
+                var star = Solid(parent, "Star" + i, new Color(1f, 1f, 1f, 0.35f + (i % 5) * 0.12f));
+                star.sprite = Circle;
+                var x = ((i * 47) % 100) / 100f;
+                var y = ((i * 29) % 100) / 100f;
+                star.rectTransform.anchorMin = star.rectTransform.anchorMax = new Vector2(x, y);
+                var size = 3f + (i % 4) * 2f;
+                star.rectTransform.sizeDelta = new Vector2(size, size);
+            }
+
+            var floor = Solid(parent, "Floor", new Color(0.02f, 0.06f, 0.16f, 1f), true);
             Place(floor.rectTransform, 0f, 0f, 1f, 0.055f);
         }
 

@@ -50,6 +50,7 @@ namespace CoachMaster.App
 
         static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
+            SquadDragCard.Release();
             EnsureUiInput();
         }
 

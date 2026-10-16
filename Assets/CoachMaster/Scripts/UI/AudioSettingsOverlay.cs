@@ -11,7 +11,6 @@ namespace CoachMaster.UI
     public sealed class AudioSettingsOverlay : MonoBehaviour
     {
         GameObject _root;
-        RectTransform _list;
         Text _now;
 
         DragVolume _musicSlider;
@@ -93,14 +92,12 @@ namespace CoachMaster.UI
             LabelAt(card.transform, "Público", 0.58f);
             _crowdSlider = Volume(card.transform, "Crowd", 0.57f, GameAudio.CrowdVolume, GameAudio.SetCrowdVolume);
 
-            Step(card.transform, "Anterior", () => { GameAudio.PreviousTrack(); Refresh(); }, 0.04f, 0.46f);
-            Step(card.transform, "Seguinte", () => { GameAudio.NextTrack(); Refresh(); }, 0.26f, 0.46f);
-            _save = Step(card.transform, "Guardar", ConfirmSave, 0.5f, 0.46f);
-            _quit = Step(card.transform, "Sair", LeaveToMenu, 0.74f, 0.46f);
+            _save = Step(card.transform, "Guardar", ConfirmSave, 0.5f, 0.22f);
+            _quit = Step(card.transform, "Sair", LeaveToMenu, 0.74f, 0.22f);
             ApplyCareerButtons();
 
-            var scroll = BroadcastUi.Scroll(card.transform, "Tracks", out _list);
-            BroadcastUi.Place(scroll.GetComponent<RectTransform>(), 0.04f, 0.04f, 0.96f, 0.44f);
+            Step(card.transform, "Anterior", () => { GameAudio.PreviousTrack(); Refresh(); }, 0.04f, 0.05f, 0.44f, 0.13f);
+            Step(card.transform, "Seguinte", () => { GameAudio.NextTrack(); Refresh(); }, 0.52f, 0.05f, 0.44f, 0.13f);
         }
 
         static void LabelAt(Transform parent, string text, float y)
@@ -171,16 +168,16 @@ namespace CoachMaster.UI
                 _quit.gameObject.SetActive(inCareer);
         }
 
-        static Button Step(Transform parent, string label, UnityEngine.Events.UnityAction action, float x, float y)
+        static Button Step(Transform parent, string label, UnityEngine.Events.UnityAction action, float x, float y, float width = 0.2f, float height = 0.09f)
         {
-            var button = BroadcastUi.Button(parent, label, label, null, new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 14);
+            var button = BroadcastUi.Button(parent, label, label, null, new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 18);
             button.onClick.AddListener(() =>
             {
                 if (!BroadcastUi.AllowClick())
                     return;
                 action();
             });
-            BroadcastUi.Place(button.GetComponent<RectTransform>(), x, y, x + 0.2f, y + 0.09f);
+            BroadcastUi.Place(button.GetComponent<RectTransform>(), x, y, x + width, y + height);
             return button;
         }
 
@@ -200,26 +197,6 @@ namespace CoachMaster.UI
                 _effectSlider.Set(GameAudio.EffectVolume);
             if (_crowdSlider != null)
                 _crowdSlider.Set(GameAudio.CrowdVolume);
-            for (var i = _list.childCount - 1; i >= 0; i--)
-                Destroy(_list.GetChild(i).gameObject);
-            var names = GameAudio.TrackNames();
-            for (var i = 0; i < names.Count; i++)
-            {
-                var index = i;
-                var on = index == GameAudio.TrackIndex;
-                var button = BroadcastUi.Button(_list, "Track" + i, (i + 1) + "    " + names[i], () =>
-                {
-                    GameAudio.Music(index);
-                    Refresh();
-                }, on ? UiTheme.Accent : new Color(1f, 1f, 1f, 0.08f), on ? UiTheme.ButtonText : Color.white, 16);
-                BroadcastUi.Preferred(button.GetComponent<RectTransform>(), 42);
-            }
-
-            if (names.Count == 0)
-            {
-                var empty = BroadcastUi.Label(_list, "Empty", "Ainda não há faixas.", 15, UiTheme.Muted, TextAnchor.MiddleLeft);
-                BroadcastUi.Preferred(empty, 48);
-            }
         }
 
         static bool EventSystemTyping()

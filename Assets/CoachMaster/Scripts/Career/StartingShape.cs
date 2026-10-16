@@ -106,6 +106,24 @@ namespace CoachMaster.Career
                 club.ManualLineup.Add(player.Id);
         }
 
+        public static void SwapPositions(Club club, IEnumerable<Player> squad, int fromIndex, int toIndex)
+        {
+            if (club == null || fromIndex < 0 || toIndex < 0 || fromIndex >= 11 || toIndex >= 11 || fromIndex == toIndex)
+                return;
+            EnsureManualLineup(club, squad);
+            var eleven = new List<Player>();
+            var bench = new List<Player>();
+            Resolve(squad, club, eleven, bench);
+            if (fromIndex >= eleven.Count || toIndex >= eleven.Count)
+                return;
+            var moving = eleven[fromIndex];
+            eleven[fromIndex] = eleven[toIndex];
+            eleven[toIndex] = moving;
+            club.ManualLineup.Clear();
+            foreach (var player in eleven)
+                club.ManualLineup.Add(player.Id);
+        }
+
         static void PickFormation(List<Player> pool, string formation, List<Player> eleven, List<Player> bench)
         {
             foreach (var prefs in Pattern(formation))

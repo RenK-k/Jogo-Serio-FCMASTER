@@ -86,12 +86,14 @@ namespace CoachMaster.UI
                     }
                     else if (pool.Count > 0)
                         sprite = pool[Mod(player.FullName.GetHashCode(), pool.Count)];
+                    if (sprite == null && AllFaces().Length > 0)
+                        sprite = AllFaces()[Mod(player.Id.GetHashCode(), AllFaces().Length)];
                     if (sprite == null)
                         continue;
                     var key = Key(pair.Key, sprite);
                     used.Add(key);
                     player.PortraitPath = key;
-                    ByPlayer[player.Id] = Center(sprite);
+                    ByPlayer[player.Id] = Head(sprite);
                 }
             }
         }
@@ -110,10 +112,34 @@ namespace CoachMaster.UI
                 if (pool.Length > 0)
                     sprite = pool[Mod((player.Id + player.FullName).GetHashCode(), pool.Length)];
             }
-            sprite = Center(sprite);
+            sprite = Head(sprite);
             if (sprite != null)
                 ByPlayer[player.Id] = sprite;
             return sprite;
+        }
+
+        static Sprite Head(Sprite sprite)
+        {
+            if (sprite == null)
+                return null;
+            var rect = sprite.rect;
+            if (rect.height > rect.width * 1.15f && rect.height > 8f)
+            {
+                var side = Mathf.Min(rect.width * 0.92f, rect.height * 0.62f);
+                var head = new Rect(rect.x + (rect.width - side) * 0.5f, rect.y + rect.height - side - rect.height * 0.02f, side, side);
+                try
+                {
+                    var made = Sprite.Create(sprite.texture, head, new Vector2(0.5f, 0.45f), sprite.pixelsPerUnit, 0, SpriteMeshType.FullRect);
+                    made.name = sprite.name;
+                    return made;
+                }
+                catch
+                {
+                    return Center(sprite);
+                }
+            }
+
+            return Center(sprite);
         }
 
         static Sprite[] AllFaces()

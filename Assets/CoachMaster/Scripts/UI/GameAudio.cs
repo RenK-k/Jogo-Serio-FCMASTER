@@ -120,7 +120,6 @@ namespace CoachMaster.UI
             return names;
         }
 
-        static bool _advance;
         static bool _unfocused;
         static float _grace;
         public static bool Repeat { get; set; }
@@ -348,7 +347,6 @@ namespace CoachMaster.UI
             _music.clip = clip;
             _music.loop = Repeat;
             _music.Play();
-            _advance = true;
         }
 
         static void ApplyVolumes()

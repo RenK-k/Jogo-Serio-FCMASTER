@@ -24,7 +24,7 @@ namespace CoachMaster.Career
                 "coach|" + Esc(career.Coach.Name) + "|" + career.Coach.ClubId + "|" + career.Calendar.CurrentDate.Ticks
             };
             var tactics = career.Club.Tactics;
-            lines.Add("tactic|" + Esc(tactics.Formation) + "|" + Esc(tactics.Pressing) + "|" + Esc(tactics.BuildUp) + "|" + Esc(tactics.FullBacks) + "|" + Esc(tactics.DefensiveLine) + "|" + Esc(tactics.Width) + "|" + Esc(tactics.Tempo) + "|" + Esc(tactics.PassingStyle));
+            lines.Add("tactic|" + Esc(tactics.Formation) + "|" + Esc(tactics.Pressing) + "|" + Esc(tactics.BuildUp) + "|" + Esc(tactics.FullBacks) + "|" + Esc(tactics.DefensiveLine) + "|" + Esc(tactics.Width) + "|" + Esc(tactics.Tempo) + "|" + Esc(tactics.PassingStyle) + "|" + Esc(tactics.AttackIdea) + "|" + Esc(tactics.Marking));
             lines.Add("roles|" + career.Club.PenaltyTakerId + "|" + career.Club.CornerTakerId + "|" + career.Club.FreeKickTakerId);
             lines.Add("lineup|" + string.Join(",", career.Club.ManualLineup));
             foreach (var player in career.World.Players.Values)
@@ -36,7 +36,7 @@ namespace CoachMaster.Career
             }
 
             foreach (var fixture in career.Fixtures)
-                lines.Add("fixture|" + fixture.Id + "|" + (fixture.Played ? "1" : "0") + "|" + fixture.HomeGoals + "|" + fixture.AwayGoals);
+                lines.Add("fixture|" + fixture.Id + "|" + (fixture.Played ? "1" : "0") + "|" + fixture.HomeGoals + "|" + fixture.AwayGoals + "|" + fixture.LeagueId + "|" + fixture.HomeClubId + "|" + fixture.AwayClubId + "|" + fixture.Date.Ticks);
             foreach (var row in career.Table)
                 lines.Add("table|" + row.LeagueId + "|" + row.ClubId + "|" + row.Played + "|" + row.Won + "|" + row.Drawn + "|" + row.Lost + "|" + row.GoalsFor + "|" + row.GoalsAgainst + "|" + row.Points);
             foreach (var story in career.Press)
@@ -46,6 +46,7 @@ namespace CoachMaster.Career
             foreach (var line in career.Notebook)
                 lines.Add("note|" + Esc(line));
             lines.Add("listed|" + string.Join(",", career.Listed));
+            lines.Add("targets|" + string.Join(",", career.Targets));
             lines.Add("loans|" + string.Join(",", career.Loans));
             lines.Add("scouted|" + string.Join(",", career.ScoutedPlayers));
             foreach (var job in career.ScoutJobs)
@@ -172,6 +173,10 @@ namespace CoachMaster.Career
                         career.Listed.Clear();
                         AddIds(career.Listed, bits);
                         break;
+                    case "targets":
+                        career.Targets.Clear();
+                        AddIds(career.Targets, bits);
+                        break;
                     case "loans":
                         career.Loans.Clear();
                         AddIds(career.Loans, bits);
@@ -200,6 +205,7 @@ namespace CoachMaster.Career
             career.Current = null;
             career.Upcoming.Clear();
             CareerMoments.Continue(career);
+            SeasonSchedule.RebuildTable(career);
             session.Restore(career);
             return career;
         }
@@ -217,6 +223,10 @@ namespace CoachMaster.Career
             tactics.Width = Un(bits[6]);
             tactics.Tempo = Un(bits[7]);
             tactics.PassingStyle = Un(bits[8]);
+            if (bits.Length > 9)
+                tactics.AttackIdea = Un(bits[9]);
+            if (bits.Length > 10)
+                tactics.Marking = Un(bits[10]);
             tactics.Summary = tactics.Formation + " · " + tactics.Pressing + " · " + tactics.BuildUp;
         }
 
@@ -244,17 +254,40 @@ namespace CoachMaster.Career
         {
             if (bits.Length < 5)
                 return;
+            int.TryParse(bits[3], out var homeGoals);
+            int.TryParse(bits[4], out var awayGoals);
+            var played = bits[2] == "1";
+            if (bits.Length >= 9)
+            {
+                long ticks;
+                long.TryParse(bits[8], out ticks);
+                var when = ticks == 0 ? System.DateTime.MinValue : new System.DateTime(ticks).Date;
+                foreach (var fixture in career.Fixtures)
+                {
+                    if (fixture.Restored || fixture.LeagueId != bits[5] || fixture.HomeClubId != bits[6] || fixture.AwayClubId != bits[7])
+                        continue;
+                    if (when != System.DateTime.MinValue && fixture.Date.Date != when)
+                        continue;
+                    StampFixture(fixture, played, homeGoals, awayGoals);
+                    return;
+                }
+            }
+
             foreach (var fixture in career.Fixtures)
             {
-                if (fixture.Id != bits[1])
+                if (fixture.Id != bits[1] || fixture.Restored)
                     continue;
-                fixture.Played = bits[2] == "1";
-                int.TryParse(bits[3], out var home);
-                int.TryParse(bits[4], out var away);
-                fixture.HomeGoals = home;
-                fixture.AwayGoals = away;
+                StampFixture(fixture, played, homeGoals, awayGoals);
                 return;
             }
+        }
+
+        static void StampFixture(Fixture fixture, bool played, int homeGoals, int awayGoals)
+        {
+            fixture.Restored = true;
+            fixture.Played = played;
+            fixture.HomeGoals = homeGoals;
+            fixture.AwayGoals = awayGoals;
         }
 
         static void ApplyTable(CareerState career, string[] bits)

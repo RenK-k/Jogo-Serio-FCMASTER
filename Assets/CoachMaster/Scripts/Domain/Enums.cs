@@ -48,6 +48,22 @@ namespace CoachMaster.Domain
         Ambitious
     }
 
+    public enum PlayerTrait
+    {
+        Rapido,
+        RemateEmJeito,
+        ImuneAPressao,
+        Driblador,
+        Finalizador,
+        Visionario,
+        Marcador,
+        Trabalhador,
+        Frieza,
+        Potente,
+        Cruzador,
+        Cabeceador
+    }
+
     public enum KitPattern
     {
         Solid,

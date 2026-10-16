@@ -133,6 +133,8 @@ namespace CoachMaster.MatchPlay
                 Width = string.IsNullOrEmpty(src.Width) ? "Largura normal" : src.Width,
                 Tempo = string.IsNullOrEmpty(src.Tempo) ? "Ritmo normal" : src.Tempo,
                 PassingStyle = string.IsNullOrEmpty(src.PassingStyle) ? "Passe misto" : src.PassingStyle,
+                AttackIdea = string.IsNullOrEmpty(src.AttackIdea) ? "Equilibrado" : src.AttackIdea,
+                Marking = string.IsNullOrEmpty(src.Marking) ? "Marcação mista" : src.Marking,
                 FormerCoachName = src.FormerCoachName,
                 Summary = src.Summary
             };

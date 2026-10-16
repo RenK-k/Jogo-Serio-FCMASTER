@@ -26,8 +26,8 @@ namespace CoachMaster.Career
                 if (league.Tier == LeagueTier.Continental)
                     continue;
 
-                AddRoundRobin(career, league.Id, clubs, GameCalendar.SeasonStart.AddDays(34), false);
-                AddRoundRobin(career, league.Id, clubs, GameCalendar.SeasonStart.AddDays(34 + clubs.Count * 7), true);
+                AddRoundRobin(career, league.Id, clubs, GameCalendar.SeasonStart.AddDays(34), false, 0);
+                AddRoundRobin(career, league.Id, clubs, GameCalendar.SeasonStart.AddDays(34 + clubs.Count * 7), true, 80);
             }
 
             AddChampions(career);
@@ -56,10 +56,10 @@ namespace CoachMaster.Career
 
             foreach (var club in invited)
                 career.Table.Add(new LeagueTableRow { ClubId = club.Id, LeagueId = leagueId });
-            AddRoundRobin(career, leagueId, invited, GameCalendar.SeasonStart.AddDays(20), false);
+            AddRoundRobin(career, leagueId, invited, GameCalendar.SeasonStart.AddDays(20), false, 0);
         }
 
-        static void AddRoundRobin(CareerState career, string leagueId, List<Club> clubs, DateTime start, bool reverse)
+        static void AddRoundRobin(CareerState career, string leagueId, List<Club> clubs, DateTime start, bool reverse, int seed)
         {
             var n = clubs.Count;
             if (n < 2)
@@ -74,7 +74,6 @@ namespace CoachMaster.Career
             var count = ids.Count;
             var rounds = count - 1;
             var date = start;
-            var seed = 0;
             for (var round = 0; round < rounds; round++)
             {
                 for (var i = 0; i < count / 2; i++)
@@ -109,12 +108,32 @@ namespace CoachMaster.Career
             }
         }
 
-        public static void SimulateOthers(CareerState career, DateTime upTo, string skipFixtureId)
+        public static Fixture Find(CareerState career, Fixture fixture)
+        {
+            if (career == null || fixture == null)
+                return fixture;
+            foreach (var item in career.Fixtures)
+            {
+                if (ReferenceEquals(item, fixture))
+                    return item;
+            }
+
+            foreach (var item in career.Fixtures)
+            {
+                if (item.LeagueId == fixture.LeagueId && item.HomeClubId == fixture.HomeClubId && item.AwayClubId == fixture.AwayClubId && item.Date.Date == fixture.Date.Date)
+                    return item;
+            }
+
+            career.Fixtures.Add(fixture);
+            return fixture;
+        }
+
+        public static void SimulateOthers(CareerState career, DateTime upTo, Fixture skip)
         {
             var rng = new System.Random(upTo.DayOfYear * 17 + upTo.Month);
             foreach (var fixture in career.Fixtures)
             {
-                if (fixture.Played || fixture.Id == skipFixtureId || fixture.Date.Date > upTo.Date)
+                if (fixture.Played || ReferenceEquals(fixture, skip) || fixture.Date.Date > upTo.Date)
                     continue;
                 if (fixture.Involves(career.Coach.ClubId) && fixture.Date.Date == upTo.Date)
                     continue;
@@ -143,31 +162,58 @@ namespace CoachMaster.Career
             ApplyTeam(career, fixture.LeagueId, fixture.AwayClubId, fixture.AwayGoals, fixture.HomeGoals);
         }
 
-        static void ApplyTeam(CareerState career, string leagueId, string clubId, int scored, int conceded)
+        public static void RebuildTable(CareerState career)
         {
+            if (career == null)
+                return;
             foreach (var row in career.Table)
             {
-                if (row.ClubId != clubId)
-                    continue;
-                if (!string.IsNullOrEmpty(row.LeagueId) && row.LeagueId != leagueId)
-                    continue;
-                row.Played++;
-                row.GoalsFor += scored;
-                row.GoalsAgainst += conceded;
-                if (scored > conceded)
-                {
-                    row.Won++;
-                    row.Points += 3;
-                }
-                else if (scored == conceded)
-                {
-                    row.Drawn++;
-                    row.Points += 1;
-                }
-                else
-                    row.Lost++;
-                return;
+                row.Played = 0;
+                row.Won = 0;
+                row.Drawn = 0;
+                row.Lost = 0;
+                row.GoalsFor = 0;
+                row.GoalsAgainst = 0;
+                row.Points = 0;
             }
+
+            foreach (var fixture in career.Fixtures)
+            {
+                if (!fixture.Played)
+                    continue;
+                ApplyTeam(career, fixture.LeagueId, fixture.HomeClubId, fixture.HomeGoals, fixture.AwayGoals);
+                ApplyTeam(career, fixture.LeagueId, fixture.AwayClubId, fixture.AwayGoals, fixture.HomeGoals);
+            }
+        }
+
+        static void ApplyTeam(CareerState career, string leagueId, string clubId, int scored, int conceded)
+        {
+            LeagueTableRow found = null;
+            foreach (var row in career.Table)
+            {
+                if (row.ClubId != clubId || row.LeagueId != leagueId)
+                    continue;
+                found = row;
+                break;
+            }
+
+            if (found == null)
+                return;
+            found.Played++;
+            found.GoalsFor += scored;
+            found.GoalsAgainst += conceded;
+            if (scored > conceded)
+            {
+                found.Won++;
+                found.Points += 3;
+            }
+            else if (scored == conceded)
+            {
+                found.Drawn++;
+                found.Points += 1;
+            }
+            else
+                found.Lost++;
         }
     }
 }

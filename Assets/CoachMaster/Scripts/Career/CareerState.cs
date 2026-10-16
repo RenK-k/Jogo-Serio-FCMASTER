@@ -18,6 +18,7 @@ namespace CoachMaster.Career
         public List<PaperStory> Press { get; } = new List<PaperStory>();
         public HashSet<string> Scouted { get; } = new HashSet<string>();
         public HashSet<string> Listed { get; } = new HashSet<string>();
+        public HashSet<string> Targets { get; } = new HashSet<string>();
         public HashSet<string> ScoutedPlayers { get; } = new HashSet<string>();
         public HashSet<string> Loans { get; } = new HashSet<string>();
         public List<ScoutJob> ScoutJobs { get; } = new List<ScoutJob>();

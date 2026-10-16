@@ -10,6 +10,7 @@ namespace CoachMaster.Domain
         public string HomeClubId { get; set; }
         public string AwayClubId { get; set; }
         public bool Played { get; set; }
+        public bool Restored { get; set; }
         public int HomeGoals { get; set; }
         public int AwayGoals { get; set; }
 

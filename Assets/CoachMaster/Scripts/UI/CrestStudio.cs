@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using CoachMaster.Data;
 using CoachMaster.Domain;
 using UnityEngine;
 
@@ -10,7 +11,10 @@ namespace CoachMaster.UI
 
         public static Sprite For(Club club)
         {
-            var key = club == null ? "vazio" : club.Id;
+            if (club == null)
+                return Draw(club);
+            WorldCatalog.PaintClub(club);
+            var key = club.Id + "|" + club.JerseyPrimaryHex + "|" + club.KitPattern;
             if (Cache.TryGetValue(key, out var cached) && cached != null)
                 return cached;
 
@@ -37,10 +41,11 @@ namespace CoachMaster.UI
                         continue;
                     }
 
-                    var stripe = ((x + y) / 10) % 2 == 0;
-                    var color = stripe ? primary : Color.Lerp(primary, secondary, 0.55f);
-                    if (y > size * 0.72f)
-                        color = secondary;
+                    var u = (x + 0.5f) / size;
+                    var v = (y + 0.5f) / size;
+                    var color = BadgeColor(club, u, v, x, y, primary, secondary);
+                    if (v > 0.78f)
+                        color = Color.Lerp(color, secondary, 0.85f);
                     pixels[y * size + x] = color;
                 }
             }
@@ -74,7 +79,7 @@ namespace CoachMaster.UI
 
         static void Glyph(Color[] pixels, int size, int ox, int oy, char letter, Color ink)
         {
-            var rows = Mask(letter);
+            var rows = Mask(Fold(letter));
             for (var y = 0; y < rows.Length; y++)
             {
                 for (var x = 0; x < 8; x++)
@@ -98,17 +103,76 @@ namespace CoachMaster.UI
                 case 'E': return new[] { 0x7E, 0x60, 0x60, 0x7C, 0x60, 0x60, 0x7E };
                 case 'F': return new[] { 0x7E, 0x60, 0x60, 0x7C, 0x60, 0x60, 0x60 };
                 case 'G': return new[] { 0x3C, 0x66, 0x60, 0x6E, 0x66, 0x66, 0x3C };
+                case 'H': return new[] { 0x66, 0x66, 0x66, 0x7E, 0x66, 0x66, 0x66 };
+                case 'I': return new[] { 0x3C, 0x18, 0x18, 0x18, 0x18, 0x18, 0x3C };
+                case 'J': return new[] { 0x06, 0x06, 0x06, 0x06, 0x66, 0x66, 0x3C };
+                case 'K': return new[] { 0x66, 0x6C, 0x78, 0x70, 0x78, 0x6C, 0x66 };
                 case 'L': return new[] { 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x7E };
                 case 'M': return new[] { 0x63, 0x77, 0x7F, 0x6B, 0x63, 0x63, 0x63 };
                 case 'N': return new[] { 0x66, 0x76, 0x7E, 0x7E, 0x6E, 0x66, 0x66 };
                 case 'O': return new[] { 0x3C, 0x66, 0x66, 0x66, 0x66, 0x66, 0x3C };
                 case 'P': return new[] { 0x7C, 0x66, 0x66, 0x7C, 0x60, 0x60, 0x60 };
+                case 'Q': return new[] { 0x3C, 0x66, 0x66, 0x66, 0x6E, 0x3C, 0x07 };
                 case 'R': return new[] { 0x7C, 0x66, 0x66, 0x7C, 0x6C, 0x66, 0x66 };
                 case 'S': return new[] { 0x3C, 0x66, 0x60, 0x3C, 0x06, 0x66, 0x3C };
                 case 'T': return new[] { 0x7E, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18 };
                 case 'U': return new[] { 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x3C };
                 case 'V': return new[] { 0x66, 0x66, 0x66, 0x66, 0x66, 0x3C, 0x18 };
+                case 'W': return new[] { 0x63, 0x63, 0x63, 0x6B, 0x7F, 0x77, 0x63 };
+                case 'X': return new[] { 0x66, 0x66, 0x3C, 0x18, 0x3C, 0x66, 0x66 };
+                case 'Y': return new[] { 0x66, 0x66, 0x3C, 0x18, 0x18, 0x18, 0x18 };
+                case 'Z': return new[] { 0x7E, 0x06, 0x0C, 0x18, 0x30, 0x60, 0x7E };
                 default: return new[] { 0x3C, 0x66, 0x6E, 0x76, 0x66, 0x66, 0x3C };
+            }
+        }
+
+        static Color BadgeColor(Club club, float u, float v, int x, int y, Color primary, Color secondary)
+        {
+            var pattern = club == null ? KitPattern.Solid : club.KitPattern;
+            switch (pattern)
+            {
+                case KitPattern.VerticalStripes:
+                    return (x / 8) % 2 == 0 ? primary : secondary;
+                case KitPattern.HorizontalHoops:
+                    return (y / 8) % 2 == 0 ? primary : secondary;
+                case KitPattern.Halves:
+                    return u < 0.5f ? primary : secondary;
+                case KitPattern.Sash:
+                    return Mathf.Abs((u - 0.15f) - (1f - v)) < 0.14f ? secondary : primary;
+                case KitPattern.ChestBand:
+                    return v > 0.4f && v < 0.58f ? secondary : primary;
+                case KitPattern.Pinstripe:
+                    return x % 7 == 0 ? secondary : primary;
+                default:
+                    return primary;
+            }
+        }
+
+        static char Fold(char letter)
+        {
+            switch (char.ToUpperInvariant(letter))
+            {
+                case 'Á':
+                case 'À':
+                case 'Ã':
+                case 'Â':
+                    return 'A';
+                case 'É':
+                case 'È':
+                case 'Ê':
+                    return 'E';
+                case 'Í':
+                    return 'I';
+                case 'Ó':
+                case 'Õ':
+                case 'Ô':
+                    return 'O';
+                case 'Ú':
+                    return 'U';
+                case 'Ç':
+                    return 'C';
+                default:
+                    return char.ToUpperInvariant(letter);
             }
         }
 
@@ -123,10 +187,21 @@ namespace CoachMaster.UI
         {
             if (club == null || string.IsNullOrEmpty(club.ShortName))
                 return "?";
-            var parts = club.ShortName.Split(' ');
-            if (parts.Length == 1)
-                return parts[0].Substring(0, Mathf.Min(2, parts[0].Length)).ToUpperInvariant();
-            return (parts[0].Substring(0, 1) + parts[parts.Length - 1].Substring(0, 1)).ToUpperInvariant();
+            var parts = club.ShortName.Split(new[] { ' ', '-' }, System.StringSplitOptions.RemoveEmptyEntries);
+            var words = new List<string>();
+            foreach (var part in parts)
+            {
+                var lower = part.ToLowerInvariant();
+                if (lower == "de" || lower == "da" || lower == "do" || lower == "du" || lower == "d" || lower == "la" || lower == "le" || lower == "les")
+                    continue;
+                words.Add(part);
+            }
+
+            if (words.Count == 0)
+                words.Add(parts.Length == 0 ? club.ShortName : parts[0]);
+            if (words.Count == 1)
+                return words[0].Substring(0, Mathf.Min(2, words[0].Length)).ToUpperInvariant();
+            return (words[0].Substring(0, 1) + words[words.Count - 1].Substring(0, 1)).ToUpperInvariant();
         }
 
         static Color Contrast(Color color)

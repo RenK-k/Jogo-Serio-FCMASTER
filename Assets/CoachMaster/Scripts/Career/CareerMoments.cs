@@ -83,14 +83,37 @@ namespace CoachMaster.Career
             var when = career.Calendar.CurrentDate.Date.AddHours(19);
             if (when < career.Calendar.CurrentDate)
                 career.Calendar.SetInstant(when);
-            var tone = userHome
-                ? (homeGoals > awayGoals ? "O balneário fala baixo, mas há sorrisos contidos." : homeGoals == awayGoals ? "Ninguém grita. Ninguém festeja." : "Há toalhas no chão e ninguém se olha.")
-                : (awayGoals > homeGoals ? "No autocarro, dois jogadores ainda discutem o golo sofrido." : "A viagem de regresso é longa e quase muda.");
+            var userGoals = userHome ? homeGoals : awayGoals;
+            var oppGoals = userHome ? awayGoals : homeGoals;
+            var score = homeName + " " + homeGoals + "-" + awayGoals + " " + awayName;
+            string verdict;
+            string tone;
+            if (userGoals > oppGoals)
+            {
+                verdict = "Vitória";
+                tone = userHome
+                    ? "Ganharam. " + score + ". O balneário fala baixo, mas há sorrisos contidos."
+                    : "Ganharam fora. " + score + ". No autocarro ainda se fala do golo, desta vez a rir.";
+            }
+            else if (userGoals == oppGoals)
+            {
+                verdict = "Empate";
+                tone = userHome
+                    ? "Empate. " + score + ". Ninguém grita. Ninguém festeja."
+                    : "Empate fora. " + score + ". A viagem de regresso é longa e quase muda.";
+            }
+            else
+            {
+                verdict = "Derrota";
+                tone = userHome
+                    ? "Perderam em casa. " + score + ". Há toalhas no chão e ninguém se olha."
+                    : "Perderam fora. " + score + ". No autocarro, dois jogadores ainda discutem o golo sofrido.";
+            }
             career.Current = new CareerMoment
             {
                 When = when,
                 Kind = MomentKind.Note,
-                Title = "Depois do apito",
+                Title = verdict + "  ·  Depois do apito",
                 Body = tone + "\n\nO adjunto espera que sejas tu a puxar a primeira conversa. Ninguém te entrega um relatório de humor."
             };
             career.Notebook.Insert(0, "Jogo terminado. O que sentiste no balneário fica contigo.");

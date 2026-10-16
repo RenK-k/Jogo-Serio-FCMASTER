@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace CoachMaster.Domain
 {
     public sealed class Player
@@ -20,7 +22,14 @@ namespace CoachMaster.Domain
         public int Motivation { get; set; }
         public InjuryState Injury { get; set; } = new InjuryState();
         public PersonalityTrait Personality { get; set; }
+        public int Potential { get; set; }
+        public List<PlayerTrait> Traits { get; set; } = new List<PlayerTrait>();
         public PlayerAttributes Attributes { get; set; } = new PlayerAttributes();
+
+        public bool HasTrait(PlayerTrait trait)
+        {
+            return Traits != null && Traits.Contains(trait);
+        }
         public string PortraitPath { get; set; }
         public string Duty { get; set; }
     }

@@ -130,10 +130,6 @@ namespace CoachMaster.UI
             if (mouse == null)
                 return;
             var screen = mouse.position.ReadValue();
-            var canvas = FindFirstObjectByType<Canvas>();
-            Camera cam = null;
-            if (canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay)
-                cam = canvas.worldCamera;
 
             if (_drag != null)
             {
@@ -152,21 +148,6 @@ namespace CoachMaster.UI
 
             if (!mouse.leftButton.wasPressedThisFrame)
                 return;
-
-            if (Time.unscaledTime < BroadcastUi.ClickLock)
-                return;
-
-            RefreshButtons();
-            for (var i = _buttons.Count - 1; i >= 0; i--)
-            {
-                var rect = _buttons[i].GetComponent<RectTransform>();
-                if (rect == null || !RectTransformUtility.RectangleContainsScreenPoint(rect, screen, cam))
-                    continue;
-                if (_buttons[i].GetComponent<SquadDragCard>() != null)
-                    return;
-                _buttons[i].onClick.Invoke();
-                return;
-            }
 
             if (EventSystem.current == null)
                 return;

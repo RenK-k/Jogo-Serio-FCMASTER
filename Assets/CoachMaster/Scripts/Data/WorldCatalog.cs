@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using CoachMaster.Domain;
 using CoachMaster.UI;
@@ -592,7 +593,7 @@ namespace CoachMaster.Data
                 new StaffMember { Id = Ids.Staff(slug, "gr"), ClubId = clubId, FullName = gk, Role = StaffRole.GoalkeeperCoach },
                 new StaffMember { Id = Ids.Staff(slug, "fisico"), ClubId = clubId, FullName = fitness, Role = StaffRole.FitnessCoach },
                 new StaffMember { Id = Ids.Staff(slug, "fisio"), ClubId = clubId, FullName = physio, Role = StaffRole.Physiotherapist },
-                new StaffMember { Id = Ids.Staff(slug, "olheiro"), ClubId = clubId, FullName = "Olheiro " + assistant, Role = StaffRole.Scout }
+                new StaffMember { Id = Ids.Staff(slug, "olheiro"), ClubId = clubId, FullName = FaceBook.PersonName(StaffNation(slug), Hash(slug + ":olheiro")), Role = StaffRole.Scout }
             };
             var floor = reputation >= 70 ? 13 : 10;
             foreach (var member in list)
@@ -656,6 +657,17 @@ namespace CoachMaster.Data
             world.Clubs.Add(club.Id, club);
         }
 
+        public static void PaintClub(Club club)
+        {
+            if (club == null || string.IsNullOrEmpty(club.KitSlug))
+                return;
+            var kit = KitSpec(club.KitSlug);
+            club.JerseyPrimaryHex = kit.Primary;
+            club.JerseySecondaryHex = kit.Secondary;
+            club.JerseyShortsHex = kit.Shorts;
+            club.KitPattern = kit.Pattern;
+        }
+
         static KitLook KitSpec(string slug)
         {
             switch (slug)
@@ -674,8 +686,67 @@ namespace CoachMaster.Data
                 case "vila-do-rio": return new KitLook("#35A9B2", "#F4EBDD", "#F4EBDD", KitPattern.ChestBand);
                 case "sc-penhas": return new KitLook("#E2C32E", "#245B40", "#245B40", KitPattern.VerticalStripes);
                 case "independente-bruma": return new KitLook("#737D89", "#202A3B", "#202A3B", KitPattern.Pinstripe);
-                default: return new KitLook("#F2B91C", "#163A60", "#163A60", KitPattern.Solid);
+                default: return GeneratedKit(slug);
             }
+        }
+
+        static readonly string[] ForeignPrimaries =
+        {
+            "#E10600", "#FF6A00", "#FFD000", "#7CFF00",
+            "#00C853", "#00B8A9", "#00B0FF", "#2962FF",
+            "#6200EA", "#C6FF00", "#FF1744", "#FF4081",
+            "#F5F5F5", "#111111", "#8D6E63", "#C6A15B",
+            "#B71C1C", "#E65100", "#F9A825", "#2E7D32",
+            "#00695C", "#01579B", "#1A237E", "#6A1B9A",
+            "#880E4F", "#B0BEC5", "#37474F", "#FF8A65",
+            "#69F0AE", "#18FFFF", "#82B1FF", "#EA80FC",
+            "#FF80AB", "#FFE082", "#C0CA33", "#00E676",
+            "#D50000", "#FF3D00", "#FFEA00", "#1DE9B6",
+            "#0091EA", "#304FFE", "#D500F9", "#F50057",
+            "#FFFFFF", "#212121", "#6D4C41", "#FFC107"
+        };
+
+        static KitLook GeneratedKit(string slug)
+        {
+            var slot = KitSlot(slug);
+            if (slot < 0)
+                slot = 0;
+            var primary = ForeignPrimaries[slot % ForeignPrimaries.Length];
+            var secondary = slot % 3 == 0 ? "#F4F1E8" : slot % 3 == 1 ? "#12151C" : "#E7B23A";
+            var patterns = new[]
+            {
+                KitPattern.Solid,
+                KitPattern.VerticalStripes,
+                KitPattern.HorizontalHoops,
+                KitPattern.ChestBand,
+                KitPattern.Sash,
+                KitPattern.Halves,
+                KitPattern.Pinstripe
+            };
+            var shorts = slot % 2 == 0 ? secondary : "#F4F1E8";
+            return new KitLook(primary, secondary, shorts, patterns[slot % patterns.Length]);
+        }
+
+        static int KitSlot(string slug)
+        {
+            if (string.IsNullOrEmpty(slug))
+                return 0;
+            var dash = slug.LastIndexOf('-');
+            var index = 0;
+            if (dash >= 0)
+                int.TryParse(slug.Substring(dash + 1), out index);
+            if (index < 0)
+                index = 0;
+            if (index > 7)
+                index = 7;
+            var band = 0;
+            if (slug.StartsWith("francesa"))
+                band = 16;
+            else if (slug.StartsWith("espanhola"))
+                band = 32;
+            if (slug.Contains("-2-"))
+                band += 8;
+            return band + index;
         }
 
         readonly struct KitLook
@@ -700,7 +771,7 @@ namespace CoachMaster.Data
             var number = int.Parse(bits[0]);
             var seed = Hash($"{slug}:{number}:{bits[2]}");
             var nationality = FaceBook.Nation(seed);
-            return new Player
+            var player = new Player
             {
                 Id = Ids.Player(slug, number),
                 ClubId = clubId,
@@ -722,6 +793,8 @@ namespace CoachMaster.Data
                 Attributes = PlayerAttributes.Roll(seed, ParsePosition(bits[1]), clubReputation),
                 Duty = IndividualOrders.For(ParsePosition(bits[1]), seed)
             };
+            PlayerTraits.Assign(player, seed);
+            return player;
         }
 
         static PlayerPosition ParsePosition(string code)
@@ -772,7 +845,12 @@ namespace CoachMaster.Data
                     PublicCoachVacancyNote = "O banco está vago.",
                     HiddenDismissalTruth = "O anterior saiu por resultados e por falta de plano.",
                     DressingRoomTension = 30 + i * 3,
-                    Staff = Staff(clubSlug, "Adjunto " + (i + 1), "Guarda-redes " + (i + 1), "Físico " + (i + 1), "Fisio " + (i + 1), reputation),
+                    Staff = Staff(clubSlug,
+                        FaceBook.PersonName(country, Hash(clubSlug + ":adjunto")),
+                        FaceBook.PersonName(country, Hash(clubSlug + ":gr")),
+                        FaceBook.PersonName(country, Hash(clubSlug + ":fisico")),
+                        FaceBook.PersonName(country, Hash(clubSlug + ":fisio")),
+                        reputation),
                     Players = Squad(clubSlug),
                     Relations = new string[0]
                 });
@@ -803,6 +881,19 @@ namespace CoachMaster.Data
                 "14|MC|" + slug + "12|21|R", "15|DC|" + slug + "13|22|R", "16|PL|" + slug + "14|20|R",
                 "17|LD|" + slug + "15|23|R", "18|LE|" + slug + "16|22|L", "19|MC|" + slug + "17|19|R"
             };
+        }
+
+        static string StaffNation(string slug)
+        {
+            if (string.IsNullOrEmpty(slug))
+                return "Portugal";
+            if (slug.StartsWith("francesa"))
+                return "França";
+            if (slug.StartsWith("espanhola"))
+                return "Espanha";
+            if (slug.StartsWith("inglesa"))
+                return "Inglaterra";
+            return "Portugal";
         }
 
         static int Hash(string value)

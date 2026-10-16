@@ -10,6 +10,8 @@ namespace CoachMaster.Domain
         public string Width { get; set; }
         public string Tempo { get; set; }
         public string PassingStyle { get; set; }
+        public string AttackIdea { get; set; }
+        public string Marking { get; set; }
         public string FormerCoachName { get; set; }
         public string Summary { get; set; }
     }

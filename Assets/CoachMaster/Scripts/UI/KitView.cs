@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using CoachMaster.Data;
 using CoachMaster.Domain;
 using UnityEngine;
 using UnityEngine.UI;
@@ -42,12 +43,12 @@ namespace CoachMaster.UI
 
         public static Sprite GetSprite(Club club)
         {
-            var key = club != null && !string.IsNullOrEmpty(club.KitSlug) ? club.KitSlug : "placeholder";
-            if (Cache.TryGetValue(key, out var cached) && cached != null)
-                return cached;
-
             if (club == null)
                 return null;
+            WorldCatalog.PaintClub(club);
+            var key = (string.IsNullOrEmpty(club.KitSlug) ? "placeholder" : club.KitSlug) + "|" + club.JerseyPrimaryHex + "|" + club.KitPattern;
+            if (Cache.TryGetValue(key, out var cached) && cached != null)
+                return cached;
 
             var generated = KitGenerator.Create(club);
             var sprite = Sprite.Create(generated, new Rect(0, 0, generated.width, generated.height), new Vector2(0.5f, 0.5f), 100f);
