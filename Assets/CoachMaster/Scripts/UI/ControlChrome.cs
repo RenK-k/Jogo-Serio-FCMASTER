@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using CoachMaster.App;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
@@ -16,11 +17,20 @@ namespace CoachMaster.UI
 
         void Update()
         {
+            if (GameRoot.IsLoading)
+            {
+                if (_hint != null)
+                    _hint.gameObject.SetActive(false);
+                return;
+            }
+
             DetectDevice();
             if (Time.unscaledTime >= _nextScan)
             {
                 _nextScan = Time.unscaledTime + 0.35f;
                 EnsureHint();
+                if (_hint != null && !_hint.gameObject.activeSelf)
+                    _hint.gameObject.SetActive(true);
                 RefreshButtons();
             }
 

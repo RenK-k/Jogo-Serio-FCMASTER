@@ -17,9 +17,9 @@ namespace CoachMaster.UI
         static float _reactionLock;
         static bool _filled;
         static int _track = -1;
-        static float _musicVolume = 0.42f;
-        static float _effectVolume = 1f;
-        static float _crowdVolume = 1f;
+        static float _musicVolume = 0.5f;
+        static float _effectVolume = 0.5f;
+        static float _crowdVolume = 0.44f;
         static float _reactUntil;
         static float _reactPeak;
 
@@ -37,11 +37,11 @@ namespace CoachMaster.UI
         }
 
         public static void Click() => PlayClip(Library?.Click, "click");
-        public static void Goal() => PlayClip(Library?.Goal, "golo");
+        public static void Goal() => PlayClip(Library?.Goal, "golo", 1.35f);
         static int _whistleLeft;
         static float _nextWhistle;
 
-        public static void Whistle() => PlayClip(Library?.Whistle, "whistle");
+        public static void Whistle() => PlayClip(Library?.Whistle, "whistle", 1.18f);
 
         public static void Whistles(int count)
         {
@@ -365,13 +365,13 @@ namespace CoachMaster.UI
             return cut;
         }
 
-        static void PlayClip(AudioClip assigned, string resourceFallback)
+        static void PlayClip(AudioClip assigned, string resourceFallback, float gain = 1f)
         {
             var clip = assigned != null ? assigned : LoadResource(resourceFallback);
             if (clip == null)
                 return;
             Ensure();
-            _effects.PlayOneShot(clip, _effectVolume);
+            _effects.PlayOneShot(clip, Mathf.Clamp01(_effectVolume * gain));
         }
 
         static void React(string key, AudioClip clip)
@@ -389,7 +389,9 @@ namespace CoachMaster.UI
             var window = key.Contains("goal") ? 2.3f : 1.5f;
             _reactionLock = Time.unscaledTime + window;
             _reactUntil = Time.unscaledTime + window;
-            _reactPeak = Mathf.Clamp(_crowdVolume * 0.72f, 0.35f, 0.72f);
+            _reactPeak = key.Contains("goal")
+                ? Mathf.Clamp01(Mathf.Max(_crowdVolume * 1.45f, _musicVolume * 1.25f))
+                : Mathf.Clamp01(_crowdVolume * 0.78f);
             _reaction.volume = _reactPeak;
             _reaction.clip = clip;
             _reaction.Play();

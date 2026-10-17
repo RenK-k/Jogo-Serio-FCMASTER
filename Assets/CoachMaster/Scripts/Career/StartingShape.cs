@@ -162,6 +162,15 @@ namespace CoachMaster.Career
             return counts.ToArray();
         }
 
+        public static PlayerPosition[] SlotPositions(string formation)
+        {
+            var pattern = Pattern(formation);
+            var result = new PlayerPosition[pattern.Length];
+            for (var i = 0; i < pattern.Length; i++)
+                result[i] = pattern[i] != null && pattern[i].Length > 0 ? pattern[i][0] : PlayerPosition.CentralMidfielder;
+            return result;
+        }
+
         static Player Take(List<Player> pool, PlayerPosition[] prefs)
         {
             foreach (var position in prefs)
@@ -174,6 +183,30 @@ namespace CoachMaster.Career
                     pool.RemoveAt(i);
                     return player;
                 }
+            }
+
+            Player alternative = null;
+            var alternativeScore = int.MinValue;
+            foreach (var position in prefs)
+            {
+                for (var i = 0; i < pool.Count; i++)
+                {
+                    var player = pool[i];
+                    PlayerPositionProfile.Ensure(player);
+                    if (player.AlternatePositions == null || !player.AlternatePositions.Contains(position))
+                        continue;
+                    var score = PlayerAttributes.CurrentOverallAtPosition(player, position);
+                    if (score <= alternativeScore)
+                        continue;
+                    alternative = player;
+                    alternativeScore = score;
+                }
+            }
+
+            if (alternative != null)
+            {
+                pool.Remove(alternative);
+                return alternative;
             }
 
             if (pool.Count == 0)

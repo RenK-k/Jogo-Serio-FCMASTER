@@ -1,3 +1,4 @@
+using System.Collections;
 using CoachMaster.Career;
 using CoachMaster.Domain;
 using CoachMaster.MatchPlay;
@@ -13,10 +14,15 @@ namespace CoachMaster.App
     public sealed class GameRoot : MonoBehaviour
     {
         public static GameRoot Instance { get; private set; }
+        public static bool IsLoading { get; private set; }
 
         public GameSession Session { get; private set; }
         public MatchSession LiveMatch { get; set; }
         [SerializeField] GameAudioLibrary _audioLibrary;
+        Canvas _loadingCanvas;
+        CanvasGroup _loadingGroup;
+        RawImage _loadingLogo;
+        Coroutine _loadRoutine;
 
         void Awake()
         {
@@ -28,6 +34,7 @@ namespace CoachMaster.App
 
             Instance = this;
             DontDestroyOnLoad(gameObject);
+            BuildLoadingOverlay();
             if (Session == null)
                 Session = new GameSession();
             SceneManager.sceneLoaded += OnSceneLoaded;
@@ -103,7 +110,97 @@ namespace CoachMaster.App
 
         public void Open(string sceneName)
         {
-            SceneManager.LoadScene(sceneName);
+            if (_loadRoutine != null)
+                StopCoroutine(_loadRoutine);
+            _loadRoutine = StartCoroutine(LoadScene(sceneName));
+        }
+
+        void BuildLoadingOverlay()
+        {
+            if (_loadingCanvas != null)
+                return;
+
+            var canvasObject = new GameObject("LoadingOverlay", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster), typeof(CanvasGroup));
+            canvasObject.transform.SetParent(transform, false);
+            _loadingCanvas = canvasObject.GetComponent<Canvas>();
+            _loadingCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            _loadingCanvas.overrideSorting = true;
+            _loadingCanvas.sortingOrder = 32760;
+            var scaler = canvasObject.GetComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920, 1080);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Shrink;
+            _loadingGroup = canvasObject.GetComponent<CanvasGroup>();
+            _loadingGroup.interactable = false;
+            _loadingGroup.blocksRaycasts = true;
+
+            var background = new GameObject("Shade", typeof(RectTransform), typeof(Image));
+            background.transform.SetParent(canvasObject.transform, false);
+            var backgroundRect = background.GetComponent<RectTransform>();
+            backgroundRect.anchorMin = Vector2.zero;
+            backgroundRect.anchorMax = Vector2.one;
+            backgroundRect.offsetMin = Vector2.zero;
+            backgroundRect.offsetMax = Vector2.zero;
+            background.GetComponent<Image>().color = new Color(0.018f, 0.024f, 0.055f, 1f);
+
+            var logoObject = new GameObject("LoadingMark", typeof(RectTransform), typeof(RawImage));
+            logoObject.transform.SetParent(canvasObject.transform, false);
+            var logoRect = logoObject.GetComponent<RectTransform>();
+            logoRect.anchorMin = logoRect.anchorMax = new Vector2(0.5f, 0.105f);
+            logoRect.sizeDelta = new Vector2(170f, 170f);
+            _loadingLogo = logoObject.GetComponent<RawImage>();
+            BroadcastUi.ApplyBrand(_loadingLogo);
+            canvasObject.SetActive(false);
+        }
+
+        IEnumerator LoadScene(string sceneName)
+        {
+            IsLoading = true;
+            _loadingCanvas.gameObject.SetActive(true);
+            _loadingGroup.alpha = 0f;
+            var fadeIn = 0f;
+            while (fadeIn < 1f)
+            {
+                fadeIn += Time.unscaledDeltaTime / 0.22f;
+                _loadingGroup.alpha = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(fadeIn));
+                yield return null;
+            }
+
+            var operation = SceneManager.LoadSceneAsync(sceneName);
+            if (operation == null)
+            {
+                yield return FadeLoadingOut();
+                IsLoading = false;
+                _loadRoutine = null;
+                yield break;
+            }
+
+            while (!operation.isDone)
+            {
+                var pulse = 0.92f + Mathf.Sin(Time.unscaledTime * 3.6f) * 0.08f;
+                _loadingLogo.color = new Color(1f, 1f, 1f, pulse);
+                _loadingLogo.rectTransform.localScale = Vector3.one * (0.97f + pulse * 0.03f);
+                yield return null;
+            }
+
+            yield return new WaitForSecondsRealtime(0.25f);
+            yield return FadeLoadingOut();
+            IsLoading = false;
+            _loadRoutine = null;
+        }
+
+        IEnumerator FadeLoadingOut()
+        {
+            var start = _loadingGroup.alpha;
+            var fade = 0f;
+            while (fade < 1f)
+            {
+                fade += Time.unscaledDeltaTime / 0.28f;
+                _loadingGroup.alpha = Mathf.Lerp(start, 0f, Mathf.Clamp01(fade));
+                yield return null;
+            }
+            _loadingCanvas.gameObject.SetActive(false);
+            IsLoading = false;
         }
     }
 
@@ -131,6 +228,8 @@ namespace CoachMaster.App
         public void Restore(CareerState career)
         {
             Career = career;
+            if (Career != null && Career.World != null)
+                FaceBook.Deal(Career.World);
         }
 
         public void ClearCareer()

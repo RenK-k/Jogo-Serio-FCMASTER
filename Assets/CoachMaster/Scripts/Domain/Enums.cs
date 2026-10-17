@@ -63,7 +63,28 @@ namespace CoachMaster.Domain
         Cruzador,
         Cabeceador,
         RemateRasteiro,
-        RemateDeLonge
+        RemateDeLonge,
+        RemateDeTrivela,
+        LancamentoLongo,
+        LivrePotente,
+        Efeito,
+        PasseDePrimeira,
+        Flair,
+        PropensoALesoes,
+        ResistenteALesoes,
+        Chilenas,
+        Lideranca,
+        HomemDeUmClube,
+        JogadorDeEquipa,
+        DribladorTecnico,
+        DribladorRapido,
+        PassadorLongo,
+        RematadorDeLonge,
+        CriadorDeJogo,
+        CarrinhoArriscado,
+        GuardaRedesSaiDaBaliza,
+        GuardaRedesSaiAosCruzamentos,
+        GuardaRedesDefendeComOsPes
     }
 
     public enum KitPattern

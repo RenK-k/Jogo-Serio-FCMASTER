@@ -15,6 +15,7 @@ namespace CoachMaster.Career
     public sealed class SeasonLine
     {
         public string PlayerId;
+        public string CompetitionId;
         public int Goals;
         public int Assists;
         public int Apps;
@@ -28,20 +29,27 @@ namespace CoachMaster.Career
         {
             if (career == null || match == null)
                 return;
-            var seen = new HashSet<string>();
+            var competitionId = match.Fixture == null ? null : match.Fixture.LeagueId;
             foreach (var pair in match.Ratings)
             {
-                Touch(career, pair.Key, 0, 0, 1, pair.Value);
-                seen.Add(pair.Key);
+                if (match.Appeared != null && match.Appeared.Contains(pair.Key))
+                {
+                    Touch(career, competitionId, pair.Key, 0, 0, 1, pair.Value);
+                    if (career.World.Players.TryGetValue(pair.Key, out var player))
+                    {
+                        var targetForm = System.Math.Max(10, System.Math.Min(99, (int)System.Math.Round(50f + (pair.Value - 6.5f) * 11f)));
+                        player.Form = (int)System.Math.Round(player.Form * 0.72f + targetForm * 0.28f);
+                    }
+                }
             }
 
             foreach (var pair in match.GoalsScored)
-                Touch(career, pair.Key, pair.Value, 0, seen.Contains(pair.Key) ? 0 : 1, 0f);
+                Touch(career, competitionId, pair.Key, pair.Value, 0, 0, 0f);
             foreach (var pair in match.Assists)
-                Touch(career, pair.Key, 0, pair.Value, 0, 0f);
+                Touch(career, competitionId, pair.Key, 0, pair.Value, 0, 0f);
         }
 
-        public static void CreditScoreline(CareerState career, string clubId, int goals, int conceded)
+        public static void CreditScoreline(CareerState career, string competitionId, string clubId, int goals, int conceded)
         {
             if (career == null || string.IsNullOrEmpty(clubId) || !career.World.Clubs.TryGetValue(clubId, out var club))
                 return;
@@ -61,27 +69,47 @@ namespace CoachMaster.Career
             {
                 var pick = side[rng.Next(0, System.Math.Min(4, side.Count))];
                 var assist = side.Count > 1 ? side[rng.Next(0, side.Count)] : null;
-                Touch(career, pick.Id, 1, 0, 0, 0f);
+                Touch(career, competitionId, pick.Id, 1, 0, 0, 0f);
                 if (assist != null && assist.Id != pick.Id && rng.NextDouble() < 0.7)
-                    Touch(career, assist.Id, 0, 1, 0, 0f);
+                    Touch(career, competitionId, assist.Id, 0, 1, 0, 0f);
             }
 
             var apps = System.Math.Min(10, side.Count);
             var mark = goals > conceded ? 7.1f : goals == conceded ? 6.6f : 6.2f;
             for (var i = 0; i < apps; i++)
-                Touch(career, side[i].Id, 0, 0, 1, mark + (i == 0 ? 0.4f : 0f));
+                Touch(career, competitionId, side[i].Id, 0, 0, 1, mark + (i == 0 ? 0.4f : 0f));
         }
 
         public static void Backfill(CareerState career)
         {
-            if (career == null || career.Season.Count > 0)
+            if (career == null)
                 return;
+
+            var creditedCompetitions = new HashSet<string>();
+            foreach (var line in career.Season)
+            {
+                if (!string.IsNullOrEmpty(line.CompetitionId))
+                    creditedCompetitions.Add(line.CompetitionId);
+            }
+
+            var playedCompetitions = new HashSet<string>();
             foreach (var fixture in career.Fixtures)
             {
-                if (!fixture.Played)
+                if (fixture.Played && !string.IsNullOrEmpty(fixture.LeagueId))
+                    playedCompetitions.Add(fixture.LeagueId);
+            }
+
+            foreach (var competitionId in playedCompetitions)
+            {
+                if (creditedCompetitions.Contains(competitionId))
                     continue;
-                CreditScoreline(career, fixture.HomeClubId, fixture.HomeGoals, fixture.AwayGoals);
-                CreditScoreline(career, fixture.AwayClubId, fixture.AwayGoals, fixture.HomeGoals);
+                foreach (var fixture in career.Fixtures)
+                {
+                    if (!fixture.Played || fixture.LeagueId != competitionId)
+                        continue;
+                    CreditScoreline(career, competitionId, fixture.HomeClubId, fixture.HomeGoals, fixture.AwayGoals);
+                    CreditScoreline(career, competitionId, fixture.AwayClubId, fixture.AwayGoals, fixture.HomeGoals);
+                }
             }
         }
 
@@ -103,7 +131,7 @@ namespace CoachMaster.Career
             {
                 if (!career.World.Players.TryGetValue(line.PlayerId, out var player))
                     continue;
-                if (!career.World.Clubs.TryGetValue(player.ClubId, out var club) || club.LeagueId != leagueId)
+                if (line.CompetitionId != leagueId)
                     continue;
                 if (kind == "media" && line.Rated < 1)
                     continue;
@@ -152,14 +180,22 @@ namespace CoachMaster.Career
             return player.Attributes == null ? 0 : player.Attributes.Finishing + player.Attributes.Composure;
         }
 
-        static void Touch(CareerState career, string playerId, int goals, int assists, int apps, float rating)
+        static void Touch(CareerState career, string competitionId, string playerId, int goals, int assists, int apps, float rating)
         {
             if (string.IsNullOrEmpty(playerId))
                 return;
+            if (string.IsNullOrEmpty(competitionId) && career.World.Players.TryGetValue(playerId, out var owner) && career.World.Clubs.TryGetValue(owner.ClubId, out var ownerClub))
+                competitionId = ownerClub.LeagueId;
+            AddTo(career.Season, playerId, competitionId, goals, assists, apps, rating);
+            AddTo(career.CareerTotals, playerId, null, goals, assists, apps, rating);
+        }
+
+        static void AddTo(List<SeasonLine> lines, string playerId, string competitionId, int goals, int assists, int apps, float rating)
+        {
             SeasonLine line = null;
-            foreach (var item in career.Season)
+            foreach (var item in lines)
             {
-                if (item.PlayerId != playerId)
+                if (item.PlayerId != playerId || item.CompetitionId != competitionId)
                     continue;
                 line = item;
                 break;
@@ -167,8 +203,8 @@ namespace CoachMaster.Career
 
             if (line == null)
             {
-                line = new SeasonLine { PlayerId = playerId };
-                career.Season.Add(line);
+                line = new SeasonLine { PlayerId = playerId, CompetitionId = competitionId };
+                lines.Add(line);
             }
 
             line.Goals += goals;

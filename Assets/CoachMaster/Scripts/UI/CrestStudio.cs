@@ -35,7 +35,7 @@ namespace CoachMaster.UI
             {
                 for (var x = 0; x < size; x++)
                 {
-                    if (!Inside(x, y, size))
+                    if (!Inside(club, x, y, size))
                     {
                         pixels[y * size + x] = Color.clear;
                         continue;
@@ -59,14 +59,50 @@ namespace CoachMaster.UI
             return sprite;
         }
 
-        static bool Inside(int x, int y, int size)
+        static bool Inside(Club club, int x, int y, int size)
         {
             var nx = (x + 0.5f) / size;
             var ny = (y + 0.5f) / size;
-            if (ny > 0.18f)
-                return nx > 0.16f && nx < 0.84f && ny < 0.9f;
-            var belly = 0.5f - Mathf.Abs(nx - 0.5f);
-            return ny > 0.18f - belly * 0.28f && nx > 0.16f && nx < 0.84f;
+            var dx = Mathf.Abs(nx - 0.5f);
+            var shape = Shape(club);
+            switch (shape)
+            {
+                case 0: // Shield
+                    if (ny > 0.24f)
+                        return dx < 0.34f && ny < 0.9f;
+                    return ny > 0.24f - (0.34f - dx) * 0.7f && dx < 0.34f;
+                case 1: // Roundel
+                    return (nx - 0.5f) * (nx - 0.5f) + (ny - 0.5f) * (ny - 0.5f) < 0.19f;
+                case 2: // Diamond
+                    return dx / 0.38f + Mathf.Abs(ny - 0.5f) / 0.46f < 1f;
+                case 3: // Cut-corner crest
+                    return nx > 0.16f && nx < 0.84f && ny > 0.12f && ny < 0.9f && !(dx > 0.27f && ny < 0.24f);
+                case 4: // Tall hexagon
+                    return ny > 0.1f && ny < 0.9f && dx < (ny < 0.26f ? 0.22f + (ny - 0.1f) * 1.35f : ny > 0.74f ? 0.22f + (0.9f - ny) * 1.35f : 0.34f);
+                case 5: // Pointed base with arched shoulders
+                    if (ny > 0.52f)
+                        return dx < 0.32f && ny < 0.9f;
+                    return dx < 0.32f && ny > 0.08f + dx * 0.42f;
+                case 6: // Broad, flat-bottom badge
+                    return nx > 0.14f && nx < 0.86f && ny > 0.1f && ny < 0.88f && !(ny > 0.74f && dx > 0.22f && (ny - 0.74f) > (0.36f - dx) * 1.6f);
+                default: // Narrow pentagon
+                    if (ny > 0.28f)
+                        return dx < 0.3f && ny < 0.91f;
+                    return ny > 0.1f + dx * 0.55f && dx < 0.3f;
+            }
+        }
+
+        static int Shape(Club club)
+        {
+            if (club == null || string.IsNullOrEmpty(club.Id))
+                return 0;
+            unchecked
+            {
+                var hash = 17;
+                foreach (var c in club.Id)
+                    hash = hash * 31 + c;
+                return (hash & 0x7fffffff) % 8;
+            }
         }
 
         static void Stamp(Color[] pixels, int size, string letters, Color ink)

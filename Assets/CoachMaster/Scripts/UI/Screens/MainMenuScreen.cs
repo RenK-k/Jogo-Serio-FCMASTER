@@ -23,8 +23,15 @@ namespace CoachMaster.UI.Screens
             spacerTop.transform.SetParent(column.transform, false);
             spacerTop.GetComponent<LayoutElement>().flexibleHeight = 1;
 
-            var brand = UiFactory.Label(column.transform, "Brand", "COACH MASTER", 18, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
-            UiFactory.LayoutElement(brand, 24);
+            var brandObject = new GameObject("Brand", typeof(RectTransform), typeof(RawImage), typeof(LayoutElement));
+            brandObject.transform.SetParent(column.transform, false);
+            var brand = brandObject.GetComponent<RawImage>();
+            BroadcastUi.ApplyBrand(brand);
+            var brandLayout = brandObject.GetComponent<LayoutElement>();
+            brandLayout.preferredHeight = 54f;
+            brandLayout.minHeight = 54f;
+            brandLayout.preferredWidth = 54f;
+            brandLayout.flexibleWidth = 0f;
             var title = UiFactory.Label(column.transform, "Title", "SIMULADOR DE TREINADOR", 48, UiTheme.Text, TextAnchor.MiddleLeft, FontStyle.Bold);
             UiFactory.LayoutElement(title, 72);
             var tag = UiFactory.Label(column.transform, "Tag", "Escolhe um clube, assume o banco e constrói a tua história.", 20, UiTheme.Muted, TextAnchor.MiddleLeft);

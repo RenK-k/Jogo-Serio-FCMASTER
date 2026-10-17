@@ -46,7 +46,7 @@ namespace CoachMaster.Career
 
             foreach (var club in invited)
                 career.Table.Add(new LeagueTableRow { ClubId = club.Id, LeagueId = leagueId });
-            AddRoundRobin(career, leagueId, invited, SeasonAnchor(career).AddDays(20), false, 0);
+            AddRoundRobin(career, leagueId, invited, SeasonAnchor(career).AddDays(55), false, 0);
         }
 
         static void AddRoundRobin(CareerState career, string leagueId, List<Club> clubs, DateTime start, bool reverse, int seed)
@@ -145,11 +145,8 @@ namespace CoachMaster.Career
                 }
 
                 ApplyResult(career, fixture);
-                if (!IsCup(fixture.LeagueId))
-                {
-                    SeasonBook.CreditScoreline(career, fixture.HomeClubId, fixture.HomeGoals, fixture.AwayGoals);
-                    SeasonBook.CreditScoreline(career, fixture.AwayClubId, fixture.AwayGoals, fixture.HomeGoals);
-                }
+                SeasonBook.CreditScoreline(career, fixture.LeagueId, fixture.HomeClubId, fixture.HomeGoals, fixture.AwayGoals);
+                SeasonBook.CreditScoreline(career, fixture.LeagueId, fixture.AwayClubId, fixture.AwayGoals, fixture.HomeGoals);
             }
 
             AdvanceCups(career);
@@ -228,7 +225,21 @@ namespace CoachMaster.Career
             if (leagueId == "league:campeoes")
                 return "Liga dos Campeões";
             if (!IsCup(leagueId))
-                return "";
+            {
+                var domesticSlug = leagueId.StartsWith("league:") ? leagueId.Substring(7) : leagueId;
+                switch (domesticSlug)
+                {
+                    case "atlas": return "Liga Portugal";
+                    case "horizonte": return "Liga Portugal 2";
+                    case "inglesa": return "Premier League";
+                    case "inglesa-2": return "League Two";
+                    case "francesa": return "Ligue 1";
+                    case "francesa-2": return "Ligue 2";
+                    case "espanhola": return "LaLiga";
+                    case "espanhola-2": return "LaLiga Hyper";
+                    default: return domesticSlug.Replace('-', ' ');
+                }
+            }
             var slug = leagueId.Substring(4);
             var which = "taca";
             var cut = slug.LastIndexOf(':');
@@ -406,6 +417,7 @@ namespace CoachMaster.Career
             foreach (var player in career.World.Players.Values)
             {
                 player.Age = player.Age < 42 ? player.Age + 1 : player.Age;
+                PlayerTraits.TryDevelop(player, PlayerTraits.DevelopmentSeed(player.Id, career.Calendar.CurrentDate.Year));
                 player.Fatigue = 10;
                 if (player.Morale < 70)
                     player.Morale += 6;

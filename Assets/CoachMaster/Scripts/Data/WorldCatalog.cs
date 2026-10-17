@@ -7,6 +7,17 @@ namespace CoachMaster.Data
 {
     public static class WorldCatalog
     {
+        const int PlayersPerClub = 20;
+        const int MaximumPlayersPerClub = 25;
+        const int MinimumClubsPerDivision = 8;
+        const int MaximumClubsPerDivision = 24;
+        static readonly string[] DomesticLeagues =
+        {
+            "atlas", "horizonte", "inglesa", "inglesa-2",
+            "francesa", "francesa-2", "espanhola", "espanhola-2"
+        };
+        static Dictionary<string, int> _leagueSizes;
+
         public static WorldState CreateShell()
         {
             var world = new WorldState();
@@ -70,6 +81,9 @@ namespace CoachMaster.Data
         {
             foreach (var league in world.Leagues)
                 EnsureLeagueClubs(world, league.Id);
+
+            FillRostersToPortraitCapacity(world);
+            FaceBook.Deal(world);
         }
 
         public static void EnsureLeagueClubs(WorldState world, string leagueId)
@@ -640,7 +654,7 @@ namespace CoachMaster.Data
             var numberToId = new Dictionary<int, string>();
             foreach (var raw in def.Players)
             {
-                var player = ParsePlayer(clubId, def.Slug, raw, def.Reputation);
+                var player = ParsePlayer(clubId, def.Slug, raw, def.Reputation, leagueId);
                 world.Players.Add(player.Id, player);
                 club.PlayerIds.Add(player.Id);
                 numberToId[player.SquadNumber] = player.Id;
@@ -657,7 +671,77 @@ namespace CoachMaster.Data
                 });
             }
 
+            while (club.PlayerIds.Count < PlayersPerClub)
+                AddSquadPlayer(world, club, def.Slug, def.Reputation);
+
             world.Clubs.Add(club.Id, club);
+        }
+
+        static void FillRostersToPortraitCapacity(WorldState world)
+        {
+            if (world == null)
+                return;
+
+            var clubs = new List<Club>(world.Clubs.Values);
+            clubs.Sort((a, b) => string.CompareOrdinal(a.Id, b.Id));
+            var faceCapacity = FaceBook.UniqueFaceCount();
+            while (world.Players.Count < faceCapacity)
+            {
+                var eligible = new List<Club>();
+                foreach (var club in clubs)
+                {
+                    if (club.PlayerIds.Count < MaximumPlayersPerClub)
+                        eligible.Add(club);
+                }
+
+                if (eligible.Count == 0)
+                    break;
+
+                var slotsThisRound = System.Math.Min(faceCapacity - world.Players.Count, eligible.Count);
+                var added = 0;
+                for (var slot = 0; slot < slotsThisRound; slot++)
+                {
+                    var clubIndex = ((slot * 2 + 1) * eligible.Count) / (slotsThisRound * 2);
+                    var club = eligible[clubIndex];
+                    var before = world.Players.Count;
+                    AddSquadPlayer(world, club, club.KitSlug, club.Reputation);
+                    if (world.Players.Count > before)
+                        added++;
+                }
+
+                if (added == 0)
+                    break;
+            }
+        }
+
+        static void AddSquadPlayer(WorldState world, Club club, string slug, int reputation)
+        {
+            var number = 20;
+            while (number < 100 && ContainsSquadNumber(world, club, number))
+                number++;
+            if (number >= 100)
+                return;
+
+            var index = club.PlayerIds.Count;
+            var extraPositions = new[] { "DC", "MDC", "GR", "MC", "PL", "LD", "LE" };
+            var position = extraPositions[(index - 18 + extraPositions.Length) % extraPositions.Length];
+            var age = 18 + index % 7;
+            var foot = index % 3 == 0 ? "L" : "R";
+            var raw = number + "|" + position + "|" + slug + ":squad:" + index + "|" + age + "|" + foot;
+            var player = ParsePlayer(club.Id, slug, raw, reputation, club.LeagueId);
+            world.Players.Add(player.Id, player);
+            club.PlayerIds.Add(player.Id);
+        }
+
+        static bool ContainsSquadNumber(WorldState world, Club club, int number)
+        {
+            foreach (var id in club.PlayerIds)
+            {
+                if (world.Players.TryGetValue(id, out var player) && player.SquadNumber == number)
+                    return true;
+            }
+
+            return false;
         }
 
         public static void PaintClub(Club club)
@@ -768,12 +852,12 @@ namespace CoachMaster.Data
             }
         }
 
-        static Player ParsePlayer(string clubId, string slug, string raw, int clubReputation)
+        static Player ParsePlayer(string clubId, string slug, string raw, int clubReputation, string leagueId)
         {
             var bits = raw.Split('|');
             var number = int.Parse(bits[0]);
             var seed = Hash($"{slug}:{number}:{bits[2]}");
-            var nationality = FaceBook.NationForClub(slug, seed);
+            var nationality = FaceBook.NationForClub(slug, seed, clubReputation, leagueId);
             var player = new Player
             {
                 Id = Ids.Player(slug, number),
@@ -791,11 +875,16 @@ namespace CoachMaster.Data
                 Fitness = Range(seed >> 5, 62, 94),
                 Form = Range(seed >> 7, 40, 78),
                 Motivation = Range(seed >> 9, 45, 88),
+                HeightCm = Range(seed >> 11, ParsePosition(bits[1]) == PlayerPosition.Goalkeeper || ParsePosition(bits[1]) == PlayerPosition.CentreBack ? 181 : 167, ParsePosition(bits[1]) == PlayerPosition.Goalkeeper || ParsePosition(bits[1]) == PlayerPosition.CentreBack ? 198 : 190),
+                WeakFootQuality = Range(seed >> 13, 1, 5),
+                TrainingRating = Range(seed >> 15, 58, 88),
                 Injury = new InjuryState(),
                 Personality = (PersonalityTrait)(seed % 7),
                 Attributes = PlayerAttributes.Roll(seed, ParsePosition(bits[1]), clubReputation),
                 Duty = IndividualOrders.For(ParsePosition(bits[1]), seed)
             };
+            player.WeightKg = Range(seed >> 17, System.Math.Max(58, player.HeightCm - 112), System.Math.Max(68, player.HeightCm - 94));
+            PlayerPositionProfile.Assign(player, seed);
             PlayerTraits.Assign(player, seed);
             return player;
         }
@@ -883,21 +972,74 @@ namespace CoachMaster.Data
 
         static int TargetClubs(string slug)
         {
-            var faces = 32;
+            var targets = CalculateLeagueSizes();
+            return targets.TryGetValue(slug, out var count) ? count : MinimumClubsPerDivision;
+        }
+
+        static Dictionary<string, int> CalculateLeagueSizes()
+        {
+            if (_leagueSizes != null)
+                return _leagueSizes;
+
+            var targets = new Dictionary<string, int>();
+            var weights = new int[DomesticLeagues.Length];
+            var minimumTotal = DomesticLeagues.Length * MinimumClubsPerDivision;
+            var maximumTotal = DomesticLeagues.Length * MaximumClubsPerDivision;
+            var availableTeams = FaceBook.UniqueFaceCount() / PlayersPerClub;
+            if (availableTeams < minimumTotal)
+                availableTeams = minimumTotal;
+            if (availableTeams > maximumTotal)
+                availableTeams = maximumTotal;
+
+            for (var i = 0; i < DomesticLeagues.Length; i++)
+            {
+                var slug = DomesticLeagues[i];
+                targets[slug] = MinimumClubsPerDivision;
+                var nationality = LeagueNationality(slug);
+                weights[i] = FaceBook.FaceCountForNation(nationality);
+                if (weights[i] < 1)
+                    weights[i] = 1;
+            }
+
+            var remaining = availableTeams - minimumTotal;
+            while (remaining > 0)
+            {
+                var chosen = -1;
+                var lowestShare = float.MaxValue;
+                for (var i = 0; i < DomesticLeagues.Length; i++)
+                {
+                    var slug = DomesticLeagues[i];
+                    var current = targets[slug];
+                    if (current >= MaximumClubsPerDivision)
+                        continue;
+                    var assignedExtras = current - MinimumClubsPerDivision;
+                    var share = assignedExtras / (float)weights[i];
+                    if (share < lowestShare)
+                    {
+                        lowestShare = share;
+                        chosen = i;
+                    }
+                }
+
+                if (chosen < 0)
+                    break;
+                targets[DomesticLeagues[chosen]]++;
+                remaining--;
+            }
+
+            _leagueSizes = targets;
+            return _leagueSizes;
+        }
+
+        static string LeagueNationality(string slug)
+        {
             if (slug.StartsWith("inglesa"))
-                faces = 41;
-            else if (slug.StartsWith("francesa"))
-                faces = 40;
-            else if (slug.StartsWith("espanhola"))
-                faces = 31;
-            var second = slug == "horizonte" || slug.EndsWith("-2");
-            var count = second ? faces / 4 + 2 : faces / 3 + 2;
-            var floor = second ? 8 : 10;
-            if (count < floor)
-                count = floor;
-            if (count > 16)
-                count = 16;
-            return count;
+                return "Inglaterra";
+            if (slug.StartsWith("francesa"))
+                return "França";
+            if (slug.StartsWith("espanhola"))
+                return "Espanha";
+            return "Portugal";
         }
 
         static string ExtraName(string slug, int index)

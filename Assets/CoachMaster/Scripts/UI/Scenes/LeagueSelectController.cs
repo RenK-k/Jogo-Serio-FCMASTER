@@ -38,6 +38,11 @@ namespace CoachMaster.UI.Scenes
                 var card = content.Find("League" + i);
                 if (card == null)
                     continue;
+                session.PrepareLeague(league.Id);
+                var countNode = card.Find("Count");
+                var countLabel = countNode == null ? null : countNode.GetComponent<Text>();
+                if (countLabel != null)
+                    countLabel.text = CountClubs(session.Catalog, league.Id) + " clubes";
                 System.Action choose = () =>
                 {
                     session.Draft.LeagueId = league.Id;
@@ -64,12 +69,13 @@ namespace CoachMaster.UI.Scenes
             for (var i = 0; i < leagues.Count; i++)
             {
                 var league = leagues[i];
+                session.PrepareLeague(league.Id);
                 var card = BroadcastUi.Panel(content, "League" + i, new Color(0.1f, 0.04f, 0.2f, 0.72f), true);
                 BroadcastUi.Preferred(card, 132);
                 var tier = league.Tier == LeagueTier.First ? "1ª DIVISÃO" : "2ª DIVISÃO";
                 var badge = BroadcastUi.Label(card.transform, "Tier", tier, 14, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
                 BroadcastUi.Place(badge.rectTransform, 0.04f, 0.68f, 0.4f, 0.9f);
-                var count = BroadcastUi.Label(card.transform, "Count", league.ClubCount + " clubes", 14, UiTheme.Muted, TextAnchor.MiddleRight);
+                var count = BroadcastUi.Label(card.transform, "Count", CountClubs(session.Catalog, league.Id) + " clubes", 14, UiTheme.Muted, TextAnchor.MiddleRight);
                 BroadcastUi.Place(count.rectTransform, 0.55f, 0.68f, 0.72f, 0.9f);
                 var name = BroadcastUi.Label(card.transform, "Name", league.Name.ToUpperInvariant(), 28, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
                 BroadcastUi.Place(name.rectTransform, 0.04f, 0.34f, 0.7f, 0.68f);
@@ -89,6 +95,14 @@ namespace CoachMaster.UI.Scenes
 
             var hint = BroadcastUi.Label(root, "ControlHint", "Enter  escolher     Esc  voltar     Setas  navegar", 15, UiTheme.Muted, TextAnchor.MiddleLeft);
             BroadcastUi.Place(hint.rectTransform, 0.08f, 0.008f, 0.8f, 0.05f);
+        }
+
+        static int CountClubs(WorldState world, string leagueId)
+        {
+            var count = 0;
+            foreach (var club in world.ClubsInLeague(leagueId))
+                count++;
+            return count;
         }
 
         internal static void Header(Transform root, string title, string subtitle, UnityEngine.Events.UnityAction back)

@@ -9,10 +9,23 @@ namespace CoachMaster.UI
         static Sprite _round;
         static Sprite _circle;
         static Sprite _ring;
+        static Texture2D _brandTexture;
 
         public static Sprite Round => _round != null ? _round : (_round = MakeRound());
         public static Sprite Circle => _circle != null ? _circle : (_circle = MakeDisc(false));
         public static Sprite Ring => _ring != null ? _ring : (_ring = MakeDisc(true));
+        public static Texture2D BrandTexture => _brandTexture != null ? _brandTexture : (_brandTexture = Resources.Load<Texture2D>("fCMASTER"));
+        public static Rect BrandUvRect => new Rect(0.25f, 0.41f, 0.5f, 0.35f);
+
+        public static void ApplyBrand(RawImage image)
+        {
+            if (image == null)
+                return;
+            image.texture = BrandTexture;
+            image.uvRect = BrandUvRect;
+            image.color = Color.white;
+            image.raycastTarget = false;
+        }
 
         public static RectTransform Mount(Component host)
         {
@@ -292,14 +305,14 @@ namespace CoachMaster.UI
         public static void Wordmark(Transform parent, string league)
         {
             var block = Zone(parent, "Wordmark", 0.36f, 0.915f, 0.64f, 0.995f);
-            var mark = Solid(block, "Mark", Color.white);
-            mark.sprite = Circle;
+            var markObject = new GameObject("Mark", typeof(RectTransform), typeof(RawImage));
+            markObject.transform.SetParent(block, false);
+            var mark = markObject.GetComponent<RawImage>();
+            ApplyBrand(mark);
             mark.rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
             mark.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            mark.rectTransform.sizeDelta = new Vector2(34, 34);
+            mark.rectTransform.sizeDelta = new Vector2(48, 48);
             mark.rectTransform.anchoredPosition = new Vector2(-118, 2);
-            var mono = Label(mark.transform, "Mono", "CM", 13, UiTheme.Header, TextAnchor.MiddleCenter, FontStyle.Bold);
-            Stretch(mono.rectTransform);
             var title = Label(block, "League", string.IsNullOrEmpty(league) ? "COACH MASTER" : league.ToUpperInvariant(), 18, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
             Place(title.rectTransform, 0.12f, 0.42f, 0.95f, 0.95f);
             var sub = Label(block, "Brand", "COACH MASTER", 11, UiTheme.AccentSoft, TextAnchor.MiddleCenter, FontStyle.Bold);
@@ -389,6 +402,53 @@ namespace CoachMaster.UI
                     image.sprite = Round;
                     image.type = Image.Type.Sliced;
                 }
+            }
+
+            var brandMark = root.Find("Wordmark/Mark");
+            if (brandMark != null)
+            {
+                var image = brandMark.GetComponent<Image>();
+                var raw = brandMark.GetComponent<RawImage>();
+                if (raw != null)
+                {
+                    ApplyBrand(raw);
+                    raw.rectTransform.sizeDelta = new Vector2(48f, 48f);
+                }
+                else
+                {
+                    if (image != null)
+                    {
+                        image.enabled = false;
+                        image.rectTransform.sizeDelta = new Vector2(48f, 48f);
+                    }
+
+                    var logoObject = brandMark.Find("BrandTexture");
+                    raw = logoObject == null ? null : logoObject.GetComponent<RawImage>();
+                    if (raw == null)
+                    {
+                        logoObject = brandMark.Find("BrandTextureGraphic");
+                        raw = logoObject == null ? null : logoObject.GetComponent<RawImage>();
+                    }
+
+                    if (raw == null)
+                    {
+                        var created = new GameObject("BrandTextureGraphic", typeof(RectTransform), typeof(RawImage));
+                        created.transform.SetParent(brandMark, false);
+                        logoObject = created.transform;
+                        raw = created.GetComponent<RawImage>();
+                    }
+
+                    ApplyBrand(raw);
+                    var logoRect = raw.rectTransform;
+                    logoRect.anchorMin = Vector2.zero;
+                    logoRect.anchorMax = Vector2.one;
+                    logoRect.offsetMin = Vector2.zero;
+                    logoRect.offsetMax = Vector2.zero;
+                }
+
+                var oldLetters = brandMark.Find("Mono");
+                if (oldLetters != null)
+                    oldLetters.gameObject.SetActive(false);
             }
         }
 

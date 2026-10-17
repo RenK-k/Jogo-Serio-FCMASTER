@@ -24,6 +24,7 @@ namespace CoachMaster.Career
         public List<ScoutJob> ScoutJobs { get; } = new List<ScoutJob>();
         public List<PlayerNote> PlayerNotes { get; } = new List<PlayerNote>();
         public List<SeasonLine> Season { get; } = new List<SeasonLine>();
+        public List<SeasonLine> CareerTotals { get; } = new List<SeasonLine>();
 
         public Fixture NextUserFixture()
         {

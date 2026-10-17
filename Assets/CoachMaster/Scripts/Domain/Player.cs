@@ -20,9 +20,14 @@ namespace CoachMaster.Domain
         public int Fitness { get; set; }
         public int Form { get; set; }
         public int Motivation { get; set; }
+        public int HeightCm { get; set; }
+        public int WeightKg { get; set; }
+        public int WeakFootQuality { get; set; }
+        public int TrainingRating { get; set; }
         public InjuryState Injury { get; set; } = new InjuryState();
         public PersonalityTrait Personality { get; set; }
         public int Potential { get; set; }
+        public List<PlayerPosition> AlternatePositions { get; set; } = new List<PlayerPosition>();
         public List<PlayerTrait> Traits { get; set; } = new List<PlayerTrait>();
         public PlayerAttributes Attributes { get; set; } = new PlayerAttributes();
 

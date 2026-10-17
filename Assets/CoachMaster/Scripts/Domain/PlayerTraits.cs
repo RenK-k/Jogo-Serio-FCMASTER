@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace CoachMaster.Domain
@@ -12,13 +13,58 @@ namespace CoachMaster.Domain
             player.Traits = Pick(player, seed);
         }
 
+        public static bool TryDevelop(Player player, int seed)
+        {
+            if (player == null || player.Age > 23 || player.Traits == null || player.Traits.Count >= 4)
+                return false;
+            var gap = player.Potential - PlayerAttributes.Overall(player);
+            if (gap < 1)
+                return false;
+
+            var chance = player.Age <= 18 ? 0.16 : player.Age <= 20 ? 0.105 : 0.04;
+            if (gap >= 8)
+                chance += 0.05;
+            else if (gap <= 2)
+                chance *= 0.45;
+            var random = new Random(seed);
+            if (random.NextDouble() >= chance)
+                return false;
+
+            var candidates = Candidates(player);
+            for (var i = candidates.Count - 1; i >= 0; i--)
+            {
+                var blocked = player.Traits.Contains(candidates[i].Key);
+                for (var j = 0; !blocked && j < player.Traits.Count; j++)
+                    blocked = Conflicts(candidates[i].Key, player.Traits[j]);
+                if (blocked)
+                    candidates.RemoveAt(i);
+            }
+            var trait = Draw(candidates, random);
+            if (!trait.HasValue)
+                return false;
+            player.Traits.Add(trait.Value);
+            return true;
+        }
+
+        public static int DevelopmentSeed(string playerId, int seasonYear)
+        {
+            unchecked
+            {
+                var hash = 17;
+                var value = playerId ?? string.Empty;
+                for (var i = 0; i < value.Length; i++)
+                    hash = hash * 31 + value[i];
+                return hash * 31 + seasonYear;
+            }
+        }
+
         public static string Label(PlayerTrait trait)
         {
             switch (trait)
             {
                 case PlayerTrait.Rapido: return "Rápido";
-                case PlayerTrait.RemateEmJeito: return "Remate em jeito";
-                case PlayerTrait.ImuneAPressao: return "Imune à pressão";
+                case PlayerTrait.RemateEmJeito: return "Remate colocado";
+                case PlayerTrait.ImuneAPressao: return "Resistente à pressão";
                 case PlayerTrait.Driblador: return "Driblador";
                 case PlayerTrait.Finalizador: return "Finalizador";
                 case PlayerTrait.Visionario: return "Visionário";
@@ -30,6 +76,27 @@ namespace CoachMaster.Domain
                 case PlayerTrait.Cabeceador: return "Jogo aéreo";
                 case PlayerTrait.RemateRasteiro: return "Remate rasteiro";
                 case PlayerTrait.RemateDeLonge: return "Remate de longe";
+                case PlayerTrait.RemateDeTrivela: return "Remate de trivela";
+                case PlayerTrait.LancamentoLongo: return "Lançamento longo";
+                case PlayerTrait.LivrePotente: return "Livres potentes";
+                case PlayerTrait.Efeito: return "Efeito";
+                case PlayerTrait.PasseDePrimeira: return "Passe de primeira";
+                case PlayerTrait.Flair: return "Flair";
+                case PlayerTrait.PropensoALesoes: return "Propenso a lesões";
+                case PlayerTrait.ResistenteALesoes: return "Resistente a lesões";
+                case PlayerTrait.Chilenas: return "Chilenas";
+                case PlayerTrait.Lideranca: return "Liderança";
+                case PlayerTrait.HomemDeUmClube: return "Homem de um só clube";
+                case PlayerTrait.JogadorDeEquipa: return "Jogador de equipa";
+                case PlayerTrait.DribladorTecnico: return "Driblador técnico";
+                case PlayerTrait.DribladorRapido: return "Driblador veloz";
+                case PlayerTrait.PassadorLongo: return "Passador longo";
+                case PlayerTrait.RematadorDeLonge: return "Rematador de longe";
+                case PlayerTrait.CriadorDeJogo: return "Criador de jogo";
+                case PlayerTrait.CarrinhoArriscado: return "Entrada de carrinho";
+                case PlayerTrait.GuardaRedesSaiDaBaliza: return "Sai da baliza";
+                case PlayerTrait.GuardaRedesSaiAosCruzamentos: return "Sai aos cruzamentos";
+                case PlayerTrait.GuardaRedesDefendeComOsPes: return "Defende com os pés";
                 default: return "Equilibrado";
             }
         }
@@ -39,19 +106,40 @@ namespace CoachMaster.Domain
             switch (trait)
             {
                 case PlayerTrait.Rapido: return "Ataca o espaço em corrida.";
-                case PlayerTrait.RemateEmJeito: return "Procura o remate e a bola pode curvar.";
-                case PlayerTrait.ImuneAPressao: return "O passe aguenta quando está pressionado.";
-                case PlayerTrait.Driblador: return "Conduz e tenta ultrapassar.";
-                case PlayerTrait.Finalizador: return "Remata quando chega à área.";
-                case PlayerTrait.Visionario: return "Procura o passe que parte a linha.";
-                case PlayerTrait.Marcador: return "Fecha o portador da bola.";
-                case PlayerTrait.Trabalhador: return "Chega mais às segundas bolas.";
-                case PlayerTrait.Frieza: return "Decide melhor no último terço.";
-                case PlayerTrait.Potente: return "O remate sai tenso.";
-                case PlayerTrait.Cruzador: return "Procura a linha e o cruzamento.";
-                case PlayerTrait.Cabeceador: return "Ganha bolas altas.";
-                case PlayerTrait.RemateRasteiro: return "Procura o remate baixo, junto ao relvado.";
-                case PlayerTrait.RemateDeLonge: return "Arrisca de fora da área.";
+                case PlayerTrait.RemateEmJeito: return "Procura remates colocados e pode dar-lhes efeito.";
+                case PlayerTrait.ImuneAPressao: return "Mantém a qualidade das decisões sob pressão.";
+                case PlayerTrait.Driblador: return "Conduz e tenta ultrapassar o adversário.";
+                case PlayerTrait.Finalizador: return "Ataca a área e aproveita ocasiões de golo.";
+                case PlayerTrait.Visionario: return "Procura passes que ultrapassam linhas defensivas.";
+                case PlayerTrait.Marcador: return "Fecha linhas e acompanha o portador da bola.";
+                case PlayerTrait.Trabalhador: return "Esforça-se mais na pressão e nas segundas bolas.";
+                case PlayerTrait.Frieza: return "Decide com calma perto da baliza.";
+                case PlayerTrait.Potente: return "Dá mais força aos remates, com menor precisão.";
+                case PlayerTrait.Cruzador: return "Procura zonas de cruzamento e melhora a sua execução.";
+                case PlayerTrait.Cabeceador: return "Tem vantagem nas disputas aéreas.";
+                case PlayerTrait.RemateRasteiro: return "Procura remates baixos quando tem espaço.";
+                case PlayerTrait.RemateDeLonge: return "Arrisca remates de fora da área.";
+                case PlayerTrait.RemateDeTrivela: return "Tenta rematar com a parte exterior do pé em situações adequadas.";
+                case PlayerTrait.LancamentoLongo: return "Executa lançamentos laterais mais longos e procura colegas na área.";
+                case PlayerTrait.LivrePotente: return "Faz a preparação mais longa e bate livres diretos com força.";
+                case PlayerTrait.Efeito: return "Dá mais efeito a passes rasteiros e executa trivela com maior precisão.";
+                case PlayerTrait.PasseDePrimeira: return "Erra menos passes de primeira e combinações rápidas.";
+                case PlayerTrait.Flair: return "Arrisca fintas e passes criativos quando a situação o permite.";
+                case PlayerTrait.PropensoALesoes: return "Tem maior risco de lesão em choques e disputas físicas.";
+                case PlayerTrait.ResistenteALesoes: return "Tem menor risco de lesão em choques e disputas físicas.";
+                case PlayerTrait.Chilenas: return "Tenta chilenas quando recebe uma bola aérea em boa posição.";
+                case PlayerTrait.Lideranca: return "É uma escolha forte para assumir a braçadeira.";
+                case PlayerTrait.HomemDeUmClube: return "Valoriza a lealdade ao clube e é candidato à braçadeira.";
+                case PlayerTrait.JogadorDeEquipa: return "Privilegia o grupo e é candidato à braçadeira.";
+                case PlayerTrait.DribladorTecnico: return "Tenta conduções longas e fintas técnicas quando há espaço.";
+                case PlayerTrait.DribladorRapido: return "Usa a velocidade para conduzir e atacar espaço livre.";
+                case PlayerTrait.PassadorLongo: return "Procura passes longos para progredir quando há um alvo livre.";
+                case PlayerTrait.RematadorDeLonge: return "Procura remates de longe, incluindo em bolas no ar.";
+                case PlayerTrait.CriadorDeJogo: return "Os colegas procuram-no mais e ele decide a circulação mais depressa.";
+                case PlayerTrait.CarrinhoArriscado: return "Recorre mais ao carrinho, com maior risco de falta.";
+                case PlayerTrait.GuardaRedesSaiDaBaliza: return "Sai para cruzamentos apenas quando chega claramente primeiro.";
+                case PlayerTrait.GuardaRedesSaiAosCruzamentos: return "Ataca cruzamentos quando prevê chegar à bola por pouco antes do rival.";
+                case PlayerTrait.GuardaRedesDefendeComOsPes: return "Usa os pés com mais frequência em remates de curta distância.";
                 default: return "Joga de forma equilibrada.";
             }
         }
@@ -59,7 +147,7 @@ namespace CoachMaster.Domain
         public static string List(Player player)
         {
             if (player == null || player.Traits == null || player.Traits.Count == 0)
-                return "Sem traço marcado.";
+                return "Sem traços especiais.";
             var text = Label(player.Traits[0]);
             for (var i = 1; i < player.Traits.Count; i++)
                 text += "  ·  " + Label(player.Traits[i]);
@@ -101,98 +189,148 @@ namespace CoachMaster.Domain
                     roll += 4;
             }
 
-            var ceiling = now + roll;
-            if (ceiling < now)
-                ceiling = now;
-            if (ceiling > 94)
-                ceiling = 94;
-            return ceiling;
+            return Math.Min(94, Math.Max(now, now + roll));
         }
 
         static List<PlayerTrait> Pick(Player player, int seed)
         {
-            var attr = player.Attributes;
-            var ranked = new List<KeyValuePair<PlayerTrait, int>>();
-            if (player.Position == PlayerPosition.Goalkeeper)
-            {
-                ranked.Add(new KeyValuePair<PlayerTrait, int>(PlayerTrait.Frieza, attr == null ? 10 : attr.Composure));
-                ranked.Add(new KeyValuePair<PlayerTrait, int>(PlayerTrait.ImuneAPressao, attr == null ? 10 : (attr.Composure + attr.Decisions) / 2));
-                ranked.Add(new KeyValuePair<PlayerTrait, int>(PlayerTrait.Trabalhador, attr == null ? 10 : attr.WorkRate));
-                ranked.Add(new KeyValuePair<PlayerTrait, int>(PlayerTrait.Marcador, attr == null ? 10 : attr.Reflexes));
-            }
-            else
-            {
-                var pace = attr == null ? 10 : attr.Pace;
-                var finish = attr == null ? 10 : attr.Finishing;
-                var dribble = attr == null ? 10 : attr.Dribbling;
-                var pass = attr == null ? 10 : attr.Passing;
-                var tackle = attr == null ? 10 : attr.Tackling;
-                var cross = attr == null ? 10 : attr.Crossing;
-                var cool = attr == null ? 10 : attr.Composure;
-                var work = attr == null ? 10 : attr.WorkRate;
-                var mind = attr == null ? 10 : attr.Decisions;
-                var power = attr == null ? 10 : attr.Strength;
-                ranked.Add(new KeyValuePair<PlayerTrait, int>(PlayerTrait.Rapido, pace));
-                ranked.Add(new KeyValuePair<PlayerTrait, int>(PlayerTrait.ImuneAPressao, cool));
-                ranked.Add(new KeyValuePair<PlayerTrait, int>(PlayerTrait.Driblador, dribble));
-                ranked.Add(new KeyValuePair<PlayerTrait, int>(PlayerTrait.Finalizador, finish >= 14 ? finish : finish - 4));
-                ranked.Add(new KeyValuePair<PlayerTrait, int>(PlayerTrait.Visionario, (pass + mind) / 2));
-                ranked.Add(new KeyValuePair<PlayerTrait, int>(PlayerTrait.Marcador, tackle));
-                ranked.Add(new KeyValuePair<PlayerTrait, int>(PlayerTrait.Trabalhador, work));
-                ranked.Add(new KeyValuePair<PlayerTrait, int>(PlayerTrait.Frieza, (cool + mind) / 2));
-                ranked.Add(new KeyValuePair<PlayerTrait, int>(PlayerTrait.Cruzador, cross));
-                ranked.Add(new KeyValuePair<PlayerTrait, int>(PlayerTrait.Cabeceador, (power + (attr == null ? 10 : attr.Positioning)) / 2));
-            }
-
-            ranked.Sort((a, b) => b.Value.CompareTo(a.Value));
-            var overall = PlayerAttributes.Overall(player);
-            var count = overall >= 80 || ranked[0].Value >= 17 ? 3 : ranked[0].Value >= 14 ? 2 : 1;
+            var random = new Random(seed);
+            var roll = random.NextDouble();
+            if (PlayerAttributes.Overall(player) >= 80)
+                roll = Math.Max(0d, roll - 0.035d);
+            var count = roll < 0.18 ? 0 : roll < 0.66 ? 1 : roll < 0.92 ? 2 : 3;
             var picked = new List<PlayerTrait>();
-            for (var i = 0; i < ranked.Count && picked.Count < count; i++)
+            var candidates = Candidates(player);
+            while (picked.Count < count && candidates.Count > 0)
             {
-                if (i > 0 && ranked[i].Value < 12)
+                var trait = Draw(candidates, random);
+                if (!trait.HasValue)
                     break;
-                picked.Add(ranked[i].Key);
+                picked.Add(trait.Value);
+                candidates.RemoveAll(item => item.Key == trait.Value || Conflicts(item.Key, trait.Value));
             }
-
-            if (picked.Count == 0)
-                picked.Add(ranked[(seed & 0x7fffffff) % ranked.Count].Key);
-            if (player.Position != PlayerPosition.Goalkeeper)
-            {
-                var shot = ShotStyle(player, seed);
-                if (shot != null && !picked.Contains(shot.Value))
-                {
-                    if (picked.Count >= 3)
-                        picked.RemoveAt(picked.Count - 1);
-                    picked.Add(shot.Value);
-                }
-            }
-
             return picked;
         }
 
-        static PlayerTrait? ShotStyle(Player player, int seed)
+        static List<KeyValuePair<PlayerTrait, double>> Candidates(Player player)
         {
-            var attr = player.Attributes;
-            var finish = attr == null ? 10 : attr.Finishing;
-            var power = attr == null ? 10 : attr.Strength;
-            var cool = attr == null ? 10 : attr.Composure;
+            var result = new List<KeyValuePair<PlayerTrait, double>>();
+            var a = player.Attributes;
+            var pace = Value(a == null ? 10 : a.Pace);
+            var finish = Value(a == null ? 10 : a.Finishing);
+            var dribble = Value(a == null ? 10 : a.Dribbling);
+            var pass = Value(a == null ? 10 : a.Passing);
+            var tackle = Value(a == null ? 10 : a.Tackling);
+            var cross = Value(a == null ? 10 : a.Crossing);
+            var cool = Value(a == null ? 10 : a.Composure);
+            var work = Value(a == null ? 10 : a.WorkRate);
+            var mind = Value(a == null ? 10 : a.Decisions);
+            var strength = Value(a == null ? 10 : a.Strength);
+            var position = Value(a == null ? 10 : a.Positioning);
+            var keeper = player.Position == PlayerPosition.Goalkeeper;
             var attack = player.Position == PlayerPosition.Striker || player.Position == PlayerPosition.LeftWinger || player.Position == PlayerPosition.RightWinger || player.Position == PlayerPosition.AttackingMidfielder;
-            var midfield = player.Position == PlayerPosition.CentralMidfielder || player.Position == PlayerPosition.DefensiveMidfielder || player.Position == PlayerPosition.AttackingMidfielder;
-            if (!attack && !midfield && finish < 12)
+            var wide = player.Position == PlayerPosition.LeftWinger || player.Position == PlayerPosition.RightWinger || player.Position == PlayerPosition.LeftBack || player.Position == PlayerPosition.RightBack;
+            var middle = player.Position == PlayerPosition.CentralMidfielder || player.Position == PlayerPosition.DefensiveMidfielder || player.Position == PlayerPosition.AttackingMidfielder;
+            var defender = player.Position == PlayerPosition.CentreBack || player.Position == PlayerPosition.LeftBack || player.Position == PlayerPosition.RightBack || player.Position == PlayerPosition.DefensiveMidfielder;
+            var overall = PlayerAttributes.Overall(player);
+
+            if (keeper)
+            {
+                Add(result, PlayerTrait.Frieza, 0.5 + cool * 0.12);
+                Add(result, PlayerTrait.ImuneAPressao, 0.5 + cool * 0.1);
+                Add(result, PlayerTrait.Trabalhador, 0.5 + work * 0.08);
+                Add(result, PlayerTrait.Lideranca, LeadershipWeight(player, overall));
+                Add(result, PlayerTrait.JogadorDeEquipa, 0.7 + (player.Personality == PersonalityTrait.Professional ? 0.8 : 0));
+                Add(result, PlayerTrait.HomemDeUmClube, 0.5 + (player.Age >= 27 ? 0.5 : 0));
+                Add(result, PlayerTrait.PropensoALesoes, 0.38 + (a != null && a.Stamina < 9 ? 0.35 : 0));
+                Add(result, PlayerTrait.ResistenteALesoes, 0.45 + strength * 0.045);
+                Add(result, PlayerTrait.GuardaRedesSaiDaBaliza, 0.8 + mind * 0.09 + pace * 0.04);
+                Add(result, PlayerTrait.GuardaRedesSaiAosCruzamentos, 0.75 + (a == null ? 0 : a.Handling * 0.08) + mind * 0.04);
+                Add(result, PlayerTrait.GuardaRedesDefendeComOsPes, 0.6 + (a == null ? 0 : a.Reflexes * 0.07));
+                return result;
+            }
+
+            Add(result, PlayerTrait.Rapido, (wide || attack ? 0.8 : 0.35) + pace * 0.085);
+            Add(result, PlayerTrait.RemateEmJeito, (attack ? 0.8 : 0.12) + finish * 0.045 + cool * 0.035);
+            Add(result, PlayerTrait.ImuneAPressao, 0.5 + cool * 0.09);
+            Add(result, PlayerTrait.Driblador, (wide || attack ? 0.85 : 0.3) + dribble * 0.085);
+            Add(result, PlayerTrait.Finalizador, (attack ? 0.9 : 0.12) + finish * 0.075 + position * 0.025);
+            Add(result, PlayerTrait.Visionario, (middle ? 0.95 : 0.38) + pass * 0.05 + mind * 0.055);
+            Add(result, PlayerTrait.Marcador, (defender ? 0.9 : 0.38) + tackle * 0.08);
+            Add(result, PlayerTrait.Trabalhador, 0.45 + work * 0.085);
+            Add(result, PlayerTrait.Frieza, (attack ? 0.65 : 0.28) + cool * 0.06 + mind * 0.03);
+            Add(result, PlayerTrait.Potente, (attack || middle ? 0.4 : 0.1) + strength * 0.065 + finish * 0.025);
+            Add(result, PlayerTrait.Cruzador, (wide ? 0.95 : 0.18) + cross * 0.08);
+            Add(result, PlayerTrait.Cabeceador, (player.Position == PlayerPosition.Striker || player.Position == PlayerPosition.CentreBack ? 0.85 : 0.16) + strength * 0.055 + position * 0.035);
+            Add(result, PlayerTrait.RemateRasteiro, (attack ? 0.55 : middle ? 0.28 : 0.08) + finish * 0.035);
+            Add(result, PlayerTrait.RemateDeLonge, (middle ? 0.72 : attack ? 0.35 : 0.1) + finish * 0.035 + mind * 0.025);
+            Add(result, PlayerTrait.RemateDeTrivela, (wide || attack ? 0.35 : 0.08) + dribble * 0.025 + finish * 0.025);
+            Add(result, PlayerTrait.LancamentoLongo, (player.Position == PlayerPosition.LeftBack || player.Position == PlayerPosition.RightBack || player.Position == PlayerPosition.CentreBack ? 0.28 : 0.04) + strength * 0.045);
+            Add(result, PlayerTrait.LivrePotente, (attack || middle ? 0.32 : 0.08) + strength * 0.035 + pass * 0.02);
+            Add(result, PlayerTrait.Efeito, 0.26 + pass * 0.04 + cross * 0.025);
+            Add(result, PlayerTrait.PasseDePrimeira, (middle ? 0.58 : 0.25) + pass * 0.045 + mind * 0.025);
+            Add(result, PlayerTrait.Flair, (wide || attack ? 0.42 : 0.12) + dribble * 0.035 + mind * 0.02);
+            Add(result, PlayerTrait.PropensoALesoes, 0.25 + (a != null && a.Stamina < 9 ? 0.45 : 0) + (work >= 16 ? 0.12 : 0));
+            Add(result, PlayerTrait.ResistenteALesoes, 0.3 + strength * 0.04 + (a == null ? 0 : a.Stamina * 0.025));
+            Add(result, PlayerTrait.Chilenas, (attack ? 0.18 : 0.015) + finish * 0.012 + dribble * 0.012 + position * 0.01);
+            Add(result, PlayerTrait.Lideranca, LeadershipWeight(player, overall));
+            Add(result, PlayerTrait.HomemDeUmClube, 0.36 + (player.Age >= 27 ? 0.35 : 0) + (player.Personality == PersonalityTrait.Professional ? 0.2 : 0));
+            Add(result, PlayerTrait.JogadorDeEquipa, 0.55 + (player.Personality == PersonalityTrait.Professional ? 0.55 : 0) + (player.Personality == PersonalityTrait.Leader ? 0.3 : 0));
+            Add(result, PlayerTrait.DribladorTecnico, (wide || attack ? 0.55 : 0.16) + dribble * 0.045 + mind * 0.02);
+            Add(result, PlayerTrait.DribladorRapido, (wide || attack ? 0.5 : 0.12) + pace * 0.04 + dribble * 0.025);
+            Add(result, PlayerTrait.PassadorLongo, 0.2 + pass * 0.045 + mind * 0.025 + (middle ? 0.25 : 0));
+            Add(result, PlayerTrait.RematadorDeLonge, (middle ? 0.42 : attack ? 0.3 : 0.05) + finish * 0.035 + mind * 0.025);
+            Add(result, PlayerTrait.CriadorDeJogo, (middle ? 0.75 : 0.2) + pass * 0.04 + mind * 0.045);
+            Add(result, PlayerTrait.CarrinhoArriscado, (defender ? 0.55 : 0.12) + tackle * 0.04 + (player.Personality == PersonalityTrait.Temperamental ? 0.3 : 0));
+            return result;
+        }
+
+        static double LeadershipWeight(Player player, int overall)
+        {
+            var value = 0.28 + (player.IsCaptain ? 1.3 : 0) + (player.IsViceCaptain ? 0.6 : 0) + (player.Personality == PersonalityTrait.Leader ? 1.1 : 0);
+            if (player.Age >= 27)
+                value += 0.42;
+            if (overall >= 78)
+                value += 0.2;
+            return value;
+        }
+
+        static int Value(int stat)
+        {
+            return stat < 1 ? 1 : stat > 20 ? 20 : stat;
+        }
+
+        static void Add(List<KeyValuePair<PlayerTrait, double>> values, PlayerTrait trait, double weight)
+        {
+            if (weight > 0.02)
+                values.Add(new KeyValuePair<PlayerTrait, double>(trait, weight));
+        }
+
+        static PlayerTrait? Draw(List<KeyValuePair<PlayerTrait, double>> values, Random random)
+        {
+            if (values == null || values.Count == 0)
                 return null;
-            if (finish < 9 && !attack)
-                return null;
-            var roll = (seed & 0x7fffffff) % 100;
-            if (midfield && !attack && roll < 45)
-                return PlayerTrait.RemateDeLonge;
-            if (power >= finish + 1 && roll < 62)
-                return PlayerTrait.Potente;
-            if (roll < 78)
-                return PlayerTrait.RemateRasteiro;
-            if (cool >= 12 || finish >= 14)
-                return PlayerTrait.RemateEmJeito;
-            return roll % 2 == 0 ? PlayerTrait.RemateRasteiro : PlayerTrait.Potente;
+            var total = 0d;
+            for (var i = 0; i < values.Count; i++)
+                total += values[i].Value;
+            var roll = random.NextDouble() * total;
+            for (var i = 0; i < values.Count; i++)
+            {
+                roll -= values[i].Value;
+                if (roll <= 0d)
+                    return values[i].Key;
+            }
+            return values[values.Count - 1].Key;
+        }
+
+        static bool Conflicts(PlayerTrait left, PlayerTrait right)
+        {
+            return (left == PlayerTrait.PropensoALesoes && right == PlayerTrait.ResistenteALesoes)
+                || (left == PlayerTrait.ResistenteALesoes && right == PlayerTrait.PropensoALesoes)
+                || (left == PlayerTrait.RemateDeLonge && right == PlayerTrait.RematadorDeLonge)
+                || (left == PlayerTrait.RematadorDeLonge && right == PlayerTrait.RemateDeLonge)
+                || (left == PlayerTrait.GuardaRedesSaiDaBaliza && right == PlayerTrait.GuardaRedesSaiAosCruzamentos)
+                || (left == PlayerTrait.GuardaRedesSaiAosCruzamentos && right == PlayerTrait.GuardaRedesSaiDaBaliza);
         }
     }
 }

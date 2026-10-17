@@ -26,6 +26,7 @@ namespace CoachMaster.UI
 
             Screen.SetResolution(width, height, windowed ? FullScreenMode.Windowed : FullScreenMode.FullScreenWindow);
             QualitySettings.vSyncCount = PlayerPrefs.GetInt("cm_vsync", 1) > 0 ? 1 : 0;
+            ApplyFrameRate();
             var names = QualitySettings.names;
             if (names != null && names.Length > 0)
             {
@@ -82,9 +83,35 @@ namespace CoachMaster.UI
             PlayerPrefs.Save();
         }
 
+        public static void CycleFrameRate()
+        {
+            var values = new[] { 30, 60, 120, -1 };
+            var next = (PlayerPrefs.GetInt("cm_fps_index", 1) + 1) % values.Length;
+            PlayerPrefs.SetInt("cm_fps_index", next);
+            ApplyFrameRate();
+            PlayerPrefs.Save();
+        }
+
+        static void ApplyFrameRate()
+        {
+            var index = Mathf.Clamp(PlayerPrefs.GetInt("cm_fps_index", 1), 0, 3);
+            var values = new[] { 30, 60, 120, -1 };
+            Application.targetFrameRate = values[index];
+        }
+
         public static string WindowLabel => Screen.fullScreenMode == FullScreenMode.Windowed ? "JANELA" : "ECRÃ INTEIRO";
 
         public static string VsyncLabel => QualitySettings.vSyncCount > 0 ? "VSYNC LIGADO" : "VSYNC DESLIGADO";
+
+        public static string FrameRateLabel
+        {
+            get
+            {
+                var values = new[] { 30, 60, 120, -1 };
+                var index = Mathf.Clamp(PlayerPrefs.GetInt("cm_fps_index", 1), 0, values.Length - 1);
+                return values[index] < 0 ? "FPS  SEM LIMITE" : "FPS  " + values[index];
+            }
+        }
 
         public static string QualityLabel
         {

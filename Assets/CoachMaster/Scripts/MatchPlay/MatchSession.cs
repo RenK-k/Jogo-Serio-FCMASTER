@@ -17,6 +17,8 @@ namespace CoachMaster.MatchPlay
         public List<string> AwayBench { get; } = new List<string>();
         public int HomeSubsLeft { get; set; } = 5;
         public int AwaySubsLeft { get; set; } = 5;
+        public string HomeCaptainId { get; set; }
+        public string AwayCaptainId { get; set; }
         public int HomeGoals { get; set; }
         public int AwayGoals { get; set; }
         public float Minute { get; set; }
@@ -38,6 +40,7 @@ namespace CoachMaster.MatchPlay
         public Dictionary<string, string> Names { get; } = new Dictionary<string, string>();
         public Dictionary<string, Player> People { get; } = new Dictionary<string, Player>();
         public Dictionary<string, float> Ratings { get; } = new Dictionary<string, float>();
+        public HashSet<string> Appeared { get; } = new HashSet<string>();
         public List<MatchNote> Notes { get; } = new List<MatchNote>();
         public float HomePossession { get; set; }
         public float AwayPossession { get; set; }
@@ -72,16 +75,61 @@ namespace CoachMaster.MatchPlay
             match.AwayTactics = Copy(match.Away.Tactics);
             FillSquad(career, match.Home, match.HomeOnField, match.HomeBench);
             FillSquad(career, match.Away, match.AwayOnField, match.AwayBench);
+            foreach (var id in match.HomeOnField)
+                match.Appeared.Add(id);
+            foreach (var id in match.AwayOnField)
+                match.Appeared.Add(id);
             foreach (var player in career.World.Players.Values)
             {
                 match.Names[player.Id] = player.FullName;
                 match.People[player.Id] = player;
             }
+            match.HomeCaptainId = SelectCaptain(match.HomeOnField, match.People);
+            match.AwayCaptainId = SelectCaptain(match.AwayOnField, match.People);
             SeedRatings(match, match.HomeOnField, 6.4f);
             SeedRatings(match, match.AwayOnField, 6.4f);
             SeedRatings(match, match.HomeBench, 6f);
             SeedRatings(match, match.AwayBench, 6f);
             return match;
+        }
+
+        public void ReplaceCaptain(bool home)
+        {
+            if (home)
+                HomeCaptainId = SelectCaptain(HomeOnField, People);
+            else
+                AwayCaptainId = SelectCaptain(AwayOnField, People);
+        }
+
+        static string SelectCaptain(List<string> players, Dictionary<string, Player> people)
+        {
+            if (players == null || players.Count == 0)
+                return null;
+            for (var i = 0; i < players.Count; i++)
+            {
+                if (people.TryGetValue(players[i], out var designated) && designated.IsCaptain)
+                    return players[i];
+            }
+
+            var selected = players[0];
+            var best = float.MinValue;
+            for (var i = 0; i < players.Count; i++)
+            {
+                if (!people.TryGetValue(players[i], out var player) || player == null)
+                    continue;
+                var score = player.IsViceCaptain ? 100f : 0f;
+                if (player.HasTrait(PlayerTrait.Lideranca)) score += 26f;
+                if (player.Personality == PersonalityTrait.Leader) score += 20f;
+                if (player.HasTrait(PlayerTrait.JogadorDeEquipa)) score += 10f;
+                if (player.HasTrait(PlayerTrait.HomemDeUmClube)) score += 8f;
+                score += player.Age * 0.08f + PlayerAttributes.Overall(player) * 0.025f;
+                if (score > best)
+                {
+                    best = score;
+                    selected = players[i];
+                }
+            }
+            return selected;
         }
 
         static void SeedRatings(MatchSession match, List<string> ids, float value)

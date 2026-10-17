@@ -8,7 +8,12 @@ namespace CoachMaster.UI
     {
         static readonly Dictionary<string, Sprite[]> Pools = new Dictionary<string, Sprite[]>();
         static readonly Dictionary<string, Sprite> ByPlayer = new Dictionary<string, Sprite>();
+        static readonly Dictionary<string, Sprite> SocialFaces = new Dictionary<string, Sprite>();
+        static readonly HashSet<string> UsedSocialFaces = new HashSet<string>();
+        static readonly Dictionary<Sprite, string> FolderBySprite = new Dictionary<Sprite, string>();
+        static readonly HashSet<string> UsedPortraitIds = new HashSet<string>();
         static Sprite[] _all;
+        static Sprite[] _allAssignedPool;
 
         static readonly string[] Nations =
         {
@@ -30,8 +35,20 @@ namespace CoachMaster.UI
 
         public static string NationForClub(string slug, int seed)
         {
+            return NationForClub(slug, seed, 60, "");
+        }
+
+        public static string NationForClub(string slug, int seed, int reputation, string leagueId)
+        {
             var home = "Portugal";
-            if (!string.IsNullOrEmpty(slug))
+            var competition = (leagueId ?? "") + " " + (slug ?? "");
+            if (competition.Contains("inglesa"))
+                home = "Inglaterra";
+            else if (competition.Contains("francesa"))
+                home = "França";
+            else if (competition.Contains("espanhola"))
+                home = "Espanha";
+            else if (!string.IsNullOrEmpty(slug))
             {
                 if (slug.StartsWith("inglesa"))
                     home = "Inglaterra";
@@ -42,11 +59,15 @@ namespace CoachMaster.UI
             }
 
             var roll = Mod(seed, 100);
-            if (roll < 74)
+            var secondDivision = competition.Contains("-2") || competition.Contains("horizonte");
+            var domesticChance = secondDivision ? 90 : reputation >= 80 ? 54 : reputation >= 75 ? 61 : reputation >= 68 ? 70 : 81;
+            if (roll < domesticChance)
                 return home;
-            if (roll < 90)
+            var foreignRoll = roll - domesticChance;
+            var foreignRange = 100 - domesticChance;
+            if (foreignRoll < foreignRange * 0.72f)
                 return Neighbour(home, seed / 3);
-            if (roll < 98)
+            if (foreignRoll < foreignRange * 0.96f)
                 return Wider(seed / 5);
             return Rare(seed / 7);
         }
@@ -67,7 +88,7 @@ namespace CoachMaster.UI
 
         static string Wider(int seed)
         {
-            var pool = new[] { "Brasil", "Argentina", "Uruguai", "Chile", "Peru", "Equador", "Nigéria", "Gana", "Senegal", "Itália", "Alemanha", "Polónia", "Croácia", "Áustria", "Dinamarca", "Suécia" };
+            var pool = new[] { "Brasil", "Argentina", "Uruguai", "Colômbia", "Chile", "Paraguai", "Equador", "Peru", "Venezuela", "Bolívia", "Nigéria", "Gana", "Senegal", "Itália", "Alemanha", "Polónia", "Croácia", "Áustria", "Dinamarca", "Suécia" };
             return pool[Mod(seed, pool.Length)];
         }
 
@@ -95,18 +116,54 @@ namespace CoachMaster.UI
 
         public static void Deal(WorldState world)
         {
-            var used = new HashSet<string>();
-            foreach (var player in world.Players.Values)
+            if (world == null)
+                return;
+
+            Pools.Clear();
+            ByPlayer.Clear();
+            SocialFaces.Clear();
+            UsedSocialFaces.Clear();
+            FolderBySprite.Clear();
+            UsedPortraitIds.Clear();
+            _all = null;
+            _allAssignedPool = null;
+
+            var players = new List<Player>(world.Players.Values);
+            players.Sort((a, b) =>
             {
-                if (!string.IsNullOrEmpty(player.PortraitPath))
+                var age = a.Age.CompareTo(b.Age);
+                return age != 0 ? age : string.CompareOrdinal(a.Id, b.Id);
+            });
+
+            var used = new HashSet<string>();
+            foreach (var player in players)
+            {
+                if (string.IsNullOrEmpty(player.PortraitPath))
+                    continue;
+
+                var sprite = Find(player.Nationality, player.PortraitPath);
+                if (sprite == null)
                 {
-                    var mark = player.PortraitPath.LastIndexOf('|');
-                    used.Add(mark < 0 ? player.PortraitPath : player.PortraitPath.Substring(mark + 1));
+                    player.PortraitPath = null;
+                    ByPlayer.Remove(player.Id);
+                    continue;
                 }
+
+                var spriteId = SpriteId(sprite);
+                if (string.IsNullOrEmpty(spriteId) || !used.Add(spriteId))
+                {
+                    player.PortraitPath = null;
+                    ByPlayer.Remove(player.Id);
+                    continue;
+                }
+
+                player.PortraitPath = spriteId;
+                ByPlayer[player.Id] = Center(sprite);
+                UsedPortraitIds.Add(spriteId);
             }
 
             var groups = new Dictionary<string, List<Player>>();
-            foreach (var player in world.Players.Values)
+            foreach (var player in players)
             {
                 if (!string.IsNullOrEmpty(player.PortraitPath))
                     continue;
@@ -120,27 +177,116 @@ namespace CoachMaster.UI
                 list.Add(player);
             }
 
-            foreach (var pair in groups)
+            var nations = new List<string>(groups.Keys);
+            nations.Sort((a, b) => string.CompareOrdinal(a, b));
+            foreach (var nation in nations)
             {
-                pair.Value.Sort((a, b) =>
+                var group = groups[nation];
+                group.Sort((a, b) =>
                 {
                     var age = a.Age.CompareTo(b.Age);
                     return age != 0 ? age : string.CompareOrdinal(a.Id, b.Id);
                 });
-                var pool = new List<Sprite>(Pool(pair.Key));
+
+                var pool = new List<Sprite>(Pool(nation));
+                pool.AddRange(Spare(nation));
+                pool.AddRange(AnyPool());
                 pool.Sort((a, b) => Youth(a).CompareTo(Youth(b)));
-                foreach (var player in pair.Value)
+                foreach (var player in group)
                 {
                     var sprite = TakeFresh(pool, used);
                     if (sprite == null)
-                        sprite = TakeFresh(Spare(pair.Key), used);
+                        continue;
+                    var spriteId = SpriteId(sprite);
+                    if (string.IsNullOrEmpty(spriteId) || !used.Add(spriteId))
+                        continue;
+                    player.PortraitPath = spriteId;
+                    ByPlayer[player.Id] = Center(sprite);
+                    UsedPortraitIds.Add(spriteId);
+                }
+            }
+        }
+
+        public static int UniqueFaceCount()
+        {
+            var seen = new HashSet<string>();
+            foreach (var nation in Nations)
+            {
+                foreach (var sprite in Pool(nation))
+                {
                     if (sprite == null)
                         continue;
-                    var key = sprite.name;
-                    used.Add(key);
-                    player.PortraitPath = key;
-                    ByPlayer[player.Id] = Center(sprite);
+                    var id = SpriteId(sprite);
+                    if (!string.IsNullOrEmpty(id))
+                        seen.Add(id);
                 }
+            }
+
+            return seen.Count;
+        }
+
+        public static int FaceCountForNation(string nation)
+        {
+            var seen = new HashSet<string>();
+            foreach (var sprite in Pool(nation))
+            {
+                if (sprite == null)
+                    continue;
+                var id = SpriteId(sprite);
+                if (!string.IsNullOrEmpty(id))
+                    seen.Add(id);
+            }
+
+            return seen.Count;
+        }
+
+        public static Sprite SocialAvatar(string identity)
+        {
+            if (string.IsNullOrEmpty(identity))
+                identity = "fan";
+            if (SocialFaces.TryGetValue(identity, out var cached))
+                return cached;
+
+            var pool = new List<Sprite>(AnyPool());
+            if (pool.Count == 0)
+                pool.AddRange(AllFaces());
+            pool.Sort((a, b) => string.CompareOrdinal(SpriteId(a), SpriteId(b)));
+            if (pool.Count == 0)
+                return null;
+
+            var start = StableIndex(identity, pool.Count);
+            Sprite chosen = null;
+            for (var pass = 0; pass < 2 && chosen == null; pass++)
+            {
+                for (var i = 0; i < pool.Count; i++)
+                {
+                    var candidate = pool[(start + i) % pool.Count];
+                    if (candidate == null)
+                        continue;
+                    var id = SpriteId(candidate);
+                    if (UsedSocialFaces.Contains(id) || (pass == 0 && UsedPortraitIds.Contains(id)))
+                        continue;
+                    chosen = candidate;
+                    UsedSocialFaces.Add(id);
+                    break;
+                }
+            }
+
+            if (chosen == null)
+                chosen = pool[start];
+            chosen = Center(chosen);
+            SocialFaces[identity] = chosen;
+            return chosen;
+        }
+
+        static int StableIndex(string value, int count)
+        {
+            unchecked
+            {
+                var hash = 17;
+                for (var i = 0; i < value.Length; i++)
+                    hash = hash * 31 + value[i];
+                return Mod(hash, count);
             }
         }
 
@@ -152,10 +298,39 @@ namespace CoachMaster.UI
                 return cached;
 
             var sprite = Find(player.Nationality, player.PortraitPath);
+            var spriteId = SpriteId(sprite);
+            if (sprite == null || UsedPortraitIds.Contains(spriteId))
+            {
+                sprite = TakeUnusedFallback();
+                spriteId = SpriteId(sprite);
+                if (sprite != null)
+                {
+                    player.PortraitPath = spriteId;
+                    UsedPortraitIds.Add(spriteId);
+                }
+            }
+            else
+                UsedPortraitIds.Add(spriteId);
+
             sprite = Center(sprite);
             if (sprite != null)
                 ByPlayer[player.Id] = sprite;
             return sprite;
+        }
+
+        static Sprite TakeUnusedFallback()
+        {
+            var pool = new List<Sprite>(AnyPool());
+            pool.Sort((a, b) => Youth(a).CompareTo(Youth(b)));
+            for (var i = 0; i < pool.Count; i++)
+            {
+                var sprite = pool[i];
+                var id = SpriteId(sprite);
+                if (sprite != null && !string.IsNullOrEmpty(id) && !UsedPortraitIds.Contains(id))
+                    return sprite;
+            }
+
+            return null;
         }
 
         static Sprite[] AllFaces()
@@ -193,6 +368,9 @@ namespace CoachMaster.UI
 
         static Sprite[] AnyPool()
         {
+            if (_allAssignedPool != null)
+                return _allAssignedPool;
+
             var all = new List<Sprite>();
             foreach (var nation in Nations)
             {
@@ -203,7 +381,8 @@ namespace CoachMaster.UI
                 }
             }
 
-            return all.ToArray();
+            _allAssignedPool = all.ToArray();
+            return _allAssignedPool;
         }
 
         static Sprite TakeFresh(List<Sprite> pool, HashSet<string> used)
@@ -213,7 +392,7 @@ namespace CoachMaster.UI
             for (var i = 0; i < pool.Count; i++)
             {
                 var sprite = pool[i];
-                if (sprite == null || used.Contains(sprite.name))
+                if (sprite == null || used.Contains(SpriteId(sprite)))
                     continue;
                 return sprite;
             }
@@ -241,7 +420,8 @@ namespace CoachMaster.UI
             if (sprite == null)
                 return 99999;
             var name = sprite.name ?? "";
-            var regen = name.StartsWith("KT1") ? 0 : 8000;
+            var lower = name.ToLowerInvariant();
+            var regen = lower.Contains("u18") || lower.Contains("u21") || lower.Contains("young") || lower.Contains("junior") || lower.StartsWith("kt1") ? 0 : 1;
             var id = 0;
             var digits = 0;
             for (var i = name.Length - 1; i >= 0 && name[i] >= '0' && name[i] <= '9' && digits < 5; i--)
@@ -250,7 +430,7 @@ namespace CoachMaster.UI
                 digits++;
             }
 
-            return regen + id;
+            return regen * 100000 + id;
         }
 
         static int Pow10(int digits)
@@ -265,8 +445,21 @@ namespace CoachMaster.UI
         {
             if (string.IsNullOrEmpty(portraitPath))
                 return null;
-            var mark = portraitPath.LastIndexOf('|');
+            var mark = portraitPath.IndexOf('|');
             var name = mark < 0 ? portraitPath : portraitPath.Substring(mark + 1);
+            if (mark > 0)
+            {
+                var folder = portraitPath.Substring(0, mark);
+                if (folder.StartsWith("Kits/Players/"))
+                {
+                    foreach (var sprite in Load(folder))
+                    {
+                        if (sprite != null && sprite.name == name)
+                            return sprite;
+                    }
+                }
+            }
+
             foreach (var sprite in Pool(nation))
             {
                 if (sprite != null && sprite.name == name)
@@ -311,7 +504,24 @@ namespace CoachMaster.UI
         static Sprite[] Load(string folder)
         {
             var loaded = Resources.LoadAll<Sprite>(folder);
-            return loaded ?? new Sprite[0];
+            if (loaded == null)
+                return new Sprite[0];
+            for (var i = 0; i < loaded.Length; i++)
+            {
+                if (loaded[i] != null && !FolderBySprite.ContainsKey(loaded[i]))
+                    FolderBySprite[loaded[i]] = folder;
+            }
+
+            return loaded;
+        }
+
+        static string SpriteId(Sprite sprite)
+        {
+            if (sprite == null)
+                return "";
+            return FolderBySprite.TryGetValue(sprite, out var folder)
+                ? folder + "|" + sprite.name
+                : sprite.name;
         }
 
         static void AddShare(List<Sprite> list, string nation)
@@ -434,6 +644,14 @@ namespace CoachMaster.UI
             {
                 case "Argentina":
                 case "Brazil":
+                case "Uruguai":
+                case "Colômbia":
+                case "Chile":
+                case "Paraguai":
+                case "Equador":
+                case "Peru":
+                case "Venezuela":
+                case "Bolívia":
                     return "South American";
                 case "Japan":
                 case "South Korea":
@@ -496,6 +714,17 @@ namespace CoachMaster.UI
                 case "Argentina":
                     first = new[] { "Mateo", "Santiago", "Lautaro", "Facundo", "Agustín", "Nicolás", "Joaquín", "Franco", "Valentín", "Ignacio", "Martín", "Gonzalo", "Leandro", "Ezequiel", "Emiliano" };
                     last = new[] { "González", "Rodríguez", "Gómez", "Fernández", "López", "Martínez", "Díaz", "Pérez", "García", "Romero", "Sosa", "Álvarez", "Torres", "Ruiz", "Herrera" };
+                    return;
+                case "Uruguai":
+                case "Colômbia":
+                case "Chile":
+                case "Paraguai":
+                case "Equador":
+                case "Peru":
+                case "Venezuela":
+                case "Bolívia":
+                    first = new[] { "Mateo", "Santiago", "Thiago", "Tomás", "Nicolás", "Julián", "Lucas", "Facundo", "Diego", "Martín", "Benjamín", "Emiliano", "Joaquín", "Gabriel", "Agustín" };
+                    last = new[] { "González", "Rodríguez", "Gómez", "Fernández", "López", "Martínez", "Díaz", "Pérez", "García", "Romero", "Torres", "Ruiz", "Herrera", "Castro", "Rojas" };
                     return;
                 case "Japan":
                     first = new[] { "Haruto", "Sota", "Yuto", "Haruki", "Riku", "Minato", "Kaito", "Ren", "Yuma", "Asahi", "Hayato", "Takumi", "Daiki", "Kenta", "Shota" };

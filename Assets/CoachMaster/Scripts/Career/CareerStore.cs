@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -32,7 +33,7 @@ namespace CoachMaster.Career
                 var hurt = player.Injury != null && player.Injury.IsInjured ? "1" : "0";
                 var days = player.Injury == null ? 0 : player.Injury.DaysRemaining;
                 var desc = player.Injury == null ? "" : player.Injury.Description;
-                lines.Add("player|" + player.Id + "|" + player.Morale + "|" + player.Fatigue + "|" + Esc(player.Duty) + "|" + (player.IsCaptain ? "1" : "0") + "|" + hurt + "|" + days + "|" + Esc(desc) + "|" + player.ClubId + "|" + player.Age);
+                lines.Add("player|" + player.Id + "|" + player.Morale + "|" + player.Fatigue + "|" + Esc(player.Duty) + "|" + (player.IsCaptain ? "1" : "0") + "|" + hurt + "|" + days + "|" + Esc(desc) + "|" + player.ClubId + "|" + player.Age + "|" + TraitCodes(player) + "|" + player.Form + "|" + player.Fitness + "|" + player.TrainingRating + "|" + player.HeightCm + "|" + player.WeightKg + "|" + player.WeakFootQuality + "|" + PlayerPositionProfile.Encode(player));
             }
 
             foreach (var club in career.World.Clubs.Values)
@@ -57,7 +58,9 @@ namespace CoachMaster.Career
             foreach (var note in career.PlayerNotes)
                 lines.Add("pnote|" + note.PlayerId + "|" + Esc(note.Text));
             foreach (var line in career.Season)
-                lines.Add("stat|" + line.PlayerId + "|" + line.Goals + "|" + line.Assists + "|" + line.Apps + "|" + line.RatingSum.ToString(CultureInfo.InvariantCulture) + "|" + line.Rated);
+                lines.Add("stat|" + line.PlayerId + "|" + line.Goals + "|" + line.Assists + "|" + line.Apps + "|" + line.RatingSum.ToString(CultureInfo.InvariantCulture) + "|" + line.Rated + "|" + line.CompetitionId);
+            foreach (var line in career.CareerTotals)
+                lines.Add("careerstat|" + line.PlayerId + "|" + line.Goals + "|" + line.Assists + "|" + line.Apps + "|" + line.RatingSum.ToString(CultureInfo.InvariantCulture) + "|" + line.Rated);
             File.WriteAllLines(PathFile, lines, Encoding.UTF8);
         }
 
@@ -102,9 +105,21 @@ namespace CoachMaster.Career
                 return null;
             }
 
+            var generatedFixtures = new List<Fixture>(career.Fixtures);
+            var generatedTable = new List<LeagueTableRow>(career.Table);
+            var savedClubIds = new HashSet<string>();
+            foreach (var raw in lines)
+            {
+                var bits = Split(raw);
+                if (bits.Length > 1 && bits[0] == "club")
+                    savedClubIds.Add(bits[1]);
+            }
+
             career.Press.Clear();
             career.Board.Clear();
             career.Notebook.Clear();
+            career.CareerTotals.Clear();
+            var hasCareerTotals = false;
             var savedCalendar = false;
             foreach (var raw in lines)
             {
@@ -229,14 +244,39 @@ namespace CoachMaster.Career
                             int.TryParse(bits[4], out apps);
                             float.TryParse(bits[5], NumberStyles.Float, CultureInfo.InvariantCulture, out sum);
                             int.TryParse(bits[6], out rated);
-                            career.Season.Add(new SeasonLine { PlayerId = bits[1], Goals = goals, Assists = assists, Apps = apps, RatingSum = sum, Rated = rated });
+                            var competitionId = bits.Length > 7 ? bits[7] : null;
+                            if (string.IsNullOrEmpty(competitionId) && career.World.Players.TryGetValue(bits[1], out var statPlayer) && career.World.Clubs.TryGetValue(statPlayer.ClubId, out var statClub))
+                                competitionId = statClub.LeagueId;
+                            career.Season.Add(new SeasonLine { PlayerId = bits[1], CompetitionId = competitionId, Goals = goals, Assists = assists, Apps = apps, RatingSum = sum, Rated = rated });
+                        }
+                        break;
+                    case "careerstat":
+                        if (bits.Length > 6)
+                        {
+                            int goals, assists, apps, rated;
+                            float sum;
+                            int.TryParse(bits[2], out goals);
+                            int.TryParse(bits[3], out assists);
+                            int.TryParse(bits[4], out apps);
+                            float.TryParse(bits[5], NumberStyles.Float, CultureInfo.InvariantCulture, out sum);
+                            int.TryParse(bits[6], out rated);
+                            career.CareerTotals.Add(new SeasonLine { PlayerId = bits[1], Goals = goals, Assists = assists, Apps = apps, RatingSum = sum, Rated = rated });
+                            hasCareerTotals = true;
                         }
                         break;
                 }
             }
 
+            if (!hasCareerTotals)
+            {
+                foreach (var line in career.Season)
+                    career.CareerTotals.Add(new SeasonLine { PlayerId = line.PlayerId, Goals = line.Goals, Assists = line.Assists, Apps = line.Apps, RatingSum = line.RatingSum, Rated = line.Rated });
+            }
+
             if (ticks > 0)
                 career.Calendar.SetInstant(new System.DateTime(ticks));
+            if (savedCalendar)
+                MergeExpandedWorld(career, generatedFixtures, generatedTable, savedClubIds);
             career.Current = null;
             career.Upcoming.Clear();
             CareerMoments.Continue(career);
@@ -244,6 +284,85 @@ namespace CoachMaster.Career
             SeasonBook.Backfill(career);
             session.Restore(career);
             return career;
+        }
+
+        static void MergeExpandedWorld(CareerState career, List<Fixture> generatedFixtures, List<LeagueTableRow> generatedTable, HashSet<string> savedClubIds)
+        {
+            if (career == null || savedClubIds == null || savedClubIds.Count == 0)
+                return;
+
+            foreach (var generatedRow in generatedTable)
+            {
+                var exists = false;
+                foreach (var row in career.Table)
+                {
+                    if (row.LeagueId == generatedRow.LeagueId && row.ClubId == generatedRow.ClubId)
+                    {
+                        exists = true;
+                        break;
+                    }
+                }
+
+                if (!exists)
+                    career.Table.Add(new LeagueTableRow { LeagueId = generatedRow.LeagueId, ClubId = generatedRow.ClubId });
+            }
+
+            foreach (var generated in generatedFixtures)
+            {
+                if (generated == null || generated.Played || generated.Walkover || generated.Date.Date < career.Calendar.CurrentDate.Date)
+                    continue;
+                if (!career.World.Clubs.ContainsKey(generated.HomeClubId) || !career.World.Clubs.ContainsKey(generated.AwayClubId))
+                    continue;
+                if (savedClubIds.Contains(generated.HomeClubId) && savedClubIds.Contains(generated.AwayClubId))
+                    continue;
+                if (HasFixturePair(career.Fixtures, generated))
+                    continue;
+
+                var date = generated.Date.Date;
+                var placed = false;
+                for (var week = 0; week < 52; week++, date = date.AddDays(7))
+                {
+                    if (ClubBusy(career.Fixtures, generated.HomeClubId, date) || ClubBusy(career.Fixtures, generated.AwayClubId, date))
+                        continue;
+                    career.Fixtures.Add(new Fixture
+                    {
+                        Id = "migrated:" + generated.Id,
+                        Date = date,
+                        LeagueId = generated.LeagueId,
+                        HomeClubId = generated.HomeClubId,
+                        AwayClubId = generated.AwayClubId
+                    });
+                    placed = true;
+                    break;
+                }
+
+                if (!placed)
+                    continue;
+            }
+
+            career.Fixtures.Sort((a, b) => a.Date.CompareTo(b.Date));
+        }
+
+        static bool HasFixturePair(List<Fixture> fixtures, Fixture target)
+        {
+            foreach (var fixture in fixtures)
+            {
+                if (fixture.LeagueId == target.LeagueId && fixture.HomeClubId == target.HomeClubId && fixture.AwayClubId == target.AwayClubId)
+                    return true;
+            }
+
+            return false;
+        }
+
+        static bool ClubBusy(List<Fixture> fixtures, string clubId, System.DateTime date)
+        {
+            foreach (var fixture in fixtures)
+            {
+                if (!fixture.Walkover && fixture.Date.Date == date.Date && fixture.Involves(clubId))
+                    return true;
+            }
+
+            return false;
         }
 
         static void ApplyTactic(CareerState career, string[] bits)
@@ -286,11 +405,34 @@ namespace CoachMaster.Career
                 player.ClubId = bits[9];
             if (bits.Length > 10 && int.TryParse(bits[10], out var age) && age > 15)
                 player.Age = age;
+            if (bits.Length > 12 && int.TryParse(bits[12], out var form)) player.Form = System.Math.Max(1, System.Math.Min(99, form));
+            if (bits.Length > 13 && int.TryParse(bits[13], out var fitness)) player.Fitness = System.Math.Max(1, System.Math.Min(100, fitness));
+            if (bits.Length > 14 && int.TryParse(bits[14], out var training)) player.TrainingRating = System.Math.Max(1, System.Math.Min(100, training));
+            if (bits.Length > 15 && int.TryParse(bits[15], out var height) && height > 130) player.HeightCm = height;
+            if (bits.Length > 16 && int.TryParse(bits[16], out var weight) && weight > 35) player.WeightKg = weight;
+            if (bits.Length > 17 && int.TryParse(bits[17], out var weakFoot)) player.WeakFootQuality = System.Math.Max(1, System.Math.Min(5, weakFoot));
+            if (bits.Length > 18) PlayerPositionProfile.Decode(player, bits[18]);
+            else PlayerPositionProfile.Ensure(player);
+            if (bits.Length > 11)
+            {
+                player.Traits.Clear();
+                if (!string.IsNullOrEmpty(bits[11]))
+                {
+                    var traits = bits[11].Split(',');
+                    for (var i = 0; i < traits.Length; i++)
+                    {
+                        if (Enum.TryParse(traits[i], out PlayerTrait trait) && Enum.IsDefined(typeof(PlayerTrait), trait) && !player.Traits.Contains(trait))
+                            player.Traits.Add(trait);
+                    }
+                }
+            }
         }
 
         static void ApplyFixture(CareerState career, string[] bits)
         {
             if (bits.Length < 5)
+                return;
+            if (bits.Length >= 6 && bits[5].IndexOf(":preseason", StringComparison.OrdinalIgnoreCase) >= 0)
                 return;
             int.TryParse(bits[3], out var homeGoals);
             int.TryParse(bits[4], out var awayGoals);
@@ -412,6 +554,16 @@ namespace CoachMaster.Career
             if (string.IsNullOrEmpty(value))
                 return "";
             return value.Replace("\\", "\\\\").Replace("\n", "\\n").Replace("|", "/");
+        }
+
+        static string TraitCodes(Player player)
+        {
+            if (player == null || player.Traits == null || player.Traits.Count == 0)
+                return "";
+            var codes = new List<string>();
+            for (var i = 0; i < player.Traits.Count; i++)
+                codes.Add(player.Traits[i].ToString());
+            return string.Join(",", codes.ToArray());
         }
 
         static string Un(string value)

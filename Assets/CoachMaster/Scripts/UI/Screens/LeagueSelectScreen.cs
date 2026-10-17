@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using CoachMaster.Domain;
 using UnityEngine;
 using UnityEngine.UI;
@@ -11,11 +12,22 @@ namespace CoachMaster.UI.Screens
             UiFactory.FullScreen(Root.transform, "Bg", UiTheme.Canvas);
             ScreenChrome.Page(Root.transform, "Nova carreira", "Escolhe a liga em que queres começar.", () => router.Show("main"), out var body);
 
-            foreach (var league in router.Session.Catalog.Leagues)
-                AddLeagueCard(body.transform, router, league);
+            var leagues = new List<League>(router.Session.Catalog.Leagues);
+            foreach (var league in leagues)
+            {
+                if (league.Tier != LeagueTier.Continental)
+                    router.Session.PrepareLeague(league.Id);
+            }
+
+            foreach (var league in leagues)
+            {
+                if (league.Tier == LeagueTier.Continental)
+                    continue;
+                AddLeagueCard(body.transform, router, league, CountClubs(router.Session.Catalog, league.Id));
+            }
         }
 
-        static void AddLeagueCard(Transform parent, ScreenRouter router, League league)
+        static void AddLeagueCard(Transform parent, ScreenRouter router, League league, int clubCount)
         {
             var panel = UiFactory.Panel(parent, league.Id, UiTheme.Panel);
             UiFactory.LayoutElement(panel.GetComponent<Image>(), 148);
@@ -34,7 +46,7 @@ namespace CoachMaster.UI.Screens
             UiFactory.LayoutElement(title, 30);
             var desc = UiFactory.Label(copy.transform, "Desc", league.Description, 16, UiTheme.Muted);
             UiFactory.LayoutElement(desc, 48);
-            var meta = UiFactory.Label(copy.transform, "Meta", $"{league.ClubCount} clubes  ·  {league.ShortName}", 14, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            var meta = UiFactory.Label(copy.transform, "Meta", $"{clubCount} clubes  ·  {league.ShortName}", 14, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
             UiFactory.LayoutElement(meta, 22);
 
             var choose = UiFactory.Button(row.transform, "SELECIONAR", () =>
@@ -49,6 +61,14 @@ namespace CoachMaster.UI.Screens
             chooseSize.minWidth = 180;
             chooseSize.preferredWidth = 180;
             chooseSize.flexibleWidth = 0;
+        }
+
+        static int CountClubs(WorldState world, string leagueId)
+        {
+            var count = 0;
+            foreach (var club in world.ClubsInLeague(leagueId))
+                count++;
+            return count;
         }
     }
 }
