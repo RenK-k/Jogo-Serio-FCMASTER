@@ -22,8 +22,16 @@ namespace CoachMaster.Career
                 return;
             var lines = new List<string>
             {
-                "coach|" + Esc(career.Coach.Name) + "|" + career.Coach.ClubId + "|" + career.Calendar.CurrentDate.Ticks
+                "coach|" + Esc(career.Coach.Name) + "|" + career.Coach.ClubId + "|" + career.Calendar.CurrentDate.Ticks,
+                "careerprogress|" + career.CompletedSeasons,
+                "fanmood|" + career.SupporterApproval
             };
+            foreach (var memory in career.Memories)
+                lines.Add("memory|" + memory.WhenTicks + "|" + memory.Importance + "|" + Esc(memory.Kind) + "|" + memory.ClubId + "|" + memory.CompetitionId + "|" + memory.RelatedClubId + "|" + memory.PlayerId + "|" + Esc(memory.Title) + "|" + Esc(memory.Detail));
+            foreach (var trust in career.ManagerTrust)
+                lines.Add("trust|" + trust.Key + "|" + trust.Value);
+            foreach (var offer in career.JobOffers)
+                lines.Add("joboffer|" + offer.ClubId + "|" + offer.ReceivedAtTicks + "|" + (offer.Resolved ? "1" : "0") + "|" + (offer.Accepted ? "1" : "0") + "|" + Esc(offer.Reason));
             var tactics = career.Club.Tactics;
             lines.Add("tactic|" + Esc(tactics.Formation) + "|" + Esc(tactics.Pressing) + "|" + Esc(tactics.BuildUp) + "|" + Esc(tactics.FullBacks) + "|" + Esc(tactics.DefensiveLine) + "|" + Esc(tactics.Width) + "|" + Esc(tactics.Tempo) + "|" + Esc(tactics.PassingStyle) + "|" + Esc(tactics.AttackIdea) + "|" + Esc(tactics.Marking));
             lines.Add("roles|" + career.Club.PenaltyTakerId + "|" + career.Club.CornerTakerId + "|" + career.Club.FreeKickTakerId);
@@ -37,7 +45,10 @@ namespace CoachMaster.Career
             }
 
             foreach (var club in career.World.Clubs.Values)
+            {
                 lines.Add("club|" + club.Id + "|" + club.LeagueId);
+                lines.Add("clubstate|" + club.Id + "|" + club.DressingRoomTension);
+            }
 
             foreach (var fixture in career.Fixtures)
                 lines.Add("fixture|" + fixture.Id + "|" + (fixture.Played ? "1" : "0") + "|" + fixture.HomeGoals + "|" + fixture.AwayGoals + "|" + fixture.LeagueId + "|" + fixture.HomeClubId + "|" + fixture.AwayClubId + "|" + fixture.Date.Ticks);
@@ -68,6 +79,7 @@ namespace CoachMaster.Career
         {
             if (session == null || !Exists)
                 return null;
+            CareerNotificationQueue.Clear();
             string[] lines;
             try
             {
@@ -119,7 +131,10 @@ namespace CoachMaster.Career
             career.Board.Clear();
             career.Notebook.Clear();
             career.CareerTotals.Clear();
+            career.Memories.Clear();
+            career.ManagerTrust.Clear();
             var hasCareerTotals = false;
+            var hasCareerProgress = false;
             var savedCalendar = false;
             foreach (var raw in lines)
             {
@@ -140,6 +155,58 @@ namespace CoachMaster.Career
                     continue;
                 switch (bits[0])
                 {
+                    case "careerprogress":
+                        hasCareerProgress = true;
+                        if (bits.Length > 1)
+                        {
+                            int.TryParse(bits[1], out var completedSeasons);
+                            career.CompletedSeasons = Math.Max(0, completedSeasons);
+                        }
+                        break;
+                    case "fanmood":
+                        if (bits.Length > 1 && int.TryParse(bits[1], out var supporterApproval))
+                            career.SupporterApproval = Math.Max(0, Math.Min(100, supporterApproval));
+                        break;
+                    case "trust":
+                        if (bits.Length > 2 && int.TryParse(bits[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out var managerTrust))
+                            career.ManagerTrust[bits[1]] = Math.Max(0, Math.Min(100, managerTrust));
+                        break;
+                    case "memory":
+                        if (bits.Length > 9)
+                        {
+                            long whenTicks;
+                            int importance;
+                            long.TryParse(bits[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out whenTicks);
+                            int.TryParse(bits[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out importance);
+                            career.Memories.Add(new FootballMemory
+                            {
+                                WhenTicks = whenTicks,
+                                Importance = Math.Max(1, Math.Min(5, importance)),
+                                Kind = Un(bits[3]),
+                                ClubId = bits[4],
+                                CompetitionId = bits[5],
+                                RelatedClubId = bits[6],
+                                PlayerId = bits[7],
+                                Title = Un(bits[8]),
+                                Detail = Un(bits[9])
+                            });
+                        }
+                        break;
+                    case "joboffer":
+                        if (bits.Length > 5)
+                        {
+                            long received;
+                            long.TryParse(bits[2], out received);
+                            career.JobOffers.Add(new CareerJobOffer
+                            {
+                                ClubId = bits[1],
+                                ReceivedAtTicks = received,
+                                Resolved = bits[3] == "1",
+                                Accepted = bits[4] == "1",
+                                Reason = Un(bits[5])
+                            });
+                        }
+                        break;
                     case "tactic":
                         ApplyTactic(career, bits);
                         break;
@@ -162,6 +229,10 @@ namespace CoachMaster.Career
                     case "club":
                         if (bits.Length > 2 && career.World.Clubs.TryGetValue(bits[1], out var savedClub))
                             savedClub.LeagueId = bits[2];
+                        break;
+                    case "clubstate":
+                        if (bits.Length > 2 && career.World.Clubs.TryGetValue(bits[1], out var stateClub) && int.TryParse(bits[2], out var tension))
+                            stateClub.DressingRoomTension = Math.Max(0, Math.Min(100, tension));
                         break;
                     case "fixture":
                         ApplyFixture(career, bits);
@@ -275,6 +346,14 @@ namespace CoachMaster.Career
 
             if (ticks > 0)
                 career.Calendar.SetInstant(new System.DateTime(ticks));
+            if (!hasCareerProgress && ticks > 0)
+            {
+                var date = career.Calendar.CurrentDate;
+                var completed = date.Year - GameCalendar.SeasonStart.Year;
+                if (date.Month < GameCalendar.SeasonStart.Month)
+                    completed--;
+                career.CompletedSeasons = Math.Max(0, completed);
+            }
             if (savedCalendar)
                 MergeExpandedWorld(career, generatedFixtures, generatedTable, savedClubIds);
             career.Current = null;
@@ -282,6 +361,7 @@ namespace CoachMaster.Career
             CareerMoments.Continue(career);
             SeasonSchedule.RebuildTable(career);
             SeasonBook.Backfill(career);
+            SeasonBook.ReconcileCurrentSeason(career);
             session.Restore(career);
             return career;
         }

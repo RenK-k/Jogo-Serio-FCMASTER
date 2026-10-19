@@ -30,19 +30,29 @@ namespace CoachMaster.UI.Scenes
         {
             SceneBind.Wire(root.Find("Header/Back"), () => GameRoot.Instance.Open(SceneNames.MainMenu));
             var content = root.Find("Leagues/Content");
+            if (content == null)
+                return;
             var leagues = new List<League>(session.Catalog.Leagues);
             leagues.RemoveAll(league => league.Tier == LeagueTier.Continental);
+            var template = content.Find("League0");
             for (var i = 0; i < leagues.Count; i++)
             {
                 var league = leagues[i];
                 var card = content.Find("League" + i);
+                if (card == null && template != null)
+                {
+                    card = Instantiate(template.gameObject, content, false).transform;
+                    card.name = "League" + i;
+                }
                 if (card == null)
                     continue;
-                session.PrepareLeague(league.Id);
+                SetCardText(card, "Name", league.Name.ToUpperInvariant());
+                SetCardText(card, "Desc", league.Description);
+                SetCardText(card, "Tier", TierLabel(league.Tier));
                 var countNode = card.Find("Count");
                 var countLabel = countNode == null ? null : countNode.GetComponent<Text>();
                 if (countLabel != null)
-                    countLabel.text = CountClubs(session.Catalog, league.Id) + " clubes";
+                    countLabel.text = league.ClubCount + " clubes";
                 System.Action choose = () =>
                 {
                     session.Draft.LeagueId = league.Id;
@@ -53,6 +63,13 @@ namespace CoachMaster.UI.Scenes
                 SceneBind.Wire(card, choose);
                 SceneBind.Wire(card.Find("Select"), choose);
             }
+
+            for (var i = leagues.Count; i < content.childCount; i++)
+            {
+                var card = content.Find("League" + i);
+                if (card != null)
+                    card.gameObject.SetActive(false);
+            }
         }
 
         void Paint(GameSession session, bool bake)
@@ -60,7 +77,7 @@ namespace CoachMaster.UI.Scenes
             var root = bake ? BroadcastUi.CreateDesign(transform) : BroadcastUi.Mount(this);
             BroadcastUi.Backdrop(root);
             BroadcastUi.Wordmark(root, "Escolha a liga");
-            Header(root, "LIGAS", "Portugal, Inglaterra, França e Espanha. Cada país tem duas divisões.", () => GameRoot.Instance.Open(SceneNames.MainMenu));
+            Header(root, "LIGAS", "12 competições · 7 países · 244 clubes", () => GameRoot.Instance.Open(SceneNames.MainMenu));
 
             var scroll = BroadcastUi.Scroll(root, "Leagues", out var content);
             BroadcastUi.Place(scroll.GetComponent<RectTransform>(), 0.08f, 0.1f, 0.92f, 0.78f);
@@ -69,13 +86,12 @@ namespace CoachMaster.UI.Scenes
             for (var i = 0; i < leagues.Count; i++)
             {
                 var league = leagues[i];
-                session.PrepareLeague(league.Id);
                 var card = BroadcastUi.Panel(content, "League" + i, new Color(0.1f, 0.04f, 0.2f, 0.72f), true);
                 BroadcastUi.Preferred(card, 132);
-                var tier = league.Tier == LeagueTier.First ? "1ª DIVISÃO" : "2ª DIVISÃO";
+                var tier = TierLabel(league.Tier).ToUpperInvariant();
                 var badge = BroadcastUi.Label(card.transform, "Tier", tier, 14, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
                 BroadcastUi.Place(badge.rectTransform, 0.04f, 0.68f, 0.4f, 0.9f);
-                var count = BroadcastUi.Label(card.transform, "Count", CountClubs(session.Catalog, league.Id) + " clubes", 14, UiTheme.Muted, TextAnchor.MiddleRight);
+                var count = BroadcastUi.Label(card.transform, "Count", league.ClubCount + " clubes", 14, UiTheme.Muted, TextAnchor.MiddleRight);
                 BroadcastUi.Place(count.rectTransform, 0.55f, 0.68f, 0.72f, 0.9f);
                 var name = BroadcastUi.Label(card.transform, "Name", league.Name.ToUpperInvariant(), 28, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
                 BroadcastUi.Place(name.rectTransform, 0.04f, 0.34f, 0.7f, 0.68f);
@@ -97,12 +113,24 @@ namespace CoachMaster.UI.Scenes
             BroadcastUi.Place(hint.rectTransform, 0.08f, 0.008f, 0.8f, 0.05f);
         }
 
-        static int CountClubs(WorldState world, string leagueId)
+        static void SetCardText(Transform card, string childName, string value)
         {
-            var count = 0;
-            foreach (var club in world.ClubsInLeague(leagueId))
-                count++;
-            return count;
+            var child = card == null ? null : card.Find(childName);
+            var label = child == null ? null : child.GetComponent<Text>();
+            if (label != null)
+                label.text = value ?? "";
+        }
+
+        static string TierLabel(LeagueTier tier)
+        {
+            switch (tier)
+            {
+                case LeagueTier.First: return "1ª DIVISÃO";
+                case LeagueTier.Second: return "2ª DIVISÃO";
+                case LeagueTier.Third: return "3ª DIVISÃO";
+                case LeagueTier.Fourth: return "4ª DIVISÃO";
+                default: return "COMPETIÇÃO";
+            }
         }
 
         internal static void Header(Transform root, string title, string subtitle, UnityEngine.Events.UnityAction back)

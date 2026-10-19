@@ -1,0 +1,403 @@
+fileFormatVersion: 2
+guid: 1ecfc95a333f09d428b7f9c797015723
+TextureImporter:
+  internalIDToNameTable:
+  - first:
+      213: 3037747300948370499
+    second: asian-countries-flags-map_0
+  - first:
+      213: 8716800578117022142
+    second: asian-countries-flags-map_1
+  - first:
+      213: 238148192385688997
+    second: asian-countries-flags-map_2
+  - first:
+      213: 2511824207506591784
+    second: asian-countries-flags-map_3
+  - first:
+      213: 3632040571296047400
+    second: asian-countries-flags-map_4
+  - first:
+      213: 304677776922300716
+    second: asian-countries-flags-map_5
+  - first:
+      213: 1771704940127263096
+    second: asian-countries-flags-map_6
+  - first:
+      213: -1945219240994674211
+    second: asian-countries-flags-map_7
+  - first:
+      213: -7736764647166943806
+    second: asian-countries-flags-map_8
+  - first:
+      213: 6146654789682077540
+    second: asian-countries-flags-map_9
+  - first:
+      213: -6127071260446461439
+    second: asian-countries-flags-map_10
+  externalObjects: {}
+  serializedVersion: 13
+  mipmaps:
+    mipMapMode: 0
+    enableMipMap: 0
+    sRGBTexture: 1
+    linearTexture: 0
+    fadeOut: 0
+    borderMipMap: 0
+    mipMapsPreserveCoverage: 0
+    alphaTestReferenceValue: 0.5
+    mipMapFadeDistanceStart: 1
+    mipMapFadeDistanceEnd: 3
+  bumpmap:
+    convertToNormalMap: 0
+    externalNormalMap: 0
+    heightScale: 0.25
+    normalMapFilter: 0
+    flipGreenChannel: 0
+  isReadable: 0
+  streamingMipmaps: 0
+  streamingMipmapsPriority: 0
+  vTOnly: 0
+  ignoreMipmapLimit: 0
+  grayScaleToAlpha: 0
+  generateCubemap: 6
+  cubemapConvolution: 0
+  seamlessCubemap: 0
+  textureFormat: 1
+  maxTextureSize: 2048
+  textureSettings:
+    serializedVersion: 2
+    filterMode: 1
+    aniso: 1
+    mipBias: 0
+    wrapU: 1
+    wrapV: 1
+    wrapW: 1
+  nPOTScale: 0
+  lightmap: 0
+  compressionQuality: 50
+  spriteMode: 2
+  spriteExtrude: 1
+  spriteMeshType: 1
+  alignment: 0
+  spritePivot: {x: 0.5, y: 0.5}
+  spritePixelsToUnits: 100
+  spriteBorder: {x: 0, y: 0, z: 0, w: 0}
+  spriteGenerateFallbackPhysicsShape: 1
+  alphaUsage: 1
+  alphaIsTransparency: 1
+  spriteTessellationDetail: -1
+  textureType: 8
+  textureShape: 1
+  singleChannelComponent: 0
+  flipbookRows: 1
+  flipbookColumns: 1
+  maxTextureSizeSet: 0
+  compressionQualitySet: 0
+  textureFormatSet: 0
+  ignorePngGamma: 0
+  applyGammaDecoding: 0
+  swizzle: 50462976
+  cookieLightType: 0
+  platformSettings:
+  - serializedVersion: 4
+    buildTarget: DefaultTexturePlatform
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: Standalone
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  spriteSheet:
+    serializedVersion: 2
+    sprites:
+    - serializedVersion: 2
+      name: asian-countries-flags-map_0
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 389
+        width: 770
+        height: 637
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 344ed66531f382a20800000000000000
+      internalID: 3037747300948370499
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: asian-countries-flags-map_1
+      rect:
+        serializedVersion: 2
+        x: 785
+        y: 978
+        width: 15
+        height: 48
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: eb1b59431fb48f870800000000000000
+      internalID: 8716800578117022142
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: asian-countries-flags-map_2
+      rect:
+        serializedVersion: 2
+        x: 693
+        y: 719
+        width: 98
+        height: 147
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 5a5ec0be4821e4300800000000000000
+      internalID: 238148192385688997
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: asian-countries-flags-map_3
+      rect:
+        serializedVersion: 2
+        x: 782
+        y: 855
+        width: 18
+        height: 24
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 82058aafecacbd220800000000000000
+      internalID: 2511824207506591784
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: asian-countries-flags-map_4
+      rect:
+        serializedVersion: 2
+        x: 622
+        y: 387
+        width: 88
+        height: 43
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 82168edf7a9976230800000000000000
+      internalID: 3632040571296047400
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: asian-countries-flags-map_5
+      rect:
+        serializedVersion: 2
+        x: 717
+        y: 412
+        width: 83
+        height: 73
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: c21d868e2de6a3400800000000000000
+      internalID: 304677776922300716
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: asian-countries-flags-map_6
+      rect:
+        serializedVersion: 2
+        x: 683
+        y: 372
+        width: 17
+        height: 15
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 8791713914c569810800000000000000
+      internalID: 1771704940127263096
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: asian-countries-flags-map_7
+      rect:
+        serializedVersion: 2
+        x: 6
+        y: 12
+        width: 168
+        height: 350
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: dd9e14218613105e0800000000000000
+      internalID: -1945219240994674211
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: asian-countries-flags-map_8
+      rect:
+        serializedVersion: 2
+        x: 187
+        y: 12
+        width: 197
+        height: 350
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 2cd50d66b8d71a490800000000000000
+      internalID: -7736764647166943806
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: asian-countries-flags-map_9
+      rect:
+        serializedVersion: 2
+        x: 397
+        y: 12
+        width: 191
+        height: 350
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 46f14fff6fd4d4550800000000000000
+      internalID: 6146654789682077540
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: asian-countries-flags-map_10
+      rect:
+        serializedVersion: 2
+        x: 601
+        y: 228
+        width: 193
+        height: 134
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 1027597b62548faa0800000000000000
+      internalID: -6127071260446461439
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    outline: []
+    customData: 
+    physicsShape: []
+    bones: []
+    spriteID: 
+    internalID: 0
+    vertices: []
+    indices: 
+    edges: []
+    weights: []
+    secondaryTextures: []
+    spriteCustomMetadata:
+      entries: []
+    nameFileIdTable:
+      asian-countries-flags-map_0: 3037747300948370499
+      asian-countries-flags-map_1: 8716800578117022142
+      asian-countries-flags-map_10: -6127071260446461439
+      asian-countries-flags-map_2: 238148192385688997
+      asian-countries-flags-map_3: 2511824207506591784
+      asian-countries-flags-map_4: 3632040571296047400
+      asian-countries-flags-map_5: 304677776922300716
+      asian-countries-flags-map_6: 1771704940127263096
+      asian-countries-flags-map_7: -1945219240994674211
+      asian-countries-flags-map_8: -7736764647166943806
+      asian-countries-flags-map_9: 6146654789682077540
+  mipmapLimitGroupName: 
+  pSDRemoveMatte: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

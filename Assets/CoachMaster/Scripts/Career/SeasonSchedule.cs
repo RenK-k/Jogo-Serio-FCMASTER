@@ -163,6 +163,8 @@ namespace CoachMaster.Career
 
         public static void ApplyResult(CareerState career, Fixture fixture)
         {
+            if (career == null || fixture == null || fixture.Played)
+                return;
             fixture.Played = true;
             ApplyTeam(career, fixture.LeagueId, fixture.HomeClubId, fixture.HomeGoals, fixture.AwayGoals);
             ApplyTeam(career, fixture.LeagueId, fixture.AwayClubId, fixture.AwayGoals, fixture.HomeGoals);
@@ -232,11 +234,15 @@ namespace CoachMaster.Career
                     case "atlas": return "Liga Portugal";
                     case "horizonte": return "Liga Portugal 2";
                     case "inglesa": return "Premier League";
+                    case "inglesa-championship": return "Championship";
+                    case "inglesa-league-one": return "League One";
                     case "inglesa-2": return "League Two";
                     case "francesa": return "Ligue 1";
-                    case "francesa-2": return "Ligue 2";
+                    case "bundesliga": return "Bundesliga";
+                    case "eredivisie": return "Eredivisie";
+                    case "brasileira": return "Brasileirão Série A";
                     case "espanhola": return "LaLiga";
-                    case "espanhola-2": return "LaLiga Hyper";
+                    case "espanhola-2": return "LaLiga Hypermotion";
                     default: return domesticSlug.Replace('-', ' ');
                 }
             }
@@ -287,6 +293,8 @@ namespace CoachMaster.Career
         static void CloseSeason(CareerState career)
         {
             PublishAwards(career);
+            career.CompletedSeasons++;
+            CareerJobOffers.Generate(career);
             Promote(career);
             RestSquads(career);
             var next = NextSeasonStart(career);
@@ -295,6 +303,21 @@ namespace CoachMaster.Career
             Build(career);
             Newsroom.Publish(career, "Diário da Liga", "Arranca a época " + next.Year + "/" + (next.Year + 1),
                 "O calendário novo está fechado. Ligas, taças e Liga dos Campeões voltam a contar do zero. O plantel regressa de férias com as pernas mais leves.");
+        }
+
+        static void RecordSeasonTrophy(CareerState career, string competitionId, string title, string detail)
+        {
+            CareerMemories.Record(career, new FootballMemory
+            {
+                WhenTicks = career.Calendar.CurrentDate.Ticks,
+                Importance = 5,
+                Kind = "titulo",
+                ClubId = career.Coach.ClubId,
+                CompetitionId = competitionId,
+                Title = title,
+                Detail = detail
+            });
+            CareerNotificationQueue.Enqueue("CONQUISTA HISTÓRICA", title + ". Este título passa a fazer parte da história do clube.");
         }
 
         static void PublishAwards(CareerState career)
@@ -310,6 +333,8 @@ namespace CoachMaster.Career
                 var yours = rows[0].ClubId == career.Coach.ClubId ? " É o teu clube." : "";
                 Newsroom.Publish(career, "Diário da Liga", champ + " é campeão da " + league.Name,
                     champ + " fecha a " + league.Name + " com " + rows[0].Points + " pontos, " + rows[0].Won + " vitórias e " + rows[0].GoalsFor + " golos marcados." + yours);
+                if (rows[0].ClubId == career.Coach.ClubId)
+                    RecordSeasonTrophy(career, league.Id, "Campeão da " + league.Name, "A equipa terminou a liga em primeiro lugar com " + rows[0].Points + " pontos.");
             }
 
             var champs = Ranked(career, "league:campeoes");
@@ -318,6 +343,8 @@ namespace CoachMaster.Career
                 var name = ClubName(career, champs[0].ClubId);
                 Newsroom.Publish(career, "A Gazeta do Relvado", name + " levanta a Liga dos Campeões",
                     "A prova dos primeiros classificados de cada país fica em " + name + ", com " + champs[0].Points + " pontos.");
+                if (champs[0].ClubId == career.Coach.ClubId)
+                    RecordSeasonTrophy(career, "league:campeoes", "Campeão da Liga dos Campeões", "A equipa venceu a prova continental com " + champs[0].Points + " pontos.");
             }
 
             var cups = new List<string>();
@@ -337,6 +364,8 @@ namespace CoachMaster.Career
                 var name = ClubName(career, winner);
                 var yours = winner == career.Coach.ClubId ? " O teu clube fica com o troféu." : "";
                 Newsroom.Publish(career, "O Bancada", name + " vence a " + title, name + " leva a " + title + " nesta época." + yours);
+                if (winner == career.Coach.ClubId)
+                    RecordSeasonTrophy(career, cupId, "Vencedor da " + title, "A equipa conquistou a competição a eliminar " + title + ".");
             }
 
             var golden = Ballon(career, out var goals, out var average);
@@ -364,8 +393,9 @@ namespace CoachMaster.Career
         static void Promote(CareerState career)
         {
             SwapEnds(career, "league:atlas", "league:horizonte");
-            SwapEnds(career, "league:inglesa", "league:inglesa-2");
-            SwapEnds(career, "league:francesa", "league:francesa-2");
+            SwapEnds(career, "league:inglesa", "league:inglesa-championship");
+            SwapEnds(career, "league:inglesa-championship", "league:inglesa-league-one");
+            SwapEnds(career, "league:inglesa-league-one", "league:inglesa-2");
             SwapEnds(career, "league:espanhola", "league:espanhola-2");
         }
 
@@ -373,8 +403,9 @@ namespace CoachMaster.Career
         {
             var text = "";
             text += PairMove(career, "Liga Portugal", "league:atlas", "league:horizonte");
-            text += PairMove(career, "Inglaterra", "league:inglesa", "league:inglesa-2");
-            text += PairMove(career, "França", "league:francesa", "league:francesa-2");
+            text += PairMove(career, "Premier League / Championship", "league:inglesa", "league:inglesa-championship");
+            text += PairMove(career, "Championship / League One", "league:inglesa-championship", "league:inglesa-league-one");
+            text += PairMove(career, "League One / League Two", "league:inglesa-league-one", "league:inglesa-2");
             text += PairMove(career, "Espanha", "league:espanhola", "league:espanhola-2");
             return text.Trim();
         }

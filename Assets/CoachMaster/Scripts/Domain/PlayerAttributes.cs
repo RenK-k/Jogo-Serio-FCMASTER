@@ -136,11 +136,11 @@ namespace CoachMaster.Domain
             if (player == null)
                 return baseline;
 
-            var form = (player.Form - 60) * 0.035f;
-            var morale = (player.Morale - 60) * 0.025f;
-            var fitness = (player.Fitness - 80) * 0.025f;
-            var fatigue = player.Fatigue * 0.025f;
-            var training = ((player.TrainingRating <= 0 ? 70 : player.TrainingRating) - 70) * 0.04f;
+            var form = (player.Form - 60) * 0.07f;
+            var morale = (player.Morale - 60) * 0.06f;
+            var fitness = (player.Fitness - 80) * 0.035f;
+            var fatigue = player.Fatigue * 0.03f;
+            var training = ((player.TrainingRating <= 0 ? 70 : player.TrainingRating) - 70) * 0.05f;
             var change = UnityEngine.Mathf.Clamp(form + morale + fitness - fatigue + training, -4f, 4f);
             var positionPenalty = PlayerPositionProfile.Penalty(player, position);
             return UnityEngine.Mathf.Clamp(baseline + UnityEngine.Mathf.RoundToInt(change) + positionPenalty, 42, 94);
@@ -153,8 +153,8 @@ namespace CoachMaster.Domain
 
             var value = player.Attributes.Value(key);
             var training = ((player.TrainingRating <= 0 ? 70 : player.TrainingRating) - 70) / 30f;
-            var form = (player.Form - 60) / 40f;
-            var morale = (player.Morale - 60) / 40f;
+            var form = (player.Form - 60) / 12f;
+            var morale = (player.Morale - 60) / 12f;
             var physical = (player.Fitness - 80) / 30f - player.Fatigue / 40f;
             float change;
             switch (key)
@@ -168,10 +168,10 @@ namespace CoachMaster.Domain
                 case "Frieza":
                 case "Decisão":
                 case "Entrega":
-                    change = form * 0.75f + morale * 0.55f + training * 0.35f;
+                    change = form * 0.95f + morale * 0.8f + training * 0.35f;
                     break;
                 default:
-                    change = form * 0.65f + morale * 0.35f + training * 0.65f;
+                    change = form * 0.85f + morale * 0.65f + training * 0.65f;
                     break;
             }
 

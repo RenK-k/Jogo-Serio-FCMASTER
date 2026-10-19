@@ -71,6 +71,7 @@ namespace CoachMaster.UI.Scenes
         string _heard;
         bool _halfWhistle;
         bool _fullWhistle;
+        bool _matchFinalized;
         GameObject _tactics;
         GameObject _subsMenu;
         RectTransform _subPitch;
@@ -983,7 +984,7 @@ namespace CoachMaster.UI.Scenes
             BroadcastUi.Place(number.rectTransform, 0.04f, 0.04f, 0.96f, 0.96f);
             var faceGo = new GameObject("Face", typeof(RectTransform), typeof(Image));
             var face = faceGo.GetComponent<Image>();
-            face.sprite = FaceBook.For(player) ?? PortraitStudio.For(player.Id);
+            face.sprite = FaceBook.For(player);
             face.preserveAspect = true;
             face.raycastTarget = false;
             face.rectTransform.SetParent(card.transform, false);
@@ -1245,7 +1246,7 @@ namespace CoachMaster.UI.Scenes
                 faceRect.anchorMin = faceRect.anchorMax = anchor;
                 faceRect.sizeDelta = new Vector2(36, 36);
                 var face = faceGo.GetComponent<Image>();
-                face.sprite = player == null ? PortraitStudio.For("x" + i) : FaceBook.For(player) ?? PortraitStudio.For(player.Id);
+                face.sprite = player == null ? null : FaceBook.For(player);
                 face.preserveAspect = true;
                 face.raycastTarget = false;
                 var label = player == null ? (i + 1).ToString() : player.SquadNumber + "  " + BroadcastUi.ShortName(player.FullName);
@@ -1345,6 +1346,9 @@ namespace CoachMaster.UI.Scenes
                 var hit = BroadcastUi.Panel(_locker, "Voice" + slot, new Color(0.05f, 0.02f, 0.1f, 0.28f), true);
                 BroadcastUi.Place(hit.rectTransform, x0, 0.02f, x0 + 0.31f, 0.98f);
                 var button = hit.gameObject.AddComponent<Button>();
+                var navigation = button.navigation;
+                navigation.mode = Navigation.Mode.None;
+                button.navigation = navigation;
                 button.targetGraphic = hit;
                 button.onClick.AddListener(() => ChooseIdea(index));
                 var face = FaceImage(player);
@@ -1506,7 +1510,7 @@ namespace CoachMaster.UI.Scenes
         {
             var go = new GameObject("Face", typeof(RectTransform), typeof(Image));
             var image = go.GetComponent<Image>();
-            image.sprite = FaceBook.For(player) ?? PortraitStudio.For(player.Id);
+            image.sprite = FaceBook.For(player);
             image.preserveAspect = true;
             image.raycastTarget = false;
             return image;
@@ -1705,7 +1709,7 @@ namespace CoachMaster.UI.Scenes
             BroadcastUi.Place(number.rectTransform, 0.04f, 0.04f, 0.96f, 0.96f);
             var faceGo = new GameObject("Face", typeof(RectTransform), typeof(Image));
             var face = faceGo.GetComponent<Image>();
-            face.sprite = FaceBook.For(player) ?? PortraitStudio.For(player.Id);
+            face.sprite = FaceBook.For(player);
             face.preserveAspect = true;
             face.raycastTarget = false;
             face.rectTransform.SetParent(card.transform, false);
@@ -1818,6 +1822,9 @@ namespace CoachMaster.UI.Scenes
 
         void FinishMatch()
         {
+            if (_matchFinalized || _match == null || GameRoot.Instance == null || GameRoot.Instance.Session.Career == null)
+                return;
+            _matchFinalized = true;
             var career = GameRoot.Instance.Session.Career;
             RecoverBench(_match.HomeBench);
             RecoverBench(_match.AwayBench);
@@ -1828,6 +1835,7 @@ namespace CoachMaster.UI.Scenes
             SeasonSchedule.SimulateOthers(career, played.Date, played);
             var userHome = _match.Home.Id == career.Coach.ClubId;
             string motm = null;
+            string motmPlayerId = null;
             var best = -1f;
             foreach (var pair in _match.Ratings)
             {
@@ -1835,6 +1843,7 @@ namespace CoachMaster.UI.Scenes
                     continue;
                 best = pair.Value;
                 motm = _match.People[pair.Key].FullName;
+                motmPlayerId = pair.Key;
             }
             foreach (var note in _match.Notes)
             {
@@ -1842,8 +1851,11 @@ namespace CoachMaster.UI.Scenes
                     Newsroom.Publish(career, "A Gazeta do Relvado", note.Minute + "'  " + note.Text, "Aconteceu aos " + note.Minute + " minutos.\n\n" + note.Text);
             }
             CareerMoments.AfterMatch(career, _match.HomeGoals, _match.AwayGoals, userHome, _match.Home.ShortName, _match.Away.ShortName, motm, best < 0 ? null : best.ToString("0.0"));
+            CareerMemories.RecordMatch(career, _match, userHome, motmPlayerId);
+            CareerRelationships.ApplySelectionConsequences(career, _match, userHome);
             SeasonSchedule.RebuildTable(career);
             SeasonBook.CreditLive(career, _match);
+            SeasonBook.ReconcileCurrentSeason(career);
             CareerStore.Save(career);
             GameRoot.Instance.LiveMatch = null;
             GameRoot.Instance.Open(SceneNames.CareerHub);
@@ -1881,7 +1893,7 @@ namespace CoachMaster.UI.Scenes
                     _eventFace.gameObject.SetActive(person != null);
                     if (person != null)
                     {
-                        _eventFace.sprite = FaceBook.For(person) ?? PortraitStudio.For(person.Id);
+                        _eventFace.sprite = FaceBook.For(person);
                         _eventWho.text = person.SquadNumber + "   " + person.FullName;
                     }
                     else

@@ -8,13 +8,18 @@ namespace CoachMaster.UI
     public static class CrestStudio
     {
         static readonly Dictionary<string, Sprite> Cache = new Dictionary<string, Sprite>();
+        static Sprite Fallback;
 
         public static Sprite For(Club club)
         {
             if (club == null)
-                return Draw(club);
+            {
+                if (Fallback == null)
+                    Fallback = Draw(null);
+                return Fallback;
+            }
             WorldCatalog.PaintClub(club);
-            var key = club.Id + "|" + club.JerseyPrimaryHex + "|" + club.KitPattern;
+            var key = club.Id + "|" + club.ShortName + "|" + club.JerseyPrimaryHex + "|" + club.JerseySecondaryHex + "|" + club.JerseyShortsHex + "|" + club.KitPattern;
             if (Cache.TryGetValue(key, out var cached) && cached != null)
                 return cached;
 
@@ -25,74 +30,86 @@ namespace CoachMaster.UI
 
         static Sprite Draw(Club club)
         {
-            const int size = 96;
+            const int size = 128;
             var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
             tex.hideFlags = HideFlags.HideAndDontSave;
             var primary = club == null ? new Color(0.2f, 0.2f, 0.25f) : BroadcastUi.Parse(club.JerseyPrimaryHex, Color.white);
             var secondary = club == null ? Color.white : BroadcastUi.Parse(club.JerseySecondaryHex, Color.white);
+            var tertiary = club == null ? new Color(0.12f, 0.14f, 0.18f) : BroadcastUi.Parse(club.JerseyShortsHex, Color.black);
+            var style = Style(club);
+            var shape = style % 8;
+            var layout = style / 8;
+            var outline = Color.Lerp(primary, new Color(0.035f, 0.045f, 0.08f), 0.7f);
             var pixels = new Color[size * size];
             for (var y = 0; y < size; y++)
             {
                 for (var x = 0; x < size; x++)
                 {
-                    if (!Inside(club, x, y, size))
+                    var u = (x + 0.5f) / size;
+                    var v = (y + 0.5f) / size;
+                    if (!InsideShape(shape, u, v, 0f))
                     {
                         pixels[y * size + x] = Color.clear;
                         continue;
                     }
 
-                    var u = (x + 0.5f) / size;
-                    var v = (y + 0.5f) / size;
-                    var color = BadgeColor(club, u, v, x, y, primary, secondary);
-                    if (v > 0.78f)
-                        color = Color.Lerp(color, secondary, 0.85f);
+                    var color = outline;
+                    if (InsideShape(shape, u, v, 0.024f))
+                    {
+                        color = secondary;
+                        if (InsideShape(shape, u, v, 0.045f))
+                        {
+                            color = BadgeColor(club, u, v, x, y, primary, secondary);
+                            color = ApplyLayout(layout, u, v, color, secondary, tertiary);
+                        }
+                    }
                     pixels[y * size + x] = color;
                 }
             }
 
-            Stamp(pixels, size, Initials(club), Contrast(primary));
+            DrawMotif(pixels, size, layout, primary);
+            var ink = Contrast(primary);
+            Stamp(pixels, size, Initials(club), 51, Color.Lerp(ink, Color.black, 0.5f));
+            Stamp(pixels, size, Initials(club), 53, ink);
             tex.SetPixels(pixels);
             tex.Apply();
             tex.filterMode = FilterMode.Bilinear;
-            var sprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 96f);
+            var sprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 128f);
             sprite.hideFlags = HideFlags.HideAndDontSave;
             return sprite;
         }
 
-        static bool Inside(Club club, int x, int y, int size)
+        static bool InsideShape(int shape, float nx, float ny, float inset)
         {
-            var nx = (x + 0.5f) / size;
-            var ny = (y + 0.5f) / size;
             var dx = Mathf.Abs(nx - 0.5f);
-            var shape = Shape(club);
             switch (shape)
             {
                 case 0: // Shield
-                    if (ny > 0.24f)
-                        return dx < 0.34f && ny < 0.9f;
-                    return ny > 0.24f - (0.34f - dx) * 0.7f && dx < 0.34f;
+                    if (ny > 0.24f + inset)
+                        return dx < 0.34f - inset && ny < 0.9f - inset;
+                    return ny > 0.24f + inset - (0.34f - inset - dx) * 0.7f && dx < 0.34f - inset;
                 case 1: // Roundel
-                    return (nx - 0.5f) * (nx - 0.5f) + (ny - 0.5f) * (ny - 0.5f) < 0.19f;
+                    return (nx - 0.5f) * (nx - 0.5f) + (ny - 0.5f) * (ny - 0.5f) < (0.44f - inset) * (0.44f - inset);
                 case 2: // Diamond
-                    return dx / 0.38f + Mathf.Abs(ny - 0.5f) / 0.46f < 1f;
+                    return dx / (0.38f - inset) + Mathf.Abs(ny - 0.5f) / (0.46f - inset) < 1f;
                 case 3: // Cut-corner crest
-                    return nx > 0.16f && nx < 0.84f && ny > 0.12f && ny < 0.9f && !(dx > 0.27f && ny < 0.24f);
+                    return nx > 0.16f + inset && nx < 0.84f - inset && ny > 0.12f + inset && ny < 0.9f - inset && !(dx > 0.27f - inset && ny < 0.24f + inset);
                 case 4: // Tall hexagon
-                    return ny > 0.1f && ny < 0.9f && dx < (ny < 0.26f ? 0.22f + (ny - 0.1f) * 1.35f : ny > 0.74f ? 0.22f + (0.9f - ny) * 1.35f : 0.34f);
+                    return ny > 0.1f + inset && ny < 0.9f - inset && dx < (ny < 0.26f ? 0.22f + (ny - 0.1f) * 1.35f - inset : ny > 0.74f ? 0.22f + (0.9f - ny) * 1.35f - inset : 0.34f - inset);
                 case 5: // Pointed base with arched shoulders
                     if (ny > 0.52f)
-                        return dx < 0.32f && ny < 0.9f;
-                    return dx < 0.32f && ny > 0.08f + dx * 0.42f;
+                        return dx < 0.32f - inset && ny < 0.9f - inset;
+                    return dx < 0.32f - inset && ny > 0.08f + inset + dx * 0.42f;
                 case 6: // Broad, flat-bottom badge
-                    return nx > 0.14f && nx < 0.86f && ny > 0.1f && ny < 0.88f && !(ny > 0.74f && dx > 0.22f && (ny - 0.74f) > (0.36f - dx) * 1.6f);
+                    return nx > 0.14f + inset && nx < 0.86f - inset && ny > 0.1f + inset && ny < 0.88f - inset && !(ny > 0.74f - inset && dx > 0.22f - inset && (ny - 0.74f + inset) > (0.36f - dx - inset) * 1.6f);
                 default: // Narrow pentagon
-                    if (ny > 0.28f)
-                        return dx < 0.3f && ny < 0.91f;
-                    return ny > 0.1f + dx * 0.55f && dx < 0.3f;
+                    if (ny > 0.28f + inset)
+                        return dx < 0.3f - inset && ny < 0.91f - inset;
+                    return ny > 0.1f + inset + dx * 0.55f && dx < 0.3f - inset;
             }
         }
 
-        static int Shape(Club club)
+        static int Style(Club club)
         {
             if (club == null || string.IsNullOrEmpty(club.Id))
                 return 0;
@@ -101,16 +118,87 @@ namespace CoachMaster.UI
                 var hash = 17;
                 foreach (var c in club.Id)
                     hash = hash * 31 + c;
-                return (hash & 0x7fffffff) % 8;
+                return (hash & 0x7fffffff) % 64;
             }
         }
 
-        static void Stamp(Color[] pixels, int size, string letters, Color ink)
+        static Color ApplyLayout(int layout, float u, float v, Color field, Color secondary, Color tertiary)
+        {
+            switch (layout)
+            {
+                case 0: return v > 0.59f && v < 0.65f ? secondary : field;
+                case 1: return Mathf.Abs(u - 0.5f) < 0.065f ? secondary : field;
+                case 2: return Mathf.Abs((u - 0.18f) - (1f - v)) < 0.055f ? secondary : field;
+                case 3: return v > 0.57f ? tertiary : field;
+                case 4: return v > 0.43f && v < 0.55f ? secondary : field;
+                case 5: return v < 0.28f ? tertiary : field;
+                case 6: return Mathf.Abs((u - 0.5f) + (v - 0.5f) * 0.68f) < 0.055f ? secondary : field;
+                default: return v < 0.34f && Mathf.Abs(u - 0.5f) < (0.42f - v) * 0.55f ? secondary : field;
+            }
+        }
+
+        static void DrawMotif(Color[] pixels, int size, int layout, Color primary)
+        {
+            var ink = Contrast(primary);
+            for (var y = (int)(size * 0.66f); y < (int)(size * 0.83f); y++)
+            {
+                for (var x = (int)(size * 0.31f); x < (int)(size * 0.69f); x++)
+                {
+                    var u = (x + 0.5f) / size;
+                    var v = (y + 0.5f) / size;
+                    var dx = u - 0.5f;
+                    var dy = v - 0.745f;
+                    var radius = Mathf.Sqrt(dx * dx + dy * dy);
+                    var draw = false;
+                    switch (layout)
+                    {
+                        case 0:
+                        case 7:
+                            draw = InStar(u, v, 0.5f, 0.745f, 0.085f);
+                            break;
+                        case 1:
+                            draw = radius < 0.078f && (Mathf.Abs(dx) < 0.008f || Mathf.Abs(dy) < 0.008f || Mathf.Abs(Mathf.Abs(dx) - Mathf.Abs(dy)) < 0.009f);
+                            break;
+                        case 2:
+                            draw = InStar(u, v, 0.39f, 0.745f, 0.045f) || InStar(u, v, 0.5f, 0.745f, 0.055f) || InStar(u, v, 0.61f, 0.745f, 0.045f);
+                            break;
+                        case 3:
+                            draw = v > 0.70f && v < 0.78f && (Mathf.Abs(dx) < 0.11f) && (v < 0.735f || Mathf.Abs(dx) > 0.045f);
+                            break;
+                        case 4:
+                            draw = Mathf.Abs(dx) + Mathf.Abs(dy) < 0.085f && radius > 0.018f;
+                            break;
+                        case 5:
+                            draw = Mathf.Abs(dx) < 0.042f && v > 0.70f && v < 0.80f || Mathf.Abs(dx) < (0.80f - v) * 0.55f && v >= 0.78f && v < 0.81f;
+                            break;
+                        case 6:
+                            draw = radius < 0.078f && radius > 0.058f;
+                            break;
+                    }
+
+                    if (draw)
+                        Plot(pixels, size, x, y, ink);
+                }
+            }
+
+        }
+
+        static bool InStar(float x, float y, float cx, float cy, float outer)
+        {
+            var dx = x - cx;
+            var dy = y - cy;
+            var angle = Mathf.Atan2(dy, dx);
+            var radius = Mathf.Sqrt(dx * dx + dy * dy);
+            var edge = outer * (0.62f + 0.38f * Mathf.Cos(5f * angle));
+            return radius <= edge;
+        }
+
+        static void Stamp(Color[] pixels, int size, string letters, int y, Color ink)
         {
             var text = string.IsNullOrEmpty(letters) ? "?" : letters;
             var start = size / 2 - text.Length * 7;
             for (var i = 0; i < text.Length; i++)
-                Glyph(pixels, size, start + i * 14, 40, text[i], ink);
+                Glyph(pixels, size, start + i * 14, y, text[i], ink);
         }
 
         static void Glyph(Color[] pixels, int size, int ox, int oy, char letter, Color ink)

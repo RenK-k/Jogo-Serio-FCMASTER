@@ -4,7 +4,9 @@ namespace CoachMaster.Domain
     {
         First = 1,
         Second = 2,
-        Continental = 3
+        Third = 3,
+        Fourth = 4,
+        Continental = 5
     }
 
     public enum PlayerPosition

@@ -317,7 +317,7 @@ namespace CoachMaster.UI.Scenes
                 {
                     AddSocialAuthor(row.transform, note, false);
                 }
-                var tag = social ? "PUBLICAÇÃO" : note.Channel == "jogador" ? "JOGADOR" : note.Channel == "clube" ? "CLUBE" : note.Channel == "staff" ? "STAFF" : note.Channel == "jornal" ? "JORNAL" : "AGENDA";
+                var tag = social ? "PUBLICAÇÃO" : note.ReplyGroup == "job-offer" ? "PROPOSTA" : note.Channel == "jogador" ? "JOGADOR" : note.Channel == "clube" ? "CLUBE" : note.Channel == "staff" ? "STAFF" : note.Channel == "jornal" ? "JORNAL" : "AGENDA";
                 if (!social)
                 {
                     var who = BroadcastUi.Label(row.transform, "Who", note.Who, 15, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
@@ -481,6 +481,20 @@ namespace CoachMaster.UI.Scenes
 
         void AddClubReplies(PhoneNote note, string key)
         {
+            if (note.ReplyGroup == "job-offer")
+            {
+                var offer = FindJobOffer(note.ClubId);
+                if (offer == null)
+                {
+                    AddPhoneLine("Esta proposta já não está disponível.");
+                    return;
+                }
+
+                AddPhoneChoice("ACEITAR  ·  assumir o clube", () => AcceptJobOffer(offer));
+                AddPhoneChoice("RECUSAR proposta", () => DeclineJobOffer(offer, key));
+                return;
+            }
+
             var isFixtureMessage = note.ReplyGroup == "fixture"
                 || note.Text.IndexOf("jogamos a ", System.StringComparison.OrdinalIgnoreCase) >= 0
                 || note.Text.IndexOf("próximo jogo é nosso", System.StringComparison.OrdinalIgnoreCase) >= 0;
@@ -555,6 +569,33 @@ namespace CoachMaster.UI.Scenes
             AddPhoneLine(line);
         }
 
+        CareerJobOffer FindJobOffer(string clubId)
+        {
+            foreach (var offer in _career.JobOffers)
+            {
+                if (!offer.Resolved && offer.ClubId == clubId)
+                    return offer;
+            }
+            return null;
+        }
+
+        void AcceptJobOffer(CareerJobOffer offer)
+        {
+            if (!CareerJobOffers.Accept(_career, offer))
+                return;
+            CareerStore.Save(_career);
+            GameRoot.Instance.Open(SceneNames.CareerHub);
+        }
+
+        void DeclineJobOffer(CareerJobOffer offer, string key)
+        {
+            CareerJobOffers.Decline(_career, offer);
+            _phoneAnswered.Add(key);
+            CareerStore.Save(_career);
+            ClosePhoneChoices();
+            AddPhoneLine("Recusaste a proposta. As outras continuam disponíveis.");
+        }
+
         void ClosePhoneChoices()
         {
             if (_phoneList == null)
@@ -570,6 +611,13 @@ namespace CoachMaster.UI.Scenes
         List<PhoneNote> PhoneNotes()
         {
             var list = new List<PhoneNote>();
+            foreach (var offer in _career.JobOffers)
+            {
+                if (offer.Resolved || !_career.World.Clubs.TryGetValue(offer.ClubId ?? "", out var hiringClub))
+                    continue;
+                list.Add(new PhoneNote(hiringClub.Name, offer.Reason, "clube", null, hiringClub.Id, "job-offer"));
+            }
+
             var club = _career.Club;
             var squad = new List<Player>();
             foreach (var id in club.PlayerIds)
@@ -1567,8 +1615,13 @@ namespace CoachMaster.UI.Scenes
             var cost = MarketValue(player);
             if (_career.Club.Finance != null && _career.Club.Finance.TransferBudget < cost)
                 return;
-            if (_career.World.Clubs.TryGetValue(player.ClubId, out var from))
+            var previousClubId = player.ClubId;
+            var previousClubName = "mercado de jogadores";
+            if (_career.World.Clubs.TryGetValue(previousClubId ?? "", out var from))
+            {
+                previousClubName = from.Name;
                 from.PlayerIds.Remove(player.Id);
+            }
             player.ClubId = _career.Club.Id;
             if (!_career.Club.PlayerIds.Contains(player.Id))
                 _career.Club.PlayerIds.Add(player.Id);
@@ -1577,6 +1630,19 @@ namespace CoachMaster.UI.Scenes
             _career.Listed.Remove(player.Id);
             _career.Targets.Remove(player.Id);
             _career.ScoutedPlayers.Remove(player.Id);
+            CareerMemories.Record(_career, new FootballMemory
+            {
+                WhenTicks = _career.Calendar.CurrentDate.Ticks,
+                Importance = 3,
+                Kind = "contratacao",
+                ClubId = _career.Club.Id,
+                RelatedClubId = previousClubId,
+                PlayerId = player.Id,
+                Title = "Novo reforço: " + player.FullName,
+                Detail = player.FullName + " chegou ao " + _career.Club.Name + " vindo de " + previousClubName + "."
+            });
+            CareerNotificationQueue.Enqueue("REFORÇO CONFIRMADO", player.FullName + " juntou-se ao " + _career.Club.Name + ". A contratação fica registada na história do clube.");
+            CareerStore.Save(_career);
             FillMarket();
         }
 
@@ -1823,6 +1889,7 @@ namespace CoachMaster.UI.Scenes
         void Answer(int choice)
         {
             CareerMoments.Answer(_career, choice);
+            CareerStore.Save(_career);
             Refresh();
         }
 
@@ -1861,7 +1928,7 @@ namespace CoachMaster.UI.Scenes
             {
                 _homeFace.gameObject.SetActive(facePlayer != null);
                 if (facePlayer != null)
-                    _homeFace.sprite = FaceBook.For(facePlayer) ?? PortraitStudio.For(facePlayer.Id);
+                    _homeFace.sprite = FaceBook.For(facePlayer);
             }
             BroadcastUi.Place(_homeTitle.rectTransform, facePlayer == null ? 0.04f : 0.16f, 0.86f, 0.96f, 0.97f);
             var body = moment == null ? "A época ficou em silêncio." : moment.Body;
@@ -1919,52 +1986,21 @@ namespace CoachMaster.UI.Scenes
         {
             SeasonSchedule.RebuildTable(_career);
             Clear(_tableContent);
-            var families = new List<string>();
-            var mine = FamilyOf(_career.Club.LeagueId);
-            families.Add(mine);
-            foreach (var id in new[] { "atlas", "inglesa", "francesa", "espanhola" })
+            const int columns = 4;
+            var leagues = _career.World.Leagues;
+            var rows = Mathf.CeilToInt(leagues.Count / (float)columns);
+            var width = 0.99f / columns;
+            var height = 0.96f / rows;
+            for (var i = 0; i < leagues.Count; i++)
             {
-                if (id != mine)
-                    families.Add(id);
+                var x = i % columns;
+                var y = i / columns;
+                var x0 = x * width;
+                var y1 = 0.99f - y * height;
+                var y0 = y1 - height + 0.006f;
+                var cell = BroadcastUi.Zone(_tableContent, "LeagueCell" + i, x0, y0, x0 + width - 0.006f, y1);
+                TableCard(cell, leagues[i].Id, 0.02f, 0.98f);
             }
-
-            families.Add("campeoes");
-            var width = 0.99f / families.Count;
-            for (var i = 0; i < families.Count; i++)
-            {
-                var x0 = i * width;
-                var col = BroadcastUi.Zone(_tableContent, "Col" + i, x0, 0f, x0 + width - 0.006f, 1f);
-                if (families[i] == "campeoes")
-                {
-                    TableCard(col, "league:campeoes", 0.02f, 0.98f);
-                    continue;
-                }
-
-                TableCard(col, LeagueKey(families[i], true), 0.51f, 0.98f);
-                TableCard(col, LeagueKey(families[i], false), 0.02f, 0.48f);
-            }
-        }
-
-        static string FamilyOf(string leagueId)
-        {
-            if (string.IsNullOrEmpty(leagueId))
-                return "atlas";
-            if (leagueId.Contains("inglesa"))
-                return "inglesa";
-            if (leagueId.Contains("francesa"))
-                return "francesa";
-            if (leagueId.Contains("espanhola"))
-                return "espanhola";
-            if (leagueId.Contains("campeoes"))
-                return "campeoes";
-            return "atlas";
-        }
-
-        static string LeagueKey(string family, bool first)
-        {
-            if (family == "atlas")
-                return first ? "league:atlas" : "league:horizonte";
-            return first ? "league:" + family : "league:" + family + "-2";
         }
 
         void TableCard(Transform parent, string leagueId, float y0, float y1)
@@ -2549,12 +2585,21 @@ namespace CoachMaster.UI.Scenes
                 card.rectTransform.sizeDelta = new Vector2(count > 4 ? 200 : 240, 200);
                 var captured = member;
                 BroadcastUi.Hit(card, () => OpenStaff(captured));
-                var name = BroadcastUi.Label(card.transform, "Name", member.FullName.ToUpperInvariant(), 18, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
-                BroadcastUi.Place(name.rectTransform, 0.06f, 0.52f, 0.94f, 0.88f);
-                var role = BroadcastUi.Label(card.transform, "Role", PresentationLabels.StaffRole(member.Role), 14, UiTheme.Accent, TextAnchor.MiddleCenter);
-                BroadcastUi.Place(role.rectTransform, 0.06f, 0.34f, 0.94f, 0.52f);
-                var read = BroadcastUi.Label(card.transform, "Read", StaffReport.Quality(member), 14, UiTheme.Muted, TextAnchor.UpperCenter);
-                BroadcastUi.Place(read.rectTransform, 0.08f, 0.08f, 0.92f, 0.34f);
+                var portraitObject = new GameObject("Portrait", typeof(RectTransform), typeof(Image));
+                var portraitRect = portraitObject.GetComponent<RectTransform>();
+                portraitRect.SetParent(card.transform, false);
+                BroadcastUi.Place(portraitRect, 0.04f, 0.52f, 0.31f, 0.95f);
+                var portrait = portraitObject.GetComponent<Image>();
+                portrait.sprite = FaceBook.For(member);
+                portrait.preserveAspect = true;
+                portrait.raycastTarget = false;
+
+                var name = BroadcastUi.Label(card.transform, "Name", member.FullName.ToUpperInvariant(), 15, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+                BroadcastUi.Place(name.rectTransform, 0.32f, 0.62f, 0.97f, 0.93f);
+                var role = BroadcastUi.Label(card.transform, "Role", PresentationLabels.StaffRole(member.Role), 12, UiTheme.Accent, TextAnchor.MiddleCenter);
+                BroadcastUi.Place(role.rectTransform, 0.31f, 0.43f, 0.97f, 0.62f);
+                var read = BroadcastUi.Label(card.transform, "Read", StaffReport.Quality(member), 12, UiTheme.Muted, TextAnchor.UpperCenter);
+                BroadcastUi.Place(read.rectTransform, 0.08f, 0.08f, 0.92f, 0.37f);
             }
 
             if (_vibe != null)
@@ -2771,7 +2816,7 @@ namespace CoachMaster.UI.Scenes
                     faceRect.anchorMax = center + size * 0.5f;
                 }
                 var image = face.GetComponent<Image>();
-                image.sprite = FaceBook.For(player) ?? PortraitStudio.For(player.Id);
+                image.sprite = FaceBook.For(player);
                 image.preserveAspect = true;
             }
 
@@ -3315,7 +3360,7 @@ namespace CoachMaster.UI.Scenes
             BroadcastUi.Place(radarRect, 0.13f, 0.1f, 0.87f, 0.84f);
             RadarLabel(radarPanel.transform, "AttackAxis", "ATAQUE", 0.34f, 0.82f, 0.66f, 0.96f);
             RadarLabel(radarPanel.transform, "TechniqueAxis", "TÉCNICA", 0.68f, 0.62f, 0.99f, 0.76f);
-            RadarLabel(radarPanel.transform, "MentalAxis", "MENTAL", 0.35f, 0.015f, 0.65f, 0.14f);
+            RadarLabel(radarPanel.transform, "MentalAxis", "MENTAL", 0.68f, 0.17f, 0.99f, 0.31f);
             RadarLabel(radarPanel.transform, "DefenceAxis", "DEFESA", 0.005f, 0.21f, 0.29f, 0.36f);
             RadarLabel(radarPanel.transform, "PhysicalAxis", "FÍSICO", 0.005f, 0.62f, 0.29f, 0.76f);
             var scores = PlayerRadarScores(player, current);
@@ -4587,7 +4632,7 @@ namespace CoachMaster.UI.Scenes
             rect.pivot = new Vector2(0.5f, 0.5f);
             rect.sizeDelta = new Vector2(size, size);
             var image = go.GetComponent<Image>();
-            image.sprite = FaceBook.For(player) ?? PortraitStudio.For(player == null ? "anon" : player.Id);
+            image.sprite = FaceBook.For(player);
             image.preserveAspect = true;
             image.raycastTarget = false;
             return image;

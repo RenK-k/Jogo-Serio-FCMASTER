@@ -20,15 +20,20 @@ namespace CoachMaster.UI.Screens
             splitLe.flexibleHeight = 1;
             splitLe.minHeight = 220;
 
-            var kitColumn = UiFactory.Column(split.transform, "KitColumn", 10, new RectOffset(0, 0, 0, 0), false, true);
-            var kitColLe = kitColumn.gameObject.AddComponent<LayoutElement>();
-            kitColLe.minWidth = 220;
-            kitColLe.preferredWidth = 240;
-            kitColLe.flexibleWidth = 0;
-            var kit = KitView.Create(kitColumn.transform, club, new Vector2(220, 280));
-            UiFactory.LayoutElement(kit, 280);
-            var kitName = UiFactory.Label(kitColumn.transform, "KitName", "EQUIPAMENTO PRINCIPAL", 13, UiTheme.Accent, TextAnchor.MiddleCenter, FontStyle.Bold);
-            UiFactory.LayoutElement(kitName, 20);
+            var badgeColumn = UiFactory.Column(split.transform, "BadgeColumn", 10, new RectOffset(0, 0, 0, 0), false, true);
+            var badgeColumnLe = badgeColumn.gameObject.AddComponent<LayoutElement>();
+            badgeColumnLe.minWidth = 150;
+            badgeColumnLe.preferredWidth = 180;
+            badgeColumnLe.flexibleWidth = 0;
+            var badgeGo = new GameObject("ClubBadge", typeof(RectTransform), typeof(Image));
+            badgeGo.transform.SetParent(badgeColumn.transform, false);
+            var badge = badgeGo.GetComponent<Image>();
+            badge.sprite = CrestStudio.For(club);
+            badge.preserveAspect = true;
+            badge.raycastTarget = false;
+            var badgeLe = badgeGo.AddComponent<LayoutElement>();
+            badgeLe.minHeight = 160;
+            badgeLe.preferredHeight = 200;
 
             var scroll = UiFactory.Scroll(split.transform, out var content);
             var scrollLe = scroll.gameObject.AddComponent<LayoutElement>();

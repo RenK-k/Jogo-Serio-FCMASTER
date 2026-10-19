@@ -20,11 +20,18 @@ namespace CoachMaster.UI.Screens
             var header = UiFactory.Panel(page.transform, "Header", UiTheme.Header);
             UiFactory.LayoutElement(header.GetComponent<Image>(), 100);
             var headerRow = UiFactory.Row(header, "HeaderRow", 16, new RectOffset(16, 24, 10, 10), true);
-            var kit = KitView.Create(headerRow.transform, club, new Vector2(64, 80));
-            var kitLe = kit.gameObject.AddComponent<LayoutElement>();
-            kitLe.minWidth = 64;
-            kitLe.preferredWidth = 64;
-            kitLe.flexibleWidth = 0;
+            var badgeGo = new GameObject("ClubBadge", typeof(RectTransform), typeof(Image));
+            badgeGo.transform.SetParent(headerRow.transform, false);
+            var badge = badgeGo.GetComponent<Image>();
+            badge.sprite = CrestStudio.For(club);
+            badge.preserveAspect = true;
+            badge.raycastTarget = false;
+            var badgeLe = badgeGo.AddComponent<LayoutElement>();
+            badgeLe.minWidth = 64;
+            badgeLe.preferredWidth = 64;
+            badgeLe.minHeight = 64;
+            badgeLe.preferredHeight = 64;
+            badgeLe.flexibleWidth = 0;
             var headerColumn = UiFactory.Column(headerRow.transform, "HeaderContent", 4, new RectOffset(0, 0, 8, 8), false, true);
             var headerColLe = headerColumn.gameObject.AddComponent<LayoutElement>();
             headerColLe.flexibleWidth = 1;
@@ -207,11 +214,27 @@ namespace CoachMaster.UI.Screens
         {
             var card = UiFactory.Panel(parent, "Staff_" + member.Id, UiTheme.PanelAlt);
             UiFactory.LayoutElement(card.GetComponent<Image>(), height);
-            var column = UiFactory.Column(card, "StaffContent", 4, new RectOffset(16, 16, 10, 10), true, true);
-            var heading = UiFactory.Label(column.transform, "NameRole", $"{member.FullName}  ·  {PresentationLabels.StaffRole(member.Role)}", 17, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            var row = UiFactory.Row(card.transform, "StaffRow", 12, new RectOffset(12, 12, 8, 8), true);
+            var portraitObject = new GameObject("Portrait", typeof(RectTransform), typeof(Image), typeof(LayoutElement));
+            var portraitRect = portraitObject.GetComponent<RectTransform>();
+            portraitRect.SetParent(row.transform, false);
+            var portrait = portraitObject.GetComponent<Image>();
+            portrait.sprite = FaceBook.For(member);
+            portrait.preserveAspect = true;
+            portrait.raycastTarget = false;
+            var portraitLayout = portraitObject.GetComponent<LayoutElement>();
+            portraitLayout.preferredWidth = height - 24;
+            portraitLayout.minWidth = height - 24;
+            portraitLayout.preferredHeight = height - 24;
+
+            var column = UiFactory.Column(row.transform, "StaffContent", 2, new RectOffset(0, 0, 0, 0), true, true);
+            var contentLayout = column.gameObject.AddComponent<LayoutElement>();
+            contentLayout.flexibleWidth = 1;
+            contentLayout.minWidth = 100;
+            var heading = UiFactory.Label(column.transform, "NameRole", $"{member.FullName}  ·  {PresentationLabels.StaffRole(member.Role)}", 15, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
             UiFactory.LayoutElement(heading, 24);
-            var quote = UiFactory.Label(column.transform, "Comment", $"“{StaffComment(member.Role)}”", 15, UiTheme.Text, TextAnchor.UpperLeft);
-            UiFactory.LayoutElement(quote, height - 38);
+            var quote = UiFactory.Label(column.transform, "Comment", $"“{StaffComment(member.Role)}”", 14, UiTheme.Text, TextAnchor.UpperLeft);
+            UiFactory.LayoutElement(quote, height - 44);
         }
 
         static string StaffComment(StaffRole role)

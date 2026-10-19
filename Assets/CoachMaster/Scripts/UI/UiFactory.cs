@@ -69,6 +69,9 @@ namespace CoachMaster.UI
             rect.SetParent(parent, false);
             go.GetComponent<Image>().color = color;
             var button = go.GetComponent<Button>();
+            var navigation = button.navigation;
+            navigation.mode = Navigation.Mode.None;
+            button.navigation = navigation;
             var colors = button.colors;
             colors.highlightedColor = Color.Lerp(color, Color.white, 0.12f);
             colors.pressedColor = Color.Lerp(color, Color.black, 0.18f);

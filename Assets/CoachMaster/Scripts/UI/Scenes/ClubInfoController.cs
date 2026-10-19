@@ -62,7 +62,7 @@ namespace CoachMaster.UI.Scenes
                 crest.sprite = CrestStudio.For(club);
             var kit = SceneBind.Get<Image>(root, "KitCard/Kit");
             if (kit != null)
-                KitView.Apply(kit, club);
+                kit.gameObject.SetActive(false);
             var heading = SceneBind.Get<Text>(root, "Plantel/Title");
             if (heading != null)
                 heading.text = "PLANTEL  ·  " + club.Tactics.Formation;
@@ -97,15 +97,6 @@ namespace CoachMaster.UI.Scenes
             crest.preserveAspect = true;
             crest.raycastTarget = false;
             crest.sprite = CrestStudio.For(club);
-            var kitGo = new GameObject("Kit", typeof(RectTransform), typeof(Image));
-            var kitRect = kitGo.GetComponent<RectTransform>();
-            kitRect.SetParent(kitCard.transform, false);
-            BroadcastUi.Place(kitRect, 0.18f, 0.08f, 0.82f, 0.5f);
-            var kit = kitGo.GetComponent<Image>();
-            kit.preserveAspect = true;
-            kit.raycastTarget = false;
-            KitView.Apply(kit, club);
-
             Card(root, "Historia", 0.26f, 0.16f, 0.52f, 0.78f, "HISTÓRIA", History(club));
             var pitch = BroadcastUi.Panel(root, "Plantel", new Color(0.08f, 0.03f, 0.16f, 0.55f));
             BroadcastUi.Place(pitch.rectTransform, 0.54f, 0.16f, 0.97f, 0.78f);
@@ -154,7 +145,7 @@ namespace CoachMaster.UI.Scenes
                     faceRect.anchorMin = faceRect.anchorMax = new Vector2(0.5f, 0.68f);
                     faceRect.sizeDelta = new Vector2(40, 40);
                     var face = faceGo.GetComponent<Image>();
-                    face.sprite = FaceBook.For(player) ?? PortraitStudio.For(player.Id);
+                    face.sprite = FaceBook.For(player);
                     face.preserveAspect = true;
                     face.raycastTarget = false;
                     var number = BroadcastUi.Label(card.transform, "Number", player.SquadNumber.ToString(), 12, UiTheme.Score, TextAnchor.MiddleLeft, FontStyle.Bold);

@@ -25,6 +25,11 @@ namespace CoachMaster.Career
         public List<PlayerNote> PlayerNotes { get; } = new List<PlayerNote>();
         public List<SeasonLine> Season { get; } = new List<SeasonLine>();
         public List<SeasonLine> CareerTotals { get; } = new List<SeasonLine>();
+        public int CompletedSeasons { get; set; }
+        public List<CareerJobOffer> JobOffers { get; } = new List<CareerJobOffer>();
+        public List<FootballMemory> Memories { get; } = new List<FootballMemory>();
+        public int SupporterApproval { get; set; } = 55;
+        public Dictionary<string, int> ManagerTrust { get; } = new Dictionary<string, int>();
 
         public Fixture NextUserFixture()
         {
@@ -69,5 +74,14 @@ namespace CoachMaster.Career
     {
         public string PlayerId { get; set; }
         public long Due { get; set; }
+    }
+
+    public sealed class CareerJobOffer
+    {
+        public string ClubId { get; set; }
+        public long ReceivedAtTicks { get; set; }
+        public string Reason { get; set; }
+        public bool Resolved { get; set; }
+        public bool Accepted { get; set; }
     }
 }

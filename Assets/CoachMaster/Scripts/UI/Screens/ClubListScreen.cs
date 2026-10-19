@@ -12,7 +12,7 @@ namespace CoachMaster.UI.Screens
             UiFactory.FullScreen(Root.transform, "Bg", UiTheme.Canvas);
             var league = FindLeague(router);
             router.Session.PrepareLeague(league.Id);
-            ScreenChrome.Page(Root.transform, "Selecionar clube", $"{league.Name}  ·  escolhe o clube e vê a camisola no menu.", () => router.Show("leagues"), out var body);
+            ScreenChrome.Page(Root.transform, "Selecionar clube", $"{league.Name}  ·  escolhe o clube e vê o seu emblema.", () => router.Show("leagues"), out var body);
 
             var scroll = UiFactory.Scroll(body.transform, out var content);
             var scrollLe = scroll.gameObject.AddComponent<LayoutElement>();
@@ -27,8 +27,8 @@ namespace CoachMaster.UI.Screens
 
             var hint = UiFactory.Label(
                 body.transform,
-                "KitHint",
-                "Cada clube traz a camisola da época.",
+                "CrestHint",
+                "Cada clube tem o seu próprio emblema.",
                 14,
                 UiTheme.Muted);
             UiFactory.LayoutElement(hint, 36);
@@ -40,12 +40,18 @@ namespace CoachMaster.UI.Screens
             UiFactory.LayoutElement(panel.GetComponent<Image>(), 132);
             var row = UiFactory.Row(panel, "Inner", 16, new RectOffset(12, 16, 10, 10), true);
 
-            var kit = KitView.Create(row.transform, club, new Vector2(92, 112));
-            var kitLe = kit.gameObject.AddComponent<LayoutElement>();
-            kitLe.minWidth = 92;
-            kitLe.preferredWidth = 92;
-            kitLe.minHeight = 112;
-            kitLe.flexibleWidth = 0;
+            var badgeGo = new GameObject("Badge", typeof(RectTransform), typeof(Image));
+            badgeGo.transform.SetParent(row.transform, false);
+            var badge = badgeGo.GetComponent<Image>();
+            badge.sprite = CrestStudio.For(club);
+            badge.preserveAspect = true;
+            badge.raycastTarget = false;
+            var badgeLe = badgeGo.AddComponent<LayoutElement>();
+            badgeLe.minWidth = 72;
+            badgeLe.preferredWidth = 72;
+            badgeLe.minHeight = 72;
+            badgeLe.preferredHeight = 72;
+            badgeLe.flexibleWidth = 0;
 
             var copy = UiFactory.Column(row.transform, "Copy", 4, new RectOffset(0, 0, 8, 8), false, true);
             var copyLe = copy.gameObject.AddComponent<LayoutElement>();

@@ -62,6 +62,8 @@ namespace CoachMaster.App
             SquadDragCard.Release();
             EnsureUiInput();
             FitCanvases();
+            ControlChrome.DisableAutomaticNavigation();
+            ControlChrome.ResetForScene();
         }
 
         static void FitCanvases()
@@ -228,8 +230,6 @@ namespace CoachMaster.App
         public void Restore(CareerState career)
         {
             Career = career;
-            if (Career != null && Career.World != null)
-                FaceBook.Deal(Career.World);
         }
 
         public void ClearCareer()

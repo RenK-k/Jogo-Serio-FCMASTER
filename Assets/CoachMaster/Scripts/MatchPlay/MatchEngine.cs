@@ -1229,7 +1229,7 @@ namespace CoachMaster.MatchPlay
             return false;
         }
 
-        void Pass(bool home)
+        void Pass(bool home, bool allowOffsideExemption = false)
         {
             var squad = home ? _match.HomeOnField : _match.AwayOnField;
             var from = Mathf.Clamp(_match.BallHolder, 0, squad.Count - 1);
@@ -1238,7 +1238,7 @@ namespace CoachMaster.MatchPlay
             _throughBall = false;
             var next = runner >= 0 ? runner : _intended >= 0 && _intended < squad.Count && _intended != from ? _intended : PickPassTarget(home, squad, from);
             _intended = -1;
-            if (Offside(home, next))
+            if (!allowOffsideExemption && Offside(home, next))
             {
                 FlagOffside(home, next);
                 return;
@@ -1602,8 +1602,13 @@ namespace CoachMaster.MatchPlay
         bool Offside(bool home, int index)
         {
             var spot = MotionOf(home, index);
-            var ahead = home ? spot.y > Ball.y + 0.02f && spot.y > 0.52f : spot.y < Ball.y - 0.02f && spot.y < 0.48f;
-            if (!ahead)
+            var attackerDepth = home ? spot.y : 1f - spot.y;
+            var ballDepth = home ? Ball.y : 1f - Ball.y;
+            const float positionMargin = 0.04f;
+
+            // Positions are approximate screen-space samples. Treat a player who is level
+            // with the ball/defensive line as onside, with a small margin for interpolation.
+            if (attackerDepth <= 0.5f + positionMargin || attackerDepth <= ballDepth + positionMargin)
                 return false;
             var opp = home ? _match.AwayOnField : _match.HomeOnField;
             var depths = new System.Collections.Generic.List<float>();
@@ -1616,9 +1621,9 @@ namespace CoachMaster.MatchPlay
             if (depths.Count < 2)
                 return false;
             depths.Sort();
-            var line = depths[depths.Count - 2];
-            var attacker = home ? spot.y : 1f - spot.y;
-            return attacker > line + 0.01f;
+            var secondLastDefender = depths[depths.Count - 2];
+            var line = Mathf.Max(ballDepth, secondLastDefender);
+            return attackerDepth > line + positionMargin;
         }
 
         void FlagOffside(bool home, int index)
@@ -2862,7 +2867,8 @@ namespace CoachMaster.MatchPlay
             var fromName = Name(squad[from]);
             if (best < 0)
             {
-                Pass(home);
+                // A player cannot be penalised for being offside directly from a throw-in.
+                Pass(home, true);
                 _match.LastEvent = "Lançamento de " + fromName + ".";
                 return;
             }

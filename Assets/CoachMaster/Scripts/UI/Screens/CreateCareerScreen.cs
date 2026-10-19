@@ -16,9 +16,17 @@ namespace CoachMaster.UI.Screens
                 () => router.Show("club"),
                 out var body);
 
-            var preview = KitView.Create(body.transform, club, new Vector2(160, 200));
-            UiFactory.LayoutElement(preview, 200);
-            preview.gameObject.AddComponent<LayoutElement>().preferredWidth = 160;
+            var badgeGo = new GameObject("ClubBadge", typeof(RectTransform), typeof(Image));
+            badgeGo.transform.SetParent(body.transform, false);
+            var badge = badgeGo.GetComponent<Image>();
+            badge.sprite = CrestStudio.For(club);
+            badge.preserveAspect = true;
+            badge.raycastTarget = false;
+            var badgeLe = badgeGo.AddComponent<LayoutElement>();
+            badgeLe.minWidth = 120;
+            badgeLe.preferredWidth = 160;
+            badgeLe.minHeight = 150;
+            badgeLe.preferredHeight = 180;
 
             var field = UiFactory.Input(body.transform, "Nome do treinador");
             UiFactory.LayoutElement(field, 52);

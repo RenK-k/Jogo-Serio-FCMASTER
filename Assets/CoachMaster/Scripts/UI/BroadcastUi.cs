@@ -61,6 +61,7 @@ namespace CoachMaster.UI
                 }
 
                 RestoreShapes(design);
+                ConsequenceToast.Attach(design);
                 return design;
             }
 
@@ -76,6 +77,7 @@ namespace CoachMaster.UI
                 child.SetActive(false);
             }
 
+            ConsequenceToast.Attach(runtimeRect);
             return runtimeRect;
         }
 
@@ -200,6 +202,9 @@ namespace CoachMaster.UI
         {
             var image = Panel(parent, name, color, true);
             var button = image.gameObject.AddComponent<Button>();
+            var navigation = button.navigation;
+            navigation.mode = Navigation.Mode.None;
+            button.navigation = navigation;
             button.targetGraphic = image;
             var colors = button.colors;
             colors.normalColor = Color.white;
@@ -227,6 +232,9 @@ namespace CoachMaster.UI
         {
             var image = Solid(parent, name, new Color(1f, 1f, 1f, 0f), true);
             var button = image.gameObject.AddComponent<Button>();
+            var navigation = button.navigation;
+            navigation.mode = Navigation.Mode.None;
+            button.navigation = navigation;
             button.targetGraphic = image;
             button.transition = Selectable.Transition.None;
             if (onClick != null)
@@ -245,6 +253,9 @@ namespace CoachMaster.UI
         {
             image.raycastTarget = true;
             var button = image.gameObject.AddComponent<Button>();
+            var navigation = button.navigation;
+            navigation.mode = Navigation.Mode.None;
+            button.navigation = navigation;
             button.targetGraphic = image;
             var colors = button.colors;
             colors.normalColor = Color.white;

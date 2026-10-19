@@ -23,6 +23,13 @@ namespace CoachMaster.Career
         public string[] FollowUps;
         public int[] MoraleDelta;
         public int[] FatigueDelta;
+        public int[] FormDelta;
+        public int[] SquadMoraleDelta;
+        public int[] DressingRoomTensionDelta;
+        public int[] InjuryDays;
+        public bool[] ToggleDuty;
+        public string SecondaryPlayerId;
+        public int[] SecondaryMoraleDelta;
         public bool Answered;
         public string BoardLine;
     }
@@ -59,27 +66,103 @@ namespace CoachMaster.Career
                 return;
             if (moment.Replies == null || choice < 0 || choice >= moment.Replies.Length)
                 return;
+            if (string.IsNullOrEmpty(moment.PlayerId) || !career.World.Players.TryGetValue(moment.PlayerId, out var player))
+                return;
 
             moment.Answered = true;
-            var player = career.World.Players[moment.PlayerId];
-            player.Morale = Clamp(player.Morale + moment.MoraleDelta[choice]);
-            player.Fatigue = Clamp(player.Fatigue + moment.FatigueDelta[choice]);
-            moment.Body += "\n\nTu: " + moment.Replies[choice] + "\n\n" + moment.FollowUps[choice];
-            if (moment.FollowUps[choice].Contains("fisioterapeuta") || moment.FollowUps[choice].Contains("coxear") || moment.FollowUps[choice].Contains("não apoia"))
+            var morale = At(moment.MoraleDelta, choice);
+            var fatigue = At(moment.FatigueDelta, choice);
+            var form = At(moment.FormDelta, choice);
+            var squadMorale = At(moment.SquadMoraleDelta, choice);
+            var tension = At(moment.DressingRoomTensionDelta, choice);
+            player.Morale = Clamp(player.Morale + morale);
+            player.Fatigue = Clamp(player.Fatigue + fatigue);
+            player.Form = Clamp(player.Form + form);
+
+            if (squadMorale != 0)
             {
-                player.Injury.IsInjured = true;
-                player.Injury.Description = "Lesão muscular";
-                player.Injury.DaysRemaining = choice == 0 ? 8 : 16;
+                foreach (var id in career.Club.PlayerIds)
+                {
+                    if (id == player.Id || id == moment.SecondaryPlayerId)
+                        continue;
+                    if (career.World.Players.TryGetValue(id, out var teammate))
+                        teammate.Morale = Clamp(teammate.Morale + squadMorale);
+                }
             }
 
-            if (moment.FollowUps[choice].Contains("Muda o movimento"))
+            if (tension != 0)
+                career.Club.DressingRoomTension = ClampRange(career.Club.DressingRoomTension + tension, 0, 100);
+
+            if (!string.IsNullOrEmpty(moment.SecondaryPlayerId) && career.World.Players.TryGetValue(moment.SecondaryPlayerId, out var secondary))
             {
-                if (player.Duty == "Cortar para dentro")
-                    player.Duty = "Ficar aberto";
-                else if (player.Duty == "Ficar aberto")
-                    player.Duty = "Cortar para dentro";
+                var secondaryMorale = At(moment.SecondaryMoraleDelta, choice);
+                secondary.Morale = Clamp(secondary.Morale + secondaryMorale);
             }
+
+            var injuryDays = At(moment.InjuryDays, choice);
+            if (injuryDays > 0)
+            {
+                if (player.Injury == null)
+                    player.Injury = new InjuryState();
+                player.Injury.IsInjured = true;
+                player.Injury.Description = "Lesão muscular";
+                player.Injury.DaysRemaining = injuryDays;
+            }
+
+            var dutyChanged = At(moment.ToggleDuty, choice);
+            if (dutyChanged)
+            {
+                var options = IndividualOrders.ForPosition(player.Position);
+                if (options != null && options.Length > 0)
+                {
+                    var current = Array.IndexOf(options, player.Duty);
+                    var next = current < 0 ? 0 : (current + 1) % options.Length;
+                    player.Duty = options[next];
+                }
+                else
+                    dutyChanged = false;
+            }
+
+            var followUp = moment.FollowUps != null && choice < moment.FollowUps.Length ? moment.FollowUps[choice] : "";
+            var impact = new List<string>();
+            AddImpact(impact, "moral", morale);
+            AddImpact(impact, "forma", form);
+            AddImpact(impact, "fadiga", fatigue);
+            AddImpact(impact, "moral do grupo", squadMorale);
+            if (tension != 0)
+                impact.Add("tensão do balneário " + Signed(tension));
+            if (injuryDays > 0)
+                impact.Add("lesão: " + injuryDays + " dias fora");
+            if (dutyChanged)
+                impact.Add("instrução: " + player.Duty);
+            moment.Body += "\n\nTu: " + moment.Replies[choice] + "\n\n" + followUp;
+            if (impact.Count > 0)
+                moment.Body += "\n\nImpacto: " + string.Join(" · ", impact) + ".";
             career.Notebook.Insert(0, career.Calendar.ClockText + "  " + player.FullName + " — conversa no centro de treinos.");
+            var trustDelta = CareerRelationships.ApplyConversation(career, player, morale, form, tension, injuryDays);
+            CareerMemories.RecordConversation(career, moment, player, choice, morale, form, tension, trustDelta);
+            CareerNotificationQueue.Enqueue("A TUA ESCOLHA FICA", "Confiança de " + player.FullName + ": " + CareerRelationships.TrustOf(career, player.Id) + "/100.");
+        }
+
+        static int At(int[] values, int index)
+        {
+            return values != null && index >= 0 && index < values.Length ? values[index] : 0;
+        }
+
+        static bool At(bool[] values, int index)
+        {
+            return values != null && index >= 0 && index < values.Length && values[index];
+        }
+
+        static string Signed(int value)
+        {
+            return value > 0 ? "+" + value : value.ToString();
+        }
+
+        static void AddImpact(List<string> impact, string label, int delta)
+        {
+            if (delta != 0)
+                impact.Add(label + " " + Signed(delta));
         }
 
         public static void AfterMatch(CareerState career, int homeGoals, int awayGoals, bool userHome, string homeName, string awayName, string motm = null, string motmMark = null)
@@ -251,6 +334,13 @@ namespace CoachMaster.Career
             string[] follow;
             int[] morale;
             int[] fatigue;
+            int[] form;
+            int[] squadMorale;
+            int[] tension;
+            int[] injuryDays;
+            int[] secondaryMorale = new int[3];
+            bool[] toggleDuty = new bool[3];
+            string secondaryPlayerId = null;
             if (player.Injury != null && player.Injury.IsInjured)
                 scene = 3;
             else if (player.Fatigue >= 72)
@@ -276,6 +366,10 @@ namespace CoachMaster.Career
                     };
                     morale = new[] { 6, -4, -8 };
                     fatigue = new[] { -14, 8, 4 };
+                    form = new[] { 2, 0, -2 };
+                    squadMorale = new[] { 1, 0, -1 };
+                    tension = new[] { -2, 1, 4 };
+                    injuryDays = new[] { 0, 3, 7 };
                     break;
                 case 1:
                     opener = player.FullName + " aponta para " + other.FullName + ", à frente do grupo.\n\n\"No balneário já não se ouve o capitão. Hoje, " + other.FullName + " e outro discutiram à frente de toda a gente. Alguém tem de pôr ordem.\"";
@@ -293,6 +387,12 @@ namespace CoachMaster.Career
                     };
                     morale = new[] { 3, -2, -9 };
                     fatigue = new[] { 0, -2, 2 };
+                    form = new[] { 1, 0, -2 };
+                    squadMorale = new[] { 2, -1, -2 };
+                    tension = new[] { -6, 2, 8 };
+                    injuryDays = new[] { 0, 0, 0 };
+                    secondaryPlayerId = other.Id;
+                    secondaryMorale = new[] { -1, 0, 5 };
                     break;
                 case 2:
                     opener = player.FullName + " espera-te à porta do balneário.\n\n\"Não jogo. Se a ideia é continuar assim, diz-me de uma vez. Não me deixes a adivinhar até sábado.\"";
@@ -310,6 +410,10 @@ namespace CoachMaster.Career
                     };
                     morale = new[] { 8, 1, -11 };
                     fatigue = new[] { -4, 0, 2 };
+                    form = new[] { 3, 1, -3 };
+                    squadMorale = new[] { 1, 0, -1 };
+                    tension = new[] { -2, 0, 5 };
+                    injuryDays = new[] { 0, 0, 0 };
                     break;
                 case 3:
                     opener = player.FullName + " senta-se no relvado e segura a coxa.\n\n\"Não é cansaço. Qualquer coisa cedeu no último corte. Não consigo apoiar o pé.\"";
@@ -327,23 +431,32 @@ namespace CoachMaster.Career
                     };
                     morale = new[] { 2, -3, -8 };
                     fatigue = new[] { -6, 6, 10 };
+                    form = new[] { 0, -1, -3 };
+                    squadMorale = new[] { 1, 0, -2 };
+                    tension = new[] { -2, 2, 6 };
+                    injuryDays = new[] { 5, 10, 18 };
                     break;
                 case 4:
                     opener = "O " + career.Club.Tactics.Formation + " está no quadro. " + player.FullName + " aponta para o seu lado.\n\n\"A instrução que tenho é " + DutyOf(player) + ". Se me deixares jogar assim, o lado abre-se. Se me prenderes à linha, o jogo morre.\"";
                     replies = new[]
                     {
                         "\"Cumpre a instrução que já está no quadro. É essa que o grupo treinou.\"",
-                        "\"Inverte. Se cortas, ficas aberto. Se ficas aberto, cortas.\"",
+                        "\"Ajusta a instrução. Quero outro movimento deste lado.\"",
                         "\"Repete o mesmo lance. A instrução não muda hoje.\""
                     };
                     follow = new[]
                     {
                         "Treina o lance duas vezes e o lado percebe o que queres.",
-                        "Muda o movimento. No primeiro minuto engana-se. No segundo já não.",
+                        "A instrução muda. No primeiro minuto engana-se. No segundo já não.",
                         "O lance repete-se igual. Ele cumpre, sem acreditar."
                     };
                     morale = new[] { 5, 1, -4 };
                     fatigue = new[] { 2, 3, 4 };
+                    form = new[] { 1, 2, -2 };
+                    squadMorale = new[] { 1, 0, -1 };
+                    tension = new[] { -2, 0, 4 };
+                    injuryDays = new[] { 0, 0, 0 };
+                    toggleDuty = new[] { false, true, false };
                     break;
                 case 5:
                     opener = player.FullName + " e " + other.FullName + " empurram-se junto à garrafa de água.\n\n" + player.FullName + ": \"Isto vem de ontem. Ele fechou-me o espaço no último exercício e ainda acha que foi falta minha.\"";
@@ -361,6 +474,12 @@ namespace CoachMaster.Career
                     };
                     morale = new[] { 2, -3, -6 };
                     fatigue = new[] { 0, 0, 8 };
+                    form = new[] { 1, -1, -3 };
+                    squadMorale = new[] { 1, -1, -3 };
+                    tension = new[] { -8, 7, 13 };
+                    injuryDays = new[] { 0, 0, 0 };
+                    secondaryPlayerId = other.Id;
+                    secondaryMorale = new[] { 3, -1, -4 };
                     break;
                 default:
                     opener = "Antes do jogo, " + player.FullName + " pede-te um minuto no corredor.\n\n\"Não me chega ouvir a formação. Quero saber se conto contigo quando a coisa apertar.\"";
@@ -378,6 +497,10 @@ namespace CoachMaster.Career
                     };
                     morale = new[] { 7, 0, -5 };
                     fatigue = new[] { -2, 0, 1 };
+                    form = new[] { 2, 0, -2 };
+                    squadMorale = new[] { 2, 0, -1 };
+                    tension = new[] { -3, 0, 4 };
+                    injuryDays = new[] { 0, 0, 0 };
                     break;
             }
 
@@ -392,10 +515,30 @@ namespace CoachMaster.Career
                 FollowUps = follow,
                 MoraleDelta = morale,
                 FatigueDelta = fatigue,
+                FormDelta = form,
+                SquadMoraleDelta = squadMorale,
+                DressingRoomTensionDelta = tension,
+                InjuryDays = injuryDays,
+                ToggleDuty = toggleDuty,
+                SecondaryPlayerId = secondaryPlayerId,
+                SecondaryMoraleDelta = secondaryMorale,
                 BoardLine = player.FullName + " procurou-te antes de voltares ao relvado."
             };
             if (scene == 3)
                 moment.BoardLine = player.FullName + " queixou-se da coxa no treino.";
+            var trust = CareerRelationships.TrustOf(career, player.Id);
+            if (trust <= 32)
+            {
+                moment.Body = "A confiança entre vocês está baixa. " + moment.Body;
+                if (morale.Length > 0)
+                    morale[0] = Math.Max(-8, morale[0] - 2);
+            }
+            else if (trust >= 76)
+            {
+                moment.Body = "A confiança construída entre vocês nota-se na conversa. " + moment.Body;
+                if (morale.Length > 0)
+                    morale[0] = Math.Min(12, morale[0] + 1);
+            }
             return moment;
         }
 
@@ -466,6 +609,11 @@ namespace CoachMaster.Career
             if (value < 1) return 1;
             if (value > 99) return 99;
             return value;
+        }
+
+        static int ClampRange(int value, int min, int max)
+        {
+            return value < min ? min : value > max ? max : value;
         }
     }
 }

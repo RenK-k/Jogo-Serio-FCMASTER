@@ -37,6 +37,7 @@ namespace CoachMaster.MatchPlay
         public float AttackBoost { get; set; }
         public float DefenseBoost { get; set; }
         public bool Finished { get; set; }
+        public bool CareerStatsCredited { get; set; }
         public Dictionary<string, string> Names { get; } = new Dictionary<string, string>();
         public Dictionary<string, Player> People { get; } = new Dictionary<string, Player>();
         public Dictionary<string, float> Ratings { get; } = new Dictionary<string, float>();

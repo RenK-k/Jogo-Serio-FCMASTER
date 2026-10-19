@@ -50,6 +50,8 @@ namespace CoachMaster.UI.Scenes
             SceneBind.Wire(root.Find("Header/Back"), () => GameRoot.Instance.Open(SceneNames.LeagueSelect));
             _crest = SceneBind.Get<Image>(root, "Preview/Crest");
             _kit = SceneBind.Get<Image>(root, "Preview/Kit");
+            if (_kit != null)
+                _kit.gameObject.SetActive(false);
             _name = SceneBind.Get<Text>(root, "Preview/ClubName");
             _meta = SceneBind.Get<Text>(root, "Preview/Meta");
             _reputation = SceneBind.Get<Text>(root, "Preview/Reputation");
@@ -85,17 +87,6 @@ namespace CoachMaster.UI.Scenes
                 crest.raycastTarget = false;
                 crest.preserveAspect = true;
                 crest.sprite = CrestStudio.For(club);
-                var kitGo = new GameObject("Kit", typeof(RectTransform), typeof(Image));
-                var kitRect = kitGo.GetComponent<RectTransform>();
-                kitRect.SetParent(card.transform, false);
-                kitRect.anchorMin = new Vector2(0.03f, 0.06f);
-                kitRect.anchorMax = new Vector2(0.14f, 0.5f);
-                kitRect.offsetMin = Vector2.zero;
-                kitRect.offsetMax = Vector2.zero;
-                var kit = kitGo.GetComponent<Image>();
-                kit.raycastTarget = false;
-                kit.preserveAspect = true;
-                KitView.Apply(kit, club);
                 var name = BroadcastUi.Label(card.transform, "Name", club.Name.ToUpperInvariant(), 20, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
                 BroadcastUi.Place(name.rectTransform, 0.17f, 0.48f, 0.96f, 0.9f);
                 var meta = BroadcastUi.Label(card.transform, "Meta", club.City + "   ·   " + club.Stadium, 14, UiTheme.Muted, TextAnchor.MiddleLeft);
@@ -149,17 +140,6 @@ namespace CoachMaster.UI.Scenes
                 crest.raycastTarget = false;
                 crest.preserveAspect = true;
                 crest.sprite = CrestStudio.For(club);
-                var kitGo = new GameObject("Kit", typeof(RectTransform), typeof(Image));
-                var kitRect = kitGo.GetComponent<RectTransform>();
-                kitRect.SetParent(card.transform, false);
-                kitRect.anchorMin = new Vector2(0.03f, 0.06f);
-                kitRect.anchorMax = new Vector2(0.14f, 0.5f);
-                kitRect.offsetMin = Vector2.zero;
-                kitRect.offsetMax = Vector2.zero;
-                var kit = kitGo.GetComponent<Image>();
-                kit.raycastTarget = false;
-                kit.preserveAspect = true;
-                KitView.Apply(kit, club);
                 var name = BroadcastUi.Label(card.transform, "Name", club.Name.ToUpperInvariant(), 20, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
                 BroadcastUi.Place(name.rectTransform, 0.17f, 0.48f, 0.96f, 0.9f);
                 var meta = BroadcastUi.Label(card.transform, "Meta", club.City + "   ·   " + club.Stadium, 14, UiTheme.Muted, TextAnchor.MiddleLeft);
@@ -189,16 +169,7 @@ namespace CoachMaster.UI.Scenes
             _crest = crestSlot.GetComponent<Image>();
             _crest.preserveAspect = true;
             _crest.raycastTarget = false;
-            var kitSlot = new GameObject("Kit", typeof(RectTransform), typeof(Image));
-            var kitSlotRect = kitSlot.GetComponent<RectTransform>();
-            kitSlotRect.SetParent(preview.transform, false);
-            kitSlotRect.anchorMin = new Vector2(0.08f, 0.34f);
-            kitSlotRect.anchorMax = new Vector2(0.38f, 0.7f);
-            kitSlotRect.offsetMin = Vector2.zero;
-            kitSlotRect.offsetMax = Vector2.zero;
-            _kit = kitSlot.GetComponent<Image>();
-            _kit.preserveAspect = true;
-            _kit.raycastTarget = false;
+            _kit = null;
             _name = BroadcastUi.Label(preview.transform, "ClubName", "", 28, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
             BroadcastUi.Place(_name.rectTransform, 0.42f, 0.78f, 0.94f, 0.94f);
             _meta = BroadcastUi.Label(preview.transform, "Meta", "", 16, UiTheme.Accent, TextAnchor.UpperLeft);
@@ -226,7 +197,6 @@ namespace CoachMaster.UI.Scenes
         void Select(int index)
         {
             _selected = _clubs[index];
-            KitView.Apply(_kit, _selected);
             _crest.sprite = CrestStudio.For(_selected);
             _name.text = _selected.Name.ToUpperInvariant();
             _meta.text = _selected.City + "\n" + _selected.Stadium + "   ·   " + _selected.FoundedYear;

@@ -27,8 +27,9 @@ namespace CoachMaster.Career
     {
         public static void CreditLive(CareerState career, MatchSession match)
         {
-            if (career == null || match == null)
+            if (career == null || match == null || match.CareerStatsCredited)
                 return;
+            match.CareerStatsCredited = true;
             var competitionId = match.Fixture == null ? null : match.Fixture.LeagueId;
             foreach (var pair in match.Ratings)
             {
@@ -53,18 +54,30 @@ namespace CoachMaster.Career
         {
             if (career == null || string.IsNullOrEmpty(clubId) || !career.World.Clubs.TryGetValue(clubId, out var club))
                 return;
-            var side = new List<Player>();
+            var squad = new List<Player>();
             foreach (var id in club.PlayerIds)
             {
-                if (career.World.Players.TryGetValue(id, out var player) && player.Position != PlayerPosition.Goalkeeper)
-                    side.Add(player);
+                if (career.World.Players.TryGetValue(id, out var player))
+                    squad.Add(player);
             }
 
-            if (side.Count == 0)
+            if (squad.Count == 0)
                 return;
+            var eleven = new List<Player>();
+            var bench = new List<Player>();
+            StartingShape.Resolve(squad, club, eleven, bench);
+            if (eleven.Count == 0)
+                return;
+
+            var side = new List<Player>();
+            foreach (var player in eleven)
+                if (player.Position != PlayerPosition.Goalkeeper)
+                    side.Add(player);
+            if (side.Count == 0)
+                side.AddRange(eleven);
             side.Sort((a, b) => Finish(b).CompareTo(Finish(a)));
             var seed = clubId.GetHashCode() ^ (goals * 17) ^ conceded;
-            var rng = new System.Random(seed < 0 ? -seed : seed);
+            var rng = new System.Random(seed & 0x7fffffff);
             for (var g = 0; g < goals; g++)
             {
                 var pick = side[rng.Next(0, System.Math.Min(4, side.Count))];
@@ -74,10 +87,9 @@ namespace CoachMaster.Career
                     Touch(career, competitionId, assist.Id, 0, 1, 0, 0f);
             }
 
-            var apps = System.Math.Min(10, side.Count);
             var mark = goals > conceded ? 7.1f : goals == conceded ? 6.6f : 6.2f;
-            for (var i = 0; i < apps; i++)
-                Touch(career, competitionId, side[i].Id, 0, 0, 1, mark + (i == 0 ? 0.4f : 0f));
+            for (var i = 0; i < eleven.Count; i++)
+                Touch(career, competitionId, eleven[i].Id, 0, 0, 1, mark + (eleven[i].Position == PlayerPosition.Goalkeeper && conceded == 0 ? 0.2f : 0f));
         }
 
         public static void Backfill(CareerState career)
@@ -111,6 +123,89 @@ namespace CoachMaster.Career
                     CreditScoreline(career, competitionId, fixture.AwayClubId, fixture.AwayGoals, fixture.HomeGoals);
                 }
             }
+        }
+
+        public static void ReconcileCurrentSeason(CareerState career)
+        {
+            if (career == null)
+                return;
+
+            var corrections = new Dictionary<string, SeasonLine>();
+            var playedByTeam = new Dictionary<string, int>();
+            foreach (var fixture in career.Fixtures)
+            {
+                if (!fixture.Played || string.IsNullOrEmpty(fixture.LeagueId))
+                    continue;
+                AddTeamMatch(playedByTeam, fixture.LeagueId, fixture.HomeClubId, 1);
+                AddTeamMatch(playedByTeam, fixture.LeagueId, fixture.AwayClubId, 1);
+            }
+
+            foreach (var line in career.Season)
+            {
+                if (line == null || !career.World.Players.TryGetValue(line.PlayerId, out var player) || player == null)
+                    continue;
+                var competitionId = line.CompetitionId;
+                if (string.IsNullOrEmpty(competitionId)
+                    && career.World.Clubs.TryGetValue(player.ClubId, out var owner))
+                {
+                    competitionId = owner.LeagueId;
+                    line.CompetitionId = competitionId;
+                }
+
+                var key = TeamCompetitionKey(competitionId, player.ClubId);
+                if (!playedByTeam.TryGetValue(key, out var maximumApps) || maximumApps < 1)
+                    continue;
+
+                var previousApps = line.Apps;
+                var previousRatings = line.Rated;
+                if (line.Apps > maximumApps)
+                    line.Apps = maximumApps;
+
+                var validRatings = System.Math.Min(line.Rated, line.Apps);
+                var ratingSum = line.RatingSum;
+                if (validRatings != line.Rated)
+                {
+                    var average = line.Rated > 0 ? line.RatingSum / line.Rated : 0f;
+                    line.Rated = validRatings;
+                    line.RatingSum = average * validRatings;
+                }
+
+                var removedApps = previousApps - line.Apps;
+                var removedRatings = previousRatings - line.Rated;
+                var removedRatingSum = ratingSum - line.RatingSum;
+                if (removedApps > 0 || removedRatings > 0 || removedRatingSum > 0.001f)
+                {
+                    if (!corrections.TryGetValue(line.PlayerId, out var correction))
+                    {
+                        correction = new SeasonLine { PlayerId = line.PlayerId };
+                        corrections.Add(line.PlayerId, correction);
+                    }
+                    correction.Apps += removedApps;
+                    correction.Rated += removedRatings;
+                    correction.RatingSum += removedRatingSum;
+                }
+            }
+
+            foreach (var line in career.CareerTotals)
+            {
+                if (line == null || !corrections.TryGetValue(line.PlayerId, out var correction))
+                    continue;
+                line.Apps = System.Math.Max(0, line.Apps - correction.Apps);
+                line.Rated = System.Math.Max(0, line.Rated - correction.Rated);
+                line.RatingSum = System.Math.Max(0f, line.RatingSum - correction.RatingSum);
+            }
+        }
+
+        static void AddTeamMatch(Dictionary<string, int> totals, string competitionId, string clubId, int amount)
+        {
+            var key = TeamCompetitionKey(competitionId, clubId);
+            totals.TryGetValue(key, out var current);
+            totals[key] = current + amount;
+        }
+
+        static string TeamCompetitionKey(string competitionId, string clubId)
+        {
+            return (competitionId ?? string.Empty) + "|" + (clubId ?? string.Empty);
         }
 
         public static string List(CareerState career, string leagueId, string kind)
