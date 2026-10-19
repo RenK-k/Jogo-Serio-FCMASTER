@@ -51,6 +51,14 @@ namespace CoachMaster.UI
             if (_group == null)
                 return;
 
+            if (!SettingsPrefs.DecisionAlerts)
+            {
+                while (CareerNotificationQueue.TryDequeue(out _)) { }
+                _visible = false;
+                _group.alpha = 0f;
+                return;
+            }
+
             if (!_visible && CareerNotificationQueue.TryDequeue(out var notice))
             {
                 _heading.text = notice.Heading;
@@ -64,9 +72,9 @@ namespace CoachMaster.UI
                 return;
 
             _age += Time.unscaledDeltaTime;
-            const float fadeIn = 0.22f;
-            const float hold = 3.25f;
-            const float fadeOut = 0.45f;
+            var fadeIn = SettingsPrefs.ReduceMotion ? 0.04f : 0.22f;
+            var hold = SettingsPrefs.AlertDuration;
+            var fadeOut = SettingsPrefs.ReduceMotion ? 0.04f : 0.45f;
             var fade = _age < fadeIn
                 ? _age / fadeIn
                 : _age < hold ? 1f : 1f - (_age - hold) / fadeOut;

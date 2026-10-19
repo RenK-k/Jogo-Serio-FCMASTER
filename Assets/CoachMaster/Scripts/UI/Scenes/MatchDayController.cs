@@ -47,6 +47,8 @@ namespace CoachMaster.UI.Scenes
         Color _awayColor = new Color(0.85f, 0.2f, 0.2f);
         Token[] _homeTokens;
         Token[] _awayTokens;
+        readonly Vector2[] _tokenPoints = new Vector2[22];
+        readonly Vector2[] _tokenOffsets = new Vector2[22];
         SideColumn _homeCol;
         SideColumn _awayCol;
         GameObject _fitnessPage;
@@ -72,6 +74,7 @@ namespace CoachMaster.UI.Scenes
         bool _halfWhistle;
         bool _fullWhistle;
         bool _matchFinalized;
+        bool _pauseAfterEvent;
         GameObject _tactics;
         GameObject _subsMenu;
         RectTransform _subPitch;
@@ -119,7 +122,11 @@ namespace CoachMaster.UI.Scenes
             }
 
             _career = GameRoot.Instance.Session.Career;
-            _engine = new MatchEngine(_match, _career != null && _career.Coach != null ? _career.Coach.ClubId : null);
+            _speed = SettingsPrefs.MatchSpeed;
+            _engine = new MatchEngine(_match,
+                _career != null && _career.Coach != null ? _career.Coach.ClubId : null,
+                _career == null ? 1f : SettingsPrefs.InjuryMultiplier(_career.InjuryFrequency),
+                _career == null ? 1f : SettingsPrefs.RefereeMultiplier(_career.RefereeStrictness));
             GameAudio.Kickoff();
             GameAudio.StartCrowd();
             var design = transform.Find("Design");
@@ -182,7 +189,7 @@ namespace CoachMaster.UI.Scenes
             _halfTime.SetActive(false);
             _fullTime.SetActive(false);
             _footer.SetActive(true);
-            if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame && _match.Phase != MatchPhase.HalfTime && _match.Phase != MatchPhase.FullTime)
+            if (!AudioSettingsOverlay.IsVisible && Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame && _match.Phase != MatchPhase.HalfTime && _match.Phase != MatchPhase.FullTime)
             {
                 if (_subsMenu != null && _subsMenu.activeSelf)
                     CloseSubs();
@@ -201,13 +208,14 @@ namespace CoachMaster.UI.Scenes
                 SetFooter(true);
             }
 
-            if (!_paused && !_watchEvent)
+            if (!_paused && !_watchEvent && !AudioSettingsOverlay.IsVisible)
                 _engine.Tick(Time.deltaTime, _speed);
             TryQueuedSub();
 
             PlaceTokens();
             RefreshHud();
-            _slow -= Time.deltaTime;
+            if (!AudioSettingsOverlay.IsVisible)
+                _slow -= Time.deltaTime;
             if (_slow <= 0f)
             {
                 _slow = 0.3f;
@@ -303,6 +311,8 @@ namespace CoachMaster.UI.Scenes
             _tabs[0] = SceneBind.Wire(root.Find("Tabs/TabFit"), () => Show(BoardTab.Fitness));
             _tabs[1] = SceneBind.Wire(root.Find("Tabs/TabRate"), () => Show(BoardTab.Ratings));
             _tabs[2] = SceneBind.Wire(root.Find("Tabs/TabStats"), () => Show(BoardTab.Stats));
+            if (_tabs[1] != null)
+                _tabs[1].gameObject.SetActive(SettingsPrefs.LiveRatings);
             _footer = root.Find("Footer").gameObject;
             SceneBind.Wire(root.Find("Footer/Pause"), OpenPause);
             SceneBind.Wire(root.Find("Footer/QuickTactics"), OpenTactics);
@@ -417,7 +427,12 @@ namespace CoachMaster.UI.Scenes
                 var rect = _pitch.Find((home ? "H" : "A") + i) as RectTransform;
                 var image = rect.GetComponent<Image>();
                 image.color = color;
-                list[i] = new Token { Rect = rect, Number = rect.Find("N").GetComponent<Text>() };
+                var number = rect.Find("N").GetComponent<Text>();
+                number.color = NumberInk(color);
+                number.resizeTextForBestFit = true;
+                number.resizeTextMinSize = 11;
+                number.resizeTextMaxSize = 18;
+                list[i] = new Token { Rect = rect, Number = number };
             }
 
             return list;
@@ -711,7 +726,7 @@ namespace CoachMaster.UI.Scenes
         Token[] SpawnTokens(bool home, Color color)
         {
             var list = new Token[11];
-            var ink = color.grayscale > 0.62f ? new Color(0.1f, 0.08f, 0.16f) : Color.white;
+            var ink = NumberInk(color);
             for (var i = 0; i < 11; i++)
             {
                 var go = new GameObject((home ? "H" : "A") + i, typeof(RectTransform), typeof(Image));
@@ -723,6 +738,9 @@ namespace CoachMaster.UI.Scenes
                 image.color = color;
                 image.raycastTarget = false;
                 var num = BroadcastUi.Label(rect, "N", "", 18, ink, TextAnchor.MiddleCenter, FontStyle.Bold);
+                num.resizeTextForBestFit = true;
+                num.resizeTextMinSize = 11;
+                num.resizeTextMaxSize = 18;
                 BroadcastUi.Stretch(num.rectTransform);
                 list[i] = new Token { Rect = rect, Number = num };
             }
@@ -1561,6 +1579,8 @@ namespace CoachMaster.UI.Scenes
 
         void Show(BoardTab tab)
         {
+            if (tab == BoardTab.Ratings && !SettingsPrefs.LiveRatings)
+                tab = BoardTab.Fitness;
             _tab = tab;
             _fitnessPage.SetActive(true);
             _ratingsPage.SetActive(false);
@@ -1582,16 +1602,25 @@ namespace CoachMaster.UI.Scenes
 
         void CycleSpeed()
         {
-            if (_speed < 0.5f)
-                _speed = 0.68f;
-            else if (_speed < 1.2f)
-                _speed = 2.4f;
-            else if (_speed < 3.5f)
-                _speed = 4.2f;
-            else
-                _speed = 0.34f;
-            var label = _speed < 0.5f ? "x0.5" : _speed < 1.2f ? "x1" : _speed < 3.5f ? "x2" : "x4";
-            _speedLabel.text = "Ritmo " + label;
+            SettingsPrefs.MatchSpeedIndex = (SettingsPrefs.MatchSpeedIndex + 1) % 4;
+            _speed = SettingsPrefs.MatchSpeed;
+            SettingsPrefs.Commit();
+            if (_speedLabel != null)
+                _speedLabel.text = "Ritmo " + SettingsPrefs.MatchSpeedLabel;
+        }
+
+        public static void RefreshSettings()
+        {
+            var controller = FindFirstObjectByType<MatchDayController>();
+            if (controller == null)
+                return;
+            if (controller._tabs != null && controller._tabs.Length > 1 && controller._tabs[1] != null)
+                controller._tabs[1].gameObject.SetActive(SettingsPrefs.LiveRatings);
+            if (!SettingsPrefs.LiveRatings && controller._tab == BoardTab.Ratings)
+                controller.Show(BoardTab.Fitness);
+            controller._speed = SettingsPrefs.MatchSpeed;
+            if (controller._speedLabel != null)
+                controller._speedLabel.text = "Ritmo " + SettingsPrefs.MatchSpeedLabel;
         }
 
         void LateUpdate()
@@ -1872,13 +1901,22 @@ namespace CoachMaster.UI.Scenes
                 _flashSeen = _match.FlashSerial;
                 var person = PlayerOf(_match.FlashPlayerId);
                 var text = _match.Flash ?? "";
-                var important = text.Contains("CART") || text.Contains("LES") || text.Contains("GOLO") || text.Contains("FALTA") || text.Contains("PEN") || text.Contains("CANTO");
                 var isGoal = text.Contains("GOLO");
+                var isRed = text.Contains("VERMELHO");
+                var isInjury = text.Contains("LES");
+                var isPenalty = text.Contains("PENÁLTI") || text.Contains("PENALTI");
+                var isKeyEvent = isGoal || isRed || isInjury || isPenalty;
+                var isExtended = isKeyEvent || text.Contains("AMARELO") || text.Contains("FALTA") || text.Contains("CANTO");
+                var highlightMode = SettingsPrefs.MatchHighlights;
+                var important = highlightMode == 0 || (highlightMode == 1 && isExtended) || (highlightMode == 2 && isKeyEvent) || (highlightMode == 3 && isGoal);
                 _watchEvent = important;
                 _flashLeft = isGoal ? 2.65f : _watchEvent ? 3.4f : 2.4f;
                 GameAudio.ForFlash(_match.Flash);
                 _flash.transform.SetParent(_eventCard.transform, false);
                 _eventCard.SetActive(important);
+                _pauseAfterEvent = (isGoal && SettingsPrefs.PauseOnGoal)
+                    || (isRed && SettingsPrefs.PauseOnRedCard)
+                    || (isInjury && SettingsPrefs.PauseOnInjury);
                 if (important)
                 {
                     _eventCard.transform.SetAsLastSibling();
@@ -1900,7 +1938,7 @@ namespace CoachMaster.UI.Scenes
                 }
             }
 
-            if (_flashLeft > 0f)
+            if (_flashLeft > 0f && !AudioSettingsOverlay.IsVisible)
             {
                 _flashLeft -= Time.deltaTime;
                 if (_flashLeft <= 0f)
@@ -1911,6 +1949,11 @@ namespace CoachMaster.UI.Scenes
                         _eventCard.SetActive(false);
                     if (_eventStrip != null)
                         _eventStrip.gameObject.SetActive(false);
+                    if (_pauseAfterEvent && _match.Phase != MatchPhase.HalfTime && _match.Phase != MatchPhase.FullTime)
+                    {
+                        _pauseAfterEvent = false;
+                        OpenPause();
+                    }
                 }
             }
         }
@@ -1973,6 +2016,8 @@ namespace CoachMaster.UI.Scenes
                 }
             }
 
+            SeparateTokenPositions();
+
             var ball = ToPitch(_engine.ShownBall());
             _ball.anchorMin = ball;
             _ball.anchorMax = ball;
@@ -1998,6 +2043,73 @@ namespace CoachMaster.UI.Scenes
         static Vector2 ToPitch(Vector2 slot)
         {
             return new Vector2(slot.y, slot.x);
+        }
+
+        static Color NumberInk(Color jerseyColor)
+        {
+            return jerseyColor.grayscale >= 0.5f ? new Color(0.08f, 0.08f, 0.1f, 1f) : Color.white;
+        }
+
+        Token TokenAt(int index)
+        {
+            return index < 11 ? _homeTokens[index] : _awayTokens[index - 11];
+        }
+
+        void SeparateTokenPositions()
+        {
+            if (_pitch == null || _homeTokens == null || _awayTokens == null)
+                return;
+            var pitchSize = _pitch.rect.size;
+            if (pitchSize.x < 1f || pitchSize.y < 1f)
+                return;
+
+            for (var i = 0; i < 22; i++)
+            {
+                var token = TokenAt(i);
+                _tokenOffsets[i] = Vector2.zero;
+                _tokenPoints[i] = token == null || token.Rect == null || !token.Rect.gameObject.activeInHierarchy
+                    ? Vector2.zero
+                    : Vector2.Scale(token.Rect.anchorMin, pitchSize) + token.Rect.anchoredPosition;
+            }
+
+            for (var pass = 0; pass < 5; pass++)
+            {
+                for (var i = 0; i < 22; i++)
+                {
+                    var first = TokenAt(i);
+                    if (first == null || first.Rect == null || !first.Rect.gameObject.activeInHierarchy)
+                        continue;
+                    for (var j = i + 1; j < 22; j++)
+                    {
+                        var second = TokenAt(j);
+                        if (second == null || second.Rect == null || !second.Rect.gameObject.activeInHierarchy)
+                            continue;
+
+                        var delta = _tokenPoints[j] + _tokenOffsets[j] - _tokenPoints[i] - _tokenOffsets[i];
+                        var distance = delta.magnitude;
+                        var firstRadius = Mathf.Max(first.Rect.sizeDelta.x, first.Rect.sizeDelta.y) * first.Rect.localScale.x * 0.5f;
+                        var secondRadius = Mathf.Max(second.Rect.sizeDelta.x, second.Rect.sizeDelta.y) * second.Rect.localScale.x * 0.5f;
+                        var minimumDistance = firstRadius + secondRadius + 2f;
+                        if (distance >= minimumDistance)
+                            continue;
+
+                        var direction = distance > 0.01f
+                            ? delta / distance
+                            : new Vector2((i + j) % 2 == 0 ? 1f : -1f, i % 2 == 0 ? 1f : -1f).normalized;
+                        var push = (minimumDistance - distance) * 0.5f;
+                        _tokenOffsets[i] -= direction * push;
+                        _tokenOffsets[j] += direction * push;
+                    }
+                }
+            }
+
+            for (var i = 0; i < 22; i++)
+            {
+                var token = TokenAt(i);
+                if (token == null || token.Rect == null || !token.Rect.gameObject.activeInHierarchy)
+                    continue;
+                token.Rect.anchoredPosition += Vector2.ClampMagnitude(_tokenOffsets[i], 28f);
+            }
         }
 
         bool Jumping(bool home, int index)

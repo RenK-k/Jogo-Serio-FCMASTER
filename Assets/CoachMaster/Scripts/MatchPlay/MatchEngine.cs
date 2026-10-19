@@ -11,6 +11,8 @@ namespace CoachMaster.MatchPlay
     {
         readonly MatchSession _match;
         readonly System.Random _rng;
+        readonly float _injuryMultiplier;
+        readonly float _refereeMultiplier;
         public Vector2 Ball { get; private set; } = new Vector2(0.5f, 0.5f);
         public Vector2 BallTarget { get; private set; } = new Vector2(0.5f, 0.5f);
         public float ActionTime { get; private set; }
@@ -52,12 +54,17 @@ namespace CoachMaster.MatchPlay
         bool _pendingGoal;
         bool _pendingGoalHome;
         bool _pendingPenalty;
+        bool _goalCelebration;
+        bool _goalRestartHome;
+        float _goalCelebrationRemaining;
         string _pendingScorerId;
         string _pendingAssistId;
         string _pendingGoalDescription;
-        public MatchEngine(MatchSession match, string userClubId = null)
+        public MatchEngine(MatchSession match, string userClubId = null, float injuryMultiplier = 1f, float refereeMultiplier = 1f)
         {
             _match = match;
+            _injuryMultiplier = Mathf.Clamp(injuryMultiplier, 0.5f, 1.5f);
+            _refereeMultiplier = Mathf.Clamp(refereeMultiplier, 0.6f, 1.4f);
             _rng = new System.Random(match.Fixture.Id.GetHashCode());
             Kickoff(true);
         }
@@ -66,6 +73,27 @@ namespace CoachMaster.MatchPlay
         {
             if (_match.Phase == MatchPhase.HalfTime || _match.Phase == MatchPhase.FullTime || _match.Finished)
                 return;
+
+            if (_goalCelebration)
+            {
+                Ball = BallTarget;
+                _drawn = Ball;
+                _drawnReady = true;
+                BallHeight = 0f;
+                _goalCelebrationRemaining -= Mathf.Max(0f, dt);
+                if (_goalCelebrationRemaining <= 0f)
+                {
+                    _goalCelebration = false;
+                    if (_match.Phase == MatchPhase.SecondHalf && _match.Minute >= 90f)
+                        Finish();
+                    else
+                    {
+                        Kickoff(_goalRestartHome);
+                        _match.LastEvent = "Pontapé de saída no meio-campo.";
+                    }
+                }
+                return;
+            }
 
             _match.Minute += dt * minutesPerSecond;
             var step = dt * Travel;
@@ -77,7 +105,12 @@ namespace CoachMaster.MatchPlay
             Glide(dt);
             Sweep();
             if (_pendingGoal && Vector2.Distance(Ball, BallTarget) <= 0.02f)
+            {
+                Ball = BallTarget;
+                SnapBallVisual();
                 CompleteGoal();
+                return;
+            }
             Drain(dt);
             if (_match.HomeHasBall)
                 _match.HomePossession += dt;
@@ -723,6 +756,8 @@ namespace CoachMaster.MatchPlay
         void Kickoff(bool home)
         {
             _pendingGoal = false;
+            _goalCelebration = false;
+            _goalCelebrationRemaining = 0f;
             _pendingScorerId = null;
             _pendingAssistId = null;
             _pendingGoalDescription = null;
@@ -730,6 +765,7 @@ namespace CoachMaster.MatchPlay
             _pieceKind = "";
             _curl = 0f;
             _finishNext = false;
+            _throughBall = false;
             _headerNext = false;
             _lastPasser = null;
             _lastPasserHome = false;
@@ -741,8 +777,7 @@ namespace CoachMaster.MatchPlay
             _match.BallHolder = CentreTaker(home);
             Ball = new Vector2(0.5f, 0.5f);
             BallTarget = Ball;
-            _drawn = Ball;
-            _drawnReady = true;
+            SnapBallVisual();
             Travel = 0.15f;
             Hold = 1.15f;
             ActionTime = 0.8f;
@@ -1629,6 +1664,12 @@ namespace CoachMaster.MatchPlay
         void FlagOffside(bool home, int index)
         {
             _lastPasser = null;
+            _settle = 0f;
+            _finishNext = false;
+            _headerNext = false;
+            _throughBall = false;
+            _intended = -1;
+            _pieceLive = false;
             var spot = PlayerSpot(home, index);
             BallTarget = new Vector2(Mathf.Clamp(spot.x, 0.12f, 0.88f), Mathf.Clamp(spot.y, 0.12f, 0.88f));
             Travel = 0.4f;
@@ -1636,6 +1677,7 @@ namespace CoachMaster.MatchPlay
             _match.BallHolder = 4;
             ActionKind = "offside";
             Hold = 1.15f;
+            SnapBallVisual();
             var squad = home ? _match.HomeOnField : _match.AwayOnField;
             var name = squad.Count == 0 ? "um avançado" : Name(squad[Mathf.Clamp(index, 0, squad.Count - 1)]);
             _match.LastEvent = "Fora de jogo de " + name + ".";
@@ -1897,6 +1939,11 @@ namespace CoachMaster.MatchPlay
         void Foul(bool home, int defenderIndex)
         {
             _lastPasser = null;
+            _settle = 0f;
+            _finishNext = false;
+            _headerNext = false;
+            _throughBall = false;
+            _intended = -1;
             var defendingHome = !home;
             var squad = defendingHome ? _match.HomeOnField : _match.AwayOnField;
             var attack = home ? _match.HomeOnField : _match.AwayOnField;
@@ -1913,6 +1960,7 @@ namespace CoachMaster.MatchPlay
                 _pieceSpot = home ? new Vector2(0.5f, 0.88f) : new Vector2(0.5f, 0.12f);
             Ball = _pieceSpot;
             BallTarget = _pieceSpot;
+            SnapBallVisual();
             Travel = 0.05f;
             _pieceTaker = PickSetPieceTaker(home, _piecePenalty ? 8 : 5);
             _match.BallHolder = _pieceTaker;
@@ -1934,7 +1982,7 @@ namespace CoachMaster.MatchPlay
             if (_piecePenalty)
                 GameAudio.Penalty();
             _match.AddNote((_piecePenalty ? "Penálti. " : "Falta de ") + fouler + " (" + side + ").", "foul");
-            if (_match.Minute >= _quietCards && _rng.NextDouble() < 0.22)
+            if (_match.Minute >= _quietCards && _rng.NextDouble() < Mathf.Clamp(0.22f * _refereeMultiplier, 0.05f, 0.45f))
             {
                 Book(squad[index], false);
                 Announce("CARTÃO AMARELO", squad[index]);
@@ -2065,8 +2113,13 @@ namespace CoachMaster.MatchPlay
             Announce("GOLO!", _pendingScorerId);
             GameAudio.CrowdGoal(_pendingGoalHome);
             _pendingGoal = false;
-            Kickoff(kickoffForHome);
-            _match.LastEvent = "Pontapé de saída no meio-campo.";
+            _goalRestartHome = kickoffForHome;
+            _goalCelebrationRemaining = Mathf.Max(0.55f, Hold);
+            _goalCelebration = true;
+            Hold = 0f;
+            Ball = BallTarget;
+            SnapBallVisual();
+            _match.LastEvent = "GOLO! " + _pendingGoalDescription;
         }
 
         void Book(string id, bool red)
@@ -2281,7 +2334,7 @@ namespace CoachMaster.MatchPlay
             var prone = player.HasTrait(PlayerTrait.PropensoALesoes);
             if (player.Fatigue <= 82 && !prone)
                 return false;
-            var chance = 0.055f + Mathf.Max(0, player.Fatigue - 80) * 0.004f;
+            var chance = (0.055f + Mathf.Max(0, player.Fatigue - 80) * 0.004f) * _injuryMultiplier;
             if (prone)
                 chance *= 2.1f;
             if (player.HasTrait(PlayerTrait.ResistenteALesoes))
@@ -2523,9 +2576,25 @@ namespace CoachMaster.MatchPlay
                 BallHeight = 0f;
         }
 
+        void SnapBallVisual()
+        {
+            _drawn = Ball;
+            _drawnReady = true;
+            _curl = 0f;
+            _flightFrom = Ball;
+            _flightSpan = 0f;
+            _flightApex = 0f;
+            BallHeight = 0f;
+        }
+
         void BeginSetPiece(bool home, string kind, Vector2 spot, int taker)
         {
             _lastPasser = null;
+            _settle = 0f;
+            _finishNext = false;
+            _headerNext = false;
+            _throughBall = false;
+            _intended = -1;
             var squad = home ? _match.HomeOnField : _match.AwayOnField;
             taker = Mathf.Clamp(taker, 0, Mathf.Max(0, squad.Count - 1));
             _pieceHome = home;
@@ -2536,8 +2605,7 @@ namespace CoachMaster.MatchPlay
             _wall = new int[0];
             Ball = spot;
             BallTarget = spot;
-            _flightApex = 0f;
-            BallHeight = 0f;
+            SnapBallVisual();
             Travel = 0.05f;
             _pieceLive = true;
             _match.HomeHasBall = home;

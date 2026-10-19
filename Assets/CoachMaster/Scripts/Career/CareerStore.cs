@@ -13,18 +13,123 @@ namespace CoachMaster.Career
     public static class CareerStore
     {
         static string PathFile => Path.Combine(Application.persistentDataPath, "coach-master-career.txt");
+        static string AutoSavePath(int slot) => Path.Combine(Application.persistentDataPath, "coach-master-autosave-" + slot + ".txt");
 
         public static bool Exists => File.Exists(PathFile);
+        public static bool HasAutoSave(int slot = 1) => File.Exists(AutoSavePath(Mathf.Clamp(slot, 1, 5)));
 
         public static void Save(CareerState career)
         {
+            TrySave(career);
+        }
+
+        public static bool TrySave(CareerState career)
+        {
+            try
+            {
+                return SaveTo(career, PathFile);
+            }
+            catch (System.Exception error)
+            {
+                Debug.LogWarning("Não foi possível guardar a carreira. A versão anterior foi mantida: " + error.Message);
+                return false;
+            }
+        }
+
+        public static void AutoSave(CareerState career, int slots)
+        {
             if (career == null || career.Coach == null)
                 return;
+            slots = Mathf.Clamp(slots, 1, 5);
+            var first = AutoSavePath(1);
+            var staging = first + ".new";
+            var previousTicks = career.LastAutoSaveDateTicks;
+            career.LastAutoSaveDateTicks = career.Calendar.CurrentDate.Ticks;
+            try
+            {
+                if (File.Exists(staging))
+                    File.Delete(staging);
+                if (!SaveTo(career, staging))
+                {
+                    career.LastAutoSaveDateTicks = previousTicks;
+                    return;
+                }
+            }
+            catch (System.Exception error)
+            {
+                career.LastAutoSaveDateTicks = previousTicks;
+                Debug.LogWarning("Não foi possível criar o autosave: " + error.Message);
+                return;
+            }
+            if (!File.Exists(staging))
+            {
+                career.LastAutoSaveDateTicks = previousTicks;
+                return;
+            }
+            try
+            {
+                for (var i = slots; i > 1; i--)
+                {
+                    var source = AutoSavePath(i - 1);
+                    var target = AutoSavePath(i);
+                    if (File.Exists(source))
+                        File.Copy(source, target, true);
+                }
+                var firstBackup = first + ".rollback";
+                if (File.Exists(first))
+                {
+                    if (File.Exists(firstBackup))
+                        File.Delete(firstBackup);
+                    File.Replace(staging, first, firstBackup);
+                    if (File.Exists(firstBackup))
+                        File.Delete(firstBackup);
+                }
+                else
+                    File.Move(staging, first);
+                for (var i = slots + 1; i <= 5; i++)
+                {
+                    var unused = AutoSavePath(i);
+                    if (File.Exists(unused))
+                        File.Delete(unused);
+                }
+            }
+            catch (System.Exception error)
+            {
+                career.LastAutoSaveDateTicks = previousTicks;
+                Debug.LogWarning("Não foi possível guardar o autosave: " + error.Message);
+                if (File.Exists(staging))
+                    File.Delete(staging);
+                var firstBackup = first + ".rollback";
+                if (File.Exists(firstBackup) && !File.Exists(first))
+                    File.Move(firstBackup, first);
+            }
+        }
+
+        public static void AutoSaveIfDue(CareerState career, int intervalDays, int slots)
+        {
+            if (career == null || career.Calendar == null)
+                return;
+            intervalDays = Mathf.Max(1, intervalDays);
+            var lastTicks = career.LastAutoSaveDateTicks;
+            if (lastTicks <= 0)
+                lastTicks = career.Calendar.CurrentDate.Ticks;
+            var days = (career.Calendar.CurrentDate.Date - new System.DateTime(lastTicks).Date).Days;
+            if (days < intervalDays)
+                return;
+            AutoSave(career, slots);
+        }
+
+        static bool SaveTo(CareerState career, string outputPath)
+        {
+            if (career == null || career.Coach == null)
+                return false;
             var lines = new List<string>
             {
                 "coach|" + Esc(career.Coach.Name) + "|" + career.Coach.ClubId + "|" + career.Calendar.CurrentDate.Ticks,
                 "careerprogress|" + career.CompletedSeasons,
-                "fanmood|" + career.SupporterApproval
+                "fanmood|" + career.SupporterApproval,
+                "simulation|" + Mathf.Clamp(career.InjuryFrequency, 0, 2) + "|" + Mathf.Clamp(career.RefereeStrictness, 0, 2) + "|" + Mathf.Clamp(career.RealismPreset, 0, 4),
+                "autosave|" + career.LastAutoSaveDateTicks
             };
             foreach (var memory in career.Memories)
                 lines.Add("memory|" + memory.WhenTicks + "|" + memory.Importance + "|" + Esc(memory.Kind) + "|" + memory.ClubId + "|" + memory.CompetitionId + "|" + memory.RelatedClubId + "|" + memory.PlayerId + "|" + Esc(memory.Title) + "|" + Esc(memory.Detail) + "|" + memory.Value);
@@ -72,18 +177,55 @@ namespace CoachMaster.Career
                 lines.Add("stat|" + line.PlayerId + "|" + line.Goals + "|" + line.Assists + "|" + line.Apps + "|" + line.RatingSum.ToString(CultureInfo.InvariantCulture) + "|" + line.Rated + "|" + line.CompetitionId);
             foreach (var line in career.CareerTotals)
                 lines.Add("careerstat|" + line.PlayerId + "|" + line.Goals + "|" + line.Assists + "|" + line.Apps + "|" + line.RatingSum.ToString(CultureInfo.InvariantCulture) + "|" + line.Rated);
-            File.WriteAllLines(PathFile, lines, Encoding.UTF8);
+            var tempPath = outputPath + ".tmp";
+            var backupPath = outputPath + ".backup";
+            Directory.CreateDirectory(Path.GetDirectoryName(outputPath));
+            File.WriteAllLines(tempPath, lines, Encoding.UTF8);
+            if (!File.Exists(outputPath))
+            {
+                File.Move(tempPath, outputPath);
+                return true;
+            }
+
+            try
+            {
+                if (File.Exists(backupPath))
+                    File.Delete(backupPath);
+                File.Replace(tempPath, outputPath, backupPath);
+            }
+            catch
+            {
+                if (File.Exists(tempPath))
+                    File.Delete(tempPath);
+                Debug.LogWarning("Não foi possível atualizar o ficheiro de carreira. A versão anterior foi mantida.");
+                return false;
+            }
+            return true;
         }
 
         public static CareerState TryLoad(GameSession session)
         {
-            if (session == null || !Exists)
+            var career = TryLoadFrom(session, PathFile);
+            if (career != null)
+                return career;
+            var backup = PathFile + ".backup";
+            return File.Exists(backup) ? TryLoadFrom(session, backup) : null;
+        }
+
+        public static CareerState TryLoadAutoSave(GameSession session, int slot = 1)
+        {
+            return TryLoadFrom(session, AutoSavePath(Mathf.Clamp(slot, 1, 5)));
+        }
+
+        static CareerState TryLoadFrom(GameSession session, string path)
+        {
+            if (session == null || !File.Exists(path))
                 return null;
             CareerNotificationQueue.Clear();
             string[] lines;
             try
             {
-                lines = File.ReadAllLines(PathFile, Encoding.UTF8);
+                lines = File.ReadAllLines(path, Encoding.UTF8);
             }
             catch
             {
@@ -155,6 +297,21 @@ namespace CoachMaster.Career
                     continue;
                 switch (bits[0])
                 {
+                    case "simulation":
+                        if (bits.Length > 3)
+                        {
+                            int.TryParse(bits[1], out var injuryFrequency);
+                            int.TryParse(bits[2], out var refereeStrictness);
+                            int.TryParse(bits[3], out var realismPreset);
+                            career.InjuryFrequency = Mathf.Clamp(injuryFrequency, 0, 2);
+                            career.RefereeStrictness = Mathf.Clamp(refereeStrictness, 0, 2);
+                            career.RealismPreset = Mathf.Clamp(realismPreset, 0, 4);
+                        }
+                        break;
+                    case "autosave":
+                        if (bits.Length > 1 && long.TryParse(bits[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var autosaveTicks))
+                            career.LastAutoSaveDateTicks = autosaveTicks;
+                        break;
                     case "careerprogress":
                         hasCareerProgress = true;
                         if (bits.Length > 1)
@@ -347,6 +504,8 @@ namespace CoachMaster.Career
 
             if (ticks > 0)
                 career.Calendar.SetInstant(new System.DateTime(ticks));
+            if (career.LastAutoSaveDateTicks <= 0)
+                career.LastAutoSaveDateTicks = career.Calendar.CurrentDate.Ticks;
             if (!hasCareerProgress && ticks > 0)
             {
                 var date = career.Calendar.CurrentDate;

@@ -64,7 +64,7 @@ namespace CoachMaster.MatchPlay
             return Ratings.TryGetValue(id, out var value) ? value : 6f;
         }
 
-        public static MatchSession Create(CareerState career, Fixture fixture)
+        public static MatchSession Create(CareerState career, Fixture fixture, bool automaticUserSelection = false)
         {
             var match = new MatchSession
             {
@@ -74,8 +74,8 @@ namespace CoachMaster.MatchPlay
             };
             match.HomeTactics = Copy(match.Home.Tactics);
             match.AwayTactics = Copy(match.Away.Tactics);
-            FillSquad(career, match.Home, match.HomeOnField, match.HomeBench);
-            FillSquad(career, match.Away, match.AwayOnField, match.AwayBench);
+            FillSquad(career, match.Home, match.HomeOnField, match.HomeBench, automaticUserSelection && match.Home.Id == career.Coach.ClubId);
+            FillSquad(career, match.Away, match.AwayOnField, match.AwayBench, automaticUserSelection && match.Away.Id == career.Coach.ClubId);
             foreach (var id in match.HomeOnField)
                 match.Appeared.Add(id);
             foreach (var id in match.AwayOnField)
@@ -139,7 +139,7 @@ namespace CoachMaster.MatchPlay
                 match.Ratings[id] = value;
         }
 
-        static void FillSquad(CareerState career, Club club, List<string> onField, List<string> bench)
+        static void FillSquad(CareerState career, Club club, List<string> onField, List<string> bench, bool ignoreManualLineup)
         {
             var players = new List<Player>();
             foreach (var id in club.PlayerIds)
@@ -156,7 +156,7 @@ namespace CoachMaster.MatchPlay
 
             var eleven = new List<Player>();
             var rest = new List<Player>();
-            StartingShape.Resolve(available, club, eleven, rest);
+            StartingShape.Resolve(available, club, eleven, rest, ignoreManualLineup);
             foreach (var player in eleven)
                 onField.Add(player.Id);
             foreach (var player in rest)

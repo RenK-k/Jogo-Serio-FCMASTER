@@ -14,7 +14,7 @@ namespace CoachMaster.Career
             PickFormation(pool, formation, eleven, bench);
         }
 
-        public static void Resolve(IEnumerable<Player> squad, Club club, List<Player> eleven, List<Player> bench)
+        public static void Resolve(IEnumerable<Player> squad, Club club, List<Player> eleven, List<Player> bench, bool ignoreManualLineup = false)
         {
             eleven.Clear();
             bench.Clear();
@@ -23,7 +23,7 @@ namespace CoachMaster.Career
                 pool.Add(player);
             pool.Sort((a, b) => a.SquadNumber.CompareTo(b.SquadNumber));
             var formation = club == null || club.Tactics == null ? "4-3-3" : club.Tactics.Formation;
-            if (club != null && club.ManualLineup != null && club.ManualLineup.Count == 11)
+            if (!ignoreManualLineup && club != null && club.ManualLineup != null && club.ManualLineup.Count == 11)
             {
                 foreach (var id in club.ManualLineup)
                 {

@@ -55,7 +55,8 @@ namespace CoachMaster.UI
             if (scaler != null)
             {
                 scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-                scaler.referenceResolution = new Vector2(1920, 1080);
+                var scale = Mathf.Clamp(SettingsPrefs.UiScale, 0.8f, 1.2f);
+                scaler.referenceResolution = new Vector2(1920f / scale, 1080f / scale);
                 scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Shrink;
             }
 
@@ -227,7 +228,7 @@ namespace CoachMaster.UI
             colors.highlightedColor = new Color(1f, 1f, 1f, 0.92f);
             colors.pressedColor = new Color(0.82f, 0.82f, 0.82f, 1f);
             colors.selectedColor = colors.highlightedColor;
-            colors.fadeDuration = 0.08f;
+            colors.fadeDuration = SettingsPrefs.ReduceMotion ? 0f : 0.08f;
             button.colors = colors;
             if (onClick != null)
                 button.onClick.AddListener(() =>
@@ -278,7 +279,7 @@ namespace CoachMaster.UI
             colors.highlightedColor = new Color(1f, 1f, 1f, 0.9f);
             colors.pressedColor = new Color(0.8f, 0.8f, 0.8f, 1f);
             colors.selectedColor = colors.highlightedColor;
-            colors.fadeDuration = 0.08f;
+            colors.fadeDuration = SettingsPrefs.ReduceMotion ? 0f : 0.08f;
             button.colors = colors;
             if (onClick != null)
                 button.onClick.AddListener(() =>

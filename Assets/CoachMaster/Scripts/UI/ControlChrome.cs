@@ -35,6 +35,36 @@ namespace CoachMaster.UI
                 EventSystem.current.SetSelectedGameObject(null);
         }
 
+        public static void SettingsOpened()
+        {
+            var chrome = GameRoot.Instance == null ? null : GameRoot.Instance.GetComponent<ControlChrome>();
+            if (chrome == null)
+                return;
+            chrome.ClearFocus();
+            chrome._buttons.Clear();
+            chrome._index = -1;
+            chrome._nextScan = 0f;
+            chrome._hint = null;
+            if (!UsingKeyboard)
+                chrome._navigationActive = true;
+            if (EventSystem.current != null)
+                EventSystem.current.SetSelectedGameObject(null);
+        }
+
+        public static void SettingsClosed()
+        {
+            var chrome = GameRoot.Instance == null ? null : GameRoot.Instance.GetComponent<ControlChrome>();
+            if (chrome == null)
+                return;
+            chrome.ClearFocus();
+            chrome._buttons.Clear();
+            chrome._index = -1;
+            chrome._nextScan = 0f;
+            chrome._hint = null;
+            if (EventSystem.current != null)
+                EventSystem.current.SetSelectedGameObject(null);
+        }
+
         public static void DisableAutomaticNavigation()
         {
             var buttons = FindObjectsByType<Button>(FindObjectsSortMode.None);
@@ -64,8 +94,8 @@ namespace CoachMaster.UI
             {
                 _nextScan = Time.unscaledTime + 0.35f;
                 EnsureHint();
-                if (_hint != null && !_hint.gameObject.activeSelf)
-                    _hint.gameObject.SetActive(true);
+                if (_hint != null && _hint.gameObject.activeSelf != SettingsPrefs.ControllerHints)
+                    _hint.gameObject.SetActive(SettingsPrefs.ControllerHints);
                 RefreshButtons();
             }
 
@@ -120,11 +150,30 @@ namespace CoachMaster.UI
                 }
             }
 
-            if (prev) Move(-1);
-            else if (next) Move(1);
-            else if (stickMove != 0) Move(stickMove);
-            else if (confirm) PressCurrent();
-            else if (back) PressNamed("Back");
+            var horizontalNegative = UsingKeyboard
+                ? Keyboard.current != null && Keyboard.current.leftArrowKey.wasPressedThisFrame
+                : Gamepad.current != null && Gamepad.current.dpad.left.wasPressedThisFrame;
+            var horizontalPositive = UsingKeyboard
+                ? Keyboard.current != null && Keyboard.current.rightArrowKey.wasPressedThisFrame
+                : Gamepad.current != null && Gamepad.current.dpad.right.wasPressedThisFrame;
+
+            var volumeAdjusted = horizontalNegative && AdjustFocusedVolume(-0.05f);
+            if (!volumeAdjusted && horizontalPositive)
+                volumeAdjusted = AdjustFocusedVolume(0.05f);
+            if (!volumeAdjusted)
+            {
+                if (prev) Move(-1);
+                else if (next) Move(1);
+                else if (stickMove != 0) Move(stickMove);
+                else if (confirm) PressCurrent();
+                else if (back)
+                {
+                    if (AudioSettingsOverlay.IsVisible)
+                        GameRoot.Instance.GetComponent<AudioSettingsOverlay>()?.CloseFromControl();
+                    else
+                        PressNamed("Back");
+                }
+            }
         }
 
         void LateUpdate()
@@ -182,9 +231,13 @@ namespace CoachMaster.UI
 
         void EnsureHint()
         {
-            if (_hint != null)
+            if (_hint != null && !AudioSettingsOverlay.IsVisible)
                 return;
-            var canvas = FindFirstObjectByType<Canvas>();
+            Canvas canvas = null;
+            if (AudioSettingsOverlay.IsVisible && GameRoot.Instance != null)
+                canvas = GameRoot.Instance.GetComponent<AudioSettingsOverlay>()?.SettingsCanvas;
+            if (canvas == null)
+                canvas = FindFirstObjectByType<Canvas>();
             if (canvas == null)
                 return;
             foreach (var text in canvas.GetComponentsInChildren<Text>(true))
@@ -224,7 +277,11 @@ namespace CoachMaster.UI
         {
             var previous = _focusedButton;
             _buttons.Clear();
-            var canvas = FindFirstObjectByType<Canvas>();
+            Canvas canvas = null;
+            if (AudioSettingsOverlay.IsVisible && GameRoot.Instance != null)
+                canvas = GameRoot.Instance.GetComponent<AudioSettingsOverlay>()?.SettingsCanvas;
+            if (canvas == null)
+                canvas = FindFirstObjectByType<Canvas>();
             if (canvas == null)
                 return;
             foreach (var button in canvas.GetComponentsInChildren<Button>(false))
@@ -268,6 +325,18 @@ namespace CoachMaster.UI
                 _index = -1;
                 ClearFocus();
             }
+        }
+
+        bool AdjustFocusedVolume(float amount)
+        {
+            if (_index < 0 || _index >= _buttons.Count)
+                return false;
+            var volume = _buttons[_index].GetComponent<DragVolume>();
+            if (volume == null)
+                return false;
+            volume.Step(amount);
+            GameAudio.Click();
+            return true;
         }
 
         int SelectedButtonIndex()

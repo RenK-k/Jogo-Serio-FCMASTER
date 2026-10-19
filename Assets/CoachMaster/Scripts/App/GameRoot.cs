@@ -74,16 +74,19 @@ namespace CoachMaster.App
             ControlChrome.ResetForScene();
         }
 
-        static void FitCanvases()
+        public static void ApplyUiScale()
         {
             var scalers = FindObjectsByType<CanvasScaler>(FindObjectsSortMode.None);
             for (var i = 0; i < scalers.Length; i++)
             {
                 scalers[i].uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-                scalers[i].referenceResolution = new Vector2(1920, 1080);
+                var scale = Mathf.Clamp(SettingsPrefs.UiScale, 0.8f, 1.2f);
+                scalers[i].referenceResolution = new Vector2(1920f / scale, 1080f / scale);
                 scalers[i].screenMatchMode = CanvasScaler.ScreenMatchMode.Shrink;
             }
         }
+
+        static void FitCanvases() => ApplyUiScale();
 
         public static void EnsureUiInput()
         {
@@ -190,7 +193,7 @@ namespace CoachMaster.App
             var fadeIn = 0f;
             while (fadeIn < 1f)
             {
-                fadeIn += Time.unscaledDeltaTime / 0.22f;
+                fadeIn += Time.unscaledDeltaTime / (SettingsPrefs.ReduceMotion ? 0.06f : 0.22f);
                 _loadingGroup.alpha = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(fadeIn));
                 yield return null;
             }
@@ -209,10 +212,15 @@ namespace CoachMaster.App
             while (!operation.isDone || visibleAfterLoad < 0.25f)
             {
                 var delta = Time.unscaledDeltaTime;
-                animationElapsed = (animationElapsed + delta) % (LoadingFrameSeconds * LoadingFrameCount);
-                var framePosition = animationElapsed / LoadingFrameSeconds;
-                var frameIndex = Mathf.FloorToInt(framePosition);
-                SetLoadingFrame(frameIndex, framePosition - frameIndex);
+                if (SettingsPrefs.ReduceMotion)
+                    SetLoadingFrame(0);
+                else
+                {
+                    animationElapsed = (animationElapsed + delta) % (LoadingFrameSeconds * LoadingFrameCount);
+                    var framePosition = animationElapsed / LoadingFrameSeconds;
+                    var frameIndex = Mathf.FloorToInt(framePosition);
+                    SetLoadingFrame(frameIndex, framePosition - frameIndex);
+                }
                 if (operation.isDone)
                     visibleAfterLoad += delta;
                 yield return null;
@@ -271,7 +279,7 @@ namespace CoachMaster.App
             var fade = 0f;
             while (fade < 1f)
             {
-                fade += Time.unscaledDeltaTime / 0.28f;
+                fade += Time.unscaledDeltaTime / (SettingsPrefs.ReduceMotion ? 0.06f : 0.28f);
                 _loadingGroup.alpha = Mathf.Lerp(start, 0f, Mathf.Clamp01(fade));
                 yield return null;
             }
@@ -306,6 +314,10 @@ namespace CoachMaster.App
         public void StartCareer()
         {
             Career = CareerFactory.Create(Draft.CoachName, Draft.ClubId, Data.WorldCatalog.Create());
+            Career.InjuryFrequency = SettingsPrefs.DefaultInjuryFrequency;
+            Career.RefereeStrictness = SettingsPrefs.DefaultRefereeStrictness;
+            Career.RealismPreset = SettingsPrefs.DefaultRealismPreset;
+            Career.LastAutoSaveDateTicks = Career.Calendar.CurrentDate.Ticks;
         }
 
         public void Restore(CareerState career)

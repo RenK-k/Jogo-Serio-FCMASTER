@@ -38,7 +38,6 @@ namespace CoachMaster.UI.Scenes
         GameObject _phoneApps;
         GameObject _phonePage;
         Text _phoneAppTitle;
-        Image _phoneBell;
         float _phoneSlide;
         bool _phoneOpen;
         string _phoneApp = "Mensagens";
@@ -261,9 +260,6 @@ namespace CoachMaster.UI.Scenes
                 _phoneInThread = false;
                 if (_phoneAppTitle != null)
                     _phoneAppTitle.text = _phoneApp == "X" ? "X   PARA TI" : _phoneApp;
-                EnsurePhoneHeaderIcon();
-                if (_phoneBell != null)
-                    _phoneBell.transform.parent.gameObject.SetActive(_phoneApp == "X");
                 FillPhone(_phoneApp);
                 return;
             }
@@ -293,30 +289,9 @@ namespace CoachMaster.UI.Scenes
                 _phonePage.SetActive(true);
             _phoneApp = name;
             _phoneInThread = false;
-            EnsurePhoneHeaderIcon();
-            if (_phoneBell != null)
-                _phoneBell.transform.parent.gameObject.SetActive(name == "X");
             if (_phoneAppTitle != null)
                 _phoneAppTitle.text = name == "X" ? "X   PARA TI" : name;
             FillPhone(name);
-        }
-
-        void EnsurePhoneHeaderIcon()
-        {
-            if (_phoneBell != null || _phonePage == null)
-                return;
-            var sprite = Resources.Load<Sprite>("Uicons/fi-rr-bell");
-            if (sprite == null)
-                return;
-            var tile = BroadcastUi.Panel(_phonePage.transform, "XNotifications", Color.white, true);
-            tile.raycastTarget = false;
-            BroadcastUi.Place(tile.rectTransform, 0.84f, 0.88f, 0.96f, 0.98f);
-            _phoneBell = BroadcastUi.Solid(tile.transform, "Bell", Color.white);
-            _phoneBell.sprite = sprite;
-            _phoneBell.preserveAspect = true;
-            _phoneBell.raycastTarget = false;
-            BroadcastUi.Place(_phoneBell.rectTransform, 0.12f, 0.12f, 0.88f, 0.88f);
-            tile.gameObject.SetActive(false);
         }
 
         void FillPhone(string app)
@@ -345,20 +320,15 @@ namespace CoachMaster.UI.Scenes
                 {
                     AddSocialAuthor(row.transform, note, false);
                 }
-                var tag = social ? "PUBLICAÇÃO" : note.ReplyGroup == "job-offer" ? "PROPOSTA" : note.Channel == "jogador" ? "JOGADOR" : note.Channel == "clube" ? "CLUBE" : note.Channel == "staff" ? "STAFF" : note.Channel == "jornal" ? "JORNAL" : "AGENDA";
                 if (!social)
                 {
+                    var tag = note.ReplyGroup == "job-offer" ? "PROPOSTA" : note.Channel == "jogador" ? "JOGADOR" : note.Channel == "clube" ? "CLUBE" : note.Channel == "staff" ? "STAFF" : note.Channel == "jornal" ? "JORNAL" : "AGENDA";
                     var who = BroadcastUi.Label(row.transform, "Who", note.Who, 15, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
                     who.raycastTarget = false;
                     BroadcastUi.Place(who.rectTransform, left, 0.62f, 0.72f, 0.95f);
                     var kind = BroadcastUi.Label(row.transform, "Tag", tag, 11, UiTheme.Muted, TextAnchor.MiddleRight, FontStyle.Bold);
                     kind.raycastTarget = false;
                     BroadcastUi.Place(kind.rectTransform, 0.72f, 0.62f, 0.96f, 0.95f);
-                }
-                else
-                {
-                    var kind = BroadcastUi.Label(row.transform, "Tag", tag, 10, UiTheme.Muted, TextAnchor.MiddleRight, FontStyle.Bold);
-                    BroadcastUi.Place(kind.rectTransform, 0.77f, 0.78f, 0.97f, 0.98f);
                 }
                 var body = BroadcastUi.Label(row.transform, "Body", note.Text, social ? 13 : 14, Color.white, TextAnchor.UpperLeft);
                 body.raycastTarget = false;
@@ -399,8 +369,6 @@ namespace CoachMaster.UI.Scenes
             if (_phoneList == null)
                 return;
             _phoneInThread = true;
-            if (_phoneBell != null)
-                _phoneBell.transform.parent.gameObject.SetActive(false);
             if (_phoneAppTitle != null)
                 _phoneAppTitle.text = note.Who;
             Clear(_phoneList);
@@ -1149,13 +1117,35 @@ namespace CoachMaster.UI.Scenes
         static string[] SocialComments(PhoneNote note)
         {
             var text = note == null ? "" : note.Text.ToLowerInvariant();
+            if (text.Contains("derrota") || text.Contains("perdemos"))
+                return new[] { "Hoje vi o resultado e fui dar uma volta para não mandar um áudio de quatro minutos.", "A defesa foi buscar pão e deixou a baliza sozinha.", "Próxima jornada é já. Ainda bem, que não sei viver sem sofrer." };
             if (text.Contains("empate") || text.Contains("1–1") || text.Contains("1-1"))
-                return new[] { "Até a avó de rodas corria mais.", "Meio-campo hoje foi de Uber.", "Empate: nem para festejar, nem sofrer." };
-            if (text.Contains("vitória") || text.Contains("golo") || text.Contains("golos"))
-                return new[] { "Até a avó de rodas metia aquela!", "Três pontos. Já voltei a ser mister.", "Hoje até o VAR veio bem-disposto." };
+                return new[] { "Um ponto para a tabela, três para a discussão no café.", "Empate daqueles em que todos têm razão no WhatsApp.", "Nem feliz nem triste: fiquei em modo análise tática." };
+            if (text.Contains("vitória"))
+                return new[] { "Ganhámos e eu já estou a dizer que sempre acreditei neste projeto.", "Três pontos! Hoje até o meu café saiu sem açúcar e não me estragou o dia.", "A bancada já perdoou os últimos jogos. A memória é curta quando se ganha." };
+            if (text.Contains("bola de ouro"))
+                return new[] { "Bola de Ouro ainda é cedo; para já que leve o prémio de não perder a bola no aquecimento.", "Com esses números já pode escolher a mesa no café.", "Se continuar assim, até a minha avó aprende a pronunciar o nome." };
+            if (text.Contains("golos marcados") || text.Contains("golos sofridos"))
+                return new[] { "Marcar golos é bom. Evitar sofrer também era uma ideia bonita.", "A diferença de golos está a fazer horas extra.", "O ataque merece jantar fora; a defesa, uma reunião curta." };
+            if ((text.Contains("leva ") && text.Contains("golos")) || text.Contains("assistências"))
+                return new[] { "Os números estão aí. Agora falta o comentador do café admitir que estava enganado.", "Golos e assistências? Parece que afinal treinar também dá resultado.", "Eu dizia que era bom antes de aparecer no resumo, atenção." };
             if (text.Contains("transferência") || text.Contains("proposta"))
                 return new[] { "Este rumor já fez três pré-épocas.", "Se vier ponta, pago-lhe o Uber!", "O meu primo tem chuteiras. Serve?" };
-            return new[] { "Este manco falha até o autocarro.", "Até a minha avó de rodas joga melhor que este manco.", "Corre menos que o Wi-Fi da tasca." };
+            if (text.Contains("contra ") || text.Contains("jogo marcado") || text.Contains("próxima jornada"))
+                return new[] { "Já preparei a camisola. Só falta a equipa não me estragar a tarde.", "Contra esse adversário, o meu plano é simples: marcar primeiro e fingir calma.", "Quero coragem no relvado e menos passes para o guarda-redes deles." };
+            if (text.Contains("tabela") || text.Contains("lugar") || text.Contains("pontos em ") || text.Contains("lidera") || text.Contains("corrida pelo topo"))
+                return new[] { "A tabela não mente, mas o meu tio já tem uma explicação para cada coluna.", "Lugar registado. Agora ninguém deixe o treinador ler os comentários.", "Ainda falta muito calendário; eu já fiz as contas catorze vezes." };
+            if (text.Contains("formação") || text.Contains("meio-campo") || text.Contains("pressão") || text.Contains("tático") || text.Contains("sair a jogar") || text.Contains("futebol direto"))
+                return new[] { "Pressão alta é linda até o pulmão pedir substituição aos 60.", "O meu 4-3-3 do sofá continua invicto, atenção.", "Finalmente discussão tática com menos gritos que no café. Quase." };
+            if (text.Contains("conferência") || text.Contains("plano") || text.Contains("desculpas") || text.Contains("processo"))
+                return new[] { "Na conferência toda a gente tem plano. No domingo quero é ver o passe sair.", "O treinador disse ‘processo’ e o café inteiro começou a tossir.", "Se correr bem foi o plano; se correr mal foi a relva, aposto." };
+            if (text.Contains("renovem") || text.Contains("renovar") || text.Contains("contrato"))
+                return new[] { "Renovem já, antes que apareça um clube com mais zeros no cheque.", "A renovação é urgente. A minha opinião muda quando ele falha um passe? Nunca.", "Se ficar, pago-lhe um café. Sem açúcar, que o orçamento não estica." };
+            if (text.Contains("desempenho") || text.Contains("falhou") || text.Contains("falhas") || text.Contains("fraco") || text.Contains("manco") || text.Contains("não marcou") || text.Contains("nao marcou") || text.Contains("perdeu a bola"))
+                return new[] { "A nota foi tão baixa que o boletim veio dobrado.", "Hoje não acertou uma. Nem no café pediam outro passe.", "Dêem-lhe um jogo para responder… ou um GPS para encontrar a baliza." };
+            if (text.Contains("qualidade") || text.Contains("jogos grandes") || text.Contains("cara deste projeto"))
+                return new[] { "Qualidade tem. Agora quero ver isso quando o estádio estiver a ferver.", "Já é a cara do projeto; falta só a cara aparecer nos jogos grandes.", "No café já lhe deram a braçadeira, o prémio e uma mesa cativa." };
+            return new[] { "Concordo com isto até ao próximo passe para trás.", "Li o post e já tenho uma opinião forte sem ver o jogo.", "No café já há três planos melhores e nenhum inclui correr." };
         }
 
         Player BestSeasonPlayer(string leagueId, string kind)
@@ -2069,7 +2059,9 @@ namespace CoachMaster.UI.Scenes
             if (moment != null && moment.Kind == MomentKind.Match && moment.Fixture != null && !moment.Fixture.Played)
             {
                 SeasonSchedule.SimulateOthers(_career, moment.Fixture.Date, moment.Fixture);
-                GameRoot.Instance.LiveMatch = MatchSession.Create(_career, moment.Fixture);
+                if (SettingsPrefs.AutosaveBeforeMatch)
+                    CareerStore.AutoSave(_career, SettingsPrefs.AutosaveSlots);
+                GameRoot.Instance.LiveMatch = MatchSession.Create(_career, moment.Fixture, SettingsPrefs.AutomaticSquadSelection);
                 GameRoot.Instance.Open(SceneNames.MatchDay);
                 return;
             }
@@ -2077,8 +2069,10 @@ namespace CoachMaster.UI.Scenes
             var previousDay = _career.Calendar.CurrentDate.Date;
             CareerMoments.Continue(_career);
             var elapsedDays = (_career.Calendar.CurrentDate.Date - previousDay).Days;
-            if (elapsedDays > 0)
+            if (elapsedDays > 0 && SettingsPrefs.AutomaticTraining)
                 ApplyTraining(elapsedDays);
+            if (SettingsPrefs.AutosaveEnabled)
+                CareerStore.AutoSaveIfDue(_career, SettingsPrefs.AutosaveDays, SettingsPrefs.AutosaveSlots);
             CareerStore.Save(_career);
             Refresh();
             FillNews();
@@ -3414,6 +3408,8 @@ namespace CoachMaster.UI.Scenes
                 Hour = _career.Calendar.ClockText,
                 Text = "Análise ao " + opponent.ShortName + " fechada. Levou " + days + " dias. O relatório já está no calendário."
             });
+            if (SettingsPrefs.AutosaveEnabled)
+                CareerStore.AutoSaveIfDue(_career, SettingsPrefs.AutosaveDays, SettingsPrefs.AutosaveSlots);
             FillBoard();
             Refresh();
             OpenFixture(fixture);
@@ -4249,6 +4245,8 @@ namespace CoachMaster.UI.Scenes
                 When = _career.Calendar.CurrentDate,
                 Text = text
             });
+            if (SettingsPrefs.AutosaveEnabled)
+                CareerStore.AutoSaveIfDue(_career, SettingsPrefs.AutosaveDays, SettingsPrefs.AutosaveSlots);
             CareerStore.Save(_career);
             CloseModal();
             Refresh();
@@ -4259,7 +4257,8 @@ namespace CoachMaster.UI.Scenes
         void AdvanceCareerDays(int days)
         {
             days = Mathf.Max(1, days);
-            ApplyTraining(days);
+            if (SettingsPrefs.AutomaticTraining)
+                ApplyTraining(days);
             _career.Calendar.AdvanceDays(days);
         }
 

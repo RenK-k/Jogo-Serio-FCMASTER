@@ -30,6 +30,10 @@ namespace CoachMaster.Career
         public List<FootballMemory> Memories { get; } = new List<FootballMemory>();
         public int SupporterApproval { get; set; } = 55;
         public Dictionary<string, int> ManagerTrust { get; } = new Dictionary<string, int>();
+        public int InjuryFrequency { get; set; } = 1;
+        public int RefereeStrictness { get; set; } = 1;
+        public int RealismPreset { get; set; } = 1;
+        public long LastAutoSaveDateTicks { get; set; }
 
         public Fixture NextUserFixture()
         {

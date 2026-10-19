@@ -10,6 +10,7 @@ namespace CoachMaster.UI
 
         static GameAudioLibrary _library;
         static AudioSource _effects;
+        static AudioSource _menu;
         static AudioSource _music;
         static AudioSource _crowd;
         static AudioSource _reaction;
@@ -18,14 +19,22 @@ namespace CoachMaster.UI
         static bool _filled;
         static int _track = -1;
         static float _musicVolume = 0.5f;
-        static float _effectVolume = 0.5f;
-        static float _crowdVolume = 0.44f;
+        static float _effectVolume = 0.58f;
+        static float _crowdVolume = 0.42f;
+        static float _menuVolume = 0.5f;
+        static float _masterVolume = 0.5f;
+        static bool _muteAll;
+        static bool _prefsDirty;
+        static float _savePrefsAt;
         static float _reactUntil;
         static float _reactPeak;
 
         public static float MusicVolume => _musicVolume;
         public static float EffectVolume => _effectVolume;
         public static float CrowdVolume => _crowdVolume;
+        public static float MenuVolume => _menuVolume;
+        public static float MasterVolume => _masterVolume;
+        public static bool MuteAll => _muteAll;
         public static int TrackIndex => _track;
 
         public static void Bind(GameAudioLibrary library)
@@ -34,9 +43,10 @@ namespace CoachMaster.UI
                 _library = UnityEngine.Object.Instantiate(library);
             _filled = false;
             FillGaps();
+            ReloadPreferences();
         }
 
-        public static void Click() => PlayClip(Library?.Click, "click");
+        public static void Click() => PlayMenuClip(Library?.Click, "click");
         public static void Goal() => PlayClip(Library?.Goal, "golo", 1.35f);
         static int _whistleLeft;
         static float _nextWhistle;
@@ -143,30 +153,80 @@ namespace CoachMaster.UI
 
         static bool _unfocused;
         static float _grace;
-        public static bool Repeat { get; set; }
+        static bool _repeat;
+        public static bool Repeat
+        {
+            get => _repeat;
+            set
+            {
+                _repeat = value;
+                PlayerPrefs.SetInt("cm_audio_repeat", value ? 1 : 0);
+                MarkPreferencesDirty();
+                if (_music != null)
+                    _music.loop = value;
+            }
+        }
 
         public static void SetMusicVolume(float value)
         {
             _musicVolume = Mathf.Clamp01(value);
+            PlayerPrefs.SetFloat("cm_audio_music", _musicVolume);
+            MarkPreferencesDirty();
             ApplyVolumes();
         }
 
         public static void SetEffectVolume(float value)
         {
             _effectVolume = Mathf.Clamp01(value);
+            PlayerPrefs.SetFloat("cm_audio_effects", _effectVolume);
+            MarkPreferencesDirty();
             ApplyVolumes();
         }
 
         public static void SetCrowdVolume(float value)
         {
             _crowdVolume = Mathf.Clamp01(value);
+            PlayerPrefs.SetFloat("cm_audio_crowd", _crowdVolume);
+            MarkPreferencesDirty();
+            ApplyVolumes();
+        }
+
+        public static void SetMenuVolume(float value)
+        {
+            _menuVolume = Mathf.Clamp01(value);
+            PlayerPrefs.SetFloat("cm_audio_menu", _menuVolume);
+            MarkPreferencesDirty();
+            ApplyVolumes();
+        }
+
+        public static void SetMasterVolume(float value)
+        {
+            _masterVolume = Mathf.Clamp01(value);
+            PlayerPrefs.SetFloat("cm_audio_master", _masterVolume);
+            MarkPreferencesDirty();
+            ApplyVolumes();
+        }
+
+        public static void SetMuteAll(bool muted)
+        {
+            _muteAll = muted;
+            PlayerPrefs.SetInt("cm_audio_mute", muted ? 1 : 0);
+            MarkPreferencesDirty();
             ApplyVolumes();
         }
 
         public static void Tick()
         {
+            if (_prefsDirty && Time.unscaledTime >= _savePrefsAt)
+            {
+                PlayerPrefs.Save();
+                _prefsDirty = false;
+            }
+
             if (!Application.isFocused)
             {
+                if (!_unfocused)
+                    ApplyVolumes();
                 _unfocused = true;
                 return;
             }
@@ -175,6 +235,7 @@ namespace CoachMaster.UI
             {
                 _unfocused = false;
                 _grace = Time.unscaledTime + 1.2f;
+                ApplyVolumes();
                 if (_music != null && _music.clip != null && !_music.isPlaying)
                     _music.Play();
                 return;
@@ -185,8 +246,11 @@ namespace CoachMaster.UI
                 var remain = _reactUntil - Time.unscaledTime;
                 if (remain <= 0f)
                     _reaction.Stop();
-                else if (remain < 0.7f)
-                    _reaction.volume = _reactPeak * (remain / 0.7f);
+                else
+                {
+                    _reactPeak = ReactionPeak();
+                    _reaction.volume = _reactPeak * (remain < 0.7f ? remain / 0.7f : 1f);
+                }
             }
 
             if (Time.unscaledTime < _grace || _music == null || _music.clip == null)
@@ -209,6 +273,7 @@ namespace CoachMaster.UI
                 return;
             Ensure();
             _crowd.volume = _crowdVolume;
+            ApplyVolumes();
             if (_crowd.clip == clip && _crowd.isPlaying)
                 return;
             _crowd.clip = clip;
@@ -374,6 +439,17 @@ namespace CoachMaster.UI
             _effects.PlayOneShot(clip, Mathf.Clamp01(_effectVolume * gain));
         }
 
+        static void PlayMenuClip(AudioClip assigned, string resourceFallback)
+        {
+            if (_muteAll || (SettingsPrefs.MuteWhenBackground && !Application.isFocused))
+                return;
+            var clip = assigned != null ? assigned : LoadResource(resourceFallback);
+            if (clip == null)
+                return;
+            Ensure();
+            _menu.PlayOneShot(clip, _menuVolume);
+        }
+
         static void React(string key, AudioClip clip)
         {
             if (clip == null || string.IsNullOrEmpty(key))
@@ -389,9 +465,7 @@ namespace CoachMaster.UI
             var window = key.Contains("goal") ? 2.3f : 1.5f;
             _reactionLock = Time.unscaledTime + window;
             _reactUntil = Time.unscaledTime + window;
-            _reactPeak = key.Contains("goal")
-                ? Mathf.Clamp01(Mathf.Max(_crowdVolume * 1.45f, _musicVolume * 1.25f))
-                : Mathf.Clamp01(_crowdVolume * 0.78f);
+            _reactPeak = ReactionPeak(key);
             _reaction.volume = _reactPeak;
             _reaction.clip = clip;
             _reaction.Play();
@@ -411,7 +485,7 @@ namespace CoachMaster.UI
             if (clip == null)
                 return;
             Ensure();
-            _music.volume = _musicVolume;
+            _music.volume = EffectiveGain * _musicVolume;
             if (_music.clip == clip && _music.isPlaying)
                 return;
             _music.clip = clip;
@@ -421,10 +495,74 @@ namespace CoachMaster.UI
 
         static void ApplyVolumes()
         {
+            var gain = EffectiveGain;
             if (_music != null)
-                _music.volume = _musicVolume;
+                _music.volume = _musicVolume * gain;
+            if (_effects != null)
+                _effects.volume = gain;
+            if (_menu != null)
+                _menu.volume = gain;
             if (_crowd != null)
-                _crowd.volume = _crowdVolume;
+                _crowd.volume = _crowdVolume * gain;
+            if (_reaction != null)
+            {
+                if (_reaction.isPlaying)
+                {
+                    _reactPeak = ReactionPeak();
+                    _reaction.volume = _reactPeak;
+                }
+                else
+                    _reaction.volume = 1f;
+            }
+        }
+
+        static float EffectiveGain => _muteAll || (SettingsPrefs.MuteWhenBackground && !Application.isFocused) ? 0f : _masterVolume;
+
+        static float ReactionPeak(string key = null)
+        {
+            var eventKey = key ?? _reactionKey;
+            var group = eventKey != null && eventKey.Contains("goal")
+                ? Mathf.Clamp01(Mathf.Max(_crowdVolume * 1.45f, _musicVolume * 1.25f))
+                : Mathf.Clamp01(_crowdVolume * 0.78f);
+            return EffectiveGain * group;
+        }
+
+        static void MarkPreferencesDirty()
+        {
+            _prefsDirty = true;
+            _savePrefsAt = Time.unscaledTime + 0.5f;
+        }
+
+        public static void ReloadPreferences()
+        {
+            _masterVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("cm_audio_master", 0.5f));
+            _musicVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("cm_audio_music", 0.5f));
+            _effectVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("cm_audio_effects", 0.58f));
+            _crowdVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("cm_audio_crowd", 0.42f));
+            _menuVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("cm_audio_menu", 0.5f));
+            _muteAll = PlayerPrefs.GetInt("cm_audio_mute", 0) != 0;
+            _repeat = PlayerPrefs.GetInt("cm_audio_repeat", 0) != 0;
+            ApplyVolumes();
+        }
+
+        public static void ResetDefaults()
+        {
+            _masterVolume = 0.5f;
+            _musicVolume = 0.5f;
+            _effectVolume = 0.58f;
+            _crowdVolume = 0.42f;
+            _menuVolume = 0.5f;
+            _muteAll = false;
+            _repeat = false;
+            PlayerPrefs.SetFloat("cm_audio_master", _masterVolume);
+            PlayerPrefs.SetFloat("cm_audio_music", _musicVolume);
+            PlayerPrefs.SetFloat("cm_audio_effects", _effectVolume);
+            PlayerPrefs.SetFloat("cm_audio_crowd", _crowdVolume);
+            PlayerPrefs.SetFloat("cm_audio_menu", _menuVolume);
+            PlayerPrefs.SetInt("cm_audio_mute", 0);
+            PlayerPrefs.SetInt("cm_audio_repeat", 0);
+            MarkPreferencesDirty();
+            ApplyVolumes();
         }
 
         static AudioClip LoadResource(string clipName)
@@ -442,6 +580,8 @@ namespace CoachMaster.UI
             Object.DontDestroyOnLoad(host);
             _effects = host.AddComponent<AudioSource>();
             _effects.playOnAwake = false;
+            _menu = host.AddComponent<AudioSource>();
+            _menu.playOnAwake = false;
             _music = host.AddComponent<AudioSource>();
             _music.playOnAwake = false;
             _music.loop = true;
