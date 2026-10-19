@@ -14,8 +14,21 @@ namespace CoachMaster.UI
         public static Sprite Round => _round != null ? _round : (_round = MakeRound());
         public static Sprite Circle => _circle != null ? _circle : (_circle = MakeDisc(false));
         public static Sprite Ring => _ring != null ? _ring : (_ring = MakeDisc(true));
-        public static Texture2D BrandTexture => _brandTexture != null ? _brandTexture : (_brandTexture = Resources.Load<Texture2D>("fCMASTER"));
-        public static Rect BrandUvRect => new Rect(0.25f, 0.41f, 0.5f, 0.35f);
+        public static Texture2D BrandTexture => _brandTexture != null ? _brandTexture : (_brandTexture = Resources.Load<Texture2D>("fcmasterGIFAnimated") ?? Resources.Load<Texture2D>("fCMASTER"));
+        public static Rect BrandUvRect
+        {
+            get
+            {
+                var texture = BrandTexture;
+                if (texture == null || texture.width < 2048 || texture.height < 2048)
+                    return new Rect(0.25f, 0.41f, 0.5f, 0.35f);
+                const float columns = 8f;
+                const float rows = 8f;
+                var insetX = 0.5f / 2048f;
+                var insetY = 0.5f / 2048f;
+                return new Rect(insetX, 1f - 1f / rows + insetY, 1f / columns - insetX * 2f, 1f / rows - insetY * 2f);
+            }
+        }
 
         public static void ApplyBrand(RawImage image)
         {
@@ -112,6 +125,9 @@ namespace CoachMaster.UI
                 var x = i / 16f;
                 Place(stripe.rectTransform, x, 0f, x + (1f / 15f), 1f);
             }
+
+            if (BackgroundPrefs.SelectedLeagueId != null)
+                LeagueBackdrop.Paint(parent, null);
 
             var shade = Solid(parent, "TopShade", new Color(0.05f, 0.02f, 0.1f, 0.28f));
             Place(shade.rectTransform, 0f, 0.9f, 1f, 1f);

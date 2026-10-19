@@ -50,12 +50,12 @@ namespace CoachMaster.MatchPlay
         public int HomeChances { get; set; }
         public int AwayChances { get; set; }
 
-        public void AddNote(string text, string kind)
+        public void AddNote(string text, string kind, string playerId = null)
         {
             var minute = (int)Minute;
             if (minute < 0)
                 minute = 0;
-            Notes.Add(new MatchNote { Minute = minute, Text = text, Kind = kind });
+            Notes.Add(new MatchNote { Minute = minute, Text = text, Kind = kind, PlayerId = playerId });
             LastEvent = text;
         }
 
@@ -204,5 +204,6 @@ namespace CoachMaster.MatchPlay
         public int Minute;
         public string Text;
         public string Kind;
+        public string PlayerId;
     }
 }

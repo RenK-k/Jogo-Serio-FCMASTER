@@ -50,15 +50,6 @@ TextureImporter:
   - first:
       213: -9077871278601765404
     second: fCMASTER_15
-  - first:
-      213: 3476764202789186586
-    second: fCMASTER_16
-  - first:
-      213: 3242113801659094918
-    second: fCMASTER_17
-  - first:
-      213: 8593526069846680809
-    second: fCMASTER_18
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -157,10 +148,10 @@ TextureImporter:
       name: fCMASTER_0
       rect:
         serializedVersion: 2
-        x: 4
-        y: 4
-        width: 459
-        height: 489
+        x: 275
+        y: 398
+        width: 253
+        height: 111
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -179,10 +170,10 @@ TextureImporter:
       name: fCMASTER_1
       rect:
         serializedVersion: 2
-        x: 285
-        y: 323
-        width: 212
-        height: 176
+        x: 310
+        y: 368
+        width: 185
+        height: 20
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -201,10 +192,10 @@ TextureImporter:
       name: fCMASTER_2
       rect:
         serializedVersion: 2
-        x: 152
-        y: 133
-        width: 85
-        height: 60
+        x: 19
+        y: 219
+        width: 179
+        height: 137
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -223,10 +214,10 @@ TextureImporter:
       name: fCMASTER_3
       rect:
         serializedVersion: 2
-        x: 237
-        y: 158
-        width: 25
-        height: 25
+        x: 179
+        y: 214
+        width: 140
+        height: 138
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -245,10 +236,10 @@ TextureImporter:
       name: fCMASTER_4
       rect:
         serializedVersion: 2
-        x: 262
-        y: 151
-        width: 20
-        height: 32
+        x: 301
+        y: 219
+        width: 166
+        height: 133
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -267,10 +258,10 @@ TextureImporter:
       name: fCMASTER_5
       rect:
         serializedVersion: 2
-        x: 283
-        y: 158
-        width: 19
-        height: 25
+        x: 472
+        y: 219
+        width: 172
+        height: 135
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -289,10 +280,10 @@ TextureImporter:
       name: fCMASTER_6
       rect:
         serializedVersion: 2
-        x: 304
-        y: 158
-        width: 15
-        height: 25
+        x: 611
+        y: 219
+        width: 178
+        height: 137
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -311,10 +302,10 @@ TextureImporter:
       name: fCMASTER_7
       rect:
         serializedVersion: 2
-        x: 322
-        y: 157
-        width: 29
-        height: 26
+        x: 0
+        y: 72
+        width: 192
+        height: 134
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -333,10 +324,10 @@ TextureImporter:
       name: fCMASTER_8
       rect:
         serializedVersion: 2
-        x: 131
-        y: 134
-        width: 27
-        height: 11
+        x: 170
+        y: 98
+        width: 142
+        height: 107
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -355,10 +346,10 @@ TextureImporter:
       name: fCMASTER_9
       rect:
         serializedVersion: 2
-        x: 232
-        y: 133
-        width: 11
-        height: 12
+        x: 314
+        y: 98
+        width: 134
+        height: 107
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -377,10 +368,10 @@ TextureImporter:
       name: fCMASTER_10
       rect:
         serializedVersion: 2
-        x: 243
-        y: 133
-        width: 11
-        height: 12
+        x: 365
+        y: 0
+        width: 77
+        height: 98
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -399,10 +390,10 @@ TextureImporter:
       name: fCMASTER_11
       rect:
         serializedVersion: 2
-        x: 254
-        y: 132
-        width: 21
-        height: 13
+        x: 437
+        y: 98
+        width: 116
+        height: 107
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -421,10 +412,10 @@ TextureImporter:
       name: fCMASTER_12
       rect:
         serializedVersion: 2
-        x: 274
-        y: 134
-        width: 12
-        height: 11
+        x: 531
+        y: 98
+        width: 126
+        height: 107
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -443,10 +434,10 @@ TextureImporter:
       name: fCMASTER_13
       rect:
         serializedVersion: 2
-        x: 291
-        y: 134
-        width: 11
-        height: 10
+        x: 643
+        y: 72
+        width: 142
+        height: 133
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -465,10 +456,10 @@ TextureImporter:
       name: fCMASTER_14
       rect:
         serializedVersion: 2
-        x: 301
-        y: 134
-        width: 13
-        height: 10
+        x: 72
+        y: 47
+        width: 266
+        height: 11
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -487,9 +478,9 @@ TextureImporter:
       name: fCMASTER_15
       rect:
         serializedVersion: 2
-        x: 313
-        y: 133
-        width: 9
+        x: 467
+        y: 47
+        width: 255
         height: 11
       alignment: 0
       pivot: {x: 0, y: 0}
@@ -501,72 +492,6 @@ TextureImporter:
       bones: []
       spriteID: 4ed78323b2ce40280800000000000000
       internalID: -9077871278601765404
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: fCMASTER_16
-      rect:
-        serializedVersion: 2
-        x: 322
-        y: 134
-        width: 11
-        height: 11
-      alignment: 0
-      pivot: {x: 0, y: 0}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      customData: 
-      outline: []
-      physicsShape: []
-      tessellationDetail: -1
-      bones: []
-      spriteID: a1c2b0b2f92ff3030800000000000000
-      internalID: 3476764202789186586
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: fCMASTER_17
-      rect:
-        serializedVersion: 2
-        x: 332
-        y: 133
-        width: 11
-        height: 12
-      alignment: 0
-      pivot: {x: 0, y: 0}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      customData: 
-      outline: []
-      physicsShape: []
-      tessellationDetail: -1
-      bones: []
-      spriteID: 687184d335d4efc20800000000000000
-      internalID: 3242113801659094918
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: fCMASTER_18
-      rect:
-        serializedVersion: 2
-        x: 342
-        y: 122
-        width: 35
-        height: 23
-      alignment: 0
-      pivot: {x: 0, y: 0}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      customData: 
-      outline: []
-      physicsShape: []
-      tessellationDetail: -1
-      bones: []
-      spriteID: 9e425491e66524770800000000000000
-      internalID: 8593526069846680809
       vertices: []
       indices: 
       edges: []
@@ -593,9 +518,6 @@ TextureImporter:
       fCMASTER_13: 6287529294948945252
       fCMASTER_14: 7291793243533060425
       fCMASTER_15: -9077871278601765404
-      fCMASTER_16: 3476764202789186586
-      fCMASTER_17: 3242113801659094918
-      fCMASTER_18: 8593526069846680809
       fCMASTER_2: -5641321442329086452
       fCMASTER_3: 5508619884886144429
       fCMASTER_4: 2178068570214777587

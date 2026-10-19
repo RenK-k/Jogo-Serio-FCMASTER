@@ -1766,6 +1766,8 @@ namespace CoachMaster.MatchPlay
 
             var shotRoll = _rng.NextDouble();
             var goal = shotRoll < chance;
+            if (penalty && !goal)
+                _match.AddNote("Penálti falhado por " + shooter + ".", "penalty-miss", shooterId);
             var assistId = _lastPasserHome == home && !string.IsNullOrEmpty(_lastPasser) && _lastPasser != shooterId
                 ? _lastPasser : null;
             _lastPasser = null;
@@ -2059,7 +2061,7 @@ namespace CoachMaster.MatchPlay
             }
 
             Bump(_pendingScorerId, _pendingPenalty ? 1.1f : 0.85f);
-            _match.AddNote("GOLO  " + _pendingGoalDescription, "goal");
+            _match.AddNote("GOLO  " + _pendingGoalDescription, "goal", _pendingScorerId);
             Announce("GOLO!", _pendingScorerId);
             GameAudio.CrowdGoal(_pendingGoalHome);
             _pendingGoal = false;
@@ -2289,7 +2291,7 @@ namespace CoachMaster.MatchPlay
             player.Injury.IsInjured = true;
             player.Injury.Description = "Lesão muscular";
             player.Injury.DaysRemaining = 12;
-            _match.AddNote(player.FullName + " fica no chão após o choque. Lesão muscular.", "injury");
+            _match.AddNote(player.FullName + " fica no chão após o choque. Lesão muscular.", "injury", playerId);
             Announce("LESÃO", playerId);
             Hold = 1.4f;
             ActionKind = "injury";

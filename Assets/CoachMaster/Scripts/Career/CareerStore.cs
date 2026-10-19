@@ -27,7 +27,7 @@ namespace CoachMaster.Career
                 "fanmood|" + career.SupporterApproval
             };
             foreach (var memory in career.Memories)
-                lines.Add("memory|" + memory.WhenTicks + "|" + memory.Importance + "|" + Esc(memory.Kind) + "|" + memory.ClubId + "|" + memory.CompetitionId + "|" + memory.RelatedClubId + "|" + memory.PlayerId + "|" + Esc(memory.Title) + "|" + Esc(memory.Detail));
+                lines.Add("memory|" + memory.WhenTicks + "|" + memory.Importance + "|" + Esc(memory.Kind) + "|" + memory.ClubId + "|" + memory.CompetitionId + "|" + memory.RelatedClubId + "|" + memory.PlayerId + "|" + Esc(memory.Title) + "|" + Esc(memory.Detail) + "|" + memory.Value);
             foreach (var trust in career.ManagerTrust)
                 lines.Add("trust|" + trust.Key + "|" + trust.Value);
             foreach (var offer in career.JobOffers)
@@ -188,7 +188,8 @@ namespace CoachMaster.Career
                                 RelatedClubId = bits[6],
                                 PlayerId = bits[7],
                                 Title = Un(bits[8]),
-                                Detail = Un(bits[9])
+                                Detail = Un(bits[9]),
+                                Value = bits.Length > 10 && int.TryParse(bits[10], NumberStyles.Integer, CultureInfo.InvariantCulture, out var memoryValue) ? memoryValue : 0
                             });
                         }
                         break;

@@ -24,6 +24,7 @@ namespace CoachMaster.UI
         Button _vsync;
         Button _quality;
         Button _fps;
+        Button _background;
         float _savedUntil;
         Image _saveImage;
 
@@ -115,7 +116,7 @@ namespace CoachMaster.UI
             BroadcastUi.Place(screen.rectTransform, 0.51f, 0.16f, 0.97f, 0.88f);
             var screenHead = BroadcastUi.Label(screen.transform, "Head", "IMAGEM E DESEMPENHO", 18, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
             BroadcastUi.Place(screenHead.rectTransform, 0.06f, 0.88f, 0.94f, 0.98f);
-            var hint = BroadcastUi.Label(screen.transform, "Hint", "F11 alterna entre janela e ecrã inteiro. A imagem encolhe por igual.", 15, UiTheme.Muted, TextAnchor.UpperLeft);
+            var hint = BroadcastUi.Label(screen.transform, "Hint", "F11 alterna entre janela e ecrã inteiro. Escolhe o fundo abaixo.", 15, UiTheme.Muted, TextAnchor.UpperLeft);
             BroadcastUi.Place(hint.rectTransform, 0.06f, 0.74f, 0.94f, 0.86f);
             _window = Step(screen.transform, "Janela", () => { DisplayPrefs.ToggleFullscreen(); Refresh(); }, 0.06f, 0.6f, 0.88f, 0.12f);
             Step(screen.transform, "1280x720", () => { DisplayPrefs.SetSize(1280, 720); Refresh(); }, 0.06f, 0.46f, 0.28f, 0.12f);
@@ -124,6 +125,7 @@ namespace CoachMaster.UI
             _vsync = Step(screen.transform, "VSync", () => { DisplayPrefs.ToggleVsync(); Refresh(); }, 0.06f, 0.3f, 0.88f, 0.12f);
             _quality = Step(screen.transform, "Qualidade", () => { DisplayPrefs.CycleQuality(); Refresh(); }, 0.06f, 0.14f, 0.43f, 0.12f);
             _fps = Step(screen.transform, "Limite FPS", () => { DisplayPrefs.CycleFrameRate(); Refresh(); }, 0.51f, 0.14f, 0.43f, 0.12f);
+            _background = Step(screen.transform, "Fundo", () => { BackgroundPrefs.Cycle(); Refresh(); }, 0.06f, 0.015f, 0.88f, 0.105f);
 
             _save = Step(card.transform, "Guardar", ConfirmSave, 0.03f, 0.03f, 0.46f, 0.1f);
             _quit = Step(card.transform, "Sair", LeaveToMenu, 0.51f, 0.03f, 0.46f, 0.1f);
@@ -228,6 +230,7 @@ namespace CoachMaster.UI
             SetCaption(_vsync, DisplayPrefs.VsyncLabel);
             SetCaption(_quality, DisplayPrefs.QualityLabel);
             SetCaption(_fps, DisplayPrefs.FrameRateLabel);
+            SetCaption(_background, BackgroundPrefs.Label);
         }
 
         static bool EventSystemTyping()

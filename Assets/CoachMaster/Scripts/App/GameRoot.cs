@@ -21,8 +21,16 @@ namespace CoachMaster.App
         [SerializeField] GameAudioLibrary _audioLibrary;
         Canvas _loadingCanvas;
         CanvasGroup _loadingGroup;
+        RawImage _loadingBackdrop;
         RawImage _loadingLogo;
+        RawImage _loadingLogoBlend;
+        Texture2D _loadingAnimation;
+        Texture2D _loadingSnapshot;
         Coroutine _loadRoutine;
+        const float LoadingFrameSeconds = 0.05f;
+        const int LoadingFrameColumns = 8;
+        const int LoadingFrameRows = 8;
+        const int LoadingFrameCount = 48;
 
         void Awake()
         {
@@ -136,27 +144,46 @@ namespace CoachMaster.App
             _loadingGroup.interactable = false;
             _loadingGroup.blocksRaycasts = true;
 
-            var background = new GameObject("Shade", typeof(RectTransform), typeof(Image));
-            background.transform.SetParent(canvasObject.transform, false);
-            var backgroundRect = background.GetComponent<RectTransform>();
-            backgroundRect.anchorMin = Vector2.zero;
-            backgroundRect.anchorMax = Vector2.one;
-            backgroundRect.offsetMin = Vector2.zero;
-            backgroundRect.offsetMax = Vector2.zero;
-            background.GetComponent<Image>().color = new Color(0.018f, 0.024f, 0.055f, 1f);
+            var backdropObject = new GameObject("PreviousScreen", typeof(RectTransform), typeof(RawImage));
+            backdropObject.transform.SetParent(canvasObject.transform, false);
+            var backdropRect = backdropObject.GetComponent<RectTransform>();
+            backdropRect.anchorMin = Vector2.zero;
+            backdropRect.anchorMax = Vector2.one;
+            backdropRect.offsetMin = Vector2.zero;
+            backdropRect.offsetMax = Vector2.zero;
+            _loadingBackdrop = backdropObject.GetComponent<RawImage>();
+            _loadingBackdrop.raycastTarget = false;
+
+            _loadingAnimation = Resources.Load<Texture2D>("fcmasterGIFAnimated");
 
             var logoObject = new GameObject("LoadingMark", typeof(RectTransform), typeof(RawImage));
             logoObject.transform.SetParent(canvasObject.transform, false);
             var logoRect = logoObject.GetComponent<RectTransform>();
-            logoRect.anchorMin = logoRect.anchorMax = new Vector2(0.5f, 0.105f);
-            logoRect.sizeDelta = new Vector2(170f, 170f);
+            logoRect.anchorMin = logoRect.anchorMax = new Vector2(0.5f, 0.12f);
+            logoRect.sizeDelta = new Vector2(180f, 180f);
             _loadingLogo = logoObject.GetComponent<RawImage>();
-            BroadcastUi.ApplyBrand(_loadingLogo);
+            _loadingLogo.raycastTarget = false;
+
+            var blendObject = new GameObject("LoadingMarkBlend", typeof(RectTransform), typeof(RawImage));
+            blendObject.transform.SetParent(canvasObject.transform, false);
+            var blendRect = blendObject.GetComponent<RectTransform>();
+            blendRect.anchorMin = blendRect.anchorMax = new Vector2(0.5f, 0.12f);
+            blendRect.sizeDelta = logoRect.sizeDelta;
+            _loadingLogoBlend = blendObject.GetComponent<RawImage>();
+            _loadingLogoBlend.raycastTarget = false;
+            _loadingLogoBlend.color = new Color(1f, 1f, 1f, 0f);
+            SetLoadingFrame(0, 0f);
             canvasObject.SetActive(false);
         }
 
         IEnumerator LoadScene(string sceneName)
         {
+            yield return new WaitForEndOfFrame();
+            if (_loadingSnapshot != null)
+                Destroy(_loadingSnapshot);
+            _loadingSnapshot = ScreenCapture.CaptureScreenshotAsTexture();
+            _loadingBackdrop.texture = _loadingSnapshot;
+            SetLoadingFrame(0);
             IsLoading = true;
             _loadingCanvas.gameObject.SetActive(true);
             _loadingGroup.alpha = 0f;
@@ -177,18 +204,65 @@ namespace CoachMaster.App
                 yield break;
             }
 
-            while (!operation.isDone)
+            var animationElapsed = 0f;
+            var visibleAfterLoad = 0f;
+            while (!operation.isDone || visibleAfterLoad < 0.25f)
             {
-                var pulse = 0.92f + Mathf.Sin(Time.unscaledTime * 3.6f) * 0.08f;
-                _loadingLogo.color = new Color(1f, 1f, 1f, pulse);
-                _loadingLogo.rectTransform.localScale = Vector3.one * (0.97f + pulse * 0.03f);
+                var delta = Time.unscaledDeltaTime;
+                animationElapsed = (animationElapsed + delta) % (LoadingFrameSeconds * LoadingFrameCount);
+                var framePosition = animationElapsed / LoadingFrameSeconds;
+                var frameIndex = Mathf.FloorToInt(framePosition);
+                SetLoadingFrame(frameIndex, framePosition - frameIndex);
+                if (operation.isDone)
+                    visibleAfterLoad += delta;
                 yield return null;
             }
 
-            yield return new WaitForSecondsRealtime(0.25f);
             yield return FadeLoadingOut();
             IsLoading = false;
             _loadRoutine = null;
+        }
+
+        void SetLoadingFrame(int index, float blend = 0f)
+        {
+            if (_loadingLogo == null)
+                return;
+            if (_loadingAnimation == null)
+                _loadingAnimation = Resources.Load<Texture2D>("fcmasterGIFAnimated");
+            if (_loadingAnimation != null)
+            {
+                var frame = ((index % LoadingFrameCount) + LoadingFrameCount) % LoadingFrameCount;
+                SetAtlasFrame(_loadingLogo, frame, 1f - Mathf.Clamp01(blend));
+                if (_loadingLogoBlend != null)
+                    SetAtlasFrame(_loadingLogoBlend, (frame + 1) % LoadingFrameCount, Mathf.Clamp01(blend));
+                return;
+            }
+
+            _loadingLogo.texture = Resources.Load<Texture2D>("fcmasterGIF");
+            if (_loadingLogo.texture == null)
+                _loadingLogo.texture = BroadcastUi.BrandTexture;
+            _loadingLogo.uvRect = new Rect(0f, 0f, 1f, 1f);
+            _loadingLogo.color = Color.white;
+            if (_loadingLogoBlend != null)
+                _loadingLogoBlend.color = new Color(1f, 1f, 1f, 0f);
+        }
+
+        void SetAtlasFrame(RawImage image, int index, float alpha)
+        {
+            if (image == null)
+                return;
+            image.texture = _loadingAnimation;
+            var column = index % LoadingFrameColumns;
+            var row = index / LoadingFrameColumns;
+            var cellWidth = 1f / LoadingFrameColumns;
+            var cellHeight = 1f / LoadingFrameRows;
+            var insetX = 0.5f / _loadingAnimation.width;
+            var insetY = 0.5f / _loadingAnimation.height;
+            image.uvRect = new Rect(column * cellWidth + insetX,
+                1f - (row + 1) * cellHeight + insetY,
+                cellWidth - insetX * 2f,
+                cellHeight - insetY * 2f);
+            image.color = new Color(1f, 1f, 1f, alpha);
         }
 
         IEnumerator FadeLoadingOut()
@@ -202,6 +276,13 @@ namespace CoachMaster.App
                 yield return null;
             }
             _loadingCanvas.gameObject.SetActive(false);
+            if (_loadingBackdrop != null)
+                _loadingBackdrop.texture = null;
+            if (_loadingSnapshot != null)
+            {
+                Destroy(_loadingSnapshot);
+                _loadingSnapshot = null;
+            }
             IsLoading = false;
         }
     }

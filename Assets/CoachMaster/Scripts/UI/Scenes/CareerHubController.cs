@@ -13,6 +13,22 @@ namespace CoachMaster.UI.Scenes
 {
     public sealed class CareerHubController : MonoBehaviour
     {
+        static readonly string[] SocialAccountNames =
+        {
+            "Rui da Bancada", "Marta em Fora-de-Jogo", "Zé do Café", "A Bola É Nossa",
+            "Bancada 90", "Futebol de Sofá", "Olho Tático", "Pé de Microfone",
+            "Golo aos 90+", "Arbitragem de Café", "Onze de Bolso", "Cromos & Relvado",
+            "Mister da Tasca", "Adeptos em Crise", "Radar do Mercado", "Geração da Bancada",
+            "Futebol com Sono", "Ala Norte", "Linha de Fundo", "Bancada Sem Filtro"
+        };
+        static readonly string[] SocialAccountHandles =
+        {
+            "@rui_da_bancada", "@marta_futebol", "@zedocafe_fc", "@abolaenossa",
+            "@bancada90", "@sofadefutebol", "@olhotatico", "@pedomicrofone",
+            "@goloaos90", "@arbitrodocafe", "@onzedebolso", "@cromoserelvado",
+            "@misterdatasca", "@adeptosemcrise", "@radardomercado", "@geracaobancada",
+            "@futebolcomsono", "@alanorte", "@linhadefundo", "@bancadasemfiltro"
+        };
         GameObject[] _pages;
         Button[] _tabs;
         Button[] _replies;
@@ -27,6 +43,7 @@ namespace CoachMaster.UI.Scenes
         bool _phoneOpen;
         string _phoneApp = "Mensagens";
         bool _phoneInThread;
+        int _socialFeedDaySeed = int.MinValue;
         readonly HashSet<string> _phoneAnswered = new HashSet<string>();
         Text _dateLine;
         Text _homeTitle;
@@ -55,6 +72,7 @@ namespace CoachMaster.UI.Scenes
         Text _vibe;
         InputField _noteField;
         RectTransform _newsContent;
+        Button _memoriesButton;
         RectTransform _tableContent;
         RectTransform _tabBar;
         RectTransform _boardContent;
@@ -129,6 +147,13 @@ namespace CoachMaster.UI.Scenes
                 _phoneSlide = Mathf.MoveTowards(_phoneSlide, target, Time.deltaTime * 3.4f);
                 var y0 = Mathf.Lerp(0.935f, 0.16f, _phoneSlide);
                 BroadcastUi.Place(_phoneSheet, 0.4f, y0, 0.6f, y0 + 0.72f);
+            }
+
+            if (_phoneOpen && _phoneApp == "X" && !_phoneInThread && _phonePage != null && _phonePage.activeSelf && _career != null)
+            {
+                var daySeed = _career.Calendar.CurrentDate.DayOfYear + _career.Calendar.CurrentDate.Year * 13;
+                if (_socialFeedDaySeed != daySeed)
+                    FillPhone("X");
             }
 
             if (_career == null || _career.Current == null || _career.Current.Kind != MomentKind.Talk || _career.Current.Answered)
@@ -298,6 +323,8 @@ namespace CoachMaster.UI.Scenes
         {
             if (_phoneList == null)
                 return;
+            if (app == "X" && _career != null && _career.Calendar != null)
+                _socialFeedDaySeed = _career.Calendar.CurrentDate.DayOfYear + _career.Calendar.CurrentDate.Year * 13;
             Clear(_phoneList);
             var notes = app == "X" ? SocialNotes() : PhoneNotes();
             var shown = 0;
@@ -310,7 +337,8 @@ namespace CoachMaster.UI.Scenes
                 var captured = note;
                 var social = note.Channel == "social";
                 var row = BroadcastUi.Panel(_phoneList, "Msg" + i, social ? new Color(0.06f, 0.07f, 0.09f, 1f) : new Color(1f, 1f, 1f, 0.06f));
-                BroadcastUi.Preferred(row, social ? 158 : 92);
+                var socialHeight = social ? Mathf.Clamp(154f + note.Text.Length * 0.3f, 168f, 224f) : 92f;
+                BroadcastUi.Preferred(row, socialHeight);
                 BroadcastUi.Hit(row, () => OpenThread(captured));
                 var left = social ? 0.17f : 0.05f;
                 if (social)
@@ -551,8 +579,32 @@ namespace CoachMaster.UI.Scenes
         {
             if (_phoneAnswered.Contains(key))
                 return;
+            var trustDelta = 0;
             if (player != null)
+            {
                 player.Morale = Mathf.Clamp(player.Morale + morale, 1, 99);
+                trustDelta = CareerRelationships.ApplyConversation(_career, player, morale, 0, 0, 0);
+                var promise = line.IndexOf("combinei", StringComparison.OrdinalIgnoreCase) >= 0
+                    || line.IndexOf("marquei", StringComparison.OrdinalIgnoreCase) >= 0
+                    || line.IndexOf("prometi", StringComparison.OrdinalIgnoreCase) >= 0;
+                if (morale >= 3 || Mathf.Abs(trustDelta) >= 2 || promise)
+                {
+                    var memory = CareerMemories.Record(_career, new FootballMemory
+                    {
+                        WhenTicks = _career.Calendar.CurrentDate.Ticks,
+                        Importance = 3,
+                        Kind = "conversa-telemovel",
+                        ClubId = _career.Club.Id,
+                        CompetitionId = _career.Club.LeagueId,
+                        PlayerId = player.Id,
+                        Title = "Conversa no telemóvel com " + player.FullName,
+                        Detail = line + " Moral " + (morale > 0 ? "+" : "") + morale + "; confiança no treinador " + (trustDelta > 0 ? "+" : "") + trustDelta + "."
+                    });
+                    if (memory != null)
+                        CareerNotificationQueue.Enqueue("A TUA RESPOSTA FICA", player.FullName + " vai lembrar-se da forma como respondeste. A confiança está em " + CareerRelationships.TrustOf(_career, player.Id) + "/100.");
+                }
+                CareerStore.Save(_career);
+            }
             _phoneAnswered.Add(key);
             _career.Notebook.Insert(0, _career.Calendar.ClockText + "  " + (player == null ? "Plantel" : player.FullName) + " — " + line);
             ClosePhoneChoices();
@@ -565,6 +617,33 @@ namespace CoachMaster.UI.Scenes
                 return;
             _phoneAnswered.Add(key);
             _career.Notebook.Insert(0, _career.Calendar.ClockText + "  " + note.Who + " — " + line);
+            if (note != null && (note.ReplyGroup == "transfer" || note.ReplyGroup == "loan")
+                && !string.IsNullOrEmpty(note.PlayerId)
+                && _career.World.Players.TryGetValue(note.PlayerId, out var player))
+            {
+                var refused = line.IndexOf("recus", StringComparison.OrdinalIgnoreCase) >= 0
+                    || line.IndexOf("mantive", StringComparison.OrdinalIgnoreCase) >= 0
+                    || line.IndexOf("fechei", StringComparison.OrdinalIgnoreCase) >= 0;
+                var kind = note.ReplyGroup == "loan" ? "abordagem-emprestimo" : "abordagem-transferencia";
+                var subject = note.ReplyGroup == "loan" ? "empréstimo" : "transferência";
+                var memory = CareerMemories.Record(_career, new FootballMemory
+                {
+                    WhenTicks = _career.Calendar.CurrentDate.Ticks,
+                    Importance = refused ? 3 : 2,
+                    Kind = kind,
+                    ClubId = _career.Club.Id,
+                    CompetitionId = _career.Club.LeagueId,
+                    RelatedClubId = note.ClubId,
+                    PlayerId = player.Id,
+                    Title = refused ? "O treinador protegeu " + player.FullName : "Uma abordagem por " + player.FullName,
+                    Detail = note.Who + " contactou o clube sobre um " + subject + " de " + player.FullName + ". Decisão do treinador: " + line
+                });
+                if (memory != null)
+                {
+                    CareerNotificationQueue.Enqueue("DECISÃO DE MERCADO", player.FullName + ": " + line + " Esta decisão ficou no histórico.");
+                    CareerStore.Save(_career);
+                }
+            }
             ClosePhoneChoices();
             AddPhoneLine(line);
         }
@@ -810,7 +889,7 @@ namespace CoachMaster.UI.Scenes
             else
             {
                 posts.Add(SocialPost(0, daySeed,
-                    "A pré-época ainda agora começou e já há gente a prever o desastre. Deixem a equipa jogar primeiro.",
+                    "A época ainda agora começou e já há gente a prever o desastre. Deixem a equipa jogar primeiro.",
                     daySeed % 48 + 9, daySeed % 11 + 1, "há 3 h"));
             }
 
@@ -853,19 +932,111 @@ namespace CoachMaster.UI.Scenes
                     "Contra " + opponentName + " é que vamos perceber se esta equipa aprendeu alguma coisa. Sem desculpas e sem autocarro à frente da baliza, por favor.",
                     daySeed % 96 + 21, daySeed % 21 + 3, "há 8 h"));
             }
+            else
+            {
+                posts.Add(SocialPost(3, daySeed,
+                    "Sem jogo marcado para já. O feed já está a discutir o onze da próxima jornada como se o treinador lesse isto.",
+                    daySeed % 96 + 21, daySeed % 21 + 3, "há 8 h"));
+            }
+
+            LeagueTableRow clubRow = null;
+            for (var i = 0; i < sameLeague.Count; i++)
+            {
+                if (sameLeague[i].ClubId == club.Id)
+                {
+                    clubRow = sameLeague[i];
+                    break;
+                }
+            }
+            if (clubRow != null)
+            {
+                posts.Add(SocialPost(4, daySeed,
+                    club.ShortName + " está no " + standing + ".º lugar, com " + clubRow.Points + " pontos em " + clubRow.Played + " jogos. A tabela não mente; a malta do café é que arredonda tudo.",
+                    daySeed % 145 + 26, daySeed % 28 + 4, "há 3 h"));
+                posts.Add(SocialPost(5, daySeed,
+                    "Até agora: " + clubRow.GoalsFor + " golos marcados e " + clubRow.GoalsAgainst + " sofridos pelo " + club.ShortName + ". Já sabem qual é o tema da conversa de segunda-feira.",
+                    daySeed % 118 + 17, daySeed % 22 + 2, "há 4 h"));
+            }
+            else
+            {
+                posts.Add(SocialPost(4, daySeed,
+                    "A tabela ainda está a ganhar forma. Já há opiniões definitivas sobre uma época que mal começou, claro.",
+                    daySeed % 145 + 26, daySeed % 28 + 4, "há 3 h"));
+                posts.Add(SocialPost(5, daySeed,
+                    "Discussão séria do dia: futebol direto ou sair a jogar? A resposta oficial é que depende de quem está a ver.",
+                    daySeed % 118 + 17, daySeed % 22 + 2, "há 4 h"));
+            }
+
+            var bestInLeague = BestSeasonPlayer(club.LeagueId, "impacto");
+            var bestLine = bestInLeague == null ? null : SeasonLineFor(bestInLeague.Id, club.LeagueId);
+            if (bestLine != null && bestLine.Rated > 0)
+            {
+                posts.Add(SocialPost(6, daySeed,
+                    bestInLeague.FullName + " soma " + bestLine.Goals + " golos e " + bestLine.Assists + " assistências. Ainda é cedo para prémios, mas já dá conversa para o café.",
+                    daySeed % 132 + 23, daySeed % 26 + 3, "há 5 h"));
+            }
+            else
+            {
+                posts.Add(SocialPost(6, daySeed,
+                    "Ainda faltam jogos para tirar conclusões. Mas se esperarmos pelos dados, metade do feed fica sem assunto.",
+                    daySeed % 132 + 23, daySeed % 26 + 3, "há 5 h"));
+            }
+
+            var dailyDebates = new[]
+            {
+                "O problema não é a formação no papel; é ver se alguém aparece entre linhas quando a bola chega ao meio-campo.",
+                "Há quem queira pressão alta durante 90 minutos e depois fique surpreendido quando a equipa acaba sem pernas.",
+                "Hoje a culpa é do árbitro, amanhã é do relvado e na quarta-feira já ninguém se lembra do resultado.",
+                "Um passe para a frente que corre mal dá logo debate tático até à próxima jornada.",
+                "O melhor reforço pode ser recuperar quem já está no plantel. Mas isso não dá uma saga de transferências.",
+                "A malta pede miúdos da formação até um deles falhar um passe. Aí já querem um veterano para ontem."
+            };
+            posts.Add(SocialPost(7, daySeed, club.ShortName + ": " + dailyDebates[daySeed % dailyDebates.Length],
+                daySeed % 102 + 15, daySeed % 20 + 2, "há 6 h"));
+
+            var leaderName = "";
+            if (sameLeague.Count > 0 && sameLeague[0].Played > 0
+                && _career.World.Clubs.TryGetValue(sameLeague[0].ClubId, out var leagueLeader))
+                leaderName = leagueLeader.ShortName;
+            var hasLeagueLeader = !string.IsNullOrEmpty(leaderName);
+            var leagueTalk = hasLeagueLeader
+                ? new[]
+                {
+                    "A corrida pelo topo ainda vai mudar vinte vezes. Para já, " + leaderName + " lidera a tabela.",
+                    "Toda a gente olha para " + leaderName + " no topo, mas ainda falta tanto calendário que isto vai dar voltas.",
+                    "Se a época acabasse hoje, " + leaderName + " sorria. Ainda bem que ninguém entrega troféus já."
+                }
+                : new[]
+                {
+                    "A tabela ainda está a ganhar forma. Já há contas para o título antes de haver jogos suficientes.",
+                    "Ainda não há líder claro na classificação. O feed, por outro lado, já escolheu três favoritos.",
+                    "Quando houver jogos suficientes, a tabela começa a contar a história. Até lá, são palpites."
+                };
+            posts.Add(SocialPost(8, daySeed, leagueTalk[daySeed % leagueTalk.Length],
+                daySeed % 174 + 31, daySeed % 33 + 5, "há 7 h"));
+
+            var fanLines = new[]
+            {
+                "Renovem já com o melhor jogador e com a pessoa que trata do café no estádio.",
+                "O meu prognóstico mantém-se: vou acreditar até ao próximo passe para trás junto à área.",
+                "Se correr bem, foi o plano. Se correr mal, era óbvio desde a conferência de imprensa.",
+                "Aguento qualquer resultado, desde que não me façam acreditar e depois marquem aos 90+.",
+                "O futebol é simples: ganhar, jogar bem e não me estragar o fim de semana. Fácil, mister."
+            };
+            posts.Add(SocialPost(9, daySeed, fanLines[daySeed % fanLines.Length],
+                daySeed % 89 + 11, daySeed % 18 + 1, "há 9 h"));
 
             return posts;
         }
 
         PhoneNote SocialPost(int index, int seed, string text, int likes, int reposts, string age)
         {
-            string[] names = { "Rui da Bancada", "Camisola & Café", "Futebol Sem Filtro", "A Bola É Nossa" };
-            string[] handles = { "@ruinaarquibancada", "@camisolaecafe", "@semfiltro_fc", "@a_bola_e_nossa" };
-            var account = (index + seed) % names.Length;
+            var account = index % SocialAccountNames.Length;
             var meta = "♡ " + likes + "     ↻ " + reposts + "     ·     " + age;
-            var note = new PhoneNote(names[account], text, "social", null, null, null, meta);
-            note.AuthorHandle = handles[account];
-            note.AvatarKey = handles[account];
+            var handle = SocialAccountHandles[account];
+            var note = new PhoneNote(SocialAccountNames[account], text, "social", null, null, null, meta);
+            note.AuthorHandle = handle;
+            note.AvatarKey = handle;
             note.Verified = true;
             return note;
         }
@@ -920,10 +1091,19 @@ namespace CoachMaster.UI.Scenes
             var heading = BroadcastUi.Label(host, "RepliesTitle", "CONVERSA DA BANCADA", 11, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
             BroadcastUi.Place(heading.rectTransform, 0.06f, 0.375f, 0.94f, 0.42f);
             var comments = SocialComments(note);
-            var names = new[] { "Nuno do 3.º Anel", "Marta Fora-de-Jogo", "Zé do Café" };
-            var handles = new[] { "@nuno_na_bancada", "@marta_futebol", "@ze_do_cafe" };
+            var replySeed = 17;
+            var replySource = (note == null ? "" : note.Who + note.Text);
+            unchecked
+            {
+                for (var i = 0; i < replySource.Length; i++)
+                    replySeed = replySeed * 31 + replySource[i];
+            }
+            var firstReply = (replySeed & 0x7fffffff) % SocialAccountNames.Length;
             for (var i = 0; i < comments.Length; i++)
             {
+                var account = (firstReply + i * 7) % SocialAccountNames.Length;
+                if (note != null && SocialAccountHandles[account] == note.AuthorHandle)
+                    account = (account + 1) % SocialAccountNames.Length;
                 var row = BroadcastUi.Panel(host, "Reply" + i, new Color(1f, 1f, 1f, 0.035f));
                 var top = 0.365f - i * 0.105f;
                 BroadcastUi.Place(row.rectTransform, 0.04f, top - 0.1f, 0.96f, top);
@@ -936,12 +1116,12 @@ namespace CoachMaster.UI.Scenes
                 var faceRect = faceObject.GetComponent<RectTransform>();
                 BroadcastUi.Stretch(faceRect);
                 var face = faceObject.GetComponent<Image>();
-                face.sprite = FaceBook.SocialAvatar(handles[i]);
+                face.sprite = FaceBook.SocialAvatar(SocialAccountHandles[account]);
                 face.preserveAspect = true;
                 face.raycastTarget = false;
                 var mask = avatar.gameObject.AddComponent<Mask>();
                 mask.showMaskGraphic = false;
-                var name = BroadcastUi.Label(row.transform, "Name", names[i], 11, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+                var name = BroadcastUi.Label(row.transform, "Name", SocialAccountNames[account], 11, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
                 name.resizeTextForBestFit = true;
                 name.resizeTextMinSize = 9;
                 name.resizeTextMaxSize = 11;
@@ -970,12 +1150,12 @@ namespace CoachMaster.UI.Scenes
         {
             var text = note == null ? "" : note.Text.ToLowerInvariant();
             if (text.Contains("empate") || text.Contains("1–1") || text.Contains("1-1"))
-                return new[] { "Empate justo. Ao menos hoje ninguém perdeu a cabeça.", "Este meio-campo precisa de GPS, foda-se.", "O guarda-redes salvou-nos o café de amanhã." };
+                return new[] { "Até a avó de rodas corria mais.", "Meio-campo hoje foi de Uber.", "Empate: nem para festejar, nem sofrer." };
             if (text.Contains("vitória") || text.Contains("golo") || text.Contains("golos"))
-                return new[] { "O meu tio viu o jogo de costas e percebeu o plano.", "Renovem com o marcador e com o senhor do café.", "Calma, ganhámos um jogo, não a taça por correio." };
+                return new[] { "Até a avó de rodas metia aquela!", "Três pontos. Já voltei a ser mister.", "Hoje até o VAR veio bem-disposto." };
             if (text.Contains("transferência") || text.Contains("proposta"))
-                return new[] { "Se vier dinheiro e um avançado, levo o contrato ao aeroporto.", "O meu primo também está livre. Corre muito, decide pouco.", "Mais novela no mercado. Avisem quando houver futebol." };
-            return new[] { "Opiniões fortes antes do apito. Tradição da casa.", "Este gajo não joga um pico, foda-se… hoje até correu.", "Espero três jornadas antes de declarar crise nacional." };
+                return new[] { "Este rumor já fez três pré-épocas.", "Se vier ponta, pago-lhe o Uber!", "O meu primo tem chuteiras. Serve?" };
+            return new[] { "Este manco falha até o autocarro.", "Até a minha avó de rodas joga melhor que este manco.", "Corre menos que o Wi-Fi da tasca." };
         }
 
         Player BestSeasonPlayer(string leagueId, string kind)
@@ -1174,9 +1354,27 @@ namespace CoachMaster.UI.Scenes
             BroadcastUi.Stretch(page.rectTransform);
             var title = BroadcastUi.Label(page.transform, "Title", "JORNAIS DO DIA", 16, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
             BroadcastUi.Place(title.rectTransform, 0.03f, 0.9f, 0.7f, 0.98f);
+            EnsureMemoriesButton(page.transform);
             var scroll = BroadcastUi.Scroll(page.transform, "Scroll", out _newsContent);
             BroadcastUi.Place(scroll.GetComponent<RectTransform>(), 0.02f, 0.03f, 0.98f, 0.88f);
             return page.gameObject;
+        }
+
+        void EnsureMemoriesButton(Transform newsPage)
+        {
+            if (newsPage == null)
+                return;
+            var existing = newsPage.Find("Memories");
+            _memoriesButton = existing == null ? null : existing.GetComponent<Button>();
+            if (_memoriesButton == null)
+                _memoriesButton = BroadcastUi.Button(newsPage, "Memories", "MEMÓRIAS", OpenMemories,
+                    new Color(1f, 1f, 1f, 0.08f), UiTheme.Accent, 13);
+            else
+            {
+                _memoriesButton.onClick.RemoveAllListeners();
+                _memoriesButton.onClick.AddListener(OpenMemories);
+            }
+            BroadcastUi.Place(_memoriesButton.GetComponent<RectTransform>(), 0.73f, 0.9f, 0.97f, 0.98f);
         }
 
         GameObject BuildBoard(Transform host)
@@ -2080,6 +2278,12 @@ namespace CoachMaster.UI.Scenes
 
         void FillNews()
         {
+            if (_memoriesButton != null)
+            {
+                var label = _memoriesButton.GetComponentInChildren<Text>();
+                if (label != null)
+                    label.text = "MEMÓRIAS  ·  " + _career.Memories.Count;
+            }
             Clear(_newsContent);
             foreach (var story in Newsroom.Edition(_career))
             {
@@ -2095,6 +2299,35 @@ namespace CoachMaster.UI.Scenes
                 BroadcastUi.Place(headline.rectTransform, 0.04f, 0.34f, 0.96f, 0.72f);
                 var deck = BroadcastUi.Label(card.transform, "Deck", string.IsNullOrEmpty(story.Published) ? story.Deck : story.Published, 14, UiTheme.Muted, TextAnchor.MiddleLeft);
                 BroadcastUi.Place(deck.rectTransform, 0.04f, 0.08f, 0.96f, 0.34f);
+            }
+        }
+
+        void OpenMemories()
+        {
+            var memories = new List<FootballMemory>(_career.Memories);
+            memories.Sort((a, b) => b.WhenTicks.CompareTo(a.WhenTicks));
+            OpenModal("Memórias da carreira", memories.Count == 0
+                ? "Os momentos importantes ficam guardados aqui ao longo da época."
+                : memories.Count + " momentos guardados · a história acompanha as tuas decisões.", false);
+            if (memories.Count == 0)
+            {
+                AddLine("Ainda não há momentos registados. Estreias, grandes jogos, decisões e mudanças importantes aparecerão aqui.");
+                return;
+            }
+
+            for (var i = 0; i < memories.Count; i++)
+            {
+                var memory = memories[i];
+                if (memory == null)
+                    continue;
+                var date = memory.WhenTicks > 0 && memory.WhenTicks <= DateTime.MaxValue.Ticks
+                    ? new DateTime(memory.WhenTicks).ToString("d MMM yyyy", CultureInfo.GetCultureInfo("pt-PT"))
+                    : "Data não disponível";
+                var club = _career.World.Clubs.TryGetValue(memory.ClubId ?? "", out var memoryClub) ? memoryClub.ShortName : _career.Club.ShortName;
+                var importance = new string('★', Mathf.Clamp(memory.Importance, 1, 5));
+                AddHead(importance + "   " + memory.Title);
+                AddLine(date + "  ·  " + club + (string.IsNullOrEmpty(memory.CompetitionId) ? "" : "  ·  " + memory.CompetitionId)
+                    + "\n" + (memory.Detail ?? ""));
             }
         }
 
@@ -2644,14 +2877,7 @@ namespace CoachMaster.UI.Scenes
             var crest = SceneBind.Get<Image>(root, "Header/Crest");
             if (crest != null)
                 crest.sprite = CrestStudio.For(_career.Club);
-            var art = root.Find("LeagueArt");
-            if (art != null)
-            {
-                var image = art.GetComponent<Image>();
-                var sprite = LeagueBackdrop.First(HubLeagueId());
-                if (image != null && sprite != null)
-                    image.sprite = sprite;
-            }
+            LeagueBackdrop.Paint(root, HubLeagueId());
 
             _dateLine = SceneBind.Get<Text>(root, "Header/Date");
             _clock = SceneBind.Get<Text>(root, "ClockCard/Clock");
@@ -2709,6 +2935,7 @@ namespace CoachMaster.UI.Scenes
             }
 
             _newsContent = root.Find("Pages/News/Scroll/Content") as RectTransform;
+            EnsureMemoriesButton(root.Find("Pages/News"));
             _noteField = SceneBind.Get<InputField>(root, "Pages/Board/Input");
             _noteError = SceneBind.Get<Text>(root, "Pages/Board/Error");
             _boardContent = root.Find("Pages/Board/Scroll/Content") as RectTransform;

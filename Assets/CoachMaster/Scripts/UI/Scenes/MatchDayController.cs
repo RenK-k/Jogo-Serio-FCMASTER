@@ -254,14 +254,7 @@ namespace CoachMaster.UI.Scenes
             var awayCrest = SceneBind.Get<Image>(root, "Scoreboard/Away/Crest");
             if (awayCrest != null)
                 awayCrest.sprite = CrestStudio.For(_match.Away);
-            var art = root.Find("LeagueArt");
-            if (art != null)
-            {
-                var image = art.GetComponent<Image>();
-                var sprite = LeagueBackdrop.First(LeagueBackdrop.ForFixture(_match.Fixture == null ? null : _match.Fixture.LeagueId, _career.Club.LeagueId));
-                if (image != null && sprite != null)
-                    image.sprite = sprite;
-            }
+            LeagueBackdrop.Paint(root, LeagueBackdrop.ForFixture(_match.Fixture == null ? null : _match.Fixture.LeagueId, _career.Club.LeagueId));
             var leagueLabel = SceneBind.Get<Text>(root, "Wordmark/League");
             if (leagueLabel != null)
             {

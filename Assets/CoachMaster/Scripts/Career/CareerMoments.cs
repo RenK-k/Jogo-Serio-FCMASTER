@@ -140,7 +140,7 @@ namespace CoachMaster.Career
                 moment.Body += "\n\nImpacto: " + string.Join(" · ", impact) + ".";
             career.Notebook.Insert(0, career.Calendar.ClockText + "  " + player.FullName + " — conversa no centro de treinos.");
             var trustDelta = CareerRelationships.ApplyConversation(career, player, morale, form, tension, injuryDays);
-            CareerMemories.RecordConversation(career, moment, player, choice, morale, form, tension, trustDelta);
+            CareerMemories.RecordConversation(career, moment, player, choice, morale, form, tension, trustDelta, injuryDays);
             CareerNotificationQueue.Enqueue("A TUA ESCOLHA FICA", "Confiança de " + player.FullName + ": " + CareerRelationships.TrustOf(career, player.Id) + "/100.");
         }
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using CoachMaster.Domain;
 using CoachMaster.MatchPlay;
 
@@ -15,6 +16,7 @@ namespace CoachMaster.Career
         public string PlayerId;
         public string Title;
         public string Detail;
+        public int Value;
     }
 
     public static class CareerMemories
@@ -39,11 +41,11 @@ namespace CoachMaster.Career
             return memory;
         }
 
-        public static void RecordConversation(CareerState career, CareerMoment moment, Player player, int choice, int moraleDelta, int formDelta, int tensionDelta, int trustDelta)
+        public static void RecordConversation(CareerState career, CareerMoment moment, Player player, int choice, int moraleDelta, int formDelta, int tensionDelta, int trustDelta, int injuryDays)
         {
             if (career == null || moment == null || player == null)
                 return;
-            if (Math.Abs(moraleDelta) < 5 && Math.Abs(formDelta) < 5 && Math.Abs(tensionDelta) < 8 && Math.Abs(trustDelta) < 3)
+            if (Math.Abs(moraleDelta) < 5 && Math.Abs(formDelta) < 5 && Math.Abs(tensionDelta) < 8 && Math.Abs(trustDelta) < 3 && injuryDays < 12)
                 return;
 
             var reply = moment.Replies != null && choice >= 0 && choice < moment.Replies.Length ? moment.Replies[choice] : "conversaste com o jogador";
@@ -55,7 +57,7 @@ namespace CoachMaster.Career
             if (trustDelta != 0)
                 detail += " Confiança no treinador " + Signed(trustDelta) + ".";
 
-            var memory = Record(career, new FootballMemory
+            Record(career, new FootballMemory
             {
                 WhenTicks = career.Calendar.CurrentDate.Ticks,
                 Importance = Math.Min(5, 2 + Math.Max(Math.Abs(moraleDelta), Math.Max(Math.Abs(formDelta), Math.Abs(tensionDelta))) / 6),
@@ -66,6 +68,22 @@ namespace CoachMaster.Career
                 Title = "Conversa importante com " + player.FullName,
                 Detail = detail
             });
+
+            if (injuryDays >= 12 && player.Injury != null && player.Injury.IsInjured)
+            {
+                Record(career, new FootballMemory
+                {
+                    WhenTicks = career.Calendar.CurrentDate.Ticks,
+                    Importance = injuryDays >= 21 ? 5 : 4,
+                    Kind = "lesao-grave",
+                    ClubId = career.Coach.ClubId,
+                    CompetitionId = career.Club.LeagueId,
+                    PlayerId = player.Id,
+                    Title = "Lesão afasta " + player.FullName,
+                    Detail = player.FullName + " vai ficar de fora durante " + injuryDays + " dias após uma decisão num momento de carreira.",
+                    Value = injuryDays
+                });
+            }
         }
 
         public static void RecordMatch(CareerState career, MatchSession match, bool userHome, string playerOfTheMatchId)
@@ -99,7 +117,13 @@ namespace CoachMaster.Career
             var memorable = (won && (lateWinningGoal || upset || margin >= 3 || (totalGoals >= 5 && margin >= 2))) ||
                             (lost && (decisiveCupResult || (club.Reputation - opponent.Reputation >= 15 && margin >= 2)));
 
+            var approvalBefore = career.SupporterApproval;
             var reaction = SupporterReactions.ApplyResult(career, match.Fixture, match.HomeGoals, match.AwayGoals);
+            var playerMoments = RecordPlayerMoments(career, match, userGoals, opponentGoals, opponent);
+            var supporterMemory = RecordSupporterMilestone(career, match, approvalBefore, reaction);
+            if (supporterMemory != null)
+                playerMoments.Insert(0, supporterMemory);
+            playerMoments.Sort((a, b) => b.Importance.CompareTo(a.Importance));
             FootballMemory memory = null;
             if (memorable)
             {
@@ -137,11 +161,187 @@ namespace CoachMaster.Career
 
             if (memory != null)
             {
-                CareerNotificationQueue.Enqueue("MOMENTO QUE FICA", memory.Title + ". O balneário e os adeptos vão lembrar-se deste resultado.");
                 Newsroom.Publish(career, "Memórias da época", memory.Title, memory.Detail + "\n\n" + reaction);
             }
             else if (!string.IsNullOrEmpty(reaction))
                 Newsroom.Publish(career, "O Bancada", "A bancada fala após " + match.Home.ShortName + "–" + match.Away.ShortName, reaction);
+
+            for (var i = 0; i < playerMoments.Count; i++)
+                Newsroom.Publish(career, "Memórias da carreira", playerMoments[i].Title, playerMoments[i].Detail);
+
+            var notification = playerMoments.Count > 0 ? playerMoments[0] : memory;
+            if (notification != null)
+                CareerNotificationQueue.Enqueue("MOMENTO QUE FICA", notification.Title + ". Este momento foi guardado no histórico da carreira.");
+        }
+
+        static FootballMemory RecordSupporterMilestone(CareerState career, MatchSession match, int before, string reaction)
+        {
+            var after = career.SupporterApproval;
+            var crossedHigh = before < 76 && after >= 76;
+            var crossedLow = before > 44 && after <= 44;
+            var crossedCritical = before > 30 && after <= 30;
+            if (!crossedHigh && !crossedLow && !crossedCritical)
+                return null;
+
+            var positive = crossedHigh;
+            var title = positive ? "A bancada voltou a acreditar" : crossedCritical
+                ? "A confiança dos adeptos está no limite"
+                : "A paciência dos adeptos está a diminuir";
+            return Record(career, new FootballMemory
+            {
+                WhenTicks = match.Fixture.Date.Ticks,
+                Importance = crossedCritical || crossedHigh ? 4 : 3,
+                Kind = positive ? "apoio-reforcado" : "pressao-adeptos",
+                ClubId = career.Club.Id,
+                CompetitionId = match.Fixture.LeagueId,
+                RelatedClubId = match.Fixture.OpponentId(career.Club.Id),
+                Title = title,
+                Detail = (reaction ?? "") + " A relação com os adeptos ficou em " + after + "/100.",
+                Value = after
+            });
+        }
+
+        static List<FootballMemory> RecordPlayerMoments(CareerState career, MatchSession match, int userGoals, int opponentGoals, Club opponent)
+        {
+            var recorded = new List<FootballMemory>();
+            var clubId = career.Club.Id;
+            var matchDate = match.Fixture.Date;
+            var dateTicks = matchDate.Ticks;
+
+            foreach (var playerId in match.Appeared)
+            {
+                if (!match.People.TryGetValue(playerId, out var player) || player == null || player.ClubId != clubId)
+                    continue;
+
+                if (CareerApps(career, playerId) == 0 && !HasMemory(career, "estreia", playerId))
+                {
+                    Add("estreia", 3, player, "Estreia sénior de " + player.FullName,
+                        player.FullName + " fez a primeira aparição sénior da carreira pelo " + career.Club.Name + ".");
+                }
+
+                RecordReturnFromInjury(player);
+
+                if (!match.GoalsScored.TryGetValue(playerId, out var goals) || goals < 1)
+                    continue;
+
+                var previousGoals = CareerGoals(career, playerId);
+                if (previousGoals == 0)
+                    Add("primeiro-golo", 3, player, "Primeiro golo sénior de " + player.FullName,
+                        player.FullName + " marcou o primeiro golo sénior da carreira.");
+                if (goals >= 3)
+                    Add("hat-trick", 4, player, "Hat-trick de " + player.FullName,
+                        player.FullName + " marcou " + goals + " golos na mesma partida frente ao " + opponent.Name + ".");
+
+                RecordGoalMilestone(player, previousGoals, goals, 50);
+                RecordGoalMilestone(player, previousGoals, goals, 100);
+
+                if (HasFormerClubLink(career, playerId, opponent.Id))
+                    Add("golo-antigo-clube", 4, player, player.FullName + " marcou contra o antigo clube",
+                        player.FullName + " marcou pelo " + career.Club.Name + " frente ao " + opponent.Name + ", clube de onde chegou.", opponent.Id);
+            }
+
+            if (userGoals <= opponentGoals)
+            {
+                foreach (var note in match.Notes)
+                {
+                    if (note == null || note.Kind != "penalty-miss" || string.IsNullOrEmpty(note.PlayerId)
+                        || !match.People.TryGetValue(note.PlayerId, out var taker) || taker == null || taker.ClubId != clubId)
+                        continue;
+                    Add("penalti-decisivo-falhado", 4, taker, "Penálti decisivo falhado por " + taker.FullName,
+                        taker.FullName + " falhou um penálti numa partida que terminou sem vitória do " + career.Club.Name + ". O lance ficou associado ao resultado.", opponent.Id);
+                }
+            }
+
+            foreach (var note in match.Notes)
+            {
+                if (note == null || note.Kind != "injury" || string.IsNullOrEmpty(note.PlayerId)
+                    || !match.People.TryGetValue(note.PlayerId, out var injured) || injured == null || injured.ClubId != clubId)
+                    continue;
+                var days = injured.Injury == null ? 0 : injured.Injury.DaysRemaining;
+                if (days < 10)
+                    continue;
+                Add("lesao-grave", days >= 21 ? 5 : 4, injured, "Lesão afasta " + injured.FullName,
+                    injured.FullName + " sofreu uma lesão muscular durante a partida e deverá ficar de fora durante " + days + " dias.", null, days);
+            }
+
+            recorded.Sort((a, b) => b.Importance.CompareTo(a.Importance));
+            return recorded;
+
+            void RecordGoalMilestone(Player player, int previousGoals, int matchGoals, int milestone)
+            {
+                if (previousGoals >= milestone || previousGoals + matchGoals < milestone)
+                    return;
+                Add("marco-golos-" + milestone, 4, player, milestone + " golos sénior: " + player.FullName,
+                    player.FullName + " chegou aos " + milestone + " golos sénior ao serviço do " + career.Club.Name + ".");
+            }
+
+            void RecordReturnFromInjury(Player player)
+            {
+                FootballMemory latest = null;
+                foreach (var item in career.Memories)
+                {
+                    if (item.PlayerId != player.Id || (item.Kind != "lesao-grave" && item.Kind != "regresso-lesao") || item.WhenTicks >= dateTicks)
+                        continue;
+                    if (latest == null || item.WhenTicks > latest.WhenTicks)
+                        latest = item;
+                }
+                if (latest == null || latest.Kind != "lesao-grave" || latest.Value < 12
+                    || dateTicks - latest.WhenTicks < TimeSpan.FromDays(latest.Value).Ticks)
+                    return;
+                Add("regresso-lesao", 3, player, "Regresso de " + player.FullName + " após uma lesão longa",
+                    player.FullName + " voltou a jogar depois de ficar " + latest.Value + " dias afastado por lesão.");
+            }
+
+            void Add(string kind, int importance, Player player, string title, string detail, string relatedClubId = null, int value = 0)
+            {
+                var entry = Record(career, new FootballMemory
+                {
+                    WhenTicks = dateTicks,
+                    Importance = importance,
+                    Kind = kind,
+                    ClubId = clubId,
+                    CompetitionId = match.Fixture.LeagueId,
+                    RelatedClubId = relatedClubId,
+                    PlayerId = player == null ? null : player.Id,
+                    Title = title,
+                    Detail = detail,
+                    Value = value
+                });
+                if (entry != null)
+                    recorded.Add(entry);
+            }
+        }
+
+        static bool HasFormerClubLink(CareerState career, string playerId, string clubId)
+        {
+            foreach (var memory in career.Memories)
+                if (memory.PlayerId == playerId && memory.RelatedClubId == clubId && memory.Kind == "contratacao")
+                    return true;
+            return false;
+        }
+
+        static bool HasMemory(CareerState career, string kind, string playerId)
+        {
+            foreach (var memory in career.Memories)
+                if (memory.Kind == kind && memory.PlayerId == playerId)
+                    return true;
+            return false;
+        }
+
+        static int CareerApps(CareerState career, string playerId)
+        {
+            foreach (var line in career.CareerTotals)
+                if (line.PlayerId == playerId)
+                    return line.Apps;
+            return 0;
+        }
+
+        static int CareerGoals(CareerState career, string playerId)
+        {
+            foreach (var line in career.CareerTotals)
+                if (line.PlayerId == playerId)
+                    return line.Goals;
+            return 0;
         }
 
         static string Signed(int value)
@@ -218,7 +418,30 @@ namespace CoachMaster.Career
             {
                 if (!match.People.TryGetValue(playerId, out var player) || player == null || player.ClubId != club.Id)
                     continue;
-                career.ManagerTrust[playerId] = Clamp(TrustOf(career, playerId) + 1, 0, 100);
+                var previousTrust = TrustOf(career, playerId);
+                var rating = match.RatingOf(playerId);
+                var trustGain = rating >= 8f ? 2 : rating < 5.5f ? 0 : 1;
+                var currentTrust = Clamp(previousTrust + trustGain, 0, 100);
+                career.ManagerTrust[playerId] = currentTrust;
+                if (previousTrust < 80 && currentTrust >= 80 && (player.IsCaptain || PlayerAttributes.Overall(player) >= 74))
+                {
+                    var memory = CareerMemories.Record(career, new FootballMemory
+                    {
+                        WhenTicks = match.Fixture.Date.Ticks,
+                        Importance = 3,
+                        Kind = "confianca-reforcada",
+                        ClubId = club.Id,
+                        CompetitionId = match.Fixture.LeagueId,
+                        PlayerId = playerId,
+                        Title = "O capitão confia no projeto",
+                        Detail = player.FullName + " atingiu 80/100 de confiança no treinador depois de continuar a contar para a equipa."
+                    });
+                    if (memory != null && !notified)
+                    {
+                        CareerNotificationQueue.Enqueue("RELAÇÃO REFORÇADA", player.FullName + " reconhece a confiança que lhe tens dado.");
+                        notified = true;
+                    }
+                }
             }
         }
 
