@@ -3,7 +3,6 @@
 Inspect the existing Coach Master project and determine whether its custom movement and physics systems should be replaced or partially integrated with Unity's built-in Rigidbody2D physics engine.
 
 The game currently has several gameplay problems:
-- Passes are too slow.
 - The ball sometimes travels in unintended directions.
 - The ball does not always remain correctly attached to the player's feet during possession.
 - The ball can leave the pitch and remain there until the match ends.
