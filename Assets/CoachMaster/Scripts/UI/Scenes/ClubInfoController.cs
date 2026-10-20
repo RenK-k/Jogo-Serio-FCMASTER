@@ -13,6 +13,7 @@ namespace CoachMaster.UI.Scenes
     {
         void Start()
         {
+            LocalizationManager.ApplyScene();
             var session = GameRoot.Require().Session;
             if (string.IsNullOrEmpty(session.Draft.ClubId) || !session.Catalog.Clubs.ContainsKey(session.Draft.ClubId))
             {
@@ -56,7 +57,7 @@ namespace CoachMaster.UI.Scenes
                 title.text = club.Name.ToUpperInvariant();
             var sub = SceneBind.Get<Text>(root, "Header/Subtitle");
             if (sub != null)
-                sub.text = club.City + "   ·   " + club.FoundedYear + "   ·   " + club.Stadium;
+                sub.text = LocalizationManager.Translate(club.City) + "   ·   " + club.FoundedYear + "   ·   " + LocalizationManager.Translate(club.Stadium);
             var crest = SceneBind.Get<Image>(root, "KitCard/Crest");
             if (crest != null)
                 crest.sprite = CrestStudio.For(club);
@@ -65,7 +66,7 @@ namespace CoachMaster.UI.Scenes
                 kit.gameObject.SetActive(false);
             var heading = SceneBind.Get<Text>(root, "Plantel/Title");
             if (heading != null)
-                heading.text = "PLANTEL  ·  " + club.Tactics.Formation;
+                heading.text = LocalizationManager.Translate("PLANTEL") + "  ·  " + club.Tactics.Formation;
             var body = SceneBind.Get<Text>(root, "Historia/Scroll/Content/Body");
             if (body != null)
                 BroadcastUi.SetWrapped(body, History(club), 200);
@@ -85,7 +86,7 @@ namespace CoachMaster.UI.Scenes
             var root = bake ? BroadcastUi.CreateDesign(transform) : BroadcastUi.Mount(this);
             BroadcastUi.Backdrop(root);
             BroadcastUi.Wordmark(root, club.ShortName);
-            LeagueSelectController.Header(root, club.Name.ToUpperInvariant(), club.City + "   ·   " + club.FoundedYear + "   ·   " + club.Stadium, () => GameRoot.Instance.Open(SceneNames.TeamSelect));
+            LeagueSelectController.Header(root, club.Name.ToUpperInvariant(), LocalizationManager.Translate(club.City) + "   ·   " + club.FoundedYear + "   ·   " + LocalizationManager.Translate(club.Stadium), () => GameRoot.Instance.Open(SceneNames.TeamSelect));
 
             var kitCard = BroadcastUi.Panel(root, "KitCard", new Color(0.08f, 0.03f, 0.16f, 0.62f));
             BroadcastUi.Place(kitCard.rectTransform, 0.03f, 0.16f, 0.24f, 0.78f);
@@ -97,10 +98,10 @@ namespace CoachMaster.UI.Scenes
             crest.preserveAspect = true;
             crest.raycastTarget = false;
             crest.sprite = CrestStudio.For(club);
-            Card(root, "Historia", 0.26f, 0.16f, 0.52f, 0.78f, "HISTÓRIA", History(club));
+            Card(root, "Historia", 0.26f, 0.16f, 0.52f, 0.78f, LocalizationManager.Translate("HISTÓRIA"), History(club));
             var pitch = BroadcastUi.Panel(root, "Plantel", new Color(0.08f, 0.03f, 0.16f, 0.55f));
             BroadcastUi.Place(pitch.rectTransform, 0.54f, 0.16f, 0.97f, 0.78f);
-            var heading = BroadcastUi.Label(pitch.transform, "Title", "PLANTEL  ·  " + club.Tactics.Formation, 16, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            var heading = BroadcastUi.Label(pitch.transform, "Title", LocalizationManager.Translate("PLANTEL") + "  ·  " + club.Tactics.Formation, 16, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
             BroadcastUi.Place(heading.rectTransform, 0.04f, 0.9f, 0.96f, 0.98f);
             var field = new GameObject("Field", typeof(RectTransform)).GetComponent<RectTransform>();
             field.SetParent(pitch.transform, false);
@@ -109,7 +110,7 @@ namespace CoachMaster.UI.Scenes
 
             var choose = BroadcastUi.Button(root, "Choose", "ASSUMIR O BANCO", () => GameRoot.Instance.Open(SceneNames.CreateCareer), UiTheme.Accent, UiTheme.ButtonText, 20);
             BroadcastUi.Place(choose.GetComponent<RectTransform>(), 0.34f, 0.065f, 0.66f, 0.14f);
-            var hint = BroadcastUi.Label(root, "ControlHint", "Enter  assumir     Esc  voltar", 15, UiTheme.Muted, TextAnchor.MiddleLeft);
+            var hint = BroadcastUi.Label(root, "ControlHint", LocalizationManager.Translate("M · DEFINIÇÕES"), 15, UiTheme.Muted, TextAnchor.MiddleLeft);
             BroadcastUi.Place(hint.rectTransform, 0.04f, 0.008f, 0.5f, 0.05f);
         }
 
@@ -152,7 +153,7 @@ namespace CoachMaster.UI.Scenes
                     BroadcastUi.Place(number.rectTransform, 0.04f, 0.78f, 0.28f, 0.96f);
                     var name = BroadcastUi.Label(card.transform, "Name", BroadcastUi.ShortName(player.FullName).ToUpperInvariant(), 11, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
                     BroadcastUi.Place(name.rectTransform, 0.04f, 0.3f, 0.96f, 0.48f);
-                    var meta = BroadcastUi.Label(card.transform, "Meta", PresentationLabels.Position(player.Position) + "  ·  " + player.Nationality, 10, UiTheme.Accent, TextAnchor.MiddleCenter);
+                    var meta = BroadcastUi.Label(card.transform, "Meta", PresentationLabels.Position(player.Position) + "  ·  " + LocalizationManager.Translate(player.Nationality), 10, UiTheme.Accent, TextAnchor.MiddleCenter);
                     BroadcastUi.Place(meta.rectTransform, 0.04f, 0.06f, 0.96f, 0.28f);
                 }
             }
@@ -172,6 +173,30 @@ namespace CoachMaster.UI.Scenes
 
         static string History(Club club)
         {
+            if (LocalizationManager.Current == GameLanguage.English)
+            {
+                var country = LocalizationManager.Translate(club.City);
+                var text = new StringBuilder();
+                text.Append("Founded in ").Append(club.FoundedYear).Append(", ").Append(club.Name)
+                    .Append(" represent ").Append(country).Append(" and compete in a ")
+                    .Append(club.Reputation >= 70 ? "top-flight project." : club.Reputation >= 45 ? "competitive league project." : "developing league project.")
+                    .AppendLine().AppendLine();
+                text.AppendLine("REPUTATION").AppendLine(club.Reputation >= 78 ? "A leading club with high expectations." :
+                    club.Reputation >= 66 ? "An established side with a strong following." :
+                    club.Reputation >= 48 ? "A competitive club with room to grow." : "A modest club working to establish itself.").AppendLine();
+                text.AppendLine("FINANCES").AppendLine(club.Finance != null && club.Finance.TransferBudget >= 10000000
+                    ? "The club has room to invest in the squad."
+                    : club.Finance != null && club.Finance.TransferBudget >= 1000000
+                        ? "The budget allows selective investment."
+                        : "The club needs to manage its budget carefully.").AppendLine();
+                text.AppendLine("IDENTITY").AppendLine(LocalizationManager.Translate(club.Tactics.Summary)).AppendLine();
+                text.AppendLine("MANAGER POSITION").AppendLine("The board is looking for a manager to lead the project.").AppendLine();
+                text.AppendLine("OBJECTIVES");
+                foreach (var item in club.BoardObjectives)
+                    text.Append("· ").AppendLine(EnglishObjective(item));
+                return text.ToString();
+            }
+
             var sb = new StringBuilder();
             sb.AppendLine(club.History).AppendLine();
             sb.AppendLine("REPUTAÇÃO").AppendLine(club.PublicReputation).AppendLine();
@@ -182,6 +207,28 @@ namespace CoachMaster.UI.Scenes
             foreach (var item in club.BoardObjectives)
                 sb.Append("· ").AppendLine(item);
             return sb.ToString();
+        }
+
+        static string EnglishObjective(string objective)
+        {
+            if (string.IsNullOrEmpty(objective)) return "Maintain the club's progress.";
+            switch (objective)
+            {
+                case "Terminar no primeiro terço da tabela": return "Finish in the top third of the table.";
+                case "Disputar o título": return "Challenge for the title.";
+                case "Garantir a manutenção": return "Secure top-flight survival.";
+                case "Lutar pela qualificação europeia": return "Challenge for European qualification.";
+                case "Ficar a meio da tabela": return "Finish in mid-table.";
+                case "Manutenção confortável": return "Secure a comfortable mid-table finish.";
+                case "Evitar a descida": return "Avoid relegation.";
+                case "Manutenção": return "Secure the club's place in the division.";
+                case "Lutar pela subida": return "Challenge for promotion.";
+                case "Subir de divisão": return "Win promotion.";
+                case "Chegar aos lugares de subida": return "Reach the promotion places.";
+                case "Pontuar com regularidade": return "Pick up points consistently.";
+                case "Manter o balneário calmo": return "Keep the dressing room settled.";
+                default: return "Meet the board's expectations in the league.";
+            }
         }
     }
 }

@@ -24,6 +24,7 @@ namespace CoachMaster.UI
         public const string AutosaveDaysKey = "cm_autosave_days";
         public const string AutosaveSlotsKey = "cm_autosave_slots";
         public const string BackgroundMuteKey = "cm_background_mute";
+        public const string LanguageKey = "cm_language";
 
         const int CurrentVersion = 1;
         static readonly string[] AllKeys =
@@ -32,7 +33,7 @@ namespace CoachMaster.UI
             UiScaleKey, ReduceMotionKey, ControllerHintsKey, MatchSpeedKey, MatchHighlightsKey,
             PauseGoalKey, PauseRedKey, PauseInjuryKey, LiveRatingsKey, DecisionAlertsKey, AlertDurationKey,
             AutoTrainingKey, AutoSelectionKey, AutosaveEnabledKey, AutosaveBeforeMatchKey, AutosaveDaysKey, AutosaveSlotsKey,
-            BackgroundMuteKey, "cm_default_injury", "cm_default_referee", "cm_default_realism", "cm_audio_master", "cm_audio_music", "cm_audio_effects", "cm_audio_crowd",
+            BackgroundMuteKey, LanguageKey, "cm_default_injury", "cm_default_referee", "cm_default_realism", "cm_audio_master", "cm_audio_music", "cm_audio_effects", "cm_audio_crowd",
             "cm_audio_menu", "cm_audio_mute", "cm_audio_repeat"
         };
 
@@ -61,12 +62,12 @@ namespace CoachMaster.UI
         public static bool ControllerHints { get => PlayerPrefs.GetInt(ControllerHintsKey, 1) != 0; set => PlayerPrefs.SetInt(ControllerHintsKey, value ? 1 : 0); }
         public static int MatchSpeedIndex { get => Mathf.Clamp(PlayerPrefs.GetInt(MatchSpeedKey, 1), 0, 3); set => PlayerPrefs.SetInt(MatchSpeedKey, Mathf.Clamp(value, 0, 3)); }
         public static string MatchSpeedLabel => new[] { "0,5×", "1×", "2×", "4×" }[MatchSpeedIndex];
-        public static float MatchSpeed => new[] { 0.34f, 0.68f, 2.4f, 4.2f }[MatchSpeedIndex];
+        public static float MatchSpeed => new[] { 0.34f, 0.68f, 1.36f, 2.72f }[MatchSpeedIndex];
         public static int MatchHighlights { get => Mathf.Clamp(PlayerPrefs.GetInt(MatchHighlightsKey, 1), 0, 3); set => PlayerPrefs.SetInt(MatchHighlightsKey, Mathf.Clamp(value, 0, 3)); }
         public static string MatchHighlightsLabel => new[] { "Todos", "Alargados", "Chave", "Só golos" }[MatchHighlights];
         public static bool PauseOnGoal { get => PlayerPrefs.GetInt(PauseGoalKey, 0) != 0; set => PlayerPrefs.SetInt(PauseGoalKey, value ? 1 : 0); }
         public static bool PauseOnRedCard { get => PlayerPrefs.GetInt(PauseRedKey, 0) != 0; set => PlayerPrefs.SetInt(PauseRedKey, value ? 1 : 0); }
-        public static bool PauseOnInjury { get => PlayerPrefs.GetInt(PauseInjuryKey, 0) != 0; set => PlayerPrefs.SetInt(PauseInjuryKey, value ? 1 : 0); }
+        public static bool PauseOnInjury { get => PlayerPrefs.GetInt(PauseInjuryKey, 1) != 0; set => PlayerPrefs.SetInt(PauseInjuryKey, value ? 1 : 0); }
         public static bool LiveRatings { get => PlayerPrefs.GetInt(LiveRatingsKey, 1) != 0; set => PlayerPrefs.SetInt(LiveRatingsKey, value ? 1 : 0); }
         public static bool DecisionAlerts { get => PlayerPrefs.GetInt(DecisionAlertsKey, 1) != 0; set => PlayerPrefs.SetInt(DecisionAlertsKey, value ? 1 : 0); }
         public static int AlertDurationIndex { get => Mathf.Clamp(PlayerPrefs.GetInt(AlertDurationKey, 1), 0, 2); set => PlayerPrefs.SetInt(AlertDurationKey, Mathf.Clamp(value, 0, 2)); }
@@ -115,6 +116,8 @@ namespace CoachMaster.UI
             if (key == "cm_quality") return QualitySettings.GetQualityLevel();
             if (key == "cm_fps_index" || key == MatchSpeedKey || key == MatchHighlightsKey || key == AlertDurationKey || key == AutosaveDaysKey || key == AutosaveSlotsKey || key == "cm_default_injury" || key == "cm_default_referee" || key == "cm_default_realism") return 1;
             if (key == UiScaleKey) return 2;
+            if (key == LanguageKey) return 0;
+            if (key == PauseInjuryKey) return 1;
             if (key == ControllerHintsKey || key == LiveRatingsKey || key == DecisionAlertsKey || key == AutoTrainingKey || key == AutosaveEnabledKey || key == AutosaveBeforeMatchKey) return 1;
             if (key == "cm_full" || key == "cm_background_index" || key == "cm_audio_mute" || key == "cm_audio_repeat" || ReduceMotionKey == key || AutoSelectionKey == key || PauseGoalKey == key || PauseRedKey == key || PauseInjuryKey == key || BackgroundMuteKey == key) return 0;
             return 0;
@@ -137,6 +140,7 @@ namespace CoachMaster.UI
             DisplayPrefs.Apply();
             GameAudio.ReloadPreferences();
             LeagueBackdrop.RefreshCurrentScene();
+            LocalizationManager.ApplyScene();
         }
 
         public static void Commit() => PlayerPrefs.Save();
@@ -165,11 +169,14 @@ namespace CoachMaster.UI
             PlayerPrefs.SetInt("cm_default_realism", 1);
             PlayerPrefs.SetInt(UiScaleKey, 2);
             PlayerPrefs.SetInt(ControllerHintsKey, 1);
+            PlayerPrefs.SetInt(PauseInjuryKey, 1);
+            PlayerPrefs.SetInt(LanguageKey, 0);
             PlayerPrefs.SetInt("cm_background_index", 0);
             PlayerPrefs.SetInt("cm_settings_version", CurrentVersion);
             GameAudio.ResetDefaults();
             DisplayPrefs.ResetDefaults();
             LeagueBackdrop.RefreshCurrentScene();
+            LocalizationManager.ApplyScene();
         }
 
         public static int DefaultInjuryFrequency { get => Mathf.Clamp(PlayerPrefs.GetInt("cm_default_injury", 1), 0, 2); set => PlayerPrefs.SetInt("cm_default_injury", Mathf.Clamp(value, 0, 2)); }

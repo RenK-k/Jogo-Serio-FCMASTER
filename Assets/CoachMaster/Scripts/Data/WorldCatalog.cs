@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using CoachMaster.Domain;
 using CoachMaster.UI;
+using UnityEngine;
 
 namespace CoachMaster.Data
 {
@@ -766,18 +767,18 @@ namespace CoachMaster.Data
 
         static readonly string[] ForeignPrimaries =
         {
-            "#E10600", "#FF6A00", "#FFD000", "#7CFF00",
-            "#00C853", "#00B8A9", "#00B0FF", "#2962FF",
-            "#6200EA", "#C6FF00", "#FF1744", "#FF4081",
-            "#F5F5F5", "#111111", "#8D6E63", "#C6A15B",
-            "#B71C1C", "#E65100", "#F9A825", "#2E7D32",
-            "#00695C", "#01579B", "#1A237E", "#6A1B9A",
-            "#880E4F", "#B0BEC5", "#37474F", "#FF8A65",
-            "#69F0AE", "#18FFFF", "#82B1FF", "#EA80FC",
-            "#FF80AB", "#FFE082", "#C0CA33", "#00E676",
-            "#D50000", "#FF3D00", "#FFEA00", "#1DE9B6",
-            "#0091EA", "#304FFE", "#D500F9", "#F50057",
-            "#FFFFFF", "#212121", "#6D4C41", "#FFC107"
+            "#D62828", "#2255D7", "#149447", "#F2C230",
+            "#F07818", "#7D35BA", "#20BCD1", "#20232A",
+            "#F0F0EA", "#D7448C", "#00695C", "#13295D",
+            "#795548", "#A6C82A", "#7E1B27", "#9AA2AE",
+            "#00B8A9", "#536D1E", "#E65932", "#36454F",
+            "#43A047", "#B085C8", "#F0A830", "#4D7A91",
+            "#FF6A00", "#FFD000", "#7CFF00", "#00C853",
+            "#00B0FF", "#2962FF", "#6200EA", "#FF1744",
+            "#FF4081", "#8D6E63", "#C6A15B", "#B71C1C",
+            "#E65100", "#F9A825", "#2E7D32", "#01579B",
+            "#1A237E", "#6A1B9A", "#880E4F", "#FF8A65",
+            "#69F0AE", "#18FFFF", "#82B1FF", "#EA80FC"
         };
 
         static KitLook GeneratedKit(string slug)
@@ -786,7 +787,9 @@ namespace CoachMaster.Data
             if (slot < 0)
                 slot = 0;
             var primary = ForeignPrimaries[slot % ForeignPrimaries.Length];
-            var secondary = slot % 3 == 0 ? "#F4F1E8" : slot % 3 == 1 ? "#12151C" : "#E7B23A";
+            ColorUtility.TryParseHtmlString(primary, out var primaryColor);
+            var luminance = primaryColor.r * 0.2126f + primaryColor.g * 0.7152f + primaryColor.b * 0.0722f;
+            var secondary = luminance < 0.42f ? "#F4F1E8" : "#12151C";
             var patterns = new[]
             {
                 KitPattern.Solid,
@@ -797,7 +800,7 @@ namespace CoachMaster.Data
                 KitPattern.Halves,
                 KitPattern.Pinstripe
             };
-            var shorts = slot % 2 == 0 ? secondary : "#F4F1E8";
+            var shorts = secondary;
             return new KitLook(primary, secondary, shorts, patterns[slot % patterns.Length]);
         }
 
@@ -808,19 +811,15 @@ namespace CoachMaster.Data
             var dash = slug.LastIndexOf('-');
             var index = 0;
             if (dash >= 0)
-                int.TryParse(slug.Substring(dash + 1), out index);
+            {
+                var suffix = slug.Substring(dash + 1);
+                if (suffix.StartsWith("x", StringComparison.OrdinalIgnoreCase))
+                    suffix = suffix.Substring(1);
+                int.TryParse(suffix, out index);
+            }
             if (index < 0)
                 index = 0;
-            if (index > 7)
-                index = 7;
-            var band = 0;
-            if (slug.StartsWith("francesa"))
-                band = 16;
-            else if (slug.StartsWith("espanhola"))
-                band = 32;
-            if (slug.Contains("-2-"))
-                band += 8;
-            return band + index;
+            return index;
         }
 
         readonly struct KitLook

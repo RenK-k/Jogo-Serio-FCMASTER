@@ -15,19 +15,21 @@ namespace CoachMaster.UI.Scenes
     {
         static readonly string[] SocialAccountNames =
         {
-            "Rui da Bancada", "Marta em Fora-de-Jogo", "Zé do Café", "A Bola É Nossa",
-            "Bancada 90", "Futebol de Sofá", "Olho Tático", "Pé de Microfone",
-            "Golo aos 90+", "Arbitragem de Café", "Onze de Bolso", "Cromos & Relvado",
-            "Mister da Tasca", "Adeptos em Crise", "Radar do Mercado", "Geração da Bancada",
-            "Futebol com Sono", "Ala Norte", "Linha de Fundo", "Bancada Sem Filtro"
+            "The Away End", "Matchday Mic", "Touchline Wire", "The Football Desk",
+            "The Golden Ball Desk", "Transfer Ledger", "Tactical Review", "Saturday Scout",
+            "The League Room", "Home End Noise", "Extra Time", "Football Numbers",
+            "The Dugout Desk", "The Terrace", "Fixture List", "The Press Box",
+            "Boot Room Notes", "The 90th Minute", "Full-Time Report", "The Fan Verdict",
+            "Ballon d'Or Bulletin", "Transfer Room", "North Stand Media", "Matchday Briefing"
         };
         static readonly string[] SocialAccountHandles =
         {
-            "@rui_da_bancada", "@marta_futebol", "@zedocafe_fc", "@abolaenossa",
-            "@bancada90", "@sofadefutebol", "@olhotatico", "@pedomicrofone",
-            "@goloaos90", "@arbitrodocafe", "@onzedebolso", "@cromoserelvado",
-            "@misterdatasca", "@adeptosemcrise", "@radardomercado", "@geracaobancada",
-            "@futebolcomsono", "@alanorte", "@linhadefundo", "@bancadasemfiltro"
+            "@theawayend", "@matchdaymic", "@touchlinewire", "@football_desk",
+            "@goldenballdesk", "@transferledger", "@tacticalreview", "@saturdayscout",
+            "@theleagueroom", "@homeendnoise", "@extratime", "@footballnumbers",
+            "@dugoutdesk", "@theterrace", "@fixturelist", "@pressboxfootball",
+            "@bootroomnotes", "@the90thminute", "@fulltimereport", "@fanverdict",
+            "@ballondorbulletin", "@transferroom", "@northstandmedia", "@matchdaybriefing"
         };
         GameObject[] _pages;
         Button[] _tabs;
@@ -42,6 +44,7 @@ namespace CoachMaster.UI.Scenes
         bool _phoneOpen;
         string _phoneApp = "Mensagens";
         bool _phoneInThread;
+        PhoneNote _activePhoneNote;
         int _socialFeedDaySeed = int.MinValue;
         readonly HashSet<string> _phoneAnswered = new HashSet<string>();
         Text _dateLine;
@@ -85,6 +88,8 @@ namespace CoachMaster.UI.Scenes
         RectTransform _modalBody;
         Button _modalAction;
         Text _modalActionLabel;
+        Player _profileModalPlayer;
+        bool _profileModalOrders;
         GameObject _tacHost;
         string _arm;
         string _orderId;
@@ -96,6 +101,8 @@ namespace CoachMaster.UI.Scenes
 
         void Start()
         {
+            LocalizationManager.ApplyScene();
+            LocalizationManager.LanguageChanged += OnLanguageChanged;
             _career = GameRoot.Require().Session.Career;
             if (_career == null)
             {
@@ -130,12 +137,48 @@ namespace CoachMaster.UI.Scenes
             BuildPages(root);
             BuildPlay(root);
             BuildModal(root);
-            var hint = BroadcastUi.Label(root, "ControlHint", "Enter  continuar     1 2 3  responder     Setas  navegar", 15, UiTheme.Muted, TextAnchor.MiddleRight);
+            var hint = BroadcastUi.Label(root, "ControlHint", LocalizationManager.Translate("M · DEFINIÇÕES"), 15, UiTheme.Muted, TextAnchor.MiddleRight);
             BroadcastUi.Place(hint.rectTransform, 0.42f, 0.008f, 0.98f, 0.048f);
             Show(0);
             Refresh();
             if (_phoneSheet != null)
                 _phoneSheet.SetAsLastSibling();
+        }
+
+        void OnDestroy()
+        {
+            LocalizationManager.LanguageChanged -= OnLanguageChanged;
+        }
+
+        void OnLanguageChanged()
+        {
+            if (_career == null)
+                return;
+            RefreshCareerTabLabels();
+            RefreshLocalizedPresentation();
+            FillBoard();
+            if (_pages != null)
+            {
+                for (var i = 0; i < _pages.Length; i++)
+                {
+                    if (!_pages[i].activeSelf)
+                        continue;
+                    if (i == 1) FillNews();
+                    else if (i == 3) FillTeam();
+                    else if (i == 4) FillStaff();
+                    else if (i == 5) FillCalendar();
+                    else if (i == 6) FillStandings();
+                    break;
+                }
+            }
+            if (_profileModalPlayer != null && _modal != null && _modal.activeSelf)
+                OpenPlayer(_profileModalPlayer, _profileModalOrders);
+            if (!_phoneOpen || _phonePage == null || !_phonePage.activeSelf)
+                return;
+            if (_phoneInThread && _activePhoneNote != null)
+                OpenThread(_activePhoneNote);
+            else
+                FillPhone(_phoneApp);
         }
 
         void Update()
@@ -258,6 +301,7 @@ namespace CoachMaster.UI.Scenes
             if (_phoneInThread)
             {
                 _phoneInThread = false;
+                _activePhoneNote = null;
                 if (_phoneAppTitle != null)
                     _phoneAppTitle.text = _phoneApp == "X" ? "X   PARA TI" : _phoneApp;
                 FillPhone(_phoneApp);
@@ -369,6 +413,7 @@ namespace CoachMaster.UI.Scenes
             if (_phoneList == null)
                 return;
             _phoneInThread = true;
+            _activePhoneNote = note;
             if (_phoneAppTitle != null)
                 _phoneAppTitle.text = note.Who;
             Clear(_phoneList);
@@ -555,6 +600,7 @@ namespace CoachMaster.UI.Scenes
                 var promise = line.IndexOf("combinei", StringComparison.OrdinalIgnoreCase) >= 0
                     || line.IndexOf("marquei", StringComparison.OrdinalIgnoreCase) >= 0
                     || line.IndexOf("prometi", StringComparison.OrdinalIgnoreCase) >= 0;
+                line = LocalizationManager.Translate(line);
                 if (morale >= 3 || Mathf.Abs(trustDelta) >= 2 || promise)
                 {
                     var memory = CareerMemories.Record(_career, new FootballMemory
@@ -565,16 +611,23 @@ namespace CoachMaster.UI.Scenes
                         ClubId = _career.Club.Id,
                         CompetitionId = _career.Club.LeagueId,
                         PlayerId = player.Id,
-                        Title = "Conversa no telemóvel com " + player.FullName,
-                        Detail = line + " Moral " + (morale > 0 ? "+" : "") + morale + "; confiança no treinador " + (trustDelta > 0 ? "+" : "") + trustDelta + "."
+                        Title = (LocalizationManager.Current == GameLanguage.English ? "Phone conversation with " : "Conversa no telemóvel com ") + player.FullName,
+                        Detail = LocalizationManager.Current == GameLanguage.English
+                            ? line + " Morale " + (morale > 0 ? "+" : "") + morale + "; manager trust " + (trustDelta > 0 ? "+" : "") + trustDelta + "."
+                            : line + " Moral " + (morale > 0 ? "+" : "") + morale + "; confiança no treinador " + (trustDelta > 0 ? "+" : "") + trustDelta + "."
                     });
                     if (memory != null)
-                        CareerNotificationQueue.Enqueue("A TUA RESPOSTA FICA", player.FullName + " vai lembrar-se da forma como respondeste. A confiança está em " + CareerRelationships.TrustOf(_career, player.Id) + "/100.");
+                        CareerNotificationQueue.Enqueue(
+                            LocalizationManager.Current == GameLanguage.English ? "YOUR ANSWER MATTERS" : "A TUA RESPOSTA FICA",
+                            LocalizationManager.Current == GameLanguage.English
+                                ? player.FullName + " will remember how you responded. Trust is now " + CareerRelationships.TrustOf(_career, player.Id) + "/100."
+                                : player.FullName + " vai lembrar-se da forma como respondeste. A confiança está em " + CareerRelationships.TrustOf(_career, player.Id) + "/100.");
                 }
                 CareerStore.Save(_career);
             }
             _phoneAnswered.Add(key);
-            _career.Notebook.Insert(0, _career.Calendar.ClockText + "  " + (player == null ? "Plantel" : player.FullName) + " — " + line);
+            _career.Notebook.Insert(0, _career.Calendar.ClockText + "  " + (player == null
+                ? (LocalizationManager.Current == GameLanguage.English ? "Squad" : "Plantel") : player.FullName) + " — " + line);
             ClosePhoneChoices();
             AddPhoneLine(line);
         }
@@ -583,17 +636,20 @@ namespace CoachMaster.UI.Scenes
         {
             if (_phoneAnswered.Contains(key))
                 return;
+            var refusedResponse = line.IndexOf("recus", StringComparison.OrdinalIgnoreCase) >= 0
+                || line.IndexOf("mantive", StringComparison.OrdinalIgnoreCase) >= 0
+                || line.IndexOf("fechei", StringComparison.OrdinalIgnoreCase) >= 0;
+            line = LocalizationManager.Translate(line);
             _phoneAnswered.Add(key);
             _career.Notebook.Insert(0, _career.Calendar.ClockText + "  " + note.Who + " — " + line);
             if (note != null && (note.ReplyGroup == "transfer" || note.ReplyGroup == "loan")
                 && !string.IsNullOrEmpty(note.PlayerId)
                 && _career.World.Players.TryGetValue(note.PlayerId, out var player))
             {
-                var refused = line.IndexOf("recus", StringComparison.OrdinalIgnoreCase) >= 0
-                    || line.IndexOf("mantive", StringComparison.OrdinalIgnoreCase) >= 0
-                    || line.IndexOf("fechei", StringComparison.OrdinalIgnoreCase) >= 0;
+                var refused = refusedResponse;
                 var kind = note.ReplyGroup == "loan" ? "abordagem-emprestimo" : "abordagem-transferencia";
-                var subject = note.ReplyGroup == "loan" ? "empréstimo" : "transferência";
+                var english = LocalizationManager.Current == GameLanguage.English;
+                var subject = note.ReplyGroup == "loan" ? (english ? "loan" : "empréstimo") : (english ? "transfer" : "transferência");
                 var memory = CareerMemories.Record(_career, new FootballMemory
                 {
                     WhenTicks = _career.Calendar.CurrentDate.Ticks,
@@ -603,12 +659,19 @@ namespace CoachMaster.UI.Scenes
                     CompetitionId = _career.Club.LeagueId,
                     RelatedClubId = note.ClubId,
                     PlayerId = player.Id,
-                    Title = refused ? "O treinador protegeu " + player.FullName : "Uma abordagem por " + player.FullName,
-                    Detail = note.Who + " contactou o clube sobre um " + subject + " de " + player.FullName + ". Decisão do treinador: " + line
+                    Title = refused
+                        ? (english ? "The manager stood by " : "O treinador protegeu ") + player.FullName
+                        : (english ? "Approach for " : "Uma abordagem por ") + player.FullName,
+                    Detail = english
+                        ? note.Who + " contacted the club about a " + subject + " for " + player.FullName + ". Manager's decision: " + line
+                        : note.Who + " contactou o clube sobre um " + subject + " de " + player.FullName + ". Decisão do treinador: " + line
                 });
                 if (memory != null)
                 {
-                    CareerNotificationQueue.Enqueue("DECISÃO DE MERCADO", player.FullName + ": " + line + " Esta decisão ficou no histórico.");
+                    CareerNotificationQueue.Enqueue(
+                        english ? "TRANSFER DECISION" : "DECISÃO DE MERCADO",
+                        english ? player.FullName + ": " + line + " This decision has been recorded."
+                            : player.FullName + ": " + line + " Esta decisão ficou no histórico.");
                     CareerStore.Save(_career);
                 }
             }
@@ -658,6 +721,7 @@ namespace CoachMaster.UI.Scenes
         List<PhoneNote> PhoneNotes()
         {
             var list = new List<PhoneNote>();
+            var english = LocalizationManager.Current == GameLanguage.English;
             foreach (var offer in _career.JobOffers)
             {
                 if (offer.Resolved || !_career.World.Clubs.TryGetValue(offer.ClubId ?? "", out var hiringClub))
@@ -709,11 +773,13 @@ namespace CoachMaster.UI.Scenes
             if (low != null && low.Morale < 72)
                 AddPlayerNote(list, seen, low, PlayerVoice(low, club));
             if (tired != null && tired.Fatigue >= 58)
-                AddPlayerNote(list, seen, tired, tired.FullName.Split(' ')[0] + " escreveu: as pernas estão pesadas. Se jogar seguido, o rendimento cai.");
+                AddPlayerNote(list, seen, tired, english
+                    ? tired.FullName.Split(' ')[0] + " says their legs feel heavy. Playing again straight away could affect their performance."
+                    : tired.FullName.Split(' ')[0] + " escreveu: as pernas estão pesadas. Se jogar seguido, o rendimento cai.");
             if (captain != null)
                 AddPlayerNote(list, seen, captain, captain.Morale >= 60
-                    ? "O grupo está contigo. Se quiseres, falo com eles antes do treino."
-                    : "O balneário está inquieto. Vale a pena uma palavra tua antes do próximo jogo.");
+                    ? (english ? "The squad is behind you. I can speak to them before training if you want." : "O grupo está contigo. Se quiseres, falo com eles antes do treino.")
+                    : (english ? "The dressing room is unsettled. A word from you before the next match could help." : "O balneário está inquieto. Vale a pena uma palavra tua antes do próximo jogo."));
             foreach (var player in squad)
             {
                 if (player.Position == PlayerPosition.Goalkeeper || seen.Contains(player.Id))
@@ -740,20 +806,28 @@ namespace CoachMaster.UI.Scenes
             }
 
             if (buyer != null && star != null && buyer.Id != club.Id)
-                list.Add(new PhoneNote(buyer.Name, "Temos interesse em " + star.FullName + ". Se o abrires à transferência, fazemos uma proposta a sério.", "clube", star.Id, buyer.Id, "transfer"));
+                list.Add(new PhoneNote(buyer.Name, english
+                    ? "We're interested in " + star.FullName + ". Make them available and we'll submit a serious offer."
+                    : "Temos interesse em " + star.FullName + ". Se o abrires à transferência, fazemos uma proposta a sério.", "clube", star.Id, buyer.Id, "transfer"));
             if (lender != null && youth != null && lender.Id != (buyer == null ? "" : buyer.Id))
-                list.Add(new PhoneNote(lender.Name, "O " + youth.FullName + " encaixa no nosso plantel. Aceitam um empréstimo até ao fim da época?", "clube", youth.Id, lender.Id, "loan"));
+                list.Add(new PhoneNote(lender.Name, english
+                    ? youth.FullName + " would fit our squad. Would you consider a loan until the end of the season?"
+                    : "O " + youth.FullName + " encaixa no nosso plantel. Aceitam um empréstimo até ao fim da época?", "clube", youth.Id, lender.Id, "loan"));
             if (foe != null)
-                list.Add(new PhoneNote(foe.Name, "Está confirmado: jogamos a " + next.Date.ToString("dd/MM") + (next.IsHome(club.Id) ? " no teu campo. Prepara a equipa; falamos depois do apito." : " no nosso campo. Esperamos por vocês."), "clube", null, foe.Id, "fixture"));
+                list.Add(new PhoneNote(foe.Name, english
+                    ? "Confirmed: we play on " + LocalizationManager.FormatDate(next.Date, "dd/MM") + (next.IsHome(club.Id) ? " at your ground. Get the team ready; we'll talk after the whistle." : " at our ground. See you there.")
+                    : "Está confirmado: jogamos a " + LocalizationManager.FormatDate(next.Date, "dd/MM") + (next.IsHome(club.Id) ? " no teu campo. Prepara a equipa; falamos depois do apito." : " no nosso campo. Esperamos por vocês."), "clube", null, foe.Id, "fixture"));
 
             var assistant = StaffReport.Find(club, StaffRole.AssistantCoach);
-            list.Add(new PhoneNote(assistant == null ? "Adjunto" : assistant.FullName, foe == null
-                ? "O plantel está à espera da tua palavra para o próximo treino."
-                : "O próximo jogo é com o " + foe.Name + ". Queres fechar o onze ou mexer na linha?", "staff", null, null));
+            list.Add(new PhoneNote(assistant == null ? (english ? "Assistant" : "Adjunto") : assistant.FullName, foe == null
+                ? (english ? "The squad is waiting for your instructions for the next training session." : "O plantel está à espera da tua palavra para o próximo treino.")
+                : (english ? "Our next match is against " + foe.Name + ". Do you want to confirm the lineup or make changes?" : "O próximo jogo é com o " + foe.Name + ". Queres fechar o onze ou mexer na linha?"), "staff", null, null));
             if (tired != null && tired.Fatigue >= 58)
             {
                 var fitness = StaffReport.Find(club, StaffRole.FitnessCoach);
-                list.Add(new PhoneNote(fitness == null ? "Preparador" : fitness.FullName, tired.FullName + " acusa o esforço. Um dia mais leve evita uma lesão.", "staff", tired.Id, null));
+                list.Add(new PhoneNote(fitness == null ? (english ? "Fitness coach" : "Preparador") : fitness.FullName, english
+                    ? tired.FullName + " is feeling the workload. A lighter day could help prevent an injury."
+                    : tired.FullName + " acusa o esforço. Um dia mais leve evita uma lesão.", "staff", tired.Id, null));
             }
 
             if (_career.Targets.Count > 0)
@@ -771,7 +845,9 @@ namespace CoachMaster.UI.Scenes
                     if (!string.IsNullOrEmpty(target.ClubId))
                         _career.World.Clubs.TryGetValue(target.ClubId, out owner);
                     var scout = StaffReport.Find(club, StaffRole.Scout);
-                    list.Add(new PhoneNote(scout == null ? "Olheiro" : scout.FullName, target.FullName + " continua na tua lista" + (owner == null ? "." : ". O " + owner.Name + " pode ouvir uma oferta."), "staff", target.Id, owner == null ? null : owner.Id));
+                    list.Add(new PhoneNote(scout == null ? (english ? "Scout" : "Olheiro") : scout.FullName, english
+                        ? target.FullName + " is still on your shortlist" + (owner == null ? "." : ". " + owner.Name + " may listen to an offer.")
+                        : target.FullName + " continua na tua lista" + (owner == null ? "." : ". O " + owner.Name + " pode ouvir uma oferta."), "staff", target.Id, owner == null ? null : owner.Id));
                 }
             }
 
@@ -780,20 +856,22 @@ namespace CoachMaster.UI.Scenes
             {
                 if (player.Injury == null || !player.Injury.IsInjured)
                     continue;
-                var hurt = string.IsNullOrEmpty(player.Injury.Description) ? "lesão" : player.Injury.Description;
-                list.Add(new PhoneNote(physio == null ? "Fisioterapeuta" : physio.FullName, player.FullName + ": " + hurt + ". Faltam " + player.Injury.DaysRemaining + " dias.", "staff", player.Id, null));
+                var hurt = string.IsNullOrEmpty(player.Injury.Description) ? (english ? "injury" : "lesão") : LocalizationManager.Translate(player.Injury.Description);
+                list.Add(new PhoneNote(physio == null ? (english ? "Physiotherapist" : "Fisioterapeuta") : physio.FullName, english
+                    ? player.FullName + ": " + hurt + ". " + player.Injury.DaysRemaining + " days remaining."
+                    : player.FullName + ": " + hurt + ". Faltam " + player.Injury.DaysRemaining + " dias.", "staff", player.Id, null));
                 break;
             }
 
             if (next != null && foe != null)
-                list.Add(new PhoneNote("Calendário", next.Date.ToString("dd/MM") + "  ·  " + (next.IsHome(club.Id) ? "Casa" : "Fora") + " contra " + foe.Name + ".", "calendario", null, foe.Id));
+                list.Add(new PhoneNote(english ? "Calendar" : "Calendário", LocalizationManager.FormatDate(next.Date, "dd/MM") + "  ·  " + (english ? (next.IsHome(club.Id) ? "Home" : "Away") : (next.IsHome(club.Id) ? "Casa" : "Fora")) + (english ? " vs " : " contra ") + foe.Name + ".", "calendario", null, foe.Id));
             else
-                list.Add(new PhoneNote("Calendário", "Não há jogo marcado nos próximos dias.", "calendario", null, null));
+                list.Add(new PhoneNote(english ? "Calendar" : "Calendário", english ? "No match is scheduled for the next few days." : "Não há jogo marcado nos próximos dias.", "calendario", null, null));
 
             if (_career.Press.Count > 0 && !string.IsNullOrEmpty(_career.Press[0].Headline))
-                list.Add(new PhoneNote(string.IsNullOrEmpty(_career.Press[0].Paper) ? "Imprensa" : _career.Press[0].Paper, _career.Press[0].Headline, "jornal", null, null));
+                list.Add(new PhoneNote(string.IsNullOrEmpty(_career.Press[0].Paper) ? (english ? "Press" : "Imprensa") : _career.Press[0].Paper, LocalizationManager.Translate(_career.Press[0].Headline), "jornal", null, null));
             else
-                list.Add(new PhoneNote("Imprensa", "Os jornais ainda não fecharam a edição de hoje.", "jornal", null, null));
+                list.Add(new PhoneNote(english ? "Press" : "Imprensa", english ? "Today's papers haven't gone to press yet." : "Os jornais ainda não fecharam a edição de hoje.", "jornal", null, null));
 
             return list;
         }
@@ -801,6 +879,7 @@ namespace CoachMaster.UI.Scenes
         List<PhoneNote> SocialNotes()
         {
             var posts = new List<PhoneNote>();
+            var english = LocalizationManager.Current == GameLanguage.English;
             var club = _career.Club;
             var daySeed = _career.Calendar.CurrentDate.DayOfYear + _career.Calendar.CurrentDate.Year * 13;
             var recent = new List<Fixture>();
@@ -841,23 +920,27 @@ namespace CoachMaster.UI.Scenes
                 var home = last.HomeClubId == club.Id;
                 var scored = home ? last.HomeGoals : last.AwayGoals;
                 var conceded = home ? last.AwayGoals : last.HomeGoals;
-                var result = scored > conceded ? "vitória" : scored == conceded ? "empate" : "derrota";
+                var result = scored > conceded ? (english ? "win" : "vitória") : scored == conceded ? (english ? "draw" : "empate") : (english ? "defeat" : "derrota");
                 var rivalId = last.OpponentId(club.Id);
-                var rivalName = _career.World.Clubs.TryGetValue(rivalId, out var rival) ? rival.ShortName : "o adversário";
+                var rivalName = _career.World.Clubs.TryGetValue(rivalId, out var rival) ? rival.ShortName : (english ? "the opposition" : "o adversário");
                 posts.Add(SocialPost(0, daySeed,
-                    "Depois desta " + result + " com o " + rivalName + " (" + scored + "–" + conceded + "), já há quem peça a cabeça do treinador. Calma, malta, ainda há época.",
+                    english
+                        ? "After that " + result + " against " + rivalName + " (" + scored + "–" + conceded + "), people are already calling for the manager's head. Easy, lads, there's a whole season left."
+                        : "Depois desta " + result + " com o " + rivalName + " (" + scored + "–" + conceded + "), já há quem peça a cabeça do treinador. Calma, malta, ainda há época.",
                     daySeed % 83 + 18, daySeed % 19 + 2, "há 2 h"));
             }
             else if (standing > 0 && sameLeague[standing - 1].Played > 0)
             {
                 posts.Add(SocialPost(0, daySeed,
-                    "Estamos em " + standing + ".º e ainda há quem diga que a época está perdida. Olhem para a tabela antes de fazerem funeral.",
+                    english
+                        ? "We're " + standing + (standing == 1 ? "st" : standing == 2 ? "nd" : standing == 3 ? "rd" : "th") + " and people already say the season is over. Maybe check the table before holding the funeral."
+                        : "Estamos em " + standing + ".º e ainda há quem diga que a época está perdida. Olhem para a tabela antes de fazerem funeral.",
                     daySeed % 61 + 12, daySeed % 13 + 1, "há 1 h"));
             }
             else
             {
                 posts.Add(SocialPost(0, daySeed,
-                    "A época ainda agora começou e já há gente a prever o desastre. Deixem a equipa jogar primeiro.",
+                    english ? "The season has barely started and people are already predicting disaster. Let the team play first." : "A época ainda agora começou e já há gente a prever o desastre. Deixem a equipa jogar primeiro.",
                     daySeed % 48 + 9, daySeed % 11 + 1, "há 3 h"));
             }
 
@@ -868,13 +951,17 @@ namespace CoachMaster.UI.Scenes
                 {
                     var line = SeasonLineFor(scorer.Id, club.LeagueId);
                     posts.Add(SocialPost(1, daySeed,
-                        scorer.FullName + " leva " + line.Goals + " golos. Se continuar assim, ainda acaba a época a calar muita gente nesta bancada.",
+                        english
+                            ? scorer.FullName + " has " + line.Goals + " goals. Keep this up and he'll have the whole stand eating their words by May."
+                            : scorer.FullName + " leva " + line.Goals + " golos. Se continuar assim, ainda acaba a época a calar muita gente nesta bancada.",
                         daySeed % 120 + 30, daySeed % 24 + 4, "há 4 h"));
                 }
                 else
                 {
                     posts.Add(SocialPost(1, daySeed,
-                        localStar.FullName + " tem qualidade para ser a cara deste projeto. Agora quero ver isso também nos jogos grandes.",
+                        english
+                            ? localStar.FullName + " has the quality to be the face of this project. Now show it in the big games too."
+                            : localStar.FullName + " tem qualidade para ser a cara deste projeto. Agora quero ver isso também nos jogos grandes.",
                         daySeed % 74 + 14, daySeed % 16 + 2, "há 5 h"));
                 }
             }
@@ -886,24 +973,30 @@ namespace CoachMaster.UI.Scenes
                 if (awardLine != null && awardLine.Rated == 0 && awardLine.Goals == 0 && awardLine.Assists == 0)
                     awardLine = null;
                 var awardText = awardLine == null
-                    ? "Ainda é cedo para a Bola de Ouro, mas " + awardCandidate.FullName + " é daqueles que vale a pena seguir esta época."
-                    : "Com " + awardLine.Goals + " golos e " + awardLine.Assists + " assistências, " + awardCandidate.FullName + " já merece entrar na conversa da Bola de Ouro.";
-                posts.Add(SocialPost(2, daySeed, awardText, daySeed % 210 + 54, daySeed % 39 + 7, "há 6 h"));
+                    ? english
+                        ? "Ballon d'Or watchlist: " + awardCandidate.FullName + " is one of the names to follow this season."
+                        : "Ainda é cedo para a Bola de Ouro, mas " + awardCandidate.FullName + " é daqueles que vale a pena seguir esta época."
+                    : english
+                        ? "Ballon d'Or Bulletin: " + awardCandidate.FullName + " has " + awardLine.Goals + " goals and " + awardLine.Assists + " assists, putting them in the early award conversation."
+                        : "Com " + awardLine.Goals + " golos e " + awardLine.Assists + " assistências, " + awardCandidate.FullName + " já merece entrar na conversa da Bola de Ouro.";
+                posts.Add(SocialPost(2, daySeed, awardText, daySeed % 210 + 54, daySeed % 39 + 7, "há 6 h", 20));
             }
 
             var next = _career.NextUserFixture();
             if (next != null)
             {
                 var opponentId = next.OpponentId(club.Id);
-                var opponentName = _career.World.Clubs.TryGetValue(opponentId, out var opponent) ? opponent.ShortName : "o próximo adversário";
+                var opponentName = _career.World.Clubs.TryGetValue(opponentId, out var opponent) ? opponent.ShortName : (english ? "the next opponent" : "o próximo adversário");
                 posts.Add(SocialPost(3, daySeed,
-                    "Contra " + opponentName + " é que vamos perceber se esta equipa aprendeu alguma coisa. Sem desculpas e sem autocarro à frente da baliza, por favor.",
+                    english
+                        ? "Against " + opponentName + " we'll find out if this team learned anything. No excuses and please, no parking the bus in front of goal."
+                        : "Contra " + opponentName + " é que vamos perceber se esta equipa aprendeu alguma coisa. Sem desculpas e sem autocarro à frente da baliza, por favor.",
                     daySeed % 96 + 21, daySeed % 21 + 3, "há 8 h"));
             }
             else
             {
                 posts.Add(SocialPost(3, daySeed,
-                    "Sem jogo marcado para já. O feed já está a discutir o onze da próxima jornada como se o treinador lesse isto.",
+                    english ? "No match scheduled yet. The feed is already debating next week's lineup like the manager reads this." : "Sem jogo marcado para já. O feed já está a discutir o onze da próxima jornada como se o treinador lesse isto.",
                     daySeed % 96 + 21, daySeed % 21 + 3, "há 8 h"));
             }
 
@@ -919,19 +1012,23 @@ namespace CoachMaster.UI.Scenes
             if (clubRow != null)
             {
                 posts.Add(SocialPost(4, daySeed,
-                    club.ShortName + " está no " + standing + ".º lugar, com " + clubRow.Points + " pontos em " + clubRow.Played + " jogos. A tabela não mente; a malta do café é que arredonda tudo.",
+                    english
+                        ? club.ShortName + " are " + standing + (standing == 1 ? "st" : standing == 2 ? "nd" : standing == 3 ? "rd" : "th") + " with " + clubRow.Points + " points from " + clubRow.Played + " matches. The table doesn't lie; the pub just rounds everything up."
+                        : club.ShortName + " está no " + standing + ".º lugar, com " + clubRow.Points + " pontos em " + clubRow.Played + " jogos. A tabela não mente; a malta do café é que arredonda tudo.",
                     daySeed % 145 + 26, daySeed % 28 + 4, "há 3 h"));
                 posts.Add(SocialPost(5, daySeed,
-                    "Até agora: " + clubRow.GoalsFor + " golos marcados e " + clubRow.GoalsAgainst + " sofridos pelo " + club.ShortName + ". Já sabem qual é o tema da conversa de segunda-feira.",
+                    english
+                        ? "So far " + club.ShortName + " have scored " + clubRow.GoalsFor + " and conceded " + clubRow.GoalsAgainst + ". We all know Monday's pub topic already."
+                        : "Até agora: " + clubRow.GoalsFor + " golos marcados e " + clubRow.GoalsAgainst + " sofridos pelo " + club.ShortName + ". Já sabem qual é o tema da conversa de segunda-feira.",
                     daySeed % 118 + 17, daySeed % 22 + 2, "há 4 h"));
             }
             else
             {
                 posts.Add(SocialPost(4, daySeed,
-                    "A tabela ainda está a ganhar forma. Já há opiniões definitivas sobre uma época que mal começou, claro.",
+                    english ? "The table is still taking shape. Naturally, everyone already has a definitive opinion about a season that just started." : "A tabela ainda está a ganhar forma. Já há opiniões definitivas sobre uma época que mal começou, claro.",
                     daySeed % 145 + 26, daySeed % 28 + 4, "há 3 h"));
                 posts.Add(SocialPost(5, daySeed,
-                    "Discussão séria do dia: futebol direto ou sair a jogar? A resposta oficial é que depende de quem está a ver.",
+                    english ? "Today's serious debate: go direct or play out from the back? Official answer: depends who's watching." : "Discussão séria do dia: futebol direto ou sair a jogar? A resposta oficial é que depende de quem está a ver.",
                     daySeed % 118 + 17, daySeed % 22 + 2, "há 4 h"));
             }
 
@@ -940,25 +1037,37 @@ namespace CoachMaster.UI.Scenes
             if (bestLine != null && bestLine.Rated > 0)
             {
                 posts.Add(SocialPost(6, daySeed,
-                    bestInLeague.FullName + " soma " + bestLine.Goals + " golos e " + bestLine.Assists + " assistências. Ainda é cedo para prémios, mas já dá conversa para o café.",
+                    english
+                        ? bestInLeague.FullName + " has " + bestLine.Goals + " goals and " + bestLine.Assists + " assists. Too early for awards, but plenty to talk about at the pub."
+                        : bestInLeague.FullName + " soma " + bestLine.Goals + " golos e " + bestLine.Assists + " assistências. Ainda é cedo para prémios, mas já dá conversa para o café.",
                     daySeed % 132 + 23, daySeed % 26 + 3, "há 5 h"));
             }
             else
             {
                 posts.Add(SocialPost(6, daySeed,
-                    "Ainda faltam jogos para tirar conclusões. Mas se esperarmos pelos dados, metade do feed fica sem assunto.",
+                    english ? "We need more matches before drawing conclusions. But if we wait for the data, half this feed will have nothing to post." : "Ainda faltam jogos para tirar conclusões. Mas se esperarmos pelos dados, metade do feed fica sem assunto.",
                     daySeed % 132 + 23, daySeed % 26 + 3, "há 5 h"));
             }
 
-            var dailyDebates = new[]
-            {
-                "O problema não é a formação no papel; é ver se alguém aparece entre linhas quando a bola chega ao meio-campo.",
-                "Há quem queira pressão alta durante 90 minutos e depois fique surpreendido quando a equipa acaba sem pernas.",
-                "Hoje a culpa é do árbitro, amanhã é do relvado e na quarta-feira já ninguém se lembra do resultado.",
-                "Um passe para a frente que corre mal dá logo debate tático até à próxima jornada.",
-                "O melhor reforço pode ser recuperar quem já está no plantel. Mas isso não dá uma saga de transferências.",
-                "A malta pede miúdos da formação até um deles falhar um passe. Aí já querem um veterano para ontem."
-            };
+            var dailyDebates = english
+                ? new[]
+                {
+                    "The formation on paper isn't the issue; does anyone show between the lines when the ball reaches midfield?",
+                    "People want a 90-minute high press, then act shocked when the team runs out of legs.",
+                    "Today it's the ref's fault, tomorrow the pitch. By Wednesday no one remembers the score.",
+                    "One misplaced forward pass and suddenly everyone's a tactics expert until next matchday.",
+                    "The best signing might be getting more out of the squad we already have. Sadly, that makes for a boring transfer saga.",
+                    "Fans want academy kids until one misplaces a pass. Then they want a veteran by yesterday."
+                }
+                : new[]
+                {
+                    "O problema não é a formação no papel; é ver se alguém aparece entre linhas quando a bola chega ao meio-campo.",
+                    "Há quem queira pressão alta durante 90 minutos e depois fique surpreendido quando a equipa acaba sem pernas.",
+                    "Hoje a culpa é do árbitro, amanhã é do relvado e na quarta-feira já ninguém se lembra do resultado.",
+                    "Um passe para a frente que corre mal dá logo debate tático até à próxima jornada.",
+                    "O melhor reforço pode ser recuperar quem já está no plantel. Mas isso não dá uma saga de transferências.",
+                    "A malta pede miúdos da formação até um deles falhar um passe. Aí já querem um veterano para ontem."
+                };
             posts.Add(SocialPost(7, daySeed, club.ShortName + ": " + dailyDebates[daySeed % dailyDebates.Length],
                 daySeed % 102 + 15, daySeed % 20 + 2, "há 6 h"));
 
@@ -970,43 +1079,122 @@ namespace CoachMaster.UI.Scenes
             var leagueTalk = hasLeagueLeader
                 ? new[]
                 {
-                    "A corrida pelo topo ainda vai mudar vinte vezes. Para já, " + leaderName + " lidera a tabela.",
-                    "Toda a gente olha para " + leaderName + " no topo, mas ainda falta tanto calendário que isto vai dar voltas.",
-                    "Se a época acabasse hoje, " + leaderName + " sorria. Ainda bem que ninguém entrega troféus já."
+                    english ? "The race for the top will change twenty more times. For now, " + leaderName + " lead the table." : "A corrida pelo topo ainda vai mudar vinte vezes. Para já, " + leaderName + " lidera a tabela.",
+                    english ? "Everyone's watching " + leaderName + " at the top, but there's so much season left this will turn around." : "Toda a gente olha para " + leaderName + " no topo, mas ainda falta tanto calendário que isto vai dar voltas.",
+                    english ? "If the season ended today, " + leaderName + " would be smiling. Good thing no one's handing out trophies yet." : "Se a época acabasse hoje, " + leaderName + " sorria. Ainda bem que ninguém entrega troféus já."
                 }
                 : new[]
                 {
-                    "A tabela ainda está a ganhar forma. Já há contas para o título antes de haver jogos suficientes.",
-                    "Ainda não há líder claro na classificação. O feed, por outro lado, já escolheu três favoritos.",
-                    "Quando houver jogos suficientes, a tabela começa a contar a história. Até lá, são palpites."
+                    english ? "The table is still taking shape. People are already calculating the title race before we've played enough matches." : "A tabela ainda está a ganhar forma. Já há contas para o título antes de haver jogos suficientes.",
+                    english ? "No clear leader yet. The feed, meanwhile, has already picked three favourites." : "Ainda não há líder claro na classificação. O feed, por outro lado, já escolheu três favoritos.",
+                    english ? "Once we've played enough matches, the table will tell the story. Until then, it's guesswork." : "Quando houver jogos suficientes, a tabela começa a contar a história. Até lá, são palpites."
                 };
             posts.Add(SocialPost(8, daySeed, leagueTalk[daySeed % leagueTalk.Length],
                 daySeed % 174 + 31, daySeed % 33 + 5, "há 7 h"));
 
-            var fanLines = new[]
-            {
-                "Renovem já com o melhor jogador e com a pessoa que trata do café no estádio.",
-                "O meu prognóstico mantém-se: vou acreditar até ao próximo passe para trás junto à área.",
-                "Se correr bem, foi o plano. Se correr mal, era óbvio desde a conferência de imprensa.",
-                "Aguento qualquer resultado, desde que não me façam acreditar e depois marquem aos 90+.",
-                "O futebol é simples: ganhar, jogar bem e não me estragar o fim de semana. Fácil, mister."
-            };
+            var fanLines = english
+                ? new[]
+                {
+                    "Renew our best player now, and the person who makes the stadium coffee.",
+                    "My prediction stands: I'll believe until the next back-pass near our own box.",
+                    "If it goes well, it was the plan. If it goes badly, it was obvious at the press conference.",
+                    "I'll take any result as long as they don't make me believe and concede in stoppage time.",
+                    "Football is simple: win, play well and don't ruin my weekend. Easy, boss."
+                }
+                : new[]
+                {
+                    "Renovem já com o melhor jogador e com a pessoa que trata do café no estádio.",
+                    "O meu prognóstico mantém-se: vou acreditar até ao próximo passe para trás junto à área.",
+                    "Se correr bem, foi o plano. Se correr mal, era óbvio desde a conferência de imprensa.",
+                    "Aguento qualquer resultado, desde que não me façam acreditar e depois marquem aos 90+.",
+                    "O futebol é simples: ganhar, jogar bem e não me estragar o fim de semana. Fácil, mister."
+                };
             posts.Add(SocialPost(9, daySeed, fanLines[daySeed % fanLines.Length],
                 daySeed % 89 + 11, daySeed % 18 + 1, "há 9 h"));
+
+            Club rumourSeller = null;
+            Player rumourPlayer = null;
+            foreach (var candidateClub in _career.World.Clubs.Values)
+            {
+                if (candidateClub.Id == club.Id || candidateClub.LeagueId != club.LeagueId)
+                    continue;
+                var candidatePlayer = BestPlayer(candidateClub.PlayerIds);
+                if (candidatePlayer == null)
+                    continue;
+                rumourSeller = candidateClub;
+                rumourPlayer = candidatePlayer;
+                break;
+            }
+            if (rumourPlayer != null && rumourSeller != null)
+                posts.Add(SocialPost(10, daySeed,
+                    english
+                        ? "Transfer Room: " + rumourPlayer.FullName + " is being linked with " + club.ShortName + ". No bid has been confirmed; for now, it is only transfer talk."
+                        : "Transfer Room: " + rumourPlayer.FullName + " está a ser associado ao " + club.ShortName + ". Não há proposta confirmada; para já, é conversa de mercado.",
+                    daySeed % 128 + 24, daySeed % 23 + 3, "há 7 h", 21));
 
             return posts;
         }
 
-        PhoneNote SocialPost(int index, int seed, string text, int likes, int reposts, string age)
+        PhoneNote SocialPost(int index, int seed, string text, int likes, int reposts, string age, int authorIndex = -1)
         {
-            var account = index % SocialAccountNames.Length;
+            if (LocalizationManager.Current == GameLanguage.English && age.StartsWith("há ", StringComparison.Ordinal))
+                age = age.Substring(3).Replace(" h", "h ago");
+            var account = authorIndex >= 0
+                ? authorIndex % SocialAccountNames.Length
+                : (index * 7 + seed % SocialAccountNames.Length) % SocialAccountNames.Length;
             var meta = "♡ " + likes + "     ↻ " + reposts + "     ·     " + age;
             var handle = SocialAccountHandles[account];
             var note = new PhoneNote(SocialAccountNames[account], text, "social", null, null, null, meta);
             note.AuthorHandle = handle;
             note.AvatarKey = handle;
-            note.Verified = true;
+            note.Verified = IsPublisherAccount(account);
             return note;
+        }
+
+        static bool IsPublisherAccount(int account)
+        {
+            switch (account)
+            {
+                case 2: case 3: case 4: case 5: case 6: case 7: case 8:
+                case 11: case 12: case 14: case 15: case 16: case 17: case 18:
+                case 20: case 21: case 22: case 23:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        static Color PublisherColor(int account)
+        {
+            if (account == 4 || account == 20)
+                return new Color(0.52f, 0.36f, 0.08f, 1f);
+            if (account == 5 || account == 21)
+                return new Color(0.08f, 0.25f, 0.4f, 1f);
+            return Color.HSVToRGB(Mathf.Repeat(account * 0.173f, 1f), 0.7f, 0.72f);
+        }
+
+        static void AddPublisherLogo(Transform parent, int account, int fontSize)
+        {
+            if (account == 4 || account == 20)
+            {
+                var ball = BroadcastUi.Solid(parent, "GoldenBall", new Color(0.98f, 0.77f, 0.2f, 1f));
+                ball.sprite = BroadcastUi.Circle;
+                var rect = ball.rectTransform;
+                rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
+                rect.sizeDelta = new Vector2(fontSize * 1.55f, fontSize * 1.55f);
+                rect.anchoredPosition = Vector2.zero;
+                var star = BroadcastUi.Label(ball.transform, "Star", "★", fontSize, new Color(0.24f, 0.15f, 0.03f), TextAnchor.MiddleCenter, FontStyle.Bold);
+                BroadcastUi.Stretch(star.rectTransform);
+                return;
+            }
+
+            var words = SocialAccountNames[account].Replace("The ", "").Split(new[] { ' ', '\'', '’' }, StringSplitOptions.RemoveEmptyEntries);
+            var initials = "";
+            for (var i = 0; i < words.Length && initials.Length < 3; i++)
+                if (words[i].Length > 0)
+                    initials += char.ToUpperInvariant(words[i][0]);
+            var mark = BroadcastUi.Label(parent, "BrandInitials", initials, fontSize, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Stretch(mark.rectTransform);
         }
 
         void AddSocialAuthor(Transform host, PhoneNote note, bool expanded)
@@ -1016,15 +1204,25 @@ namespace CoachMaster.UI.Scenes
             mask.raycastTarget = false;
             BroadcastUi.Place(mask.rectTransform, expanded ? 0.04f : 0.035f, expanded ? 0.72f : 0.68f, expanded ? 0.2f : 0.145f, 0.97f);
             var crop = mask.gameObject.AddComponent<Mask>();
-            crop.showMaskGraphic = false;
-            var faceObject = new GameObject("Face", typeof(RectTransform), typeof(Image));
-            faceObject.transform.SetParent(mask.transform, false);
-            var faceRect = faceObject.GetComponent<RectTransform>();
-            BroadcastUi.Stretch(faceRect);
-            var photo = faceObject.GetComponent<Image>();
-            photo.sprite = FaceBook.SocialAvatar(note.AvatarKey);
-            photo.preserveAspect = true;
-            photo.raycastTarget = false;
+            var account = Array.IndexOf(SocialAccountHandles, note.AuthorHandle);
+            if (note.Verified && IsPublisherAccount(account))
+            {
+                mask.color = PublisherColor(account);
+                crop.showMaskGraphic = true;
+                AddPublisherLogo(mask.transform, account, expanded ? 20 : 15);
+            }
+            else
+            {
+                crop.showMaskGraphic = false;
+                var faceObject = new GameObject("Face", typeof(RectTransform), typeof(Image));
+                faceObject.transform.SetParent(mask.transform, false);
+                var faceRect = faceObject.GetComponent<RectTransform>();
+                BroadcastUi.Stretch(faceRect);
+                var photo = faceObject.GetComponent<Image>();
+                photo.sprite = FaceBook.SocialAvatar(note.AvatarKey);
+                photo.preserveAspect = true;
+                photo.raycastTarget = false;
+            }
 
             var name = BroadcastUi.Label(host, "Author", note.Who, expanded ? 16 : 14, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
             name.horizontalOverflow = HorizontalWrapMode.Wrap;
@@ -1079,16 +1277,26 @@ namespace CoachMaster.UI.Scenes
                 avatar.sprite = BroadcastUi.Circle;
                 avatar.raycastTarget = false;
                 BroadcastUi.Place(avatar.rectTransform, 0.015f, 0.14f, 0.105f, 0.86f);
-                var faceObject = new GameObject("Face", typeof(RectTransform), typeof(Image));
-                faceObject.transform.SetParent(avatar.transform, false);
-                var faceRect = faceObject.GetComponent<RectTransform>();
-                BroadcastUi.Stretch(faceRect);
-                var face = faceObject.GetComponent<Image>();
-                face.sprite = FaceBook.SocialAvatar(SocialAccountHandles[account]);
-                face.preserveAspect = true;
-                face.raycastTarget = false;
                 var mask = avatar.gameObject.AddComponent<Mask>();
-                mask.showMaskGraphic = false;
+                var verifiedCompany = IsPublisherAccount(account);
+                if (verifiedCompany)
+                {
+                    avatar.color = PublisherColor(account);
+                    mask.showMaskGraphic = true;
+                    AddPublisherLogo(avatar.transform, account, 10);
+                }
+                else
+                {
+                    mask.showMaskGraphic = false;
+                    var faceObject = new GameObject("Face", typeof(RectTransform), typeof(Image));
+                    faceObject.transform.SetParent(avatar.transform, false);
+                    var faceRect = faceObject.GetComponent<RectTransform>();
+                    BroadcastUi.Stretch(faceRect);
+                    var face = faceObject.GetComponent<Image>();
+                    face.sprite = FaceBook.SocialAvatar(SocialAccountHandles[account]);
+                    face.preserveAspect = true;
+                    face.raycastTarget = false;
+                }
                 var name = BroadcastUi.Label(row.transform, "Name", SocialAccountNames[account], 11, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
                 name.resizeTextForBestFit = true;
                 name.resizeTextMinSize = 9;
@@ -1096,14 +1304,17 @@ namespace CoachMaster.UI.Scenes
                 name.horizontalOverflow = HorizontalWrapMode.Wrap;
                 name.verticalOverflow = VerticalWrapMode.Truncate;
                 BroadcastUi.Place(name.rectTransform, 0.125f, 0.6f, 0.68f, 0.98f);
-                var check = BroadcastUi.Solid(row.transform, "Verified", new Color(0.12f, 0.62f, 0.95f, 1f));
-                check.sprite = BroadcastUi.Circle;
-                var checkRect = check.rectTransform;
-                checkRect.anchorMin = checkRect.anchorMax = new Vector2(0.71f, 0.79f);
-                checkRect.sizeDelta = new Vector2(13f, 13f);
-                checkRect.anchoredPosition = Vector2.zero;
-                var tick = BroadcastUi.Label(check.transform, "Tick", "✓", 8, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
-                BroadcastUi.Stretch(tick.rectTransform);
+                if (verifiedCompany)
+                {
+                    var check = BroadcastUi.Solid(row.transform, "Verified", new Color(0.12f, 0.62f, 0.95f, 1f));
+                    check.sprite = BroadcastUi.Circle;
+                    var checkRect = check.rectTransform;
+                    checkRect.anchorMin = checkRect.anchorMax = new Vector2(0.71f, 0.79f);
+                    checkRect.sizeDelta = new Vector2(13f, 13f);
+                    checkRect.anchoredPosition = Vector2.zero;
+                    var tick = BroadcastUi.Label(check.transform, "Tick", "✓", 8, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+                    BroadcastUi.Stretch(tick.rectTransform);
+                }
                 var message = BroadcastUi.Label(row.transform, "Text", comments[i], 10, Color.white, TextAnchor.MiddleLeft);
                 message.horizontalOverflow = HorizontalWrapMode.Wrap;
                 message.verticalOverflow = VerticalWrapMode.Truncate;
@@ -1117,6 +1328,38 @@ namespace CoachMaster.UI.Scenes
         static string[] SocialComments(PhoneNote note)
         {
             var text = note == null ? "" : note.Text.ToLowerInvariant();
+            if (LocalizationManager.Current == GameLanguage.English)
+            {
+                if (text.Contains("defeat") || text.Contains("lost"))
+                    return new[] { "Saw the score and went for a walk before sending a four-minute voice note.", "Our defence went out for milk and left the goal unattended.", "Next match is soon. Good, I don't know how to live without suffering." };
+                if (text.Contains("draw") || text.Contains("1–1") || text.Contains("1-1"))
+                    return new[] { "One point for the table, three hours of arguments at the pub.", "A draw where everyone is right in the group chat.", "Neither happy nor sad. I've entered tactical analysis mode." };
+                if (text.Contains("win") || text.Contains("won"))
+                    return new[] { "We won and I've always believed in this project. Always.", "Three points! Even my coffee came without sugar and didn't ruin my day.", "The stand has forgiven the last few matches. Winning does that to memory." };
+                if (text.Contains("ballon d'or"))
+                    return new[] { "Too early for the Ballon d'Or. First, let's win the warm-up without losing the ball.", "With those numbers, they can pick the pub table tonight.", "Keep this up and even my nan will learn to pronounce the name." };
+                if (text.Contains("scored") || text.Contains("conceded"))
+                    return new[] { "Scoring is good. Not conceding would also be a lovely idea.", "Our goal difference is doing overtime.", "The attack deserves dinner out; the defence needs a short meeting." };
+                if (text.Contains("goals") || text.Contains("assists"))
+                    return new[] { "The numbers are there. Now the pub pundit needs to admit they were wrong.", "Goals and assists? Turns out training does something after all.", "I said they were good before the highlights, just so we're clear." };
+                if (text.Contains("transfer") || text.Contains("offer"))
+                    return new[] { "This rumour has already lasted three pre-seasons.", "If we sign a striker, I'll pay for their Uber!", "My cousin has football boots. Does that count?" };
+                if (text.Contains("against ") || text.Contains("match scheduled") || text.Contains("next match"))
+                    return new[] { "Shirt's ready. Now the team just has to not ruin my afternoon.", "Simple plan against them: score first, then pretend to stay calm.", "I want courage on the pitch and fewer passes to their goalkeeper." };
+                if (text.Contains("table") || text.Contains("place") || text.Contains("points") || text.Contains("lead"))
+                    return new[] { "The table doesn't lie, but my uncle has an explanation for every column.", "Position noted. Now nobody let the manager read the comments.", "Lots of season left; I've done the maths fourteen times already." };
+                if (text.Contains("formation") || text.Contains("midfield") || text.Contains("press") || text.Contains("tactic") || text.Contains("play out") || text.Contains("direct"))
+                    return new[] { "A high press is lovely until your lungs request a sub on 60 minutes.", "My sofa 4-3-3 is still unbeaten, just saying.", "A tactical debate with fewer pub shouts. Almost." };
+                if (text.Contains("press conference") || text.Contains("plan") || text.Contains("excuses") || text.Contains("process"))
+                    return new[] { "Everyone has a plan at the press conference. On Sunday, just make the pass.", "The manager said ‘process’ and the whole pub started coughing.", "If it works, it was the plan; if not, blame the grass." };
+                if (text.Contains("renew") || text.Contains("contract"))
+                    return new[] { "Renew now, before a club with more zeroes on the cheque turns up.", "The renewal is urgent. Would my mind change after one bad pass? Never.", "If they stay, I'll buy them a coffee. No sugar; the budget's tight." };
+                if (text.Contains("performance") || text.Contains("missed") || text.Contains("mistake") || text.Contains("poor") || text.Contains("lost the ball"))
+                    return new[] { "The rating was so low the report card arrived folded.", "Didn't get one thing right today. The pub wouldn't ask for another pass either.", "Give them a match to respond… or a GPS to find the goal." };
+                if (text.Contains("quality") || text.Contains("big game") || text.Contains("face of this project"))
+                    return new[] { "The quality is there. Show it when the stadium is boiling, too.", "Already the face of the project; now show up in the big games.", "The pub has already given them the armband, the award and a reserved table." };
+                return new[] { "I agree with this until the next back-pass.", "Read the post and formed a strong opinion without watching the match.", "The pub has three better plans and none of them involve running." };
+            }
             if (text.Contains("derrota") || text.Contains("perdemos"))
                 return new[] { "Hoje vi o resultado e fui dar uma volta para não mandar um áudio de quatro minutos.", "A defesa foi buscar pão e deixou a baliza sozinha.", "Próxima jornada é já. Ainda bem, que não sei viver sem sofrer." };
             if (text.Contains("empate") || text.Contains("1–1") || text.Contains("1-1"))
@@ -1226,6 +1469,24 @@ namespace CoachMaster.UI.Scenes
         {
             var first = player.FullName.Split(' ')[0];
             var benched = club.ManualLineup != null && club.ManualLineup.Count >= 11 && !club.ManualLineup.Contains(player.Id);
+            if (LocalizationManager.Current == GameLanguage.English)
+            {
+                if (player.Injury != null && player.Injury.IsInjured)
+                    return first + ": I'm out for now. I'd like to know the plan for when I'm back.";
+                if (player.Morale < 40 && player.Personality == PersonalityTrait.Temperamental)
+                    return "I don't understand my role. We need to talk before this gets worse.";
+                if (player.Morale < 40 && player.Personality == PersonalityTrait.Insecure)
+                    return "I feel like you don't count on me anymore. Tell me if I'm wrong.";
+                if (player.Morale < 48)
+                    return "The squad can see how I'm feeling. I need an honest conversation.";
+                if (benched && (player.Personality == PersonalityTrait.Ambitious || player.Personality == PersonalityTrait.Outspoken))
+                    return "I want my place in the team. If I'm left out again, my agent will ask why.";
+                if (player.Personality == PersonalityTrait.Professional)
+                    return "I'm ready. Tell me what you need from me in the next match.";
+                if (player.Personality == PersonalityTrait.Leader)
+                    return "The squad listens to you. Give me a clear plan and I'll handle the dressing room.";
+                return "Boss, when you have a moment, can we talk about my role?";
+            }
             if (player.Injury != null && player.Injury.IsInjured)
                 return first + ": estou de fora. Quero saber o plano para quando voltar.";
             if (player.Morale < 40 && player.Personality == PersonalityTrait.Temperamental)
@@ -1630,7 +1891,9 @@ namespace CoachMaster.UI.Scenes
             else if (seen)
                 read = "Relatório do olheiro: overall " + StaffReport.Read(scout, player.Id, "overall", PlayerAttributes.CurrentOverall(player), 40, 94) + "  ·  " + Euro(MarketValue(player));
             else if (job != null)
-                read = "O olheiro volta com o relatório a " + new DateTime(job.Due).ToString("d 'de' MMMM", CultureInfo.GetCultureInfo("pt-PT")) + ".";
+                read = LocalizationManager.Current == GameLanguage.English
+                    ? "The scout will return with the report on " + LocalizationManager.FormatDate(new DateTime(job.Due), "d 'de' MMMM") + "."
+                    : "O olheiro volta com o relatório a " + LocalizationManager.FormatDate(new DateTime(job.Due), "d 'de' MMMM") + ".";
             else
                 read = "Ainda sem relatório.";
             var clubName = _career.World.Clubs.ContainsKey(player.ClubId) ? _career.World.Clubs[player.ClubId].ShortName : "";
@@ -1789,6 +2052,14 @@ namespace CoachMaster.UI.Scenes
 
         static string Euro(int value)
         {
+            if (LocalizationManager.Current == GameLanguage.English)
+            {
+                if (value >= 1000000000)
+                    return "€" + (value / 1000000000f).ToString("0.0", CultureInfo.GetCultureInfo("en-GB")) + "bn";
+                if (value >= 1000000)
+                    return "€" + Mathf.RoundToInt(value / 1000000f) + "M";
+                return "€" + value.ToString("N0", CultureInfo.GetCultureInfo("en-GB"));
+            }
             if (value >= 1000000000)
                 return (value / 1000000000f).ToString("0.0", CultureInfo.GetCultureInfo("pt-PT")) + " mil milhões €";
             if (value >= 1000000)
@@ -2097,7 +2368,7 @@ namespace CoachMaster.UI.Scenes
             _noteError.text = "";
             _career.Board.Insert(0, new CoachNote
             {
-                Day = _career.Calendar.WeekdayName + ", " + _career.Calendar.CurrentDate.ToString("d 'de' MMMM", CultureInfo.GetCultureInfo("pt-PT")),
+                Day = LocalizationManager.FormatDate(_career.Calendar.CurrentDate, "dddd, d 'de' MMMM"),
                 Hour = _career.Calendar.ClockText,
                 When = _career.Calendar.CurrentDate,
                 Text = text
@@ -2108,11 +2379,18 @@ namespace CoachMaster.UI.Scenes
 
         void Refresh()
         {
+            RefreshLocalizedPresentation();
+            CompleteScouts();
+            FillBoard();
+        }
+
+        void RefreshLocalizedPresentation()
+        {
             var moment = _career.Current;
-            var season = _career.League != null ? _career.League.Name + " " + _career.Calendar.SeasonLabel : _career.Calendar.SeasonLabel;
+            var season = _career.League != null ? LocalizationManager.Translate(_career.League.Name) + " " + _career.Calendar.SeasonLabel : _career.Calendar.SeasonLabel;
             _clock.text = _career.Calendar.ClockText;
-            _dateLine.text = _career.Calendar.WeekdayName + ", " + _career.Calendar.CurrentDate.ToString("d 'de' MMMM", CultureInfo.GetCultureInfo("pt-PT")) + "    ·    " + season + "    ·    Mister " + _career.Coach.Name;
-            _homeTitle.text = moment == null ? "DIA EM ABERTO" : moment.Title.ToUpperInvariant();
+            _dateLine.text = LocalizationManager.FormatDate(_career.Calendar.CurrentDate, "dddd, d 'de' MMMM") + "    ·    " + season + "    ·    " + LocalizationManager.Translate("Mister") + " " + _career.Coach.Name;
+            _homeTitle.text = CareerMomentTitle(moment);
             Player facePlayer = null;
             if (moment != null && !string.IsNullOrEmpty(moment.PlayerId))
                 _career.World.Players.TryGetValue(moment.PlayerId, out facePlayer);
@@ -2123,16 +2401,20 @@ namespace CoachMaster.UI.Scenes
                     _homeFace.sprite = FaceBook.For(facePlayer);
             }
             BroadcastUi.Place(_homeTitle.rectTransform, facePlayer == null ? 0.04f : 0.16f, 0.86f, 0.96f, 0.97f);
-            var body = moment == null ? "A época ficou em silêncio." : moment.Body;
+            var body = moment == null ? "A época ficou em silêncio." : CareerMomentText(moment);
             BroadcastUi.SetWrapped(_homeBody, body, 80);
-            _nextChip.text = "Próximo jogo    " + NextMatchText(_career);
+            _nextChip.text = LocalizationManager.Current == GameLanguage.English
+                ? "Next match    " + EnglishMatchLabel(_career)
+                : LocalizationManager.Translate("Próximo jogo    " + NextMatchText(_career));
             var talking = moment != null && moment.Kind == MomentKind.Talk && !moment.Answered && moment.Replies != null;
             if (moment != null && moment.Kind == MomentKind.Match)
-                _playLabel.text = "JOGAR    " + MatchLabel(_career, moment.Fixture);
+                _playLabel.text = LocalizationManager.Current == GameLanguage.English
+                    ? "PLAY    " + EnglishMatchLabel(_career)
+                    : LocalizationManager.Translate("JOGAR    " + MatchLabel(_career, moment.Fixture));
             else if (talking)
-                _playLabel.text = "ESCOLHE UMA RESPOSTA";
+                _playLabel.text = LocalizationManager.Current == GameLanguage.English ? "CHOOSE A RESPONSE" : LocalizationManager.Translate("ESCOLHE UMA RESPOSTA");
             else
-                _playLabel.text = "CONTINUAR";
+                _playLabel.text = LocalizationManager.Current == GameLanguage.English ? "CONTINUE" : LocalizationManager.Translate("CONTINUAR");
             if (_play != null)
                 _play.interactable = !talking;
 
@@ -2142,13 +2424,183 @@ namespace CoachMaster.UI.Scenes
                 var show = talking && i < moment.Replies.Length;
                 _replies[i].gameObject.SetActive(show);
                 if (show)
-                    _replies[i].GetComponentInChildren<Text>().text = (i + 1) + "    " + moment.Replies[i];
+                    _replies[i].GetComponentInChildren<Text>().text = (i + 1) + "    " + CareerMomentReply(moment, i);
             }
 
             if (_vibe != null)
-                _vibe.text = VibeLine();
-            CompleteScouts();
-            FillBoard();
+                _vibe.text = LocalizationManager.Translate(VibeLine());
+        }
+
+        string CareerMomentText(CareerMoment moment)
+        {
+            if (moment == null)
+                return LocalizationManager.Current == GameLanguage.English ? "The season is quiet." : "A época ficou em silêncio.";
+            if (LocalizationManager.Current != GameLanguage.English)
+                return LocalizationManager.Translate(moment.Body);
+
+            if (moment.Kind == MomentKind.Talk)
+            {
+                var playerName = moment.PlayerId != null && _career.World.Players.TryGetValue(moment.PlayerId, out var player)
+                    ? player.FullName
+                    : "The player";
+                var source = moment.Body ?? "";
+                var trust = source.StartsWith("A confiança entre vocês está baixa.", StringComparison.Ordinal)
+                    ? "Trust between you is low. "
+                    : source.StartsWith("A confiança construída entre vocês nota-se na conversa.", StringComparison.Ordinal)
+                        ? "The trust you've built is showing in this conversation. "
+                        : "";
+                string summary;
+                if (source.Contains("As pernas não aguentam mais este bloco"))
+                    summary = playerName + " has stopped during training, worried that another hard drill could leave them limping.";
+                else if (source.Contains("Alguém tem de pôr ordem"))
+                    summary = playerName + " says a dressing-room argument has gone too far and asks you to step in.";
+                else if (source.Contains("Não jogo. Se a ideia é continuar assim"))
+                    summary = playerName + " wants a clear answer about their place in the team before the weekend.";
+                else if (source.Contains("Qualquer coisa cedeu no último corte"))
+                    summary = playerName + " has gone down holding their thigh and says they cannot put weight on the leg.";
+                else if (source.Contains("A instrução que tenho é "))
+                    summary = playerName + " has questioned their current tactical instruction and warned that the flank could be exposed.";
+                else if (source.Contains("Isto vem de ontem."))
+                    summary = playerName + " and a teammate have clashed during training over yesterday's drill.";
+                else
+                    summary = playerName + " wants to know whether they can count on you when the match gets difficult.";
+
+                var responseMarker = "\n\nTu: ";
+                var responseStart = source.IndexOf(responseMarker, StringComparison.Ordinal);
+                if (responseStart >= 0)
+                {
+                    responseStart += responseMarker.Length;
+                    var responseEnd = source.IndexOf("\n\n", responseStart, StringComparison.Ordinal);
+                    var selectedResponse = responseEnd < 0 ? source.Substring(responseStart) : source.Substring(responseStart, responseEnd - responseStart);
+                    var responseIndex = Array.IndexOf(moment.Replies ?? new string[0], selectedResponse);
+                    var englishResponse = responseIndex >= 0 ? CareerMomentReply(moment, responseIndex) : "You responded to the situation.";
+                    return trust + summary + "\n\nYou: " + englishResponse
+                        + "\n\nYour response has affected the player's morale, fitness and form.";
+                }
+                return trust + summary;
+            }
+
+            if (moment.Kind == MomentKind.Match && moment.Fixture != null)
+            {
+                var fixture = moment.Fixture;
+                var opponentId = fixture.OpponentId(_career.Coach.ClubId);
+                var opponent = _career.World.Clubs.TryGetValue(opponentId, out var club) ? club : null;
+                var venue = fixture.IsHome(_career.Coach.ClubId)
+                    ? _career.Club.Stadium + " is filling up."
+                    : "The bus has arrived at " + (opponent == null ? "the away ground" : opponent.Stadium) + ".";
+                return venue + " Today's opponent is " + (opponent == null ? "the opposition" : opponent.Name)
+                    + (opponent == null ? "." : ", playing " + opponent.Tactics.Formation + ".")
+                    + " Your training-ground briefing is the only report you get.";
+            }
+
+            var sourceTitle = LocalizationManager.SourceForEnglish(moment.Title);
+            if (string.IsNullOrEmpty(sourceTitle))
+                sourceTitle = moment.Title;
+            switch ((sourceTitle ?? "").Trim().ToUpperInvariant())
+            {
+                case "TREINO":
+                    return "The staff is watching training. Small gestures around the squad tell you more than a formal report.";
+                case "TARDE NO CLUBE":
+                    return "The squad spends the afternoon at the club. Who sits together, and who keeps their distance, says plenty.";
+                case "NO CLUBE":
+                    return "You arrive at " + _career.Club.Name + ". The dressing-room mood shows in small gestures, while the team keeps working on " + _career.Club.Tactics.Formation + ".";
+                case "CHEGADA":
+                case "ARRIVAL":
+                    return "The squad arrives at the training ground. Watch who moves with the group and who keeps to themselves.";
+            }
+
+            return "The day at " + _career.Club.Name + " unfolds quietly. Pay attention to the squad's mood and the conversations around the club.";
+        }
+
+        string CareerMomentTitle(CareerMoment moment)
+        {
+            if (LocalizationManager.Current != GameLanguage.English)
+                return moment == null ? "DIA EM ABERTO" : LocalizationManager.Translate(moment.Title.ToUpperInvariant());
+            if (moment == null)
+                return "DAY OFF";
+            if (moment.Kind == MomentKind.Talk)
+            {
+                var playerName = moment.PlayerId != null && _career.World.Players.TryGetValue(moment.PlayerId, out var player)
+                    ? player.FullName
+                    : TalkTitleName(moment.Title);
+                return "TEAM TALK · " + playerName.ToUpperInvariant();
+            }
+            if (moment.Kind == MomentKind.Match)
+                return "MATCH DAY";
+
+            var sourceTitle = LocalizationManager.SourceForEnglish(moment.Title);
+            if (string.IsNullOrEmpty(sourceTitle))
+                sourceTitle = moment.Title;
+            switch ((sourceTitle ?? "").Trim().ToUpperInvariant())
+            {
+                case "TREINO": return "TRAINING";
+                case "TARDE NO CLUBE": return "AFTERNOON AT THE CLUB";
+                case "NO CLUBE": return "AT THE CLUB";
+                case "CHEGADA":
+                case "ARRIVAL": return "ARRIVAL";
+                default: return "CLUB UPDATE";
+            }
+        }
+
+        static string TalkTitleName(string title)
+        {
+            if (string.IsNullOrEmpty(title))
+                return "THE SQUAD";
+            var separator = title.IndexOf('·');
+            if (separator >= 0)
+                return title.Substring(separator + 1).Trim();
+            return title.StartsWith("Conversa", StringComparison.OrdinalIgnoreCase)
+                || title.StartsWith("Team Talk", StringComparison.OrdinalIgnoreCase)
+                ? "THE SQUAD"
+                : title.Trim();
+        }
+
+        string CareerMomentReply(CareerMoment moment, int index)
+        {
+            if (moment == null || moment.Replies == null || index < 0 || index >= moment.Replies.Length)
+                return "";
+            if (LocalizationManager.Current != GameLanguage.English)
+                return LocalizationManager.Translate(moment.Replies[index]);
+
+            var source = moment.Body ?? "";
+            string[] replies;
+            if (source.Contains("As pernas não aguentam mais este bloco"))
+                replies = new[]
+                {
+                    "Step out. The fitness coach will check you now; you can sit out the final drill.",
+                    "One more sprint. If you're faking it, we'll know. If it's real, stop afterwards.",
+                    "The group doesn't stop for one person. Get back in line."
+                };
+            else if (source.Contains("Alguém tem de pôr ordem"))
+            {
+                if (index == 2)
+                {
+                    var reply = moment.Replies[index];
+                    var start = reply.IndexOf("Fico do lado de ", StringComparison.Ordinal);
+                    var end = reply.IndexOf(". O outro", start < 0 ? 0 : start, StringComparison.Ordinal);
+                    var teammate = start >= 0 && end > start
+                        ? reply.Substring(start + "Fico do lado de ".Length, end - start - "Fico do lado de ".Length)
+                        : "your teammate";
+                    return "I'll back " + teammate + ". The other player can keep quiet and get back in line.";
+                }
+                replies = new[]
+                {
+                    "I'll bring in the captain. We settle this here, in front of the squad, and it's over today.",
+                    "We'll change the drill. The argument can wait, if it still matters afterwards.",
+                    "I'll back your teammate. The other player can keep quiet and get back in line."
+                };
+            }
+            else if (source.Contains("Não jogo. Se a ideia é continuar assim"))
+                replies = new[] { "You're in contention for the next match. The place is yours if your body holds up.", "We'll decide in training, not in this corridor. Show me today.", "Go in. I don't have an answer for you now." };
+            else if (source.Contains("Qualquer coisa cedeu no último corte"))
+                replies = new[] { "I'm stopping training. The physio will see you now.", "Finish this drill, then we'll talk.", "It's just exertion. Carry on and tell me if it gets worse." };
+            else if (source.Contains("A instrução que tenho é "))
+                replies = new[] { "Follow the instruction on the board. That's what the squad trained.", "Adjust the instruction. I want a different movement from this side.", "Run the same move again. The instruction won't change today." };
+            else if (source.Contains("Isto vem de ontem."))
+                replies = new[] { "Separate them and speak to each one away from the group.", "Sort it out yourselves. I've got a training session to run.", "Both of you do an extra set. The argument is over." };
+            else
+                replies = new[] { "You can count on me. When things get tight, the ball will come through you.", "The team sheet is based on who's best at three o'clock. That could be you, if you earn it.", "I don't answer. I head into the room and leave the question in the corridor." };
+            return replies[Mathf.Clamp(index, 0, replies.Length - 1)];
         }
 
         void Show(int index)
@@ -2203,7 +2655,7 @@ namespace CoachMaster.UI.Scenes
             foreach (var league in _career.World.Leagues)
             {
                 if (league.Id == leagueId)
-                    title = league.Name;
+                    title = LocalizationManager.Translate(league.Name);
             }
 
             var head = BroadcastUi.Label(card.transform, "League", title.ToUpperInvariant(), 13, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
@@ -2285,15 +2737,136 @@ namespace CoachMaster.UI.Scenes
                 BroadcastUi.Preferred(card, 118);
                 var captured = story;
                 BroadcastUi.Hit(card, () => OpenStory(captured));
-                var paper = BroadcastUi.Label(card.transform, "Paper", (string.IsNullOrEmpty(story.Kicker) ? story.Paper : story.Kicker + "  ·  " + story.Paper).ToUpperInvariant(), 13, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+                var paperLabel = string.IsNullOrEmpty(story.Kicker) ? PaperName(story.Paper) : LocalizationManager.Translate(story.Kicker) + "  ·  " + PaperName(story.Paper);
+                var paper = BroadcastUi.Label(card.transform, "Paper", paperLabel.ToUpperInvariant(), 13, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
                 BroadcastUi.Place(paper.rectTransform, 0.04f, 0.72f, 0.7f, 0.94f);
-                var open = BroadcastUi.Label(card.transform, "Open", "ABRIR", 13, UiTheme.Score, TextAnchor.MiddleRight, FontStyle.Bold);
+                var open = BroadcastUi.Label(card.transform, "Open", LocalizationManager.Translate("ABRIR"), 13, UiTheme.Score, TextAnchor.MiddleRight, FontStyle.Bold);
                 BroadcastUi.Place(open.rectTransform, 0.7f, 0.72f, 0.96f, 0.94f);
-                var headline = BroadcastUi.Label(card.transform, "Headline", story.Headline, 20, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+                var headline = BroadcastUi.Label(card.transform, "Headline", PressHeadline(story), 20, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
                 BroadcastUi.Place(headline.rectTransform, 0.04f, 0.34f, 0.96f, 0.72f);
-                var deck = BroadcastUi.Label(card.transform, "Deck", string.IsNullOrEmpty(story.Published) ? story.Deck : story.Published, 14, UiTheme.Muted, TextAnchor.MiddleLeft);
+                var deck = BroadcastUi.Label(card.transform, "Deck", PressDate(string.IsNullOrEmpty(story.Published) ? story.Deck : story.Published), 14, UiTheme.Muted, TextAnchor.MiddleLeft);
                 BroadcastUi.Place(deck.rectTransform, 0.04f, 0.08f, 0.96f, 0.34f);
             }
+        }
+
+        string PaperName(string paper)
+        {
+            if (LocalizationManager.Current != GameLanguage.English)
+                return paper;
+            if (paper == "A Gazeta do Relvado") return "The Touchline Gazette";
+            if (paper == "O Bancada") return "The Stand";
+            if (paper == "Diário da Liga") return "League Daily";
+            return paper;
+        }
+
+        string PressDate(string date)
+        {
+            if (LocalizationManager.Current != GameLanguage.English || string.IsNullOrEmpty(date))
+                return date;
+            return date.Replace("segunda-feira", "Monday").Replace("terça-feira", "Tuesday")
+                .Replace("quarta-feira", "Wednesday").Replace("quinta-feira", "Thursday")
+                .Replace("sexta-feira", "Friday").Replace("sábado", "Saturday").Replace("domingo", "Sunday")
+                .Replace("janeiro", "January").Replace("fevereiro", "February").Replace("março", "March")
+                .Replace("abril", "April").Replace("maio", "May").Replace("junho", "June")
+                .Replace("julho", "July").Replace("agosto", "August").Replace("setembro", "September")
+                .Replace("outubro", "October").Replace("novembro", "November").Replace("dezembro", "December")
+                .Replace(" de ", " ");
+        }
+
+        string PressHeadline(PaperStory story)
+        {
+            if (LocalizationManager.Current != GameLanguage.English || story == null)
+                return story == null ? "" : LocalizationManager.Translate(story.Headline);
+            if (story.Kicker == "JOGO")
+            {
+                var fixture = PressFixture(story);
+                if (fixture != null)
+                {
+                    var home = _career.World.Clubs[fixture.HomeClubId];
+                    var away = _career.World.Clubs[fixture.AwayClubId];
+                    return "Match report: " + home.ShortName + " " + fixture.HomeGoals + "–" + fixture.AwayGoals + " " + away.ShortName;
+                }
+                var homeName = story.HomeClubId != null && _career.World.Clubs.TryGetValue(story.HomeClubId, out var homeClub) ? homeClub.ShortName : "Home side";
+                var awayName = story.AwayClubId != null && _career.World.Clubs.TryGetValue(story.AwayClubId, out var awayClub) ? awayClub.ShortName : "Away side";
+                return "Full-time report: " + homeName + " vs " + awayName;
+            }
+            if (story.Kicker == "ENTREVISTA")
+            {
+                var home = story.HomeClubId != null && _career.World.Clubs.TryGetValue(story.HomeClubId, out var h) ? h.ShortName : "Home side";
+                var away = story.AwayClubId != null && _career.World.Clubs.TryGetValue(story.AwayClubId, out var a) ? a.ShortName : "Away side";
+                return "Match preview: " + home + " vs " + away;
+            }
+            if (story.Kicker == "MERCADO")
+            {
+                var destination = story.HomeClubId != null && _career.World.Clubs.TryGetValue(story.HomeClubId, out var club) ? club.ShortName : _career.Club.ShortName;
+                return "Transfer watch: " + story.Motm + " linked with " + destination;
+            }
+            if (story.Paper == "A Gazeta do Relvado")
+                return "Manager " + _career.Coach.Name + " takes charge at " + _career.Club.ShortName;
+            if (story.Paper == "O Bancada")
+                return "Rivals set their sights on the new season";
+            if (story.Paper == "Diário da Liga")
+                return (_career.League == null ? "League" : LocalizationManager.Translate(_career.League.Name)) + ": the new season begins";
+            return PaperName(story.Paper) + ": the latest club and league news";
+        }
+
+        string PressQuote(PaperStory story)
+        {
+            if (LocalizationManager.Current != GameLanguage.English || story == null)
+                return story == null ? "" : story.Quote;
+            if (story.Kicker == "MERCADO") return "I won't comment on names. Any discussion is with the club, not the papers.";
+            if (story.Kicker == "ENTREVISTA") return "If the ball reaches me in the box, I won't think twice.";
+            return "We went looking for the goal. The result reflects what we saw from the touchline.";
+        }
+
+        string PressBody(PaperStory story)
+        {
+            if (LocalizationManager.Current != GameLanguage.English || story == null)
+                return story == null ? "" : LocalizationManager.Translate(story.Body);
+            if (story.Kicker == "JOGO")
+            {
+                var fixture = PressFixture(story);
+                if (fixture != null)
+                {
+                    var home = _career.World.Clubs[fixture.HomeClubId];
+                    var away = _career.World.Clubs[fixture.AwayClubId];
+                    var userGoals = fixture.IsHome(_career.Club.Id) ? fixture.HomeGoals : fixture.AwayGoals;
+                    var opponentGoals = fixture.IsHome(_career.Club.Id) ? fixture.AwayGoals : fixture.HomeGoals;
+                    var outcome = userGoals > opponentGoals ? "The team found a way to turn pressure into a result." :
+                        userGoals < opponentGoals ? "The opposition were more clinical in the final third." :
+                        "Neither side could break the deadlock in the closing minutes.";
+                    return home.Name + " and " + away.Name + " finished " + fixture.HomeGoals + "–" + fixture.AwayGoals + ".\n\n"
+                        + _career.Club.Name + " lined up in " + _career.Club.Tactics.Formation + ". " + outcome
+                        + "\n\nPlayer of the match: " + (story.Motm ?? "—") + ".\n\n“" + PressQuote(story) + "”\n— " + (story.QuoteBy ?? _career.Coach.Name) + ", manager";
+                }
+            }
+            if (story.Kicker == "ENTREVISTA")
+            {
+                var opponent = story.AwayClubId != null && _career.World.Clubs.TryGetValue(story.AwayClubId, out var away) ? away : null;
+                return _career.Club.Name + " face " + (opponent == null ? "their next opponent" : opponent.Name) + ". The opposition are expected to use "
+                    + (opponent == null ? "their usual shape" : opponent.Tactics.Formation) + ".\n\nThe assistant has highlighted " + (story.Motm ?? "a key player") + " as a possible difference-maker.\n\n“"
+                    + PressQuote(story) + "”\n— " + (story.QuoteBy ?? _career.Coach.Name);
+            }
+            if (story.Kicker == "MERCADO")
+            {
+                var seller = story.AwayClubId != null && _career.World.Clubs.TryGetValue(story.AwayClubId, out var owner) ? owner : null;
+                return "Transfer talk around " + (story.Motm ?? "the player") + " has resurfaced. " + _career.Club.ShortName + " are monitoring the situation, but no offer has been confirmed.\n\n“"
+                    + PressQuote(story) + "”\n— " + _career.Coach.Name + "\n\n"
+                    + (seller == null ? "The player's club has made no formal announcement." : seller.Name + " say the player is focused on the next match. There is no confirmed agreement.");
+            }
+            var next = _career.NextUserFixture();
+            var opponentClub = next == null ? null : _career.World.Clubs[next.OpponentId(_career.Club.Id)];
+            var nextText = opponentClub == null ? "No match has been scheduled yet." : "The next fixture is against " + opponentClub.Name + ".";
+            return _career.Club.Name + " begin the season with " + _career.Coach.Name + " in charge. " + nextText
+                + " The squad's tactical identity is " + LocalizationManager.Translate(_career.Club.Tactics.Summary) + ". The board expects the club to keep progressing.";
+        }
+
+        Fixture PressFixture(PaperStory story)
+        {
+            foreach (var fixture in _career.Fixtures)
+                if (fixture.Played && fixture.HomeClubId == story.HomeClubId && fixture.AwayClubId == story.AwayClubId)
+                    return fixture;
+            return null;
         }
 
         void OpenMemories()
@@ -2315,7 +2888,7 @@ namespace CoachMaster.UI.Scenes
                 if (memory == null)
                     continue;
                 var date = memory.WhenTicks > 0 && memory.WhenTicks <= DateTime.MaxValue.Ticks
-                    ? new DateTime(memory.WhenTicks).ToString("d MMM yyyy", CultureInfo.GetCultureInfo("pt-PT"))
+                    ? LocalizationManager.FormatDate(new DateTime(memory.WhenTicks), "d MMM yyyy")
                     : "Data não disponível";
                 var club = _career.World.Clubs.TryGetValue(memory.ClubId ?? "", out var memoryClub) ? memoryClub.ShortName : _career.Club.ShortName;
                 var importance = new string('★', Mathf.Clamp(memory.Importance, 1, 5));
@@ -2354,7 +2927,7 @@ namespace CoachMaster.UI.Scenes
                 {
                     week = start;
                     dayKey = null;
-                    var weekLabel = BroadcastUi.Label(_boardContent, "Week", "SEMANA DE " + start.ToString("d 'de' MMMM", CultureInfo.GetCultureInfo("pt-PT")).ToUpperInvariant(), 15, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+                    var weekLabel = BroadcastUi.Label(_boardContent, "Week", "SEMANA DE " + LocalizationManager.FormatDate(start, "d 'de' MMMM").ToUpperInvariant(), 15, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
                     BroadcastUi.Preferred(weekLabel, 32);
                 }
 
@@ -2362,7 +2935,7 @@ namespace CoachMaster.UI.Scenes
                 if (dayKey != key)
                 {
                     dayKey = key;
-                    var dayLabel = BroadcastUi.Label(_boardContent, "DayHead", when.ToString("dddd, d 'de' MMMM", CultureInfo.GetCultureInfo("pt-PT")), 14, UiTheme.Muted, TextAnchor.MiddleLeft, FontStyle.Bold);
+                    var dayLabel = BroadcastUi.Label(_boardContent, "DayHead", LocalizationManager.FormatDate(when, "dddd, d 'de' MMMM"), 14, UiTheme.Muted, TextAnchor.MiddleLeft, FontStyle.Bold);
                     BroadcastUi.Preferred(dayLabel, 26);
                 }
 
@@ -2386,7 +2959,9 @@ namespace CoachMaster.UI.Scenes
                     count++;
             }
 
-            return "Desde " + start.ToString("d 'de' MMMM", CultureInfo.GetCultureInfo("pt-PT")) + " ficaram " + count + " notas no quadro. Vestiário: " + RoomWord(_career.Club.DressingRoomTension) + ". Próximo jogo: " + NextMatchText(_career) + ".";
+            if (LocalizationManager.Current == GameLanguage.English)
+                return "Since " + LocalizationManager.FormatDate(start, "d 'de' MMMM") + ", " + count + " notes were added to the board. Dressing room: " + RoomWord(_career.Club.DressingRoomTension) + ". Next match: " + EnglishMatchLabel(_career) + ".";
+            return "Desde " + LocalizationManager.FormatDate(start, "d 'de' MMMM") + " ficaram " + count + " notas no quadro. Vestiário: " + RoomWord(_career.Club.DressingRoomTension) + ". Próximo jogo: " + NextMatchText(_career) + ".";
         }
 
         void KeepCaptainOnPitch()
@@ -2683,6 +3258,15 @@ namespace CoachMaster.UI.Scenes
                     captain = player.FullName;
             }
 
+            if (LocalizationManager.Current == GameLanguage.English)
+            {
+                var textEnglish = "Captain: " + (captain == "sem capitão" ? "none" : captain) + ".  Next match: " + EnglishMatchLabel(_career) + ".  Dressing room: " + RoomWord(_career.Club.DressingRoomTension) + ".";
+                textEnglish += "\nInjured: " + (hurt.Count == 0 ? "none" : string.Join(", ", hurt));
+                textEnglish += "\nFatigued: " + (tired.Count == 0 ? "no one above the limit" : string.Join(", ", tired));
+                textEnglish += "\nLow morale: " + (low.Count == 0 ? "the squad is holding up" : string.Join(", ", low));
+                return textEnglish;
+            }
+
             var text = "Capitão: " + captain + ".  Próximo jogo: " + NextMatchText(_career) + ".  Vestiário: " + RoomWord(_career.Club.DressingRoomTension) + ".";
             text += "\nLesionados: " + (hurt.Count == 0 ? "nenhum" : string.Join(", ", hurt));
             text += "\nCansados: " + (tired.Count == 0 ? "ninguém acima do limite" : string.Join(", ", tired));
@@ -2692,6 +3276,15 @@ namespace CoachMaster.UI.Scenes
 
         static string RoomWord(int tension)
         {
+            if (LocalizationManager.Current == GameLanguage.English)
+            {
+                if (tension >= 80) return "terrible";
+                if (tension >= 65) return "poor";
+                if (tension >= 50) return "unsettled";
+                if (tension >= 35) return "good";
+                if (tension >= 20) return "very good";
+                return "excellent";
+            }
             if (tension >= 80)
                 return "péssimo";
             if (tension >= 65)
@@ -2845,7 +3438,7 @@ namespace CoachMaster.UI.Scenes
             BuildPages(root);
             BuildPlay(root);
             BuildModal(root);
-            var hint = BroadcastUi.Label(root, "ControlHint", "Enter  continuar     1 2 3  responder     Setas  navegar", 15, UiTheme.Muted, TextAnchor.MiddleRight);
+            var hint = BroadcastUi.Label(root, "ControlHint", LocalizationManager.Translate("M · DEFINIÇÕES"), 15, UiTheme.Muted, TextAnchor.MiddleRight);
             BroadcastUi.Place(hint.rectTransform, 0.42f, 0.008f, 0.98f, 0.048f);
             var sample = Squad(_career.Club);
             if (sample.Count > 0)
@@ -2911,6 +3504,7 @@ namespace CoachMaster.UI.Scenes
                 var index = i;
                 _tabs[i] = SceneBind.Wire(root.Find("Tabs/Tab" + i), () => Show(index));
             }
+            RefreshCareerTabLabels();
 
             var pageNames = new[] { "Home", "News", "Board", "Team", "Staff", "Calendar", "Standings" };
             _pages = new GameObject[pageNames.Length];
@@ -2990,6 +3584,21 @@ namespace CoachMaster.UI.Scenes
             SceneBind.Wire(root.Find("Modal/Card/Close"), CloseModal);
             SceneBind.Wire(root.Find("Modal/Dim"), CloseModal);
             _modal.SetActive(false);
+        }
+
+        void RefreshCareerTabLabels()
+        {
+            if (_tabs == null)
+                return;
+            var sources = new[] { "Início", "Jornais", "Quadro", "Equipa", "Staff", "Calendário", "Tabela" };
+            for (var i = 0; i < _tabs.Length && i < sources.Length; i++)
+            {
+                if (_tabs[i] == null)
+                    continue;
+                var label = _tabs[i].GetComponentInChildren<Text>();
+                if (label != null)
+                    label.text = LocalizationManager.Translate(sources[i]);
+            }
         }
 
         void ApplyCard(RectTransform card, Player player, Club club, bool showFatigue, int fieldIndex, bool bench)
@@ -3254,12 +3863,11 @@ namespace CoachMaster.UI.Scenes
                 rows.Add(fixture);
             }
 
-            var culture = CultureInfo.GetCultureInfo("pt-PT");
             for (var i = 0; i < rows.Count; i++)
             {
                 var fixture = rows[i];
                 var opp = _career.World.Clubs[fixture.OpponentId(_career.Coach.ClubId)];
-                var venue = fixture.IsHome(_career.Coach.ClubId) ? "CASA" : "FORA";
+                var venue = LocalizationManager.Translate(fixture.IsHome(_career.Coach.ClubId) ? "CASA" : "FORA");
                 var score = fixture.Played ? fixture.HomeGoals + " - " + fixture.AwayGoals : "vs";
                 var userHome = fixture.IsHome(_career.Coach.ClubId);
                 var userGoals = userHome ? fixture.HomeGoals : fixture.AwayGoals;
@@ -3268,19 +3876,19 @@ namespace CoachMaster.UI.Scenes
                 var markColor = UiTheme.Muted;
                 if (fixture.Played && userGoals > oppGoals)
                 {
-                    mark = "V";
+                    mark = LocalizationManager.Current == GameLanguage.English ? "W" : "V";
                     markColor = new Color(0.25f, 0.78f, 0.38f);
                 }
                 else if (fixture.Played && userGoals < oppGoals)
                 {
-                    mark = "D";
+                    mark = LocalizationManager.Current == GameLanguage.English ? "L" : "D";
                     markColor = new Color(0.86f, 0.22f, 0.22f);
                 }
                 var card = BroadcastUi.Panel(_calendar, "Fixture" + i, new Color(0.14f, 0.06f, 0.28f, 0.9f), true);
                 BroadcastUi.Preferred(card, 104);
                 var captured = fixture;
                 BroadcastUi.Hit(card, () => OpenFixture(captured));
-                var date = BroadcastUi.Label(card.transform, "Date", fixture.Date.ToString("dd MMM", culture).ToUpperInvariant(), 18, UiTheme.Score, TextAnchor.MiddleLeft, FontStyle.Bold);
+                var date = BroadcastUi.Label(card.transform, "Date", LocalizationManager.FormatDate(fixture.Date, "dd MMM").ToUpperInvariant(), 18, UiTheme.Score, TextAnchor.MiddleLeft, FontStyle.Bold);
                 BroadcastUi.Place(date.rectTransform, 0.02f, 0.52f, 0.14f, 0.92f);
                 var place = BroadcastUi.Label(card.transform, "Venue", venue, 13, UiTheme.Muted, TextAnchor.MiddleLeft, FontStyle.Bold);
                 BroadcastUi.Place(place.rectTransform, 0.02f, 0.16f, 0.14f, 0.48f);
@@ -3292,7 +3900,7 @@ namespace CoachMaster.UI.Scenes
                 var name = BroadcastUi.Label(card.transform, "Name", opp.Name, 20, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
                 BroadcastUi.Place(name.rectTransform, 0.24f, 0.52f, 0.78f, 0.9f);
                 var competition = SeasonSchedule.Competition(fixture.LeagueId);
-                var noteText = string.IsNullOrEmpty(competition) ? AssistantNote(opp) : competition;
+                var noteText = string.IsNullOrEmpty(competition) ? AssistantNote(opp) : LocalizationManager.Translate(competition);
                 var note = BroadcastUi.Label(card.transform, "Note", noteText, 14, UiTheme.Muted, TextAnchor.MiddleLeft);
                 BroadcastUi.Place(note.rectTransform, 0.24f, 0.08f, 0.8f, 0.5f);
                 var verdict = BroadcastUi.Label(card.transform, "Verdict", mark, 22, markColor, TextAnchor.MiddleCenter, FontStyle.Bold);
@@ -3305,7 +3913,7 @@ namespace CoachMaster.UI.Scenes
         void OpenStory(PaperStory story)
         {
             var edition = Newsroom.Edition(_career);
-            OpenModal(story.Paper, string.IsNullOrEmpty(story.Published) ? story.Deck : story.Published, false);
+            OpenModal(PaperName(story.Paper), PressDate(string.IsNullOrEmpty(story.Published) ? story.Deck : story.Published), false);
             Club home = null;
             Club away = null;
             if (!string.IsNullOrEmpty(story.HomeClubId) && _career.World.Clubs.ContainsKey(story.HomeClubId))
@@ -3335,11 +3943,12 @@ namespace CoachMaster.UI.Scenes
                 }
             }
 
-            var highlight = BroadcastUi.Label(_modalBody, "Headline", story.Headline, 22, Color.white, TextAnchor.UpperLeft, FontStyle.Bold);
-            BroadcastUi.SetWrapped(highlight, story.Headline, 48);
+            var headline = PressHeadline(story);
+            var highlight = BroadcastUi.Label(_modalBody, "Headline", headline, 22, Color.white, TextAnchor.UpperLeft, FontStyle.Bold);
+            BroadcastUi.SetWrapped(highlight, headline, 48);
             if (!string.IsNullOrEmpty(story.Motm))
             {
-                var motm = BroadcastUi.Label(_modalBody, "Motm", "JOGADOR DA PARTIDA   " + story.Motm, 16, UiTheme.Score, TextAnchor.MiddleLeft, FontStyle.Bold);
+                var motm = BroadcastUi.Label(_modalBody, "Motm", LocalizationManager.Translate("JOGADOR DA PARTIDA") + "   " + story.Motm, 16, UiTheme.Score, TextAnchor.MiddleLeft, FontStyle.Bold);
                 BroadcastUi.Preferred(motm, 28);
             }
 
@@ -3347,22 +3956,23 @@ namespace CoachMaster.UI.Scenes
             {
                 var quote = BroadcastUi.Panel(_modalBody, "Quote", new Color(0.14f, 0.06f, 0.28f, 0.95f), true);
                 BroadcastUi.Preferred(quote, 88);
-                var line = BroadcastUi.Label(quote.transform, "Q", "“" + story.Quote + "”", 16, Color.white, TextAnchor.UpperLeft);
+                var line = BroadcastUi.Label(quote.transform, "Q", "“" + PressQuote(story) + "”", 16, Color.white, TextAnchor.UpperLeft);
                 BroadcastUi.Place(line.rectTransform, 0.05f, 0.32f, 0.95f, 0.92f);
                 var by = BroadcastUi.Label(quote.transform, "By", "— " + story.QuoteBy, 14, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
                 BroadcastUi.Place(by.rectTransform, 0.05f, 0.06f, 0.95f, 0.32f);
             }
 
-            var body = BroadcastUi.Label(_modalBody, "Body", story.Body, 17, Color.white, TextAnchor.UpperLeft);
-            BroadcastUi.SetWrapped(body, story.Body, 220);
-            AddHead("Resto da edição");
+            var pressBody = PressBody(story);
+            var body = BroadcastUi.Label(_modalBody, "Body", pressBody, 17, Color.white, TextAnchor.UpperLeft);
+            BroadcastUi.SetWrapped(body, pressBody, 220);
+            AddHead(LocalizationManager.Translate("Resto da edição"));
             foreach (var other in edition)
             {
                 if (other.Headline == story.Headline)
                     continue;
                 var bar = BroadcastUi.Panel(_modalBody, "Bar", new Color(0.02f, 0.01f, 0.04f, 0.92f));
                 BroadcastUi.Preferred(bar, 42);
-                var line = BroadcastUi.Label(bar.transform, "Hidden", other.Headline, 14, new Color(0.45f, 0.4f, 0.5f), TextAnchor.MiddleLeft);
+                var line = BroadcastUi.Label(bar.transform, "Hidden", PressHeadline(other), 14, new Color(0.45f, 0.4f, 0.5f), TextAnchor.MiddleLeft);
                 BroadcastUi.Place(line.rectTransform, 0.04f, 0.1f, 0.96f, 0.9f);
             }
         }
@@ -3370,13 +3980,13 @@ namespace CoachMaster.UI.Scenes
         void OpenFixture(Fixture fixture)
         {
             var opp = _career.World.Clubs[fixture.OpponentId(_career.Coach.ClubId)];
-            var venue = fixture.IsHome(_career.Coach.ClubId) ? "Casa" : "Fora";
+            var venue = LocalizationManager.Translate(fixture.IsHome(_career.Coach.ClubId) ? "Casa" : "Fora");
             var scouted = _career.Scouted.Contains(opp.Id);
-            OpenModal(opp.Name, venue + "  ·  " + fixture.Date.ToString("dd MMMM") + "  ·  " + opp.Tactics.Formation, scouted == false);
+            OpenModal(opp.Name, venue + "  ·  " + LocalizationManager.FormatDate(fixture.Date, "dd MMMM") + "  ·  " + opp.Tactics.Formation, scouted == false);
             var crest = CrestImage(_modal.transform.Find("Card"), opp, 56f);
             crest.rectTransform.anchorMin = crest.rectTransform.anchorMax = new Vector2(0.07f, 0.9f);
             AddLine(AssistantNote(opp));
-            AddHead("Plantel  ·  " + opp.Tactics.Formation);
+            AddHead(LocalizationManager.Translate("PLANTEL") + "  ·  " + opp.Tactics.Formation);
             var pitch = BroadcastUi.Panel(_modalBody, "Shape", new Color(0.1f, 0.04f, 0.2f, 0.72f));
             BroadcastUi.Preferred(pitch, 520);
             PlaceShape(pitch.transform, opp, false, 84f, 72f);
@@ -3384,7 +3994,7 @@ namespace CoachMaster.UI.Scenes
             if (scouted)
                 return;
             _modalAction.onClick.RemoveAllListeners();
-            _modalActionLabel.text = "ANALISAR O PLANTEL  ·  3 DIAS";
+            _modalActionLabel.text = LocalizationManager.Translate("ANALISAR O PLANTEL  ·  3 DIAS");
             _modalAction.onClick.AddListener(() => StartScout(opp, fixture));
         }
 
@@ -3406,7 +4016,9 @@ namespace CoachMaster.UI.Scenes
             {
                 Day = _career.Calendar.WeekdayName,
                 Hour = _career.Calendar.ClockText,
-                Text = "Análise ao " + opponent.ShortName + " fechada. Levou " + days + " dias. O relatório já está no calendário."
+                Text = LocalizationManager.Current == GameLanguage.English
+                    ? "Scouting report on " + opponent.ShortName + " completed in " + days + " days. The report is in the calendar."
+                    : "Análise ao " + opponent.ShortName + " fechada. Levou " + days + " dias. O relatório já está no calendário."
             });
             if (SettingsPrefs.AutosaveEnabled)
                 CareerStore.AutoSaveIfDue(_career, SettingsPrefs.AutosaveDays, SettingsPrefs.AutosaveSlots);
@@ -3454,6 +4066,8 @@ namespace CoachMaster.UI.Scenes
             var fitness = StaffReport.Find(_career.Club, StaffRole.FitnessCoach);
             var clubName = _career.World.Clubs.TryGetValue(player.ClubId, out var playerClub) ? playerClub.Name : "Clube desconhecido";
             OpenModal(player.FullName, clubName + "  ·  " + PresentationLabels.Position(player.Position) + "  ·  " + player.Nationality + "  ·  " + player.Age + " anos", false);
+            _profileModalPlayer = player;
+            _profileModalOrders = orders;
             var cardRoot = _modal.transform.Find("Card");
             if (orders)
             {
@@ -3561,7 +4175,7 @@ namespace CoachMaster.UI.Scenes
                 "ALTURA  " + (player.HeightCm > 0 ? player.HeightCm + " cm" : "—"),
                 "PESO  " + (player.WeightKg > 0 ? player.WeightKg + " kg" : "—"),
                 "PÉ  " + PresentationLabels.Foot(player.PreferredFoot) + "  ·  PÉ FRACO  " + WeakFootLabel(player.WeakFootQuality),
-                "PERSONALIDADE  " + player.Personality,
+                "PERSONALIDADE  " + PresentationLabels.Personality(player.Personality),
                 "REPUTAÇÃO  " + (_career.World.Clubs.TryGetValue(player.ClubId, out club) ? club.Reputation.ToString() : "—")
             };
             ProfileText(header.transform, "PhysicalAndInfo", string.Join("\n", info), 12, Color.white, FontStyle.Normal, 0.79f, 0.05f, 0.985f, 0.95f);
@@ -3671,9 +4285,17 @@ namespace CoachMaster.UI.Scenes
                 careerRated += line.Rated;
             }
             ProfileText(statsPanel.transform, "Heading", "ÉPOCA · TODAS AS COMPETIÇÕES", 11, UiTheme.Accent, FontStyle.Bold, 0.03f, 0.7f, 0.97f, 0.98f);
-            ProfileText(statsPanel.transform, "SeasonStats", "J  " + apps + "     G  " + goals + "     A  " + assists + "     MÉDIA  " + (rated > 0 ? (ratingSum / rated).ToString("0.00", CultureInfo.InvariantCulture) : "—"), 11, Color.white, FontStyle.Bold, 0.03f, 0.4f, 0.97f, 0.68f);
+            var seasonAverage = rated > 0 ? (ratingSum / rated).ToString("0.00", CultureInfo.InvariantCulture) : "—";
+            var seasonStats = LocalizationManager.Current == GameLanguage.English
+                ? "Apps  " + apps + "     Goals  " + goals + "     Assists  " + assists + "     Avg  " + seasonAverage
+                : "J  " + apps + "     G  " + goals + "     A  " + assists + "     MÉDIA  " + seasonAverage;
+            ProfileText(statsPanel.transform, "SeasonStats", seasonStats, 11, Color.white, FontStyle.Bold, 0.03f, 0.4f, 0.97f, 0.68f);
             ProfileText(statsPanel.transform, "CareerHeading", "CARREIRA", 10, UiTheme.Accent, FontStyle.Bold, 0.03f, 0.18f, 0.97f, 0.39f);
-            ProfileText(statsPanel.transform, "CareerStats", "J  " + careerApps + "     G  " + careerGoals + "     A  " + careerAssists + "     MÉDIA  " + (careerRated > 0 ? (careerRatingSum / careerRated).ToString("0.00", CultureInfo.InvariantCulture) : "—"), 11, Color.white, FontStyle.Bold, 0.03f, 0.015f, 0.97f, 0.2f);
+            var careerAverage = careerRated > 0 ? (careerRatingSum / careerRated).ToString("0.00", CultureInfo.InvariantCulture) : "—";
+            var careerStats = LocalizationManager.Current == GameLanguage.English
+                ? "Apps  " + careerApps + "     Goals  " + careerGoals + "     Assists  " + careerAssists + "     Avg  " + careerAverage
+                : "J  " + careerApps + "     G  " + careerGoals + "     A  " + careerAssists + "     MÉDIA  " + careerAverage;
+            ProfileText(statsPanel.transform, "CareerStats", careerStats, 11, Color.white, FontStyle.Bold, 0.03f, 0.015f, 0.97f, 0.2f);
 
             var notePanel = ProfilePanel("ScoutAndCoach", 0.545f, 0.015f, 0.745f, 0.19f);
             var scout = Member(_career.Club, StaffRole.Scout);
@@ -4072,11 +4694,13 @@ namespace CoachMaster.UI.Scenes
             _offer = null;
             _modalLineSize = 20;
             OpenModal(member.FullName, PresentationLabels.StaffRole(member.Role), true);
-            AddLine(StaffReport.Quality(member) + " " + StaffReport.Confidence(member));
-            AddLine("Pedir a saída não despede ninguém. Quem termina o contrato é a direção.");
+            AddLine(LocalizationManager.Translate(StaffReport.Quality(member)) + " " + LocalizationManager.Translate(StaffReport.Confidence(member)));
+            AddLine(LocalizationManager.Current == GameLanguage.English
+                ? "Requesting a replacement does not dismiss anyone. Only the board can end a contract."
+                : "Pedir a saída não despede ninguém. Quem termina o contrato é a direção.");
             AddLine(VibeLine());
             _modalAction.onClick.RemoveAllListeners();
-            _modalActionLabel.text = "REUNIÃO COM O PRESIDENTE";
+            _modalActionLabel.text = LocalizationManager.Translate("REUNIÃO COM O PRESIDENTE");
             var captured = member;
             _modalAction.onClick.AddListener(() => OpenMeeting(captured));
         }
@@ -4085,11 +4709,13 @@ namespace CoachMaster.UI.Scenes
         {
             _offer = StaffReport.Offer(_career.Club, current.Role);
             _modalLineSize = 20;
-            OpenModal("Relatório à direção", PresentationLabels.StaffRole(current.Role), true);
-            AddLine("O texto já está escrito, como se o tivesses ditado ao adjunto. A direção só lê depois da tua assinatura.");
+            OpenModal(LocalizationManager.Current == GameLanguage.English ? "Report to the board" : "Relatório à direção", PresentationLabels.StaffRole(current.Role), true);
+            AddLine(LocalizationManager.Current == GameLanguage.English
+                ? "The report is ready as if you had dictated it to your assistant. The board will read it after you sign."
+                : "O texto já está escrito, como se o tivesses ditado ao adjunto. A direção só lê depois da tua assinatura.");
             AddLine(ReportText(current, _offer));
             _modalAction.onClick.RemoveAllListeners();
-            _modalActionLabel.text = "ASSINAR E ENTREGAR";
+            _modalActionLabel.text = LocalizationManager.Translate("ASSINAR E ENTREGAR");
             var captured = current;
             _modalAction.onClick.AddListener(() => DeliverReport(captured));
         }
@@ -4102,13 +4728,17 @@ namespace CoachMaster.UI.Scenes
             {
                 Day = _career.Calendar.WeekdayName,
                 Hour = _career.Calendar.ClockText,
-                Text = "Assinei o pedido de saída de " + current.FullName + ". A decisão fica com o presidente."
+                Text = LocalizationManager.Current == GameLanguage.English
+                    ? "I signed the request to replace " + current.FullName + ". The decision is now with the board."
+                    : "Assinei o pedido de saída de " + current.FullName + ". A decisão fica com o presidente."
             });
             if (!PresidentAgrees(current, _offer))
             {
                 _career.Club.DressingRoomTension = Mathf.Clamp(_career.Club.DressingRoomTension + 4, 0, 100);
-                OpenModal("A direção não autoriza", current.FullName, false);
-                AddLine("O presidente ouviu o pedido e recusou a rescisão. O contrato de " + current.FullName + " mantém-se. Quem tem autoridade para o terminar é a direção, não o treinador.");
+                OpenModal(LocalizationManager.Current == GameLanguage.English ? "The board said no" : "A direção não autoriza", current.FullName, false);
+                AddLine(LocalizationManager.Current == GameLanguage.English
+                    ? "The board has rejected the request. " + current.FullName + " remains under contract; only the board can terminate it."
+                    : "O presidente ouviu o pedido e recusou a rescisão. O contrato de " + current.FullName + " mantém-se. Quem tem autoridade para o terminar é a direção, não o treinador.");
                 AddLine(VibeLine());
                 _offer = null;
                 FillStaff();
@@ -4139,6 +4769,9 @@ namespace CoachMaster.UI.Scenes
 
         static string ReportText(StaffMember current, StaffMember offer)
         {
+            if (LocalizationManager.Current == GameLanguage.English)
+                return "I ask the board to consider replacing " + current.FullName + ", " + PresentationLabels.StaffRole(current.Role).ToLowerInvariant() + ". "
+                    + LocalizationManager.Translate(StaffReport.Quality(current)) + " I propose " + offer.FullName + " as a replacement. The decision to end the contract is yours.";
             return "Peço que a direção avalie a saída de " + current.FullName + ", " + PresentationLabels.StaffRole(current.Role).ToLowerInvariant() + ". " +
                    StaffReport.Quality(current) + " Proponho " + offer.FullName + " para o lugar. A decisão de terminar o contrato é vossa.";
         }
@@ -4171,6 +4804,18 @@ namespace CoachMaster.UI.Scenes
             var tension = _career.Club.DressingRoomTension;
             var next = _career.NextUserFixture();
             var free = next == null ? 4 : (next.Date.Date - _career.Calendar.CurrentDate.Date).Days;
+            if (LocalizationManager.Current == GameLanguage.English)
+            {
+                OpenModal("Plan a team trip", free <= 0 ? "The next match is imminent. There is no time to arrange a trip." : "There are " + free + " day(s) before the next match. Your assistant suggests an activity for the squad.", false);
+                if (free <= 0) return;
+                TripRow("Short break", "Pair players from different groups in shared rooms. Best when the dressing room is divided.", () => RunTrip(0));
+                TripRow("Squad lunch", "Bring everyone to one table. Give quieter players a chance to sit with the talkers.", () => RunTrip(1));
+                TripRow("Day in town", "No training. The squad gets some rest and spends the day together.", () => RunTrip(2));
+                TripRow("Tactical camp", "A neutral training ground, focused on the plan. It builds familiarity without changing morale.", () => RunTrip(3));
+                if (tension >= 55)
+                    AddBody("The dressing room is " + RoomWord(tension) + ". The short break is the best option for bringing estranged teammates together.");
+                return;
+            }
             OpenModal("Marcar viagem", free <= 0 ? "O próximo jogo é já. A viagem fica para depois." : "Há " + free + " dia(s) antes do próximo jogo. O adjunto sugere o que o grupo precisa.", false);
             if (free <= 0)
                 return;
@@ -4192,6 +4837,54 @@ namespace CoachMaster.UI.Scenes
         {
             var squad = Squad(_career.Club);
             squad.Sort((a, b) => a.Morale.CompareTo(b.Morale));
+            if (LocalizationManager.Current == GameLanguage.English)
+            {
+                var englishText = "The squad activity is arranged.";
+                if (kind == 0)
+                {
+                    var pairs = 0;
+                    for (var i = 0; i < squad.Count / 2; i++)
+                    {
+                        var low = squad[i];
+                        var high = squad[squad.Count - 1 - i];
+                        if (low == null || high == null || low.Id == high.Id) continue;
+                        low.Morale = Mathf.Clamp(low.Morale + 8, 1, 99);
+                        high.Morale = Mathf.Clamp(high.Morale + 4, 1, 99);
+                        pairs++;
+                    }
+                    _career.Club.DressingRoomTension = Mathf.Clamp(_career.Club.DressingRoomTension - 14, 0, 100);
+                    englishText = "Short break. " + pairs + " rooms paired low-morale players with teammates from another group. The dressing room is now " + RoomWord(_career.Club.DressingRoomTension) + ".";
+                }
+                else if (kind == 1)
+                {
+                    foreach (var player in squad)
+                        if (player.Morale < 50) player.Morale = Mathf.Clamp(player.Morale + 6, 1, 99);
+                    _career.Club.DressingRoomTension = Mathf.Clamp(_career.Club.DressingRoomTension - 8, 0, 100);
+                    englishText = "Squad lunch. The quieter players sat with the ones who keep the conversation going. The dressing room is now " + RoomWord(_career.Club.DressingRoomTension) + ".";
+                }
+                else if (kind == 2)
+                {
+                    foreach (var player in squad)
+                    {
+                        player.Morale = Mathf.Clamp(player.Morale + 4, 1, 99);
+                        player.Fatigue = Mathf.Max(1, player.Fatigue - 8);
+                    }
+                    _career.Club.DressingRoomTension = Mathf.Clamp(_career.Club.DressingRoomTension - 6, 0, 100);
+                    englishText = "A day in town, with no training. Fatigue dropped and the squad spent time together. The dressing room is now " + RoomWord(_career.Club.DressingRoomTension) + ".";
+                }
+                else
+                    englishText = "Tactical camp at a neutral ground. The plan stays the same: " + TacticPresets.Active(_career.Club.Tactics) + ".";
+
+                AdvanceCareerDays(1);
+                _career.Board.Insert(0, new CoachNote { Day = _career.Calendar.WeekdayName, Hour = _career.Calendar.ClockText, When = _career.Calendar.CurrentDate, Text = englishText });
+                if (SettingsPrefs.AutosaveEnabled)
+                    CareerStore.AutoSaveIfDue(_career, SettingsPrefs.AutosaveDays, SettingsPrefs.AutosaveSlots);
+                CareerStore.Save(_career);
+                CloseModal();
+                FillBoard();
+                Refresh();
+                return;
+            }
             var text = "A viagem ficou marcada.";
             if (kind == 0)
             {
@@ -4280,7 +4973,7 @@ namespace CoachMaster.UI.Scenes
             foreach (var league in _career.World.Leagues)
             {
                 if (league.Id == leagueId)
-                    name = league.Name;
+                    name = LocalizationManager.Translate(league.Name);
             }
 
             OpenModal(name, "A tabela completa e os números da época.", false);
@@ -4398,7 +5091,9 @@ namespace CoachMaster.UI.Scenes
         {
             var row = BroadcastUi.Panel(_modalBody, "StandingsHeader", new Color(0.22f, 0.12f, 0.38f, 1f), true);
             BroadcastUi.Preferred(row, 34);
-            var headings = new[] { "PTS", "J", "V", "E", "D", "GM", "GS" };
+            var headings = LocalizationManager.Current == GameLanguage.English
+                ? new[] { "PTS", "P", "W", "D", "L", "GF", "GA" }
+                : new[] { "PTS", "J", "V", "E", "D", "GM", "GS" };
             for (var i = 0; i < headings.Length; i++)
             {
                 var x0 = 0.39f + i * 0.084f;
@@ -4486,7 +5181,9 @@ namespace CoachMaster.UI.Scenes
             {
                 var row = rows[i];
                 var club = _career.World.Clubs.ContainsKey(row.ClubId) ? _career.World.Clubs[row.ClubId].ShortName : row.ClubId;
-                var value = kind == "gm" ? row.GoalsFor + " golos" : kind == "gs" ? row.GoalsAgainst + " sofridos" : kind == "v" ? row.Won + " vitórias" : (row.GoalDifference > 0 ? "+" : "") + row.GoalDifference;
+                var value = LocalizationManager.Current == GameLanguage.English
+                    ? kind == "gm" ? row.GoalsFor + " goals" : kind == "gs" ? row.GoalsAgainst + " conceded" : kind == "v" ? row.Won + " wins" : (row.GoalDifference > 0 ? "+" : "") + row.GoalDifference
+                    : kind == "gm" ? row.GoalsFor + " golos" : kind == "gs" ? row.GoalsAgainst + " sofridos" : kind == "v" ? row.Won + " vitórias" : (row.GoalDifference > 0 ? "+" : "") + row.GoalDifference;
                 AddRankRow(i + 1, club, "", value);
             }
         }
@@ -4527,6 +5224,8 @@ namespace CoachMaster.UI.Scenes
 
         void OpenModal(string title, string lead, bool action)
         {
+            _profileModalPlayer = null;
+            _profileModalOrders = false;
             if (_modalLineSize <= 0)
                 _modalLineSize = 16;
             Clear(_modalBody);
@@ -4583,6 +5282,8 @@ namespace CoachMaster.UI.Scenes
         void CloseModal()
         {
             _offer = null;
+            _profileModalPlayer = null;
+            _profileModalOrders = false;
             if (_modal != null)
                 _modal.SetActive(false);
         }
@@ -4656,10 +5357,34 @@ namespace CoachMaster.UI.Scenes
             }
 
             if (best == null)
-                return "O adjunto ainda não fechou uma leitura desta equipa.";
+                return LocalizationManager.Current == GameLanguage.English
+                    ? "The assistant has not finished an assessment of this team."
+                    : "O adjunto ainda não fechou uma leitura desta equipa.";
 
             var form = best.Form;
             var pressing = opponent.Tactics.Pressing ?? "";
+            if (LocalizationManager.Current == GameLanguage.English)
+            {
+                var englishStat = bestStat == "finalização" ? "finishing" : bestStat == "velocidade" ? "pace" : "passing";
+                var line = opponent.Tactics.DefensiveLine ?? "";
+                var deepBlock = line.Contains("baixa");
+                if (deepBlock && opponent.Reputation < 70)
+                    return "They will sit deep. The danger is set pieces and the counter, not " + best.FullName + " on his own.";
+                if (pressing.Contains("alta") && form >= 60)
+                    return "They press high and are in good form. If the first pass goes wrong, " + best.FullName + " will be on top of the build-up.";
+                if (opponent.Reputation >= 75 && form < 48)
+                    return "The name carries more weight than the current form. " + best.FullName + " is quiet lately, but the team remains dangerous elsewhere.";
+                if (opponent.Reputation < 55 && form >= 70)
+                    return "They are underdogs, but arrive in good form. " + best.FullName + " is carrying " + opponent.ShortName + " at the moment.";
+                if (bestMark >= 16 && form >= 65)
+                    return "They are in excellent form. " + best.FullName + " can decide games with " + englishStat + ", but is not the only threat.";
+                if (opponent.Reputation >= 70)
+                    return "A well-known side. The assistant has flagged " + best.FullName + " for " + englishStat + ", though they may not be the decisive player.";
+                if (form < 45)
+                    return "They have looked short of confidence. " + best.FullName + " stands out on paper, not over the last week.";
+                return "A balanced team. " + best.FullName + " stands out for " + englishStat + " without being impossible to contain.";
+            }
+
             var lowBlock = opponent.Tactics.DefensiveLine != null && opponent.Tactics.DefensiveLine.Contains("baixa");
             if (lowBlock && opponent.Reputation < 70)
                 return "Vão fechar-se. O perigo não é o " + best.FullName + " isolado, é a bola parada e o contra-ataque.";
@@ -4691,6 +5416,12 @@ namespace CoachMaster.UI.Scenes
         string VibeLine()
         {
             var tension = _career.Club.DressingRoomTension;
+            if (LocalizationManager.Current == GameLanguage.English)
+            {
+                if (tension >= 75) return "The dressing room has closed ranks. Another signing could make things worse.";
+                if (tension >= 55) return "Conversations stop when you walk in. The group is not fully behind you yet.";
+                return "The squad still lets you in. A staff change could shift that balance.";
+            }
             if (tension >= 75)
                 return "O balneário fechou-se. Outra contratação agora pesa ainda mais.";
             if (tension >= 55)
@@ -4717,6 +5448,14 @@ namespace CoachMaster.UI.Scenes
         {
             var next = career.NextUserFixture();
             return next == null ? "Época sem jogos por jogar." : MatchLabel(career, next);
+        }
+
+        static string EnglishMatchLabel(CareerState career)
+        {
+            var next = career.NextUserFixture();
+            if (next == null) return "No remaining matches this season.";
+            var opponent = career.World.Clubs[next.OpponentId(career.Coach.ClubId)];
+            return (next.IsHome(career.Coach.ClubId) ? "Home" : "Away") + " vs " + opponent.Name;
         }
 
         static string MatchLabel(CareerState career, Fixture fixture)

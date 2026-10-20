@@ -49,6 +49,7 @@ namespace CoachMaster.UI.Scenes
         Token[] _awayTokens;
         readonly Vector2[] _tokenPoints = new Vector2[22];
         readonly Vector2[] _tokenOffsets = new Vector2[22];
+        readonly Vector2[] _tokenRenderOffsets = new Vector2[22];
         SideColumn _homeCol;
         SideColumn _awayCol;
         GameObject _fitnessPage;
@@ -91,6 +92,11 @@ namespace CoachMaster.UI.Scenes
         string _tacticFocus;
         bool _watchEvent;
         HalfIdea[] _halfIdeas;
+        Text _halfSummary;
+        Text _managerSpeech;
+        Button[] _teamTalkButtons;
+        Button _continueSecondHalf;
+        Button _halfTactics;
         Text _plan;
         RectTransform _locker;
         string[] _pressOptions;
@@ -99,6 +105,7 @@ namespace CoachMaster.UI.Scenes
         string _queueOff;
         string _queueOn;
         bool _subFromPause;
+        bool _tacticsFromHalfTime;
         RectTransform _timeline;
         Text _homePoss;
         Text _awayPoss;
@@ -162,9 +169,18 @@ namespace CoachMaster.UI.Scenes
                     FillLocker();
                 }
                 var changing = _subsMenu != null && _subsMenu.activeSelf;
-                _halfTime.SetActive(!changing);
+                var reviewingTactics = _tactics != null && _tactics.activeSelf;
+                _halfTime.SetActive(!changing && !reviewingTactics);
+                if (_continueSecondHalf != null)
+                    _continueSecondHalf.gameObject.SetActive(_match.TeamTalkApplied && !changing && !reviewingTactics);
+                if (_teamTalkButtons != null)
+                    for (var i = 0; i < _teamTalkButtons.Length; i++)
+                        if (_teamTalkButtons[i] != null)
+                            _teamTalkButtons[i].interactable = !_match.TeamTalkApplied;
                 if (changing)
                     _subsMenu.transform.SetAsLastSibling();
+                else if (reviewingTactics)
+                    _tactics.transform.SetAsLastSibling();
                 _footer.SetActive(false);
                 RefreshHud();
                 TryQueuedSub();
@@ -363,6 +379,7 @@ namespace CoachMaster.UI.Scenes
             _locker = root.Find("HalfTime/Card/Voices") as RectTransform;
             SceneBind.Wire(root.Find("HalfTime/Card/LeaveAssistant"), LeaveToAssistant);
             SceneBind.Wire(root.Find("HalfTime/Card/HalfSubs"), () => OpenSubs(true));
+            EnsureHalfTalkUi(root.Find("HalfTime/Card"));
             _fullTime = root.Find("FullTime").gameObject;
             _fullResult = SceneBind.Get<Text>(root, "FullTime/Card/Result");
             SceneBind.Wire(root.Find("FullTime/Card/Continue"), FinishMatch);
@@ -432,7 +449,12 @@ namespace CoachMaster.UI.Scenes
                 number.resizeTextForBestFit = true;
                 number.resizeTextMinSize = 11;
                 number.resizeTextMaxSize = 18;
-                list[i] = new Token { Rect = rect, Number = number };
+                var injury = rect.Find("Injury") == null
+                    ? BroadcastUi.Label(rect, "Injury", "+", 15, new Color(0.95f, 0.12f, 0.16f), TextAnchor.MiddleCenter, FontStyle.Bold)
+                    : rect.Find("Injury").GetComponent<Text>();
+                BroadcastUi.Place(injury.rectTransform, 0.62f, 0.62f, 1f, 1f);
+                injury.gameObject.SetActive(false);
+                list[i] = new Token { Rect = rect, Number = number, Injury = injury };
             }
 
             return list;
@@ -742,7 +764,10 @@ namespace CoachMaster.UI.Scenes
                 num.resizeTextMinSize = 11;
                 num.resizeTextMaxSize = 18;
                 BroadcastUi.Stretch(num.rectTransform);
-                list[i] = new Token { Rect = rect, Number = num };
+                var injury = BroadcastUi.Label(rect, "Injury", "+", 15, new Color(0.95f, 0.12f, 0.16f), TextAnchor.MiddleCenter, FontStyle.Bold);
+                BroadcastUi.Place(injury.rectTransform, 0.62f, 0.62f, 1f, 1f);
+                injury.gameObject.SetActive(false);
+                list[i] = new Token { Rect = rect, Number = num, Injury = injury };
             }
 
             return list;
@@ -843,7 +868,7 @@ namespace CoachMaster.UI.Scenes
             var speed = BroadcastUi.Button(_footer.transform, "Speed", "Ritmo x1", CycleSpeed, new Color(1f, 1f, 1f, 0f), UiTheme.Accent, 16);
             BroadcastUi.Place(speed.GetComponent<RectTransform>(), 0.52f, 0.08f, 0.66f, 0.92f);
             _speedLabel = speed.GetComponentInChildren<Text>();
-            var hint = BroadcastUi.Label(_footer.transform, "ControlHint", "Enter  selecionar     Esc  pausa     Setas  navegar", 14, UiTheme.Muted, TextAnchor.MiddleRight);
+            var hint = BroadcastUi.Label(_footer.transform, "ControlHint", LocalizationManager.Translate("M · DEFINIÇÕES"), 14, UiTheme.Muted, TextAnchor.MiddleRight);
             BroadcastUi.Place(hint.rectTransform, 0.66f, 0f, 0.98f, 1f);
         }
 
@@ -1049,11 +1074,18 @@ namespace CoachMaster.UI.Scenes
 
         void OpenTactics()
         {
-            if (_match.Phase == MatchPhase.HalfTime || _match.Phase == MatchPhase.FullTime)
+            if (_match.Phase == MatchPhase.FullTime)
                 return;
-            _paused = true;
-            _pause.SetActive(false);
+            _tacticsFromHalfTime = _match.Phase == MatchPhase.HalfTime;
+            if (_tacticsFromHalfTime)
+                _halfTime.SetActive(false);
+            else
+            {
+                _paused = true;
+                _pause.SetActive(false);
+            }
             _tactics.SetActive(true);
+            _tactics.transform.SetAsLastSibling();
             SetFooter(false);
             PaintChoices();
             DrawRoles();
@@ -1064,6 +1096,16 @@ namespace CoachMaster.UI.Scenes
         {
             if (_tactics != null)
                 _tactics.SetActive(false);
+            if (_tacticsFromHalfTime)
+            {
+                _tacticsFromHalfTime = false;
+                if (_halfTime != null)
+                {
+                    _halfTime.SetActive(true);
+                    _halfTime.transform.SetAsLastSibling();
+                }
+                return;
+            }
             ResumeMatch();
         }
 
@@ -1332,7 +1374,97 @@ namespace CoachMaster.UI.Scenes
             BroadcastUi.Place(leave.GetComponent<RectTransform>(), 0.08f, 0.015f, 0.58f, 0.07f);
             var changes = BroadcastUi.Button(card, "HalfSubs", "SUBSTITUIÇÕES", () => OpenSubs(true), UiTheme.Accent, UiTheme.ButtonText, 16);
             BroadcastUi.Place(changes.GetComponent<RectTransform>(), 0.6f, 0.015f, 0.94f, 0.07f);
+            EnsureHalfTalkUi(card);
             _halfTime.SetActive(false);
+        }
+
+        void EnsureHalfTalkUi(Transform card)
+        {
+            if (card == null)
+                return;
+            _locker = card.Find("Voices") as RectTransform;
+            if (_locker != null)
+                BroadcastUi.Place(_locker, 0.03f, 0.43f, 0.97f, 0.76f);
+            var summary = card.Find("FirstHalfSummary");
+            if (summary == null)
+            {
+                _halfSummary = BroadcastUi.Label(card, "FirstHalfSummary", "", 14, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+                summary = _halfSummary.transform;
+            }
+            else
+                _halfSummary = summary.GetComponent<Text>();
+            if (_halfSummary != null)
+                BroadcastUi.Place(_halfSummary.rectTransform, 0.05f, 0.79f, 0.95f, 0.87f);
+
+            var managerSpeech = card.Find("ManagerSpeech");
+            if (managerSpeech == null)
+                _managerSpeech = BroadcastUi.Label(card, "ManagerSpeech", "Escolhe como falar com a equipa.", 16, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            else
+                _managerSpeech = managerSpeech.GetComponent<Text>();
+            if (_managerSpeech != null)
+            {
+                BroadcastUi.Place(_managerSpeech.rectTransform, 0.06f, 0.31f, 0.94f, 0.41f);
+                _managerSpeech.resizeTextForBestFit = true;
+                _managerSpeech.resizeTextMinSize = 12;
+                _managerSpeech.resizeTextMaxSize = 16;
+            }
+
+            var labels = new[] { "MOTIVAR", "EXIGIR", "ACALMAR", "REPREENDER", "TÁTICA" };
+            _teamTalkButtons = new Button[labels.Length];
+            for (var i = 0; i < labels.Length; i++)
+            {
+                var index = i;
+                var node = card.Find("Talk" + i);
+                if (node == null)
+                {
+                    var button = BroadcastUi.Button(card, "Talk" + i, labels[i], () => ChooseTeamTalk(index),
+                        i == 4 ? UiTheme.Accent : new Color(0.12f, 0.08f, 0.2f, 0.92f), Color.white, 14);
+                    node = button.transform;
+                }
+                _teamTalkButtons[i] = SceneBind.Wire(node, () => ChooseTeamTalk(index));
+                if (_teamTalkButtons[i] != null)
+                {
+                    BroadcastUi.Place(_teamTalkButtons[i].GetComponent<RectTransform>(), 0.025f + i * 0.19f, 0.19f,
+                        0.205f + i * 0.19f, 0.29f);
+                    var text = _teamTalkButtons[i].GetComponentInChildren<Text>();
+                    if (text != null)
+                    {
+                        text.resizeTextForBestFit = true;
+                        text.resizeTextMinSize = 10;
+                        text.resizeTextMaxSize = 14;
+                    }
+                }
+            }
+
+            var leave = card.Find("LeaveAssistant") as RectTransform;
+            if (leave != null) BroadcastUi.Place(leave, 0.02f, 0.045f, 0.23f, 0.13f);
+            var tactics = card.Find("HalfTactics");
+            if (tactics == null)
+            {
+                _halfTactics = BroadcastUi.Button(card, "HalfTactics", "TÁTICAS", OpenTactics,
+                    new Color(1f, 1f, 1f, 0.14f), Color.white, 13);
+                tactics = _halfTactics.transform;
+            }
+            else
+                _halfTactics = SceneBind.Wire(tactics, OpenTactics);
+            if (_halfTactics != null)
+                BroadcastUi.Place(_halfTactics.GetComponent<RectTransform>(), 0.26f, 0.045f, 0.48f, 0.13f);
+            var subs = card.Find("HalfSubs") as RectTransform;
+            if (subs != null) BroadcastUi.Place(subs, 0.51f, 0.045f, 0.73f, 0.13f);
+            var proceed = card.Find("ContinueSecondHalf");
+            if (proceed == null)
+            {
+                _continueSecondHalf = BroadcastUi.Button(card, "ContinueSecondHalf", "COMEÇAR 2.ª PARTE", ContinueSecondHalf,
+                    UiTheme.Accent, UiTheme.ButtonText, 14);
+                proceed = _continueSecondHalf.transform;
+            }
+            else
+                _continueSecondHalf = SceneBind.Wire(proceed, ContinueSecondHalf);
+            if (_continueSecondHalf != null)
+            {
+                BroadcastUi.Place(_continueSecondHalf.GetComponent<RectTransform>(), 0.76f, 0.045f, 0.98f, 0.13f);
+                _continueSecondHalf.gameObject.SetActive(false);
+            }
         }
 
         void FillLocker()
@@ -1345,12 +1477,15 @@ namespace CoachMaster.UI.Scenes
             var ours = UserHome() ? _match.HomeGoals : _match.AwayGoals;
             var theirs = UserHome() ? _match.AwayGoals : _match.HomeGoals;
             var voices = LockerVoices(field);
+            if (_halfSummary != null)
+                _halfSummary.text = FirstHalfSummary();
             _halfIdeas = new HalfIdea[voices.Length];
             for (var slot = 0; slot < voices.Length; slot++)
             {
                 var player = voices[slot];
                 var kind = slot == 0 ? 0 : player.IsCaptain && player != voices[0] ? 1 : 2;
                 var idea = IdeaFor(player, kind, ours, theirs);
+                idea.Speech = LockerComment(player, slot, ours, theirs);
                 _halfIdeas[slot] = idea;
                 var x0 = 0.02f + slot * 0.33f;
                 var index = slot;
@@ -1372,6 +1507,62 @@ namespace CoachMaster.UI.Scenes
                 line.verticalOverflow = VerticalWrapMode.Truncate;
                 BroadcastUi.Place(line.rectTransform, 0.04f, 0.04f, 0.96f, 0.34f);
             }
+        }
+
+        string FirstHalfSummary()
+        {
+            var home = UserHome();
+            var ours = home ? _match.HomeGoals : _match.AwayGoals;
+            var theirs = home ? _match.AwayGoals : _match.HomeGoals;
+            var ourShots = home ? _match.HomeShots : _match.AwayShots;
+            var theirShots = home ? _match.AwayShots : _match.HomeShots;
+            var ourOnTarget = home ? _match.HomeChances : _match.AwayChances;
+            var theirOnTarget = home ? _match.AwayChances : _match.HomeChances;
+            var totalPossession = _match.HomePossession + _match.AwayPossession;
+            var ourPossession = home ? _match.HomePossession : _match.AwayPossession;
+            var possession = totalPossession > 0.01f ? Mathf.RoundToInt(ourPossession / totalPossession * 100f) : 50;
+            if (LocalizationManager.Current == GameLanguage.English)
+                return "HALF-TIME  " + ours + "–" + theirs + "     POSSESSION  " + possession + "%     SHOTS  " + ourShots + "–" + theirShots
+                    + "     ON TARGET  " + ourOnTarget + "–" + theirOnTarget;
+            return "INTERVALO  " + ours + "–" + theirs + "     POSSE  " + possession + "%     REMATES  " + ourShots + "–" + theirShots
+                + "     À BALIZA  " + ourOnTarget + "–" + theirOnTarget;
+        }
+
+        string LockerComment(Player player, int slot, int ours, int theirs)
+        {
+            if (player == null)
+                return LocalizationManager.Current == GameLanguage.English
+                    ? "We need to find more space after the break."
+                    : "Temos de encontrar mais espaço depois do intervalo.";
+            var goals = _match.GoalsScored.TryGetValue(player.Id, out var scored) ? scored : 0;
+            if (LocalizationManager.Current == GameLanguage.English)
+            {
+                var name = BroadcastUi.ShortName(player.FullName);
+                if (goals > 0) return name + ": Keep putting the ball into the box; I’m getting there.";
+                if (player.Fatigue >= 78) return name + ": My legs are heavy. I’ll manage the runs better.";
+                if (_match.RatingOf(player.Id) < 6.1f) return name + ": I’ve given the ball away too often. I’ll keep it simple.";
+                if (player.IsCaptain) return name + ": We’ve got 45 minutes. Stay compact and play together.";
+                if (ours < theirs && player.Personality == PersonalityTrait.Leader) return name + ": We can still turn this around. No panic.";
+                if (player.Morale < 40) return name + ": I could use a word from you before we go back out.";
+                return slot % 2 == 0
+                    ? name + ": If the space opens up behind them, play the ball in."
+                    : name + ": Let’s pick the right moment to speed things up.";
+            }
+            if (goals > 0)
+                return BroadcastUi.ShortName(player.FullName) + ": Continuem a meter a bola na área; estou a chegar lá.";
+            if (player.Fatigue >= 78)
+                return BroadcastUi.ShortName(player.FullName) + ": As pernas já pesam. Vamos gerir melhor as corridas.";
+            if (_match.RatingOf(player.Id) < 6.1f)
+                return BroadcastUi.ShortName(player.FullName) + ": Perdi demasiadas bolas. Na segunda parte vou simplificar.";
+            if (player.IsCaptain)
+                return BroadcastUi.ShortName(player.FullName) + ": Ainda há 45 minutos. Vamos fechar as linhas e jogar juntos.";
+            if (ours < theirs && player.Personality == PersonalityTrait.Leader)
+                return BroadcastUi.ShortName(player.FullName) + ": O resultado ainda dá para virar. Sem entrar em pânico.";
+            if (player.Morale < 40)
+                return BroadcastUi.ShortName(player.FullName) + ": Preciso de uma palavra tua antes de voltarmos.";
+            return slot % 2 == 0
+                ? BroadcastUi.ShortName(player.FullName) + ": Se aparecer espaço nas costas, metemos a bola lá."
+                : BroadcastUi.ShortName(player.FullName) + ": Vamos escolher melhor o momento para acelerar.";
         }
 
         Player[] LockerVoices(List<string> field)
@@ -1436,16 +1627,20 @@ namespace CoachMaster.UI.Scenes
         {
             var who = BroadcastUi.ShortName(player.FullName);
             var idea = new HalfIdea { PlayerId = player.Id, Preset = -1 };
+            var english = LocalizationManager.Current == GameLanguage.English;
             if (slot == 0)
             {
-                idea.Speech = ours < theirs
-                    ? who + ": Deixem-me entre linhas. Quando a bola chegar, eu remato."
-                    : who + ": Eu fico na área. Se me acharem de frente, eu finalizo.";
-                idea.Done = who + " pede a bola para finalizar. A segunda parte vai procurar o remate.";
+                idea.Speech = english
+                    ? (ours < theirs ? who + ": Find me between the lines. When it comes, I’ll shoot." : who + ": I’ll stay in the box. Find me facing goal and I’ll finish.")
+                    : ours < theirs
+                        ? who + ": Deixem-me entre linhas. Quando a bola chegar, eu remato."
+                        : who + ": Eu fico na área. Se me acharem de frente, eu finalizo.";
+                idea.Done = english
+                    ? who + " wants the ball in a shooting position. We’ll look for the finish in the second half."
+                    : who + " pede a bola para finalizar. A segunda parte vai procurar o remate.";
                 idea.Duty = player.Position == PlayerPosition.LeftWinger || player.Position == PlayerPosition.RightWinger
                     ? "Cortar para dentro ofensivo"
                     : "Ficar na área";
-                idea.Attack = 0.05f;
                 return idea;
             }
 
@@ -1453,17 +1648,19 @@ namespace CoachMaster.UI.Scenes
             {
                 if (ours <= theirs)
                 {
-                    idea.Speech = who + ": Subimos o bloco. Não deixo o médio deles pensar.";
-                    idea.Done = who + " puxa a linha para cima e aumenta a pressão.";
+                    idea.Speech = english ? who + ": Let’s push the line up. I won’t give their midfielder time to think."
+                        : who + ": Subimos o bloco. Não deixo o médio deles pensar.";
+                    idea.Done = english ? who + " wants the team to push up and press higher."
+                        : who + " puxa a linha para cima e aumenta a pressão.";
                     idea.Preset = 2;
-                    idea.Attack = 0.04f;
                 }
                 else
                 {
-                    idea.Speech = who + ": Fechamos o meio e só saímos quando houver espaço.";
-                    idea.Done = who + " pede o bloco mais baixo e saída em contra-ataque.";
+                    idea.Speech = english ? who + ": Close the middle and break only when there’s space."
+                        : who + ": Fechamos o meio e só saímos quando houver espaço.";
+                    idea.Done = english ? who + " wants a deeper block and counter-attacks."
+                        : who + " pede o bloco mais baixo e saída em contra-ataque.";
                     idea.Preset = 3;
-                    idea.Defense = 0.05f;
                 }
 
                 return idea;
@@ -1471,22 +1668,25 @@ namespace CoachMaster.UI.Scenes
 
             if (player.Position == PlayerPosition.LeftWinger || player.Position == PlayerPosition.RightWinger)
             {
-                idea.Speech = who + ": Eu corto para dentro equilibrado e só apareço se estiver desmarcado.";
+                idea.Speech = english ? who + ": I’ll cut inside and only make the run when I’m free."
+                    : who + ": Eu corto para dentro equilibrado e só apareço se estiver desmarcado.";
                 idea.Duty = "Cortar para dentro equilibrado";
             }
             else if (player.Position == PlayerPosition.LeftBack || player.Position == PlayerPosition.RightBack)
             {
-                idea.Speech = who + ": Eu fico defensivo e só subo quando a ala estiver livre.";
+                idea.Speech = english ? who + ": I’ll stay back and only move forward when the flank is open."
+                    : who + ": Eu fico defensivo e só subo quando a ala estiver livre.";
                 idea.Duty = "Defensivo";
             }
             else
             {
-                idea.Speech = who + ": Eu faço só a desmarcação curta, para receber de frente.";
+                idea.Speech = english ? who + ": I’ll make shorter runs so I can receive facing forward."
+                    : who + ": Eu faço só a desmarcação curta, para receber de frente.";
                 idea.Duty = "Só desmarcação";
             }
 
-            idea.Done = who + " muda a função: " + idea.Duty + ".";
-            idea.Attack = 0.02f;
+            idea.Done = english ? who + " changes role: " + LocalizationManager.Translate(idea.Duty) + "."
+                : who + " muda a função: " + idea.Duty + ".";
             return idea;
         }
 
@@ -1494,7 +1694,7 @@ namespace CoachMaster.UI.Scenes
         {
             if (_halfIdeas == null || index < 0 || index >= _halfIdeas.Length)
             {
-                Talk("A segunda parte começa.");
+                Talk("calm");
                 return;
             }
 
@@ -1512,9 +1712,194 @@ namespace CoachMaster.UI.Scenes
                     player.Duty = idea.Duty;
             }
 
-            _match.AttackBoost += idea.Attack;
-            _match.DefenseBoost += idea.Defense;
-            Talk(idea.Done);
+            if (!_match.TeamTalkApplied)
+                Talk("tactical", idea.Done);
+            else if (_managerSpeech != null)
+                _managerSpeech.text = ManagerSpeech("tactical", idea.Done);
+        }
+
+        void ChooseTeamTalk(int index)
+        {
+            var approaches = new[] { "motivational", "demanding", "calm", "angry", "tactical" };
+            if (index < 0 || index >= approaches.Length)
+                return;
+            var detail = ManagerSpeech(approaches[index]);
+            if (approaches[index] == "tactical")
+                detail = ApplyHalfTimeTacticalAdjustment() + "\n" + detail;
+            Talk(approaches[index], detail);
+        }
+
+        string ManagerSpeech(string approach, string extra = null)
+        {
+            var home = UserHome();
+            var ours = home ? _match.HomeGoals : _match.AwayGoals;
+            var theirs = home ? _match.AwayGoals : _match.HomeGoals;
+            var ourShots = home ? _match.HomeShots : _match.AwayShots;
+            var theirShots = home ? _match.AwayShots : _match.HomeShots;
+            var ourChances = home ? _match.HomeChances : _match.AwayChances;
+            var theirChances = home ? _match.AwayChances : _match.HomeChances;
+            var totalPossession = _match.HomePossession + _match.AwayPossession;
+            var ourPossession = home ? _match.HomePossession : _match.AwayPossession;
+            var possession = totalPossession > 0.01f ? Mathf.RoundToInt(ourPossession / totalPossession * 100f) : 50;
+            var tired = 0;
+            var poor = 0;
+            var lowMorale = 0;
+            var leaders = 0;
+            var sensitive = 0;
+            var field = home ? _match.HomeOnField : _match.AwayOnField;
+            for (var i = 0; i < field.Count; i++)
+            {
+                var player = PlayerOf(field[i]);
+                if (player == null) continue;
+                if (player.Fatigue >= 78) tired++;
+                if (_match.RatingOf(player.Id) < 6f) poor++;
+                if (player.Morale < 42) lowMorale++;
+                if (player.Personality == PersonalityTrait.Leader) leaders++;
+                if (player.Personality == PersonalityTrait.Insecure || player.Personality == PersonalityTrait.Temperamental) sensitive++;
+            }
+
+            if (LocalizationManager.Current == GameLanguage.English)
+                return ManagerSpeechEnglish(approach, extra, ours, theirs, ourShots, theirShots, ourChances, theirChances,
+                    possession, tired, poor, lowMorale, leaders, sensitive);
+
+            string situation = ours < theirs
+                ? "Estamos a perder " + ours + "–" + theirs + "."
+                : ours > theirs ? "Estamos na frente " + ours + "–" + theirs + "."
+                : "Está empatado " + ours + "–" + theirs + ".";
+            var evidence = ourShots > theirShots
+                ? "Já criámos " + ourShots + " remates e temos de escolher melhor a finalização."
+                : ourShots < theirShots ? "Eles remataram mais (" + theirShots + "–" + ourShots + "); precisamos de defender melhor a entrada da área."
+                : "Os remates estão equilibrados (" + ourShots + "–" + theirShots + ").";
+            if (ourChances < theirChances)
+                evidence += " Eles também acertaram mais vezes na baliza.";
+            else if (ourChances > theirChances)
+                evidence += " Estamos a acertar na baliza, continuem a procurar esse espaço.";
+            evidence += " Temos " + possession + "% de posse.";
+
+            string speech;
+            switch (approach)
+            {
+                case "motivational":
+                    speech = situation + " " + (ours < theirs && ourShots > 0
+                        ? "As oportunidades apareceram; mantenham a coragem e tratem melhor o último toque."
+                        : "Confiem no que estamos a fazer e ajudem o colega ao lado.");
+                    break;
+                case "demanding":
+                    speech = situation + " " + (poor > 2
+                        ? "Quero mais concentração e responsabilidade nas próximas decisões."
+                        : "A intensidade está lá; agora executem cada lance com rigor.");
+                    break;
+                case "angry":
+                    speech = situation + " " + (theirChances > ourChances
+                        ? "Estamos a deixar demasiados remates limpos. Fechem a zona central e falem uns com os outros."
+                        : "Não ofereçam mais bolas fáceis. Quero reação imediata depois de cada perda.");
+                    break;
+                case "tactical":
+                    speech = situation + " " + evidence;
+                    break;
+                default:
+                    speech = situation + " " + (ours < theirs
+                        ? "Respirem. Não precisamos de resolver tudo num só lance; vamos construir com cabeça."
+                        : "Mantenham a calma e a distância entre setores. O jogo ainda pede boas decisões.");
+                    break;
+            }
+            if (tired >= 3)
+                speech += " Vejo várias pernas pesadas; gerimos melhor as corridas e as substituições.";
+            if (lowMorale >= 2)
+                speech += " Alguns estão com a confiança em baixo; falem uns com os outros e apoiem o colega.";
+            if (leaders > 0 && ours < theirs)
+                speech += " Os líderes do grupo têm de puxar pela equipa agora.";
+            if (sensitive > 0 && approach == "angry")
+                speech += " Sei que alguns sentem mais a crítica; quero uma resposta com trabalho, não com receio.";
+            if (!string.IsNullOrEmpty(extra))
+                speech += " " + extra;
+            return speech;
+        }
+
+        string ManagerSpeechEnglish(string approach, string extra, int ours, int theirs, int ourShots, int theirShots,
+            int ourChances, int theirChances, int possession, int tired, int poor, int lowMorale, int leaders, int sensitive)
+        {
+            var situation = ours < theirs ? "We’re behind " + ours + "–" + theirs + "."
+                : ours > theirs ? "We’re ahead " + ours + "–" + theirs + "."
+                : "It’s level at " + ours + "–" + theirs + ".";
+            var evidence = ourShots > theirShots
+                ? "We’ve created " + ourShots + " shots; now we need to choose our finishes better."
+                : ourShots < theirShots ? "They’ve had more shots (" + theirShots + "–" + ourShots + "); defend the edge of the box better."
+                : "The shot count is even (" + ourShots + "–" + theirShots + ").";
+            if (ourChances < theirChances) evidence += " They’ve hit the target more often.";
+            else if (ourChances > theirChances) evidence += " We’re hitting the target; keep finding that space.";
+            evidence += " We have " + possession + "% possession.";
+
+            string speech;
+            switch (approach)
+            {
+                case "motivational":
+                    speech = situation + " " + (ours < theirs && ourShots > 0
+                        ? "We’ve made chances; stay brave and take more care with the final touch."
+                        : "Trust what we’re doing and support the teammate beside you.");
+                    break;
+                case "demanding":
+                    speech = situation + " " + (poor > 2
+                        ? "I want more focus and responsibility in your next decisions."
+                        : "The intensity is there. Now execute every moment with discipline.");
+                    break;
+                case "angry":
+                    speech = situation + " " + (theirChances > ourChances
+                        ? "We’re allowing too many clear shots. Close the middle and communicate."
+                        : "Stop giving the ball away cheaply. React immediately when we lose it.");
+                    break;
+                case "tactical":
+                    speech = situation + " " + evidence;
+                    break;
+                default:
+                    speech = situation + " " + (ours < theirs
+                        ? "Take a breath. We don’t need to solve everything in one move; build with patience."
+                        : "Stay calm and keep the distance between the lines. Good decisions still matter.");
+                    break;
+            }
+            if (tired >= 3) speech += " Several players look tired; manage the runs and substitutions.";
+            if (lowMorale >= 2) speech += " A few of you look low on confidence; talk to each other and back your teammates.";
+            if (leaders > 0 && ours < theirs) speech += " I need the leaders in this group to lift the team now.";
+            if (sensitive > 0 && approach == "angry") speech += " I know some of you take criticism harder; respond with effort, not fear.";
+            if (!string.IsNullOrEmpty(extra)) speech += " " + extra;
+            return speech;
+        }
+
+        string ApplyHalfTimeTacticalAdjustment()
+        {
+            var home = UserHome();
+            var tactics = UserTactics();
+            var ours = home ? _match.HomeGoals : _match.AwayGoals;
+            var theirs = home ? _match.AwayGoals : _match.HomeGoals;
+            var ourShots = home ? _match.HomeShots : _match.AwayShots;
+            var theirShots = home ? _match.AwayShots : _match.HomeShots;
+            var ourPossession = home ? _match.HomePossession : _match.AwayPossession;
+            var theirPossession = home ? _match.AwayPossession : _match.HomePossession;
+            if (ours < theirs && ourShots < theirShots)
+            {
+                TacticPresets.Apply(tactics, 2);
+                return LocalizationManager.Current == GameLanguage.English
+                    ? "You’ve set the team to press higher and win the ball further from your goal."
+                    : "Ajustas para pressionar mais alto e recuperar a bola longe da tua baliza.";
+            }
+            if (ours > theirs && theirPossession > ourPossession)
+            {
+                TacticPresets.Apply(tactics, 3);
+                return LocalizationManager.Current == GameLanguage.English
+                    ? "You’ve dropped the defensive block and switched to counter-attacks."
+                    : "Ajustas para baixar o bloco e sair em contra-ataque.";
+            }
+            if (ourPossession > theirPossession && ourShots <= theirShots)
+            {
+                TacticPresets.Apply(tactics, 1);
+                return LocalizationManager.Current == GameLanguage.English
+                    ? "You’ve increased the width to create crossing options and reach the box."
+                    : "Ajustas a largura para dar mais opções de cruzamento e chegar à área.";
+            }
+            TacticPresets.Apply(tactics, 4);
+            return LocalizationManager.Current == GameLanguage.English
+                ? "You’ve asked the team to keep the ball and wait for a clearer opening."
+                : "Ajustas para manter a bola e esperar por uma oportunidade mais clara.";
         }
 
         static Image FaceImage(Player player)
@@ -1529,18 +1914,29 @@ namespace CoachMaster.UI.Scenes
 
         void LeaveToAssistant()
         {
-            if (_halfIdeas == null || _halfIdeas.Length == 0)
+            var home = UserHome();
+            var ours = home ? _match.HomeGoals : _match.AwayGoals;
+            var theirs = home ? _match.AwayGoals : _match.HomeGoals;
+            var ourShots = home ? _match.HomeShots : _match.AwayShots;
+            var theirShots = home ? _match.AwayShots : _match.HomeShots;
+            if (ours < theirs && ourShots < theirShots)
             {
-                Talk("O adjunto mantém o plano.");
-                return;
+                TacticPresets.Apply(UserTactics(), 2);
+                Talk("demanding", (LocalizationManager.Current == GameLanguage.English
+                    ? "The assistant wants more pressure after a quiet first half. "
+                    : "O adjunto pede mais pressão depois de uma primeira parte em que criámos pouco. ") + ManagerSpeech("demanding"));
             }
-
-            var pick = Mathf.Abs(_match.HomeGoals + _match.AwayGoals + (int)_match.Minute) % _halfIdeas.Length;
-            var idea = _halfIdeas[pick];
-            var player = PlayerOf(idea.PlayerId);
-            var name = player == null ? "um jogador" : BroadcastUi.ShortName(player.FullName);
-            idea.Done = "O adjunto fica com a ideia de " + name + ". " + idea.Done;
-            ApplyIdea(idea);
+            else if (ours > theirs && theirShots > ourShots)
+            {
+                TacticPresets.Apply(UserTactics(), 3);
+                Talk("tactical", (LocalizationManager.Current == GameLanguage.English
+                    ? "The assistant recommends protecting the lead and counter-attacking. "
+                    : "O adjunto recomenda proteger a vantagem e sair em contra-ataque. ") + ManagerSpeech("tactical"));
+            }
+            else
+                Talk("motivational", (LocalizationManager.Current == GameLanguage.English
+                    ? "The assistant asks the squad to stay confident and united. "
+                    : "O adjunto pede confiança e união para a segunda parte. ") + ManagerSpeech("motivational"));
         }
 
         void BuildFull(Transform root)
@@ -1723,6 +2119,10 @@ namespace CoachMaster.UI.Scenes
             drag.Player = player;
             drag.Bench = bench;
             drag.FieldIndex = index;
+            var injured = player.Injury != null && player.Injury.IsInjured;
+            var sentOff = _match.SentOffPlayers.Contains(player.Id);
+            if ((bench && injured) || sentOff)
+                drag.enabled = false;
             var shirt = BroadcastUi.Parse(club.JerseyPrimaryHex, UiTheme.Accent);
             var number = BroadcastUi.Label(card.transform, "No", player.SquadNumber.ToString(), 64, new Color(shirt.r, shirt.g, shirt.b, 0.22f), TextAnchor.MiddleCenter, FontStyle.Bold);
             number.resizeTextForBestFit = true;
@@ -1742,6 +2142,16 @@ namespace CoachMaster.UI.Scenes
             BroadcastUi.Place(meta.rectTransform, 0.04f, 0.14f, 0.96f, 0.3f);
             var form = BroadcastUi.Label(card.transform, "Form", "OVR " + PlayerAttributes.Overall(player) + "   Cans. " + player.Fatigue, 11, UiTheme.Accent, TextAnchor.MiddleCenter, FontStyle.Bold);
             BroadcastUi.Place(form.rectTransform, 0.02f, 0.01f, 0.98f, 0.16f);
+            if (injured)
+            {
+                var cross = BroadcastUi.Label(card.transform, "Injury", "+ LESIONADO", 14, new Color(1f, 0.18f, 0.2f), TextAnchor.MiddleCenter, FontStyle.Bold);
+                BroadcastUi.Place(cross.rectTransform, 0.06f, 0.77f, 0.94f, 0.98f);
+            }
+            if (sentOff)
+            {
+                var red = BroadcastUi.Label(card.transform, "SentOff", "EXPULSO", 14, new Color(1f, 0.18f, 0.2f), TextAnchor.MiddleCenter, FontStyle.Bold);
+                BroadcastUi.Place(red.rectTransform, 0.06f, 0.77f, 0.94f, 0.98f);
+            }
             return card.rectTransform;
         }
 
@@ -1749,11 +2159,21 @@ namespace CoachMaster.UI.Scenes
         {
             if (incoming == null)
                 return;
+            if (incoming.Injury != null && incoming.Injury.IsInjured)
+            {
+                _match.LastEvent = incoming.FullName + " está lesionado e não pode entrar.";
+                return;
+            }
             var home = UserHome();
             var field = home ? _match.HomeOnField : _match.AwayOnField;
             var bench = home ? _match.HomeBench : _match.AwayBench;
             if (fieldIndex < 0 || fieldIndex >= field.Count)
                 return;
+            if (_match.SentOffPlayers.Contains(field[fieldIndex]))
+            {
+                _match.LastEvent = "O jogador expulso não pode ser substituído.";
+                return;
+            }
             if (fromField >= 0)
             {
                 if (fromField >= field.Count || fromField == fieldIndex)
@@ -1833,9 +2253,25 @@ namespace CoachMaster.UI.Scenes
             RefreshPlan();
         }
 
-        void Talk(string line)
+        void Talk(string approach, string detail = null)
         {
-            _engine.ApplyTeamTalk(line);
+            var trust = _career == null ? null : _career.ManagerTrust;
+            if (!_engine.ApplyTeamTalk(approach, UserHome(), trust, detail))
+                return;
+            if (_managerSpeech != null)
+                _managerSpeech.text = string.IsNullOrEmpty(detail) ? ManagerSpeech(approach) : detail;
+            if (_teamTalkButtons != null)
+                for (var i = 0; i < _teamTalkButtons.Length; i++)
+                    if (_teamTalkButtons[i] != null)
+                        _teamTalkButtons[i].interactable = false;
+            if (_continueSecondHalf != null)
+                _continueSecondHalf.gameObject.SetActive(true);
+        }
+
+        void ContinueSecondHalf()
+        {
+            if (_match == null || !_match.TeamTalkApplied || _match.Phase != MatchPhase.HalfTime)
+                return;
             _halfTime.SetActive(false);
             _engine.StartSecondHalf();
             _paused = false;
@@ -1972,7 +2408,7 @@ namespace CoachMaster.UI.Scenes
             {
                 _eventFace.rectTransform.anchorMin = _eventFace.rectTransform.anchorMax = new Vector2(0.13f, 0.5f);
                 _eventFace.rectTransform.anchoredPosition = Vector2.zero;
-                var faceSize = compact ? 76f : 106f;
+                var faceSize = compact ? 92f : 122f;
                 _eventFace.rectTransform.sizeDelta = new Vector2(hasPlayer ? faceSize : 0f, hasPlayer ? faceSize : 0f);
             }
             if (_eventWho != null)
@@ -2003,6 +2439,7 @@ namespace CoachMaster.UI.Scenes
                     Move(_homeTokens[i], ToPitch(slot), _match.HomeHasBall && i == _match.BallHolder, Jumping(true, i));
                     _homeTokens[i].Number.text = Shirt(_match.HomeOnField, i);
                     _homeTokens[i].Rect.GetComponent<Image>().color = _homeColor;
+                    _homeTokens[i].Injury.gameObject.SetActive(Injured(_match.HomeOnField[i]));
                     Dive(_homeTokens[i], _engine.KeeperDive(true), i == 0);
                 }
 
@@ -2012,6 +2449,7 @@ namespace CoachMaster.UI.Scenes
                     Move(_awayTokens[i], ToPitch(slot), !_match.HomeHasBall && i == _match.BallHolder, Jumping(false, i));
                     _awayTokens[i].Number.text = Shirt(_match.AwayOnField, i);
                     _awayTokens[i].Rect.GetComponent<Image>().color = _awayColor;
+                    _awayTokens[i].Injury.gameObject.SetActive(Injured(_match.AwayOnField[i]));
                     Dive(_awayTokens[i], _engine.KeeperDive(false), i == 0);
                 }
             }
@@ -2067,9 +2505,14 @@ namespace CoachMaster.UI.Scenes
             {
                 var token = TokenAt(i);
                 _tokenOffsets[i] = Vector2.zero;
-                _tokenPoints[i] = token == null || token.Rect == null || !token.Rect.gameObject.activeInHierarchy
-                    ? Vector2.zero
-                    : Vector2.Scale(token.Rect.anchorMin, pitchSize) + token.Rect.anchoredPosition;
+                var active = token != null && token.Rect != null && token.Rect.gameObject.activeInHierarchy;
+                if (!active)
+                {
+                    _tokenPoints[i] = Vector2.zero;
+                    _tokenRenderOffsets[i] = Vector2.zero;
+                    continue;
+                }
+                _tokenPoints[i] = Vector2.Scale(token.Rect.anchorMin, pitchSize) + token.Rect.anchoredPosition;
             }
 
             for (var pass = 0; pass < 5; pass++)
@@ -2108,7 +2551,13 @@ namespace CoachMaster.UI.Scenes
                 var token = TokenAt(i);
                 if (token == null || token.Rect == null || !token.Rect.gameObject.activeInHierarchy)
                     continue;
-                token.Rect.anchoredPosition += Vector2.ClampMagnitude(_tokenOffsets[i], 28f);
+                var targetOffset = Vector2.ClampMagnitude(_tokenOffsets[i], 28f);
+                if (_snap)
+                    _tokenRenderOffsets[i] = targetOffset;
+                else
+                    _tokenRenderOffsets[i] = Vector2.Lerp(_tokenRenderOffsets[i], targetOffset,
+                        1f - Mathf.Exp(-12f * Time.unscaledDeltaTime));
+                token.Rect.anchoredPosition += _tokenRenderOffsets[i];
             }
         }
 
@@ -2129,6 +2578,8 @@ namespace CoachMaster.UI.Scenes
         {
             var current = token.Rect.anchorMin;
             var rate = _engine != null && _engine.DeadBall ? 5f : 6f;
+            if (_engine != null)
+                rate *= Mathf.Clamp(_engine.MovementSpeedScale, 0.5f, 4f);
             var next = _snap ? anchor : Vector2.Lerp(current, anchor, 1f - Mathf.Exp(-Time.deltaTime * rate));
             token.Rect.anchorMin = next;
             token.Rect.anchorMax = next;
@@ -2175,6 +2626,10 @@ namespace CoachMaster.UI.Scenes
                     name += "  C";
                 col.Numbers[i].text = number;
                 col.Names[i].text = name;
+                var injured = player != null && player.Injury != null && player.Injury.IsInjured;
+                col.Marks[i].text = injured ? "+" : "";
+                col.Marks[i].color = new Color(0.95f, 0.12f, 0.16f);
+                col.Marks[i].gameObject.SetActive(injured);
                 var booking = 0;
                 if (player != null)
                     _match.Bookings.TryGetValue(player.Id, out booking);
@@ -2309,19 +2764,28 @@ namespace CoachMaster.UI.Scenes
         void RefreshPlan()
         {
             var side = UserHome();
+            var english = LocalizationManager.Current == GameLanguage.English;
             var off = NameAt(side ? _match.HomeOnField : _match.AwayOnField, _subOff);
             var bench = side ? _match.HomeBench : _match.AwayBench;
             var on = bench.Count == 0 ? "—" : NameAt(bench, _subOn % bench.Count);
             var tactics = UserTactics();
-            var body =
-                "Plano  " + TacticPresets.Active(tactics) + "\n" +
-                "Formação  " + tactics.Formation + "\n\n" +
-                tactics.Pressing + "\n" +
-                tactics.BuildUp + "\n" +
-                tactics.DefensiveLine + "\n\n" +
-                "Substituições restantes: " + (side ? _match.HomeSubsLeft : _match.AwaySubsLeft) + "\n" +
-                "Próxima troca: sai " + off + ", entra " + on + "\n\n" +
-                "Adversário  " + (side ? _match.Away.ShortName : _match.Home.ShortName) + "  ·  " + (side ? _match.AwayTactics.Formation : _match.HomeTactics.Formation);
+            var body = english
+                ? "Plan  " + LocalizationManager.Translate(TacticPresets.Active(tactics)) + "\n" +
+                    "Formation  " + tactics.Formation + "\n\n" +
+                    LocalizationManager.Translate(tactics.Pressing) + "\n" +
+                    LocalizationManager.Translate(tactics.BuildUp) + "\n" +
+                    LocalizationManager.Translate(tactics.DefensiveLine) + "\n\n" +
+                    "Substitutions remaining: " + (side ? _match.HomeSubsLeft : _match.AwaySubsLeft) + "\n" +
+                    "Next change: " + off + " off, " + on + " on\n\n" +
+                    "Opponent  " + (side ? _match.Away.ShortName : _match.Home.ShortName) + "  ·  " + (side ? _match.AwayTactics.Formation : _match.HomeTactics.Formation)
+                : "Plano  " + TacticPresets.Active(tactics) + "\n" +
+                    "Formação  " + tactics.Formation + "\n\n" +
+                    tactics.Pressing + "\n" +
+                    tactics.BuildUp + "\n" +
+                    tactics.DefensiveLine + "\n\n" +
+                    "Substituições restantes: " + (side ? _match.HomeSubsLeft : _match.AwaySubsLeft) + "\n" +
+                    "Próxima troca: sai " + off + ", entra " + on + "\n\n" +
+                    "Adversário  " + (side ? _match.Away.ShortName : _match.Home.ShortName) + "  ·  " + (side ? _match.AwayTactics.Formation : _match.HomeTactics.Formation);
             if (_pauseBody != null)
                 _pauseBody.text = body;
         }
@@ -2331,6 +2795,12 @@ namespace CoachMaster.UI.Scenes
             var label = button.GetComponentInChildren<Text>();
             label.color = on ? Color.white : UiTheme.Muted;
             label.fontStyle = on ? FontStyle.Bold : FontStyle.Normal;
+        }
+
+        bool Injured(string id)
+        {
+            return !string.IsNullOrEmpty(id) && _match.People.TryGetValue(id, out var player)
+                && player != null && player.Injury != null && player.Injury.IsInjured;
         }
 
         static int Stat(Dictionary<string, int> map, string id)
@@ -2417,14 +2887,13 @@ namespace CoachMaster.UI.Scenes
             public int Preset = -1;
             public string Duty;
             public string PlayerId;
-            public float Attack;
-            public float Defense;
         }
 
         sealed class Token
         {
             public RectTransform Rect;
             public Text Number;
+            public Text Injury;
         }
 
         sealed class SideColumn

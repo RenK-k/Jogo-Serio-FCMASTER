@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using CoachMaster.Career;
 using CoachMaster.Domain;
 using CoachMaster.Presentation;
+using CoachMaster.UI;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
@@ -14,6 +15,8 @@ namespace CoachMaster.UI.Screens
         {
             var career = router.Session.Career;
             var club = career.Club;
+            var dateText = LocalizationManager.FormatDate(career.Calendar.CurrentDate, "dddd, d 'de' MMMM");
+            var managerTitle = LocalizationManager.Translate("Mister");
             UiFactory.FullScreen(Root.transform, "Background", UiTheme.Canvas);
 
             var page = UiFactory.Column(Root.transform, "CareerPage", 0, new RectOffset(44, 44, 30, 30), true, true);
@@ -38,7 +41,7 @@ namespace CoachMaster.UI.Screens
             var clubName = UiFactory.Label(headerColumn.transform, "ClubName", club.Name.ToUpperInvariant(), 28, UiTheme.Text, TextAnchor.MiddleLeft, FontStyle.Bold);
             UiFactory.LayoutElement(clubName, 34);
             var details = UiFactory.Label(headerColumn.transform, "CareerDetails",
-                $"{career.Calendar.LongDateText}     ·     {career.League.Name} {career.Calendar.SeasonLabel}     ·     Mister {career.Coach.Name}",
+                $"{dateText}     ·     {career.League.Name} {career.Calendar.SeasonLabel}     ·     {managerTitle} {career.Coach.Name}",
                 16, UiTheme.Muted, TextAnchor.MiddleLeft);
             UiFactory.LayoutElement(details, 24);
 
@@ -77,6 +80,7 @@ namespace CoachMaster.UI.Screens
 
         static RectTransform BuildHome(Transform parent, CareerState career, Club club)
         {
+            var dateText = LocalizationManager.FormatDate(career.Calendar.CurrentDate, "dddd, d 'de' MMMM");
             var panel = UiFactory.Panel(parent, "HomePage", UiTheme.Panel);
             UiFactory.Stretch(panel);
             AddGoldFrame(panel);
@@ -90,7 +94,10 @@ namespace CoachMaster.UI.Screens
             scrollLe.flexibleHeight = 1;
             scrollLe.minHeight = 180;
             AddInfoCard(content, "O clube", $"{club.PublicTeamState}\nIdentidade atual: {club.Tactics.Formation} · {club.Tactics.Summary}", 100);
-            AddInfoCard(content, "Calendário", $"{career.Calendar.LongDateText}\nÉ o primeiro dia da tua carreira. Ainda não existem jogos registados no calendário.", 92);
+            var openingDay = LocalizationManager.Current == GameLanguage.English
+                ? "This is the first day of your career. No matches have been added to the calendar yet."
+                : "É o primeiro dia da tua carreira. Ainda não existem jogos registados no calendário.";
+            AddInfoCard(content, "Calendário", $"{dateText}\n{openingDay}", 92);
             var staffHeading = UiFactory.Label(content, "StaffHeading", "O que diz o staff", 21, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
             UiFactory.LayoutElement(staffHeading, 32);
             foreach (var member in club.Staff)
@@ -100,6 +107,7 @@ namespace CoachMaster.UI.Screens
 
         static RectTransform BuildNews(Transform parent, CareerState career, Club club)
         {
+            var dateText = LocalizationManager.FormatDate(career.Calendar.CurrentDate, "dddd, d 'de' MMMM");
             var panel = UiFactory.Panel(parent, "NewsPage", UiTheme.Panel);
             UiFactory.Stretch(panel);
             AddGoldFrame(panel);
@@ -112,7 +120,9 @@ namespace CoachMaster.UI.Screens
             scrollLe.minHeight = 180;
 
             AddInfoCard(content, "Novo treinador assume o cargo",
-                $"{career.Calendar.LongDateText}: {career.Coach.Name} inicia o trabalho no {club.Name}. O primeiro dia é dedicado a conhecer o clube e o plantel.",
+                LocalizationManager.Current == GameLanguage.English
+                    ? $"{dateText}: {career.Coach.Name} starts work at {club.Name}. The first day is for getting to know the club and the squad."
+                    : $"{dateText}: {career.Coach.Name} inicia o trabalho no {club.Name}. O primeiro dia é dedicado a conhecer o clube e o plantel.",
                 92);
             AddInfoCard(content, "O desafio da época",
                 $"{club.Name} compete na {career.League.Name}. {club.PublicReputation}",

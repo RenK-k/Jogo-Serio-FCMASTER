@@ -72,6 +72,7 @@ namespace CoachMaster.App
             FitCanvases();
             ControlChrome.DisableAutomaticNavigation();
             ControlChrome.ResetForScene();
+            LocalizationManager.ApplyScene();
         }
 
         public static void ApplyUiScale()

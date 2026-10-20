@@ -3,6 +3,7 @@ using CoachMaster.App;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 namespace CoachMaster.UI
@@ -100,9 +101,9 @@ namespace CoachMaster.UI
             }
 
             if (_hint != null)
-                _hint.text = UsingKeyboard
-                    ? "RATO / ↑ ↓  NAVEGAR     ENTER  ESCOLHER     ESC  VOLTAR     1–3  RESPONDER"
-                    : "D-PAD / ANALÓGICO ESQUERDO  NAVEGAR     A  ESCOLHER     B  VOLTAR";
+            {
+                _hint.text = LocalizationManager.Translate("M · DEFINIÇÕES");
+            }
 
             if (Typing())
                 return;

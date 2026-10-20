@@ -44,5 +44,20 @@ namespace CoachMaster.Presentation
                 default: return "Direito";
             }
         }
+
+        public static string Personality(PersonalityTrait personality)
+        {
+            switch (personality)
+            {
+                case PersonalityTrait.Reserved: return "Reservado";
+                case PersonalityTrait.Outspoken: return "Franco";
+                case PersonalityTrait.Leader: return "Líder";
+                case PersonalityTrait.Temperamental: return "Temperamental";
+                case PersonalityTrait.Professional: return "Profissional";
+                case PersonalityTrait.Insecure: return "Inseguro";
+                case PersonalityTrait.Ambitious: return "Ambicioso";
+                default: return "Equilibrado";
+            }
+        }
     }
 }

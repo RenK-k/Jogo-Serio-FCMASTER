@@ -11,6 +11,7 @@ namespace CoachMaster.UI.Scenes
     {
         void Start()
         {
+            LocalizationManager.ApplyScene();
             var session = GameRoot.Require().Session;
             if (string.IsNullOrEmpty(session.Draft.ClubId) || !session.Catalog.Clubs.ContainsKey(session.Draft.ClubId))
             {
@@ -136,7 +137,7 @@ namespace CoachMaster.UI.Scenes
                     confirm.onClick.Invoke();
             });
 
-            var hint = BroadcastUi.Label(root, "ControlHint", "Enter  começar     Esc  voltar", 15, UiTheme.Muted, TextAnchor.MiddleLeft);
+            var hint = BroadcastUi.Label(root, "ControlHint", LocalizationManager.Translate("M · DEFINIÇÕES"), 15, UiTheme.Muted, TextAnchor.MiddleLeft);
             BroadcastUi.Place(hint.rectTransform, 0.06f, 0.008f, 0.6f, 0.05f);
         }
     }

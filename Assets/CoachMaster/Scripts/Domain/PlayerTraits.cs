@@ -17,6 +17,7 @@ namespace CoachMaster.Domain
         {
             if (player == null || player.Age > 23 || player.Traits == null || player.Traits.Count >= 4)
                 return false;
+            Normalize(player);
             var gap = player.Potential - PlayerAttributes.Overall(player);
             if (gap < 1)
                 return false;
@@ -247,7 +248,7 @@ namespace CoachMaster.Domain
                 Add(result, PlayerTrait.GuardaRedesSaiDaBaliza, 0.8 + mind * 0.09 + pace * 0.04);
                 Add(result, PlayerTrait.GuardaRedesSaiAosCruzamentos, 0.75 + (a == null ? 0 : a.Handling * 0.08) + mind * 0.04);
                 Add(result, PlayerTrait.GuardaRedesDefendeComOsPes, 0.6 + (a == null ? 0 : a.Reflexes * 0.07));
-                return result;
+                return FilterSupported(result, player);
             }
 
             Add(result, PlayerTrait.Rapido, (wide || attack ? 0.8 : 0.35) + pace * 0.085);
@@ -282,7 +283,99 @@ namespace CoachMaster.Domain
             Add(result, PlayerTrait.RematadorDeLonge, (middle ? 0.42 : attack ? 0.3 : 0.05) + finish * 0.035 + mind * 0.025);
             Add(result, PlayerTrait.CriadorDeJogo, (middle ? 0.75 : 0.2) + pass * 0.04 + mind * 0.045);
             Add(result, PlayerTrait.CarrinhoArriscado, (defender ? 0.55 : 0.12) + tackle * 0.04 + (player.Personality == PersonalityTrait.Temperamental ? 0.3 : 0));
-            return result;
+            return FilterSupported(result, player);
+        }
+
+        public static void Normalize(Player player)
+        {
+            if (player == null)
+                return;
+            if (player.Traits == null)
+                player.Traits = new List<PlayerTrait>();
+            for (var i = player.Traits.Count - 1; i >= 0; i--)
+            {
+                var trait = player.Traits[i];
+                var remove = !Supports(player, trait);
+                for (var j = 0; !remove && j < i; j++)
+                    remove = player.Traits[j] == trait || Conflicts(player.Traits[j], trait);
+                if (remove)
+                    player.Traits.RemoveAt(i);
+            }
+        }
+
+        static List<KeyValuePair<PlayerTrait, double>> FilterSupported(List<KeyValuePair<PlayerTrait, double>> candidates, Player player)
+        {
+            for (var i = candidates.Count - 1; i >= 0; i--)
+                if (!Supports(player, candidates[i].Key))
+                    candidates.RemoveAt(i);
+            return candidates;
+        }
+
+        static bool Supports(Player player, PlayerTrait trait)
+        {
+            var a = player.Attributes;
+            if (a == null)
+                return false;
+            var pace = a.Pace;
+            var finish = a.Finishing;
+            var dribble = a.Dribbling;
+            var pass = a.Passing;
+            var tackle = a.Tackling;
+            var cross = a.Crossing;
+            var cool = a.Composure;
+            var work = a.WorkRate;
+            var mind = a.Decisions;
+            var strength = a.Strength;
+            var position = a.Positioning;
+            var keeper = player.Position == PlayerPosition.Goalkeeper;
+            var attack = player.Position == PlayerPosition.Striker || player.Position == PlayerPosition.LeftWinger
+                || player.Position == PlayerPosition.RightWinger || player.Position == PlayerPosition.AttackingMidfielder;
+            var wide = player.Position == PlayerPosition.LeftWinger || player.Position == PlayerPosition.RightWinger
+                || player.Position == PlayerPosition.LeftBack || player.Position == PlayerPosition.RightBack;
+            var middle = player.Position == PlayerPosition.CentralMidfielder || player.Position == PlayerPosition.DefensiveMidfielder
+                || player.Position == PlayerPosition.AttackingMidfielder;
+            var defender = player.Position == PlayerPosition.CentreBack || player.Position == PlayerPosition.LeftBack
+                || player.Position == PlayerPosition.RightBack || player.Position == PlayerPosition.DefensiveMidfielder;
+            switch (trait)
+            {
+                case PlayerTrait.Rapido: return pace >= 15;
+                case PlayerTrait.Driblador: return dribble >= 15 && (wide || attack || middle);
+                case PlayerTrait.Visionario: return pass >= 15 && mind >= 14 && middle;
+                case PlayerTrait.DribladorTecnico: return dribble >= 15 && mind >= 12 && (wide || attack || middle);
+                case PlayerTrait.DribladorRapido: return pace >= 15 && dribble >= 14 && (wide || attack);
+                case PlayerTrait.PassadorLongo: return pass >= 15 && mind >= 13;
+                case PlayerTrait.CriadorDeJogo: return pass >= 14 && mind >= 14 && middle;
+                case PlayerTrait.RematadorDeLonge: return finish >= 14 && mind >= 12 && (middle || attack);
+                case PlayerTrait.RemateDeLonge: return finish >= 14 && (middle || attack);
+                case PlayerTrait.RemateEmJeito: return finish >= 14 && cool >= 12 && attack;
+                case PlayerTrait.RemateRasteiro: return finish >= 13 && attack;
+                case PlayerTrait.Finalizador: return finish >= 14 && position >= 13 && attack;
+                case PlayerTrait.Cabeceador: return strength >= 14 && position >= 13
+                    && (player.Position == PlayerPosition.Striker || player.Position == PlayerPosition.CentreBack || player.Position == PlayerPosition.DefensiveMidfielder);
+                case PlayerTrait.Cruzador: return cross >= 14 && wide;
+                case PlayerTrait.Marcador: return tackle >= 14 && defender;
+                case PlayerTrait.Trabalhador: return work >= 14;
+                case PlayerTrait.Frieza: return cool >= 15;
+                case PlayerTrait.ImuneAPressao: return cool >= 15 && mind >= 13;
+                case PlayerTrait.Potente: return strength >= 15 && finish >= 12;
+                case PlayerTrait.RemateDeTrivela: return finish >= 13 && dribble >= 13 && (wide || attack);
+                case PlayerTrait.LancamentoLongo: return strength >= 15 && (player.Position == PlayerPosition.LeftBack || player.Position == PlayerPosition.RightBack || player.Position == PlayerPosition.CentreBack);
+                case PlayerTrait.LivrePotente: return pass >= 14 && strength >= 13;
+                case PlayerTrait.Efeito: return pass >= 14 && cross >= 13;
+                case PlayerTrait.PasseDePrimeira: return pass >= 13 && mind >= 13 && middle;
+                case PlayerTrait.Flair: return dribble >= 14 && mind >= 12 && (wide || attack || middle);
+                case PlayerTrait.Chilenas: return finish >= 15 && position >= 14 && attack;
+                case PlayerTrait.CarrinhoArriscado: return tackle >= 14 && defender;
+                case PlayerTrait.GuardaRedesSaiDaBaliza: return keeper && mind >= 13 && pace >= 12;
+                case PlayerTrait.GuardaRedesSaiAosCruzamentos: return keeper && a.Handling >= 13 && mind >= 12;
+                case PlayerTrait.GuardaRedesDefendeComOsPes: return keeper && a.Reflexes >= 13;
+                case PlayerTrait.PropensoALesoes: return a.Stamina <= 9 || work >= 17;
+                case PlayerTrait.ResistenteALesoes: return strength >= 14 && a.Stamina >= 12;
+                case PlayerTrait.Lideranca: return player.IsCaptain || player.IsViceCaptain || player.Personality == PersonalityTrait.Leader || player.Age >= 28;
+                case PlayerTrait.HomemDeUmClube: return player.Age >= 27 || player.Personality == PersonalityTrait.Professional;
+                case PlayerTrait.JogadorDeEquipa: return player.Personality == PersonalityTrait.Professional || player.Personality == PersonalityTrait.Leader;
+                default: return true;
+            }
         }
 
         static double LeadershipWeight(Player player, int overall)

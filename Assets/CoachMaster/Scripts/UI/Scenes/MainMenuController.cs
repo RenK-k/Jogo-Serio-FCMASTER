@@ -15,10 +15,14 @@ namespace CoachMaster.UI.Scenes
             if (transform.Find("Design") != null)
             {
                 BindMenu(BroadcastUi.Mount(this));
+                LocalizationManager.ApplyScene();
+                LocalizationManager.ShowFirstRunPrompt(this);
                 return;
             }
 
             BuildMenu(BroadcastUi.Mount(this), GameRoot.Instance.Session);
+            LocalizationManager.ApplyScene();
+            LocalizationManager.ShowFirstRunPrompt(this);
         }
 
         public void BakeDesign(GameSession session)
@@ -28,6 +32,9 @@ namespace CoachMaster.UI.Scenes
 
         void BindMenu(Transform root)
         {
+            Hide(root.Find("Tag"));
+            Hide(root.Find("MenuCard/CardTitle"));
+            Hide(root.Find("MenuCard/CardBody"));
             var session = GameRoot.Instance.Session;
             SceneBind.Wire(root.Find("MenuCard/NovaCarreira"), OpenCareer);
             SceneBind.Wire(root.Find("MenuCard/Definicoes"), OpenSettings);
@@ -54,6 +61,12 @@ namespace CoachMaster.UI.Scenes
                 resume.gameObject.SetActive(false);
         }
 
+        static void Hide(Transform item)
+        {
+            if (item != null)
+                item.gameObject.SetActive(false);
+        }
+
         void OpenSettings()
         {
             var audio = GameRoot.Instance.GetComponent<AudioSettingsOverlay>();
@@ -72,22 +85,12 @@ namespace CoachMaster.UI.Scenes
             BroadcastUi.Place(titleShade.rectTransform, 0.078f, 0.38f, 0.49f, 0.7f);
             var title = BroadcastUi.Label(root, "Title", "SIMULADOR\nDE TREINADOR", 64, Color.white, TextAnchor.UpperLeft, FontStyle.Bold);
             BroadcastUi.Place(title.rectTransform, 0.07f, 0.4f, 0.48f, 0.72f);
-            var tag = BroadcastUi.Label(root, "Tag", "Escolhe um clube, assume o banco e constrói a época. O jogo mostra o que se vê do banco: conversas, escolhas e o resultado.", 22, UiTheme.Muted, TextAnchor.UpperLeft);
-            tag.verticalOverflow = VerticalWrapMode.Truncate;
-            BroadcastUi.Place(tag.rectTransform, 0.07f, 0.22f, 0.46f, 0.38f);
-
             var shadow = BroadcastUi.Panel(root, "MenuShadow", new Color(0f, 0f, 0f, 0.55f), false);
             BroadcastUi.Place(shadow.rectTransform, 0.565f, 0.15f, 0.965f, 0.74f);
             var card = BroadcastUi.Panel(root, "MenuCard", new Color(0.1f, 0.04f, 0.2f, 0.92f), true);
             BroadcastUi.Place(card.rectTransform, 0.54f, 0.18f, 0.94f, 0.78f);
             var lip = BroadcastUi.Solid(card.transform, "Lip", new Color(1f, 1f, 1f, 0.16f), false);
             BroadcastUi.Place(lip.rectTransform, 0f, 0.94f, 1f, 1f);
-            var cardTitle = BroadcastUi.Label(card.transform, "CardTitle", "ENTRAR NO BANCO", 16, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
-            BroadcastUi.Place(cardTitle.rectTransform, 0.08f, 0.86f, 0.92f, 0.95f);
-            var cardBody = BroadcastUi.Label(card.transform, "CardBody", "Uma carreira nova começa pela liga. O clube, o plantel e o balneário aparecem antes de assinares.", 18, UiTheme.Muted, TextAnchor.UpperLeft);
-            cardBody.verticalOverflow = VerticalWrapMode.Truncate;
-            BroadcastUi.Place(cardBody.rectTransform, 0.08f, 0.7f, 0.92f, 0.85f);
-
             var start = BroadcastUi.Button(card.transform, "NovaCarreira", "NOVA CARREIRA", OpenCareer, UiTheme.Accent, UiTheme.ButtonText, 22);
             BroadcastUi.Place(start.GetComponent<RectTransform>(), 0.08f, 0.52f, 0.92f, 0.66f);
 
@@ -105,8 +108,6 @@ namespace CoachMaster.UI.Scenes
             var quit = BroadcastUi.Button(card.transform, "Sair", "SAIR", LeaveGame, new Color(1f, 1f, 1f, 0.08f), Color.white, 18);
             BroadcastUi.Place(quit.GetComponent<RectTransform>(), 0.08f, 0.05f, 0.92f, 0.16f);
 
-            var hint = BroadcastUi.Label(root, "ControlHint", "Clica para entrar     Enter  avançar     Esc  voltar", 15, UiTheme.Muted, TextAnchor.MiddleLeft);
-            BroadcastUi.Place(hint.rectTransform, 0.07f, 0.008f, 0.7f, 0.05f);
         }
 
         static void OpenCareer()

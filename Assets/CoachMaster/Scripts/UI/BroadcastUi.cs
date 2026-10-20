@@ -200,6 +200,11 @@ namespace CoachMaster.UI
             text.verticalOverflow = VerticalWrapMode.Overflow;
             text.raycastTarget = false;
             text.text = content;
+            if (go.GetComponentInParent<InputField>() == null || name == "Placeholder")
+            {
+                var localizer = go.AddComponent<LocalizedText>();
+                localizer.ApplyNow();
+            }
             return text;
         }
 

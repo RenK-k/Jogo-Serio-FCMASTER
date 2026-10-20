@@ -14,9 +14,48 @@ namespace CoachMaster.Career
     {
         static string PathFile => Path.Combine(Application.persistentDataPath, "coach-master-career.txt");
         static string AutoSavePath(int slot) => Path.Combine(Application.persistentDataPath, "coach-master-autosave-" + slot + ".txt");
+        const string NamedSavePrefix = "coach-master-named-";
+
+        public sealed class NamedSaveInfo
+        {
+            public string Id { get; internal set; }
+            public string Name { get; internal set; }
+            public string CoachName { get; internal set; }
+            public string ClubId { get; internal set; }
+            public DateTime SavedAt { get; internal set; }
+        }
 
         public static bool Exists => File.Exists(PathFile);
         public static bool HasAutoSave(int slot = 1) => File.Exists(AutoSavePath(Mathf.Clamp(slot, 1, 5)));
+
+        public static string AutoSaveLabel(int slot, WorldState world)
+        {
+            slot = Mathf.Clamp(slot, 1, 5);
+            var path = AutoSavePath(slot);
+            if (!File.Exists(path))
+                return "CÓPIA " + slot + " · VAZIA";
+            try
+            {
+                var lines = File.ReadAllLines(path, Encoding.UTF8);
+                for (var i = 0; i < lines.Length; i++)
+                {
+                    var bits = Split(lines[i]);
+                    if (bits.Length < 4 || bits[0] != "coach") continue;
+                    var coach = Un(bits[1]);
+                    var clubName = bits[2];
+                    if (world != null && world.Clubs.TryGetValue(bits[2], out var club) && club != null)
+                        clubName = club.ShortName;
+                    var savedDate = long.TryParse(bits[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out var ticks) && ticks > 0
+                        ? new DateTime(ticks).ToString("dd/MM/yyyy") : "data antiga";
+                    return clubName + " · " + coach + " · " + savedDate;
+                }
+            }
+            catch (Exception error)
+            {
+                Debug.LogWarning("Não foi possível ler o nome do autosave: " + error.Message);
+            }
+            return "CÓPIA " + slot + " · GRAVAÇÃO ANTIGA";
+        }
 
         public static void Save(CareerState career)
         {
@@ -34,6 +73,95 @@ namespace CoachMaster.Career
                 Debug.LogWarning("Não foi possível guardar a carreira. A versão anterior foi mantida: " + error.Message);
                 return false;
             }
+        }
+
+        public static bool SaveNamed(CareerState career, string name, out NamedSaveInfo info)
+        {
+            info = null;
+            if (career == null || career.Coach == null || career.Club == null)
+                return false;
+            name = string.IsNullOrWhiteSpace(name) ? "Career · " + career.Club.ShortName : name.Trim();
+            if (name.Length > 80)
+                name = name.Substring(0, 80).Trim();
+            var id = Guid.NewGuid().ToString("N");
+            var path = NamedSavePath(id);
+            var staging = path + ".new";
+            var metaPath = path + ".meta";
+            var metaStaging = metaPath + ".new";
+            var savedAt = DateTime.Now;
+            try
+            {
+                if (!SaveTo(career, staging))
+                    return false;
+                var meta = Encode(name) + "|" + savedAt.Ticks.ToString(CultureInfo.InvariantCulture) + "|"
+                    + career.Coach.ClubId + "|" + Encode(career.Coach.Name);
+                File.WriteAllText(metaStaging, meta, Encoding.UTF8);
+                File.Move(staging, path);
+                File.Move(metaStaging, metaPath);
+                info = new NamedSaveInfo { Id = id, Name = name, CoachName = career.Coach.Name, ClubId = career.Coach.ClubId, SavedAt = savedAt };
+                return true;
+            }
+            catch (Exception error)
+            {
+                if (File.Exists(staging)) File.Delete(staging);
+                if (File.Exists(metaStaging)) File.Delete(metaStaging);
+                if (File.Exists(path) && !File.Exists(metaPath)) File.Delete(path);
+                Debug.LogWarning("Não foi possível criar a gravação nomeada: " + error.Message);
+                return false;
+            }
+        }
+
+        public static List<NamedSaveInfo> ListNamedSaves()
+        {
+            var result = new List<NamedSaveInfo>();
+            try
+            {
+                var files = Directory.GetFiles(Application.persistentDataPath, NamedSavePrefix + "*.txt", SearchOption.TopDirectoryOnly);
+                foreach (var path in files)
+                {
+                    var file = Path.GetFileNameWithoutExtension(path);
+                    var id = file.Substring(NamedSavePrefix.Length);
+                    if (!Guid.TryParseExact(id, "N", out _))
+                        continue;
+                    var metaPath = path + ".meta";
+                    if (!File.Exists(metaPath))
+                        continue;
+                    var bits = File.ReadAllText(metaPath, Encoding.UTF8).Split('|');
+                    if (bits.Length < 4 || !long.TryParse(bits[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var ticks))
+                        continue;
+                    result.Add(new NamedSaveInfo
+                    {
+                        Id = id,
+                        Name = Decode(bits[0]),
+                        SavedAt = new DateTime(ticks),
+                        ClubId = bits[2],
+                        CoachName = Decode(bits[3])
+                    });
+                }
+            }
+            catch (Exception error)
+            {
+                Debug.LogWarning("Não foi possível ler as gravações nomeadas: " + error.Message);
+            }
+            result.Sort((a, b) => b.SavedAt.CompareTo(a.SavedAt));
+            return result;
+        }
+
+        public static CareerState TryLoadNamed(GameSession session, string id)
+        {
+            if (string.IsNullOrEmpty(id) || !Guid.TryParseExact(id, "N", out _))
+                return null;
+            return TryLoadFrom(session, NamedSavePath(id));
+        }
+
+        static string NamedSavePath(string id) => Path.Combine(Application.persistentDataPath, NamedSavePrefix + id + ".txt");
+
+        static string Encode(string value) => Convert.ToBase64String(Encoding.UTF8.GetBytes(value ?? ""));
+
+        static string Decode(string value)
+        {
+            try { return Encoding.UTF8.GetString(Convert.FromBase64String(value ?? "")); }
+            catch { return ""; }
         }
 
         public static void AutoSave(CareerState career, int slots)
@@ -666,6 +794,7 @@ namespace CoachMaster.Career
                     }
                 }
             }
+            PlayerTraits.Normalize(player);
         }
 
         static void ApplyFixture(CareerState career, string[] bits)

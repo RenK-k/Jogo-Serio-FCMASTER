@@ -27,12 +27,14 @@ namespace CoachMaster.MatchPlay
         public MatchPhase Phase { get; set; } = MatchPhase.FirstHalf;
         public string LastEvent { get; set; } = "O árbitro dá início à partida.";
         public string TeamTalk { get; set; }
+        public bool TeamTalkApplied { get; set; }
         public string Flash { get; set; }
         public string FlashPlayerId { get; set; }
         public Dictionary<string, int> GoalsScored { get; } = new Dictionary<string, int>();
         public Dictionary<string, int> Assists { get; } = new Dictionary<string, int>();
         public Dictionary<string, int> PenaltyGoals { get; } = new Dictionary<string, int>();
         public Dictionary<string, int> Bookings { get; } = new Dictionary<string, int>();
+        public HashSet<string> SentOffPlayers { get; } = new HashSet<string>();
         public int FlashSerial { get; set; }
         public float AttackBoost { get; set; }
         public float DefenseBoost { get; set; }
@@ -165,8 +167,21 @@ namespace CoachMaster.MatchPlay
                 bench.Add(player.Id);
             while (onField.Count < 11 && bench.Count > 0)
             {
-                onField.Add(bench[0]);
-                bench.RemoveAt(0);
+                var availableIndex = -1;
+                for (var i = 0; i < bench.Count; i++)
+                {
+                    if (career.World.Players.TryGetValue(bench[i], out var candidate)
+                        && candidate != null && (candidate.Injury == null || !candidate.Injury.IsInjured))
+                    {
+                        availableIndex = i;
+                        break;
+                    }
+                }
+
+                if (availableIndex < 0)
+                    break;
+                onField.Add(bench[availableIndex]);
+                bench.RemoveAt(availableIndex);
             }
         }
 

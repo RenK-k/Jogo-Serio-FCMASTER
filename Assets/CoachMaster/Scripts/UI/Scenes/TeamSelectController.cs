@@ -20,6 +20,7 @@ namespace CoachMaster.UI.Scenes
 
         void Start()
         {
+            LocalizationManager.ApplyScene();
             var session = GameRoot.Require().Session;
             if (string.IsNullOrEmpty(session.Draft.LeagueId))
             {
@@ -89,7 +90,7 @@ namespace CoachMaster.UI.Scenes
                 crest.sprite = CrestStudio.For(club);
                 var name = BroadcastUi.Label(card.transform, "Name", club.Name.ToUpperInvariant(), 20, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
                 BroadcastUi.Place(name.rectTransform, 0.17f, 0.48f, 0.96f, 0.9f);
-                var meta = BroadcastUi.Label(card.transform, "Meta", club.City + "   ·   " + club.Stadium, 14, UiTheme.Muted, TextAnchor.MiddleLeft);
+                var meta = BroadcastUi.Label(card.transform, "Meta", LocalizationManager.Translate(club.City) + "   ·   " + LocalizationManager.Translate(club.Stadium), 14, UiTheme.Muted, TextAnchor.MiddleLeft);
                 BroadcastUi.Place(meta.rectTransform, 0.17f, 0.1f, 0.96f, 0.48f);
                 BroadcastUi.Hit(card, () =>
                 {
@@ -114,7 +115,10 @@ namespace CoachMaster.UI.Scenes
             BroadcastUi.Backdrop(root);
             var league = LeagueName(session);
             BroadcastUi.Wordmark(root, league);
-            LeagueSelectController.Header(root, "CLUBES", league + "  ·  escolhe o banco que vais assumir.", () => GameRoot.Instance.Open(SceneNames.LeagueSelect));
+            var subtitle = LocalizationManager.Current == GameLanguage.English
+                ? league + "  ·  choose the club you want to manage."
+                : league + "  ·  escolhe o banco que vais assumir.";
+            LeagueSelectController.Header(root, "CLUBES", subtitle, () => GameRoot.Instance.Open(SceneNames.LeagueSelect));
 
             foreach (var club in session.Catalog.ClubsInLeague(session.Draft.LeagueId))
                 _clubs.Add(club);
@@ -142,7 +146,7 @@ namespace CoachMaster.UI.Scenes
                 crest.sprite = CrestStudio.For(club);
                 var name = BroadcastUi.Label(card.transform, "Name", club.Name.ToUpperInvariant(), 20, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
                 BroadcastUi.Place(name.rectTransform, 0.17f, 0.48f, 0.96f, 0.9f);
-                var meta = BroadcastUi.Label(card.transform, "Meta", club.City + "   ·   " + club.Stadium, 14, UiTheme.Muted, TextAnchor.MiddleLeft);
+                var meta = BroadcastUi.Label(card.transform, "Meta", LocalizationManager.Translate(club.City) + "   ·   " + LocalizationManager.Translate(club.Stadium), 14, UiTheme.Muted, TextAnchor.MiddleLeft);
                 BroadcastUi.Place(meta.rectTransform, 0.17f, 0.1f, 0.96f, 0.48f);
                 BroadcastUi.Hit(card, () =>
                 {
@@ -178,7 +182,7 @@ namespace CoachMaster.UI.Scenes
             BroadcastUi.Place(_reputation.rectTransform, 0.42f, 0.34f, 0.94f, 0.58f);
             _squad = BroadcastUi.Label(preview.transform, "Squad", "", 16, Color.white, TextAnchor.UpperLeft);
             BroadcastUi.Place(_squad.rectTransform, 0.42f, 0.18f, 0.94f, 0.34f);
-            var choose = BroadcastUi.Button(preview.transform, "Choose", "VER CLUBE", () =>
+            var choose = BroadcastUi.Button(preview.transform, "Choose", LocalizationManager.Translate("VER CLUBE"), () =>
             {
                 if (_selected == null)
                     return;
@@ -190,7 +194,7 @@ namespace CoachMaster.UI.Scenes
             if (_clubs.Count > 0)
                 Select(0);
 
-            var hint = BroadcastUi.Label(root, "ControlHint", "Enter  confirmar     Esc  voltar     Setas  navegar", 15, UiTheme.Muted, TextAnchor.MiddleLeft);
+            var hint = BroadcastUi.Label(root, "ControlHint", LocalizationManager.Translate("M · DEFINIÇÕES"), 15, UiTheme.Muted, TextAnchor.MiddleLeft);
             BroadcastUi.Place(hint.rectTransform, 0.04f, 0.008f, 0.7f, 0.05f);
         }
 
@@ -199,9 +203,9 @@ namespace CoachMaster.UI.Scenes
             _selected = _clubs[index];
             _crest.sprite = CrestStudio.For(_selected);
             _name.text = _selected.Name.ToUpperInvariant();
-            _meta.text = _selected.City + "\n" + _selected.Stadium + "   ·   " + _selected.FoundedYear;
-            _reputation.text = _selected.PublicReputation;
-            _squad.text = _selected.Tactics.Summary;
+            _meta.text = LocalizationManager.Translate(_selected.City) + "\n" + LocalizationManager.Translate(_selected.Stadium) + "   ·   " + _selected.FoundedYear;
+            _reputation.text = ClubReputation(_selected);
+            _squad.text = LocalizationManager.Translate(_selected.Tactics.Summary);
             for (var i = 0; i < _cards.Count; i++)
                 _cards[i].color = i == index ? new Color(0.22f, 0.1f, 0.4f, 0.95f) : new Color(0.1f, 0.04f, 0.2f, 0.72f);
         }
@@ -211,10 +215,21 @@ namespace CoachMaster.UI.Scenes
             foreach (var league in session.Catalog.Leagues)
             {
                 if (league.Id == session.Draft.LeagueId)
-                    return league.Name;
+                    return LocalizationManager.Translate(league.Name);
             }
 
             return "Liga";
+        }
+
+        static string ClubReputation(Club club)
+        {
+            if (LocalizationManager.Current != GameLanguage.English)
+                return club.PublicReputation;
+            if (club.Reputation >= 78) return "A leading club with high expectations.";
+            if (club.Reputation >= 66) return "An established top-flight side.";
+            if (club.Reputation >= 52) return "A competitive club with a solid reputation.";
+            if (club.Reputation >= 38) return "A developing club aiming to move up the divisions.";
+            return "A modest club working to establish itself.";
         }
     }
 }
