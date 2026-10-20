@@ -10969,7 +10969,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 1
     m_LineSpacing: 1
-  m_Text: Staff
+  m_Text: TRANSFERS
 --- !u!222 &286959407
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -19568,7 +19568,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 1
     m_LineSpacing: 1
-  m_Text: Equipa
+  m_Text: TEAM
 --- !u!222 &549540554
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -21298,7 +21298,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 1
     m_LineSpacing: 1
-  m_Text: "In\xEDcio"
+  m_Text: HOME
 --- !u!222 &596832330
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -32073,7 +32073,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 1
     m_LineSpacing: 1
-  m_Text: Tabela
+  m_Text: STANDINGS
 --- !u!222 &901337836
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -32389,7 +32389,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 1
     m_LineSpacing: 1
-  m_Text: "CALEND\xC1RIO  \xB7  nota do adjunto em cada jogo"
+  m_Text: OFFICE
 --- !u!222 &911113544
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -50107,7 +50107,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 1
     m_LineSpacing: 1
-  m_Text: QUADRO DO MISTER
+  m_Text: ACADEMY
 --- !u!222 &1392972590
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -51961,7 +51961,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 1
     m_LineSpacing: 1
-  m_Text: Quadro
+  m_Text: ACADEMY
 --- !u!222 &1454319048
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -52812,7 +52812,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 1
     m_LineSpacing: 1
-  m_Text: Jornais
+  m_Text: NEWS
 --- !u!222 &1480285702
 CanvasRenderer:
   m_ObjectHideFlags: 0
