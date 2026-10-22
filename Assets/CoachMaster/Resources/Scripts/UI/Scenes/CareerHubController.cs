@@ -40,6 +40,12 @@ namespace CoachMaster.UI.Scenes
         Button[] _academyViewTabs;
         int _academyAgeIndex;
         int _academyViewIndex;
+        int _academyPane;
+        int _academyBenchGroup;
+        int _academyLayoutPassesRemaining;
+        string _academySelectedBenchPlayerId = "";
+        string _academyLastBenchClickId = "";
+        float _academyLastBenchClickAt;
         long _lastCareerSimulationDayTicks;
         RectTransform _trainingContent;
         RectTransform _trainingFocusContent;
@@ -51,6 +57,7 @@ namespace CoachMaster.UI.Scenes
         int _officeTab;
         Button[] _transferTabs;
         Button[] _replies;
+        Button _skipConversations;
         Text _clock;
         RectTransform _phoneSheet;
         RectTransform _phoneList;
@@ -115,6 +122,7 @@ namespace CoachMaster.UI.Scenes
         Button _modalAction;
         Text _modalActionLabel;
         Button _modalClose;
+        Action _dossierReturnAction;
         Button _keyboardScoutBack;
         Player _profileModalPlayer;
         bool _profileModalOrders;
@@ -123,10 +131,15 @@ namespace CoachMaster.UI.Scenes
         string _orderId;
         RectTransform _tacticsBody;
         int _modalLineSize = 16;
-        Transform _cardTemplate;
         CareerState _career;
         StaffMember _offer;
         int _transferPage;
+        string _transferHistoryClubId = "";
+        int _transferHistorySeasonStart = -1;
+        bool _transferHistoryFeeDescending = true;
+        bool _transferHistoryDateDescending = true;
+        bool _transferHistorySortByFee;
+        int _financeMetricSelection;
         int _teamZone;
         bool _individualTraining;
         int _renewalAttempt;
@@ -171,8 +184,8 @@ namespace CoachMaster.UI.Scenes
             RefreshCareerTabLabels();
             BuildPlay(root);
             BuildModal(root);
-            var hint = BroadcastUi.Label(root, "ControlHint", LocalizationManager.Translate("M · DEFINIÇÕES"), 15, UiTheme.Muted, TextAnchor.MiddleRight);
-            BroadcastUi.Place(hint.rectTransform, 0.42f, 0.008f, 0.98f, 0.048f);
+            var hint = BroadcastUi.Label(root, "SettingsHint", LocalizationManager.Translate("M · DEFINIÇÕES"), 15, UiTheme.Muted, TextAnchor.MiddleRight);
+            BroadcastUi.Place(hint.rectTransform, 0.72f, 0.008f, 0.98f, 0.048f);
             Show(0);
             Refresh();
             if (_phoneSheet != null)
@@ -268,9 +281,24 @@ namespace CoachMaster.UI.Scenes
 
         void LateUpdate()
         {
-            if (_career != null && SquadDragCard.ConsumeBenchGroupDrop(out var benchPlayer, out var fromReserves, out var toReserves))
+            if (_academyLayoutPassesRemaining > 0 && _academyContent != null
+                && _pages != null && _pages.Length > 2 && _pages[2] != null && _pages[2].activeSelf)
             {
-                if (benchPlayer != null && fromReserves != toReserves)
+                _academyLayoutPassesRemaining--;
+                Canvas.ForceUpdateCanvases();
+                UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(_academyContent);
+                FillAcademy();
+            }
+
+            if (_career != null && SquadDragCard.ConsumeBenchGroupDrop(out var benchPlayer, out var fromReserves, out var toReserves, out var benchContext))
+            {
+                if (!string.IsNullOrEmpty(benchContext) && benchContext.StartsWith("Academy:", StringComparison.Ordinal))
+                {
+                    _academySelectedBenchPlayerId = benchPlayer == null ? "" : benchPlayer.Id;
+                    _academyBenchGroup = toReserves ? 1 : 0;
+                    FillAcademy();
+                }
+                else if (benchPlayer != null && fromReserves != toReserves)
                 {
                     _pendingBenchSwap = benchPlayer;
                     _pendingBenchSwapFromReserves = fromReserves;
@@ -278,9 +306,11 @@ namespace CoachMaster.UI.Scenes
                     FillTeam();
                 }
             }
-            if (_career != null && SquadDragCard.ConsumeSwap(out var incoming, out var fieldIndex, out var fromField))
+            if (_career != null && SquadDragCard.ConsumeSwap(out var incoming, out var fieldIndex, out var fromField, out var swapContext))
             {
-                if (fromField >= 0)
+                if (!string.IsNullOrEmpty(swapContext) && swapContext.StartsWith("Academy:", StringComparison.Ordinal))
+                    SwapAcademyFieldOrder(swapContext.Substring("Academy:".Length), incoming, fromField, fieldIndex);
+                else if (fromField >= 0)
                     SwapPositions(fromField, fieldIndex);
                 else
                     SwapStarter(incoming, fieldIndex);
@@ -1643,7 +1673,7 @@ namespace CoachMaster.UI.Scenes
 
         void BuildPages(Transform root)
         {
-            var host = BroadcastUi.Zone(root, "Pages", 0.03f, 0.145f, 0.97f, 0.815f);
+            var host = BroadcastUi.Zone(root, "Pages", 0.03f, 0.075f, 0.97f, 0.815f);
             host.gameObject.AddComponent<RectMask2D>();
             _pages = new GameObject[8];
             _pages[0] = BuildHome(host);
@@ -1686,6 +1716,9 @@ namespace CoachMaster.UI.Scenes
                 BroadcastUi.Place(_replies[i].GetComponent<RectTransform>(), 0.04f, y, 0.96f, y + 0.08f);
                 _replies[i].gameObject.SetActive(false);
             }
+            _skipConversations = BroadcastUi.Button(page.transform, "SkipConversations", "", SkipConversations,
+                new Color(0.3f, 0.18f, 0.44f, 0.98f), Color.white, 13);
+            _skipConversations.gameObject.SetActive(false);
 
             return page.gameObject;
         }
@@ -1765,11 +1798,12 @@ namespace CoachMaster.UI.Scenes
                 _academyAgeTabs[i] = BroadcastUi.Button(page, "AcademyAge" + i, AcademyFactory.AgeGroups[i], () =>
                 {
                     _academyAgeIndex = index;
+                    _academySelectedBenchPlayerId = "";
                     FillAcademy();
                 }, new Color(1f, 1f, 1f, 0.08f), Color.white, 13);
                 BroadcastUi.Place(_academyAgeTabs[i].GetComponent<RectTransform>(), 0.02f + i * 0.16f, 0.84f, 0.17f + i * 0.16f, 0.9f);
             }
-            var views = english ? new[] { "STARTING XI", "BENCH", "LINE-UP", "FIXTURES" } : new[] { "ONZE INICIAL", "BANCO", "ONZE NO CAMPO", "JOGOS" };
+            var views = english ? new[] { "TACTICS", "SQUAD", "FIXTURES" } : new[] { "TÁTICAS", "PLANTEL", "JOGOS" };
             _academyViewTabs = new Button[views.Length];
             for (var i = 0; i < _academyViewTabs.Length; i++)
             {
@@ -1779,12 +1813,13 @@ namespace CoachMaster.UI.Scenes
                     _academyViewIndex = index;
                     FillAcademy();
                 }, new Color(1f, 1f, 1f, 0.08f), Color.white, 13);
-                var x0 = 0.51f + i * 0.12f;
-                BroadcastUi.Place(_academyViewTabs[i].GetComponent<RectTransform>(), x0, 0.84f, x0 + 0.115f, 0.9f);
+                var x0 = 0.55f + i * 0.145f;
+                BroadcastUi.Place(_academyViewTabs[i].GetComponent<RectTransform>(), x0, 0.84f, x0 + 0.135f, 0.9f);
             }
             var scroll = BroadcastUi.Scroll(page, "AcademyScroll", out _academyContent);
             BroadcastUi.Place(scroll.GetComponent<RectTransform>(), 0.02f, 0.025f, 0.98f, 0.82f);
             FillAcademy();
+            _academyLayoutPassesRemaining = 2;
         }
 
         GameObject BuildTraining(Transform host)
@@ -2996,6 +3031,14 @@ namespace CoachMaster.UI.Scenes
                 }
             if (_listPage != null) _listPage.SetActive(_transferPage == 0);
             if (_marketPage != null) _marketPage.SetActive(_transferPage != 0);
+            if (_marketPage != null)
+            {
+                var background = _marketPage.GetComponent<Image>();
+                if (background != null)
+                    background.color = _transferPage == 2
+                        ? new Color(0.035f, 0.045f, 0.075f, 0.98f)
+                        : new Color(0.05f, 0.02f, 0.12f, 0.2f);
+            }
             if (_marketSearch != null) _marketSearch.gameObject.SetActive(_transferPage == 1);
             if (_transferPage == 0) FillSquadList();
             else if (_transferPage == 1) FillMarket();
@@ -3007,18 +3050,156 @@ namespace CoachMaster.UI.Scenes
             if (_marketHost == null || _career == null) return;
             Clear(_marketHost);
             var english = LocalizationManager.Current == GameLanguage.English;
+
+            var seasons = new List<int> { -1 };
+            foreach (var record in _career.TransferHistory)
+            {
+                if (record.DateTicks <= 0 || record.DateTicks > DateTime.MaxValue.Ticks) continue;
+                var year = TransferSeasonStart(new DateTime(record.DateTicks));
+                if (!seasons.Contains(year)) seasons.Add(year);
+            }
+            seasons.Sort(1, seasons.Count - 1, Comparer<int>.Create((a, b) => b.CompareTo(a)));
+            if (!seasons.Contains(_transferHistorySeasonStart)) _transferHistorySeasonStart = -1;
+            var labels = new List<string>();
+            for (var i = 0; i < seasons.Count; i++)
+                labels.Add(seasons[i] < 0 ? (english ? "ALL SEASONS" : "TODAS AS ÉPOCAS") : seasons[i] + "/" + (seasons[i] + 1));
+            var controls = BroadcastUi.Panel(_marketHost, "HistoryControls", new Color(0.035f, 0.075f, 0.1f, 0.96f), true);
+            BroadcastUi.Preferred(controls, 48);
+            var seasonIndex = Mathf.Max(0, seasons.IndexOf(_transferHistorySeasonStart));
+            CreateHistorySeasonDropdown(controls.transform, labels, seasonIndex, index =>
+            {
+                _transferHistorySeasonStart = seasons[Mathf.Clamp(index, 0, seasons.Count - 1)];
+                FillTransferHistory();
+            });
+            var fee = BroadcastUi.Button(controls.transform, "FeeSort", (english ? "FEE " : "VALOR ") + (_transferHistoryFeeDescending ? "↓" : "↑"), () =>
+            {
+                _transferHistoryFeeDescending = _transferHistorySortByFee ? !_transferHistoryFeeDescending : true;
+                _transferHistorySortByFee = true;
+                FillTransferHistory();
+            }, new Color(1f, 1f, 1f, 0.08f), Color.white, 12);
+            BroadcastUi.Place(fee.GetComponent<RectTransform>(), 0.46f, 0.08f, 0.71f, 0.92f);
+            var date = BroadcastUi.Button(controls.transform, "DateSort", (english ? "DATE " : "DATA ") + (_transferHistoryDateDescending ? "↓" : "↑"), () =>
+            {
+                _transferHistoryDateDescending = !_transferHistorySortByFee ? !_transferHistoryDateDescending : true;
+                _transferHistorySortByFee = false;
+                FillTransferHistory();
+            }, new Color(1f, 1f, 1f, 0.08f), Color.white, 12);
+            BroadcastUi.Place(date.GetComponent<RectTransform>(), 0.73f, 0.08f, 0.98f, 0.92f);
+
+            var filtered = new List<TransferRecord>();
+            foreach (var record in _career.TransferHistory)
+            {
+                var recordDate = record.DateTicks > 0 && record.DateTicks <= DateTime.MaxValue.Ticks
+                    ? new DateTime(record.DateTicks) : DateTime.MinValue;
+                if (_transferHistorySeasonStart >= 0 && TransferSeasonStart(recordDate) != _transferHistorySeasonStart) continue;
+                filtered.Add(record);
+            }
+            filtered.Sort((a, b) =>
+            {
+                var primary = _transferHistorySortByFee
+                    ? (_transferHistoryFeeDescending ? b.Fee.CompareTo(a.Fee) : a.Fee.CompareTo(b.Fee))
+                    : (_transferHistoryDateDescending ? b.DateTicks.CompareTo(a.DateTicks) : a.DateTicks.CompareTo(b.DateTicks));
+                if (primary != 0) return primary;
+                return _transferHistorySortByFee
+                    ? (_transferHistoryDateDescending ? b.DateTicks.CompareTo(a.DateTicks) : a.DateTicks.CompareTo(b.DateTicks))
+                    : (_transferHistoryFeeDescending ? b.Fee.CompareTo(a.Fee) : a.Fee.CompareTo(b.Fee));
+            });
+            if (filtered.Count == 0)
+            {
+                var empty = BroadcastUi.Label(_marketHost, "NoHistory", _career.TransferHistory.Count == 0
+                    ? (english ? "No completed transfers have been recorded yet." : "Ainda não há transferências concluídas registadas.")
+                    : (english ? "No transfers were recorded in this season." : "Não há transferências registadas nesta época."),
+                    14, UiTheme.Muted, TextAnchor.MiddleLeft);
+                BroadcastUi.Preferred(empty, 42);
+                return;
+            }
+            for (var i = 0; i < filtered.Count; i++)
+            {
+                var deal = filtered[i];
+                if (!_career.World.Players.TryGetValue(deal.PlayerId ?? "", out var player)
+                    || !_career.World.Clubs.TryGetValue(deal.FromClubId ?? "", out var from)
+                    || !_career.World.Clubs.TryGetValue(deal.ToClubId ?? "", out var to)) continue;
+                var row = BroadcastUi.Panel(_marketHost, "GlobalDeal" + i, new Color(0.1f, 0.04f, 0.2f, 0.92f), true);
+                BroadcastUi.Preferred(row, 92);
+                var playerRef = player;
+                var headline = BroadcastUi.Button(row.transform, "Player", player.FullName + "  ·  " + PresentationLabels.Position(player.Position)
+                    + "  ·  " + (english ? "Age " : "Idade ") + deal.AgeAtTransfer + "  ·  OVR " + deal.OverallAtTransfer,
+                    () => OpenPlayer(playerRef), new Color(1f, 1f, 1f, 0.02f), Color.white, 14);
+                BroadcastUi.Place(headline.GetComponent<RectTransform>(), 0.02f, 0.56f, 0.66f, 0.95f);
+                var dealDate = deal.DateTicks > 0 && deal.DateTicks <= DateTime.MaxValue.Ticks ? new DateTime(deal.DateTicks) : DateTime.MinValue;
+                var details = BroadcastUi.Label(row.transform, "Details", LocalizationManager.FormatDate(dealDate, "dd MMM yyyy")
+                    + "   ·   " + (english ? "Fee " : "Valor ") + Euro(deal.Fee)
+                    + "   ·   " + (english ? "Wage " : "Salário ") + Euro(deal.WeeklyWage) + (english ? "/wk" : "/sem")
+                    + "   ·   " + deal.ContractYears + (english ? " years" : " anos") + "   ·   " + LocalizationManager.Translate(deal.Type),
+                    12, UiTheme.Muted, TextAnchor.MiddleLeft);
+                details.resizeTextForBestFit = true;
+                details.resizeTextMinSize = 9;
+                details.resizeTextMaxSize = 12;
+                BroadcastUi.Place(details.rectTransform, 0.02f, 0.08f, 0.64f, 0.52f);
+                var seller = BroadcastUi.Button(row.transform, "Seller", from.ShortName, () => OpenClubDossier(from), new Color(1f, 1f, 1f, 0.06f), Color.white, 11);
+                BroadcastUi.Place(seller.GetComponent<RectTransform>(), 0.66f, 0.14f, 0.81f, 0.48f);
+                var buyer = BroadcastUi.Button(row.transform, "Buyer", to.ShortName, () => OpenClubDossier(to), new Color(1f, 1f, 1f, 0.06f), Color.white, 11);
+                BroadcastUi.Place(buyer.GetComponent<RectTransform>(), 0.82f, 0.14f, 0.98f, 0.48f);
+            }
+        }
+
+        void FillTransferHistoryLegacy()
+        {
+            if (_marketHost == null || _career == null) return;
+            Clear(_marketHost);
+            var english = LocalizationManager.Current == GameLanguage.English;
             var title = BroadcastUi.Label(_marketHost, "HistoryTitle", english ? "COMPLETED TRANSFERS AROUND THE WORLD" : "TRANSFERÊNCIAS CONCLUÍDAS NO MUNDO", 16, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
             BroadcastUi.Preferred(title, 34);
-            if (_career.TransferHistory.Count == 0)
+
+            var clubFilter = BroadcastUi.Button(_marketHost, "HistoryClubFilter", TransferHistoryClubLabel(english) + (english ? "  ·  CHANGE ▶" : "  ·  ALTERAR ▶"),
+                () => CycleTransferHistoryClub(), new Color(1f, 1f, 1f, 0.08f), Color.white, 12);
+            BroadcastUi.Preferred(clubFilter.GetComponent<RectTransform>(), 38);
+            var seasonFilter = BroadcastUi.Button(_marketHost, "HistorySeasonFilter", TransferHistorySeasonLabel(english) + (english ? "  ·  CHANGE ▶" : "  ·  ALTERAR ▶"),
+                () => CycleTransferHistorySeason(), new Color(1f, 1f, 1f, 0.08f), Color.white, 12);
+            BroadcastUi.Preferred(seasonFilter.GetComponent<RectTransform>(), 38);
+
+            var filtered = new List<TransferRecord>();
+            var incoming = 0L;
+            var outgoing = 0L;
+            foreach (var record in _career.TransferHistory)
             {
-                var empty = BroadcastUi.Label(_marketHost, "NoHistory", english ? "No completed transfers have been recorded yet." : "Ainda não há transferências concluídas registadas.", 14, UiTheme.Muted, TextAnchor.MiddleLeft);
+                var date = record.DateTicks > 0 && record.DateTicks <= DateTime.MaxValue.Ticks
+                    ? new DateTime(record.DateTicks) : DateTime.MinValue;
+                if (_transferHistorySeasonStart >= 0 && TransferSeasonStart(date) != _transferHistorySeasonStart)
+                    continue;
+                if (!string.IsNullOrEmpty(_transferHistoryClubId)
+                    && record.FromClubId != _transferHistoryClubId && record.ToClubId != _transferHistoryClubId)
+                    continue;
+                filtered.Add(record);
+                if (!string.IsNullOrEmpty(_transferHistoryClubId))
+                {
+                    if (record.ToClubId == _transferHistoryClubId) incoming += record.Fee;
+                    if (record.FromClubId == _transferHistoryClubId) outgoing += record.Fee;
+                }
+            }
+
+            if (!string.IsNullOrEmpty(_transferHistoryClubId))
+            {
+                var totals = BroadcastUi.Label(_marketHost, "HistoryTotals",
+                    (english ? "IN  " : "ENTRADAS  ") + Euro((int)Math.Min(int.MaxValue, incoming))
+                    + "     " + (english ? "OUT  " : "SAÍDAS  ") + Euro((int)Math.Min(int.MaxValue, outgoing)),
+                    12, UiTheme.Muted, TextAnchor.MiddleLeft, FontStyle.Bold);
+                BroadcastUi.Preferred(totals, 30);
+            }
+
+            if (filtered.Count == 0)
+            {
+                var empty = BroadcastUi.Label(_marketHost, "NoHistory", _career.TransferHistory.Count == 0
+                    ? (english ? "No completed transfers have been recorded yet." : "Ainda não há transferências concluídas registadas.")
+                    : (english ? "No transfers match these filters." : "Não há transferências para estes filtros."),
+                    14, UiTheme.Muted, TextAnchor.MiddleLeft);
                 BroadcastUi.Preferred(empty, 42);
                 return;
             }
 
-            for (var i = 0; i < _career.TransferHistory.Count; i++)
+            for (var i = 0; i < filtered.Count; i++)
             {
-                var deal = _career.TransferHistory[i];
+                var deal = filtered[i];
                 if (!_career.World.Players.TryGetValue(deal.PlayerId ?? "", out var player)
                     || !_career.World.Clubs.TryGetValue(deal.FromClubId ?? "", out var from)
                     || !_career.World.Clubs.TryGetValue(deal.ToClubId ?? "", out var to))
@@ -3042,6 +3223,139 @@ namespace CoachMaster.UI.Scenes
                 var buyer = BroadcastUi.Button(row.transform, "Buyer", to.ShortName, () => OpenClubDossier(to), new Color(1f, 1f, 1f, 0.06f), Color.white, 12);
                 BroadcastUi.Place(buyer.GetComponent<RectTransform>(), 0.8f, 0.14f, 0.97f, 0.48f);
             }
+        }
+
+        Dropdown CreateHistorySeasonDropdown(Transform parent, List<string> options, int value, Action<int> changed)
+        {
+            var root = new GameObject("SeasonDropdown", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Dropdown));
+            root.transform.SetParent(parent, false);
+            var image = root.GetComponent<Image>();
+            image.color = new Color(1f, 1f, 1f, 0.1f);
+            image.raycastTarget = true;
+            BroadcastUi.Place(root.GetComponent<RectTransform>(), 0.02f, 0.08f, 0.44f, 0.92f);
+            var dropdown = root.GetComponent<Dropdown>();
+            dropdown.transition = Selectable.Transition.None;
+            dropdown.targetGraphic = image;
+            var caption = BroadcastUi.Label(root.transform, "Caption", "", 11, Color.white, TextAnchor.MiddleLeft);
+            caption.raycastTarget = false;
+            BroadcastUi.Place(caption.rectTransform, 0.04f, 0.04f, 0.86f, 0.96f);
+            var arrow = BroadcastUi.Label(root.transform, "Arrow", "▼", 9, UiTheme.Accent, TextAnchor.MiddleCenter, FontStyle.Bold);
+            arrow.raycastTarget = false;
+            BroadcastUi.Place(arrow.rectTransform, 0.87f, 0.04f, 0.98f, 0.96f);
+
+            var templateObject = new GameObject("Template", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(ScrollRect));
+            templateObject.transform.SetParent(root.transform, false);
+            var templateRect = templateObject.GetComponent<RectTransform>();
+            templateRect.anchorMin = new Vector2(0f, 0f);
+            templateRect.anchorMax = new Vector2(1f, 0f);
+            templateRect.pivot = new Vector2(0.5f, 1f);
+            templateRect.anchoredPosition = new Vector2(0f, -2f);
+            templateRect.sizeDelta = new Vector2(0f, 210f);
+            templateObject.GetComponent<Image>().color = new Color(0.08f, 0.035f, 0.16f, 1f);
+            var scroll = templateObject.GetComponent<ScrollRect>();
+            scroll.horizontal = false;
+            scroll.vertical = true;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
+            var viewportObject = new GameObject("Viewport", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Mask));
+            viewportObject.transform.SetParent(templateObject.transform, false);
+            var viewport = viewportObject.GetComponent<RectTransform>();
+            BroadcastUi.Stretch(viewport);
+            viewportObject.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.01f);
+            viewportObject.GetComponent<Mask>().showMaskGraphic = false;
+            var contentObject = new GameObject("Content", typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
+            contentObject.transform.SetParent(viewportObject.transform, false);
+            var contentRect = contentObject.GetComponent<RectTransform>();
+            contentRect.anchorMin = new Vector2(0f, 1f);
+            contentRect.anchorMax = new Vector2(1f, 1f);
+            contentRect.pivot = new Vector2(0.5f, 1f);
+            contentRect.sizeDelta = Vector2.zero;
+            var layout = contentObject.GetComponent<VerticalLayoutGroup>();
+            layout.childControlWidth = true;
+            layout.childControlHeight = false;
+            layout.childForceExpandWidth = true;
+            layout.childForceExpandHeight = false;
+            var fitter = contentObject.GetComponent<ContentSizeFitter>();
+            fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            scroll.viewport = viewport;
+            scroll.content = contentRect;
+
+            var item = new GameObject("Item", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Toggle), typeof(LayoutElement));
+            item.transform.SetParent(contentObject.transform, false);
+            item.GetComponent<LayoutElement>().preferredHeight = 32f;
+            var itemImage = item.GetComponent<Image>();
+            itemImage.color = new Color(1f, 1f, 1f, 0.04f);
+            var toggle = item.GetComponent<Toggle>();
+            toggle.targetGraphic = itemImage;
+            var check = new GameObject("Item Checkmark", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            check.transform.SetParent(item.transform, false);
+            var checkRect = check.GetComponent<RectTransform>();
+            checkRect.anchorMin = checkRect.anchorMax = new Vector2(0f, 0.5f);
+            checkRect.sizeDelta = new Vector2(14f, 14f);
+            checkRect.anchoredPosition = new Vector2(12f, 0f);
+            var checkImage = check.GetComponent<Image>();
+            checkImage.color = UiTheme.Accent;
+            toggle.graphic = checkImage;
+            var itemText = BroadcastUi.Label(item.transform, "Item Label", "", 11, Color.white, TextAnchor.MiddleLeft);
+            BroadcastUi.Place(itemText.rectTransform, 0.08f, 0.04f, 0.97f, 0.96f);
+            itemText.raycastTarget = false;
+            dropdown.template = templateRect;
+            dropdown.captionText = caption;
+            dropdown.itemText = itemText;
+            dropdown.AddOptions(options);
+            dropdown.SetValueWithoutNotify(Mathf.Clamp(value, 0, options.Count - 1));
+            dropdown.RefreshShownValue();
+            dropdown.onValueChanged.AddListener(index => changed?.Invoke(index));
+            templateObject.SetActive(false);
+            return dropdown;
+        }
+
+        string TransferHistoryClubLabel(bool english)
+        {
+            if (string.IsNullOrEmpty(_transferHistoryClubId))
+                return english ? "CLUB · ALL CLUBS" : "CLUBE · TODOS";
+            return _career.World.Clubs.TryGetValue(_transferHistoryClubId, out var club)
+                ? (english ? "CLUB · " : "CLUBE · ") + club.ShortName
+                : (english ? "CLUB · ALL CLUBS" : "CLUBE · TODOS");
+        }
+
+        string TransferHistorySeasonLabel(bool english)
+        {
+            if (_transferHistorySeasonStart < 0)
+                return english ? "SEASON · ALL SEASONS" : "ÉPOCA · TODAS";
+            return (english ? "SEASON · " : "ÉPOCA · ") + _transferHistorySeasonStart + "/" + (_transferHistorySeasonStart + 1);
+        }
+
+        void CycleTransferHistoryClub()
+        {
+            var options = new List<Club> { null };
+            foreach (var club in _career.World.Clubs.Values)
+                if (club != null && !options.Contains(club)) options.Add(club);
+            options.Sort(1, options.Count - 1, Comparer<Club>.Create((a, b) => string.Compare(a.ShortName, b.ShortName, StringComparison.Ordinal)));
+            var index = options.FindIndex(club => club == null ? string.IsNullOrEmpty(_transferHistoryClubId) : club.Id == _transferHistoryClubId);
+            _transferHistoryClubId = options[(index + 1 + options.Count) % options.Count]?.Id ?? "";
+            FillTransferHistory();
+        }
+
+        void CycleTransferHistorySeason()
+        {
+            var starts = new List<int> { -1 };
+            foreach (var record in _career.TransferHistory)
+            {
+                if (record.DateTicks <= 0 || record.DateTicks > DateTime.MaxValue.Ticks) continue;
+                var start = TransferSeasonStart(new DateTime(record.DateTicks));
+                if (!starts.Contains(start)) starts.Add(start);
+            }
+            starts.Sort(1, starts.Count - 1, Comparer<int>.Create((a, b) => b.CompareTo(a)));
+            var index = starts.IndexOf(_transferHistorySeasonStart);
+            _transferHistorySeasonStart = starts[(index + 1 + starts.Count) % starts.Count];
+            FillTransferHistory();
+        }
+
+        static int TransferSeasonStart(DateTime date)
+        {
+            if (date == DateTime.MinValue) return -1;
+            return date.Month >= 7 ? date.Year : date.Year - 1;
         }
 
         GameObject BuildCalendar(Transform host)
@@ -3075,7 +3389,7 @@ namespace CoachMaster.UI.Scenes
         {
             var play = BroadcastUi.Button(root, "PlayMatch", "CONTINUAR", OnContinue, UiTheme.Accent, UiTheme.ButtonText, 20);
             _play = play;
-            BroadcastUi.Place(play.GetComponent<RectTransform>(), 0.3f, 0.03f, 0.7f, 0.12f);
+            BroadcastUi.Place(play.GetComponent<RectTransform>(), 0.3f, 0.01f, 0.7f, 0.07f);
             _playLabel = play.GetComponentInChildren<Text>();
         }
 
@@ -3155,7 +3469,10 @@ namespace CoachMaster.UI.Scenes
             CareerMoments.Continue(_career);
             var elapsedDays = (_career.Calendar.CurrentDate.Date - previousDay).Days;
             if (elapsedDays > 0)
+            {
                 AdvancePlayerSystems(elapsedDays);
+                ClubFinanceLedger.SettleWeeklyPayroll(_career, previousDay, _career.Calendar.CurrentDate.Date);
+            }
             if (SettingsPrefs.AutosaveEnabled)
                 CareerStore.AutoSaveIfDue(_career, SettingsPrefs.AutosaveDays, SettingsPrefs.AutosaveSlots);
             CareerStore.Save(_career);
@@ -3168,6 +3485,65 @@ namespace CoachMaster.UI.Scenes
             CareerMoments.Answer(_career, choice);
             CareerStore.Save(_career);
             Refresh();
+        }
+
+        void SkipConversations()
+        {
+            if (SettingsPrefs.SkipDayConfirmation)
+            {
+                var english = LocalizationManager.Current == GameLanguage.English;
+                OpenModal(english ? "Skip the whole day?" : "Saltar o dia inteiro?",
+                    english ? "All remaining conversations and day events will be skipped." : "As conversas e os acontecimentos restantes deste dia serão ignorados.", true, true);
+                var dontAsk = false;
+                var choice = BroadcastUi.Panel(_modalBody, "DontAskAgain", new Color(1f, 1f, 1f, 0.06f), true);
+                BroadcastUi.Preferred(choice.rectTransform, 48f);
+                var box = BroadcastUi.Solid(choice.transform, "CheckBox", new Color(1f, 1f, 1f, 0.16f));
+                BroadcastUi.Place(box.rectTransform, 0.025f, 0.24f, 0.09f, 0.76f);
+                var check = BroadcastUi.Label(box.transform, "Check", "✓", 15, UiTheme.Accent, TextAnchor.MiddleCenter, FontStyle.Bold);
+                BroadcastUi.Stretch(check.rectTransform);
+                check.gameObject.SetActive(false);
+                var label = BroadcastUi.Label(choice.transform, "Label",
+                    english ? "Don't ask me again" : "Não voltar a perguntar", 14, Color.white, TextAnchor.MiddleLeft);
+                BroadcastUi.Place(label.rectTransform, 0.12f, 0.08f, 0.97f, 0.92f);
+                BroadcastUi.Hit(choice, () =>
+                {
+                    dontAsk = !dontAsk;
+                    check.gameObject.SetActive(dontAsk);
+                });
+                _modalActionLabel.text = english ? "SKIP DAY" : "SALTAR DIA";
+                _modalAction.onClick.RemoveAllListeners();
+                _modalAction.onClick.AddListener(() =>
+                {
+                    if (dontAsk)
+                    {
+                        SettingsPrefs.SkipDayConfirmation = false;
+                        SettingsPrefs.Commit();
+                    }
+                    CloseModal();
+                    PerformSkipDay();
+                });
+                return;
+            }
+            PerformSkipDay();
+        }
+
+        void PerformSkipDay()
+        {
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var note = english ? "Skipped the remaining events for this day." : "Eventos restantes do dia ignorados.";
+            var previousDay = _career.Calendar.CurrentDate.Date;
+            if (!CareerMoments.SkipCurrentDay(_career, note))
+                return;
+            CareerMoments.Continue(_career);
+            var currentDay = _career.Calendar.CurrentDate.Date;
+            var elapsedDays = Math.Max(1, (currentDay - previousDay).Days);
+            AdvancePlayerSystems(elapsedDays);
+            ClubFinanceLedger.SettleWeeklyPayroll(_career, previousDay, currentDay);
+            if (SettingsPrefs.AutosaveEnabled)
+                CareerStore.AutoSaveIfDue(_career, SettingsPrefs.AutosaveDays, SettingsPrefs.AutosaveSlots);
+            CareerStore.Save(_career);
+            Refresh();
+            FillNews();
         }
 
         void SaveNote()
@@ -3238,7 +3614,24 @@ namespace CoachMaster.UI.Scenes
                 var show = talking && i < moment.Replies.Length;
                 _replies[i].gameObject.SetActive(show);
                 if (show)
+                {
                     _replies[i].GetComponentInChildren<Text>().text = (i + 1) + "    " + CareerMomentReply(moment, i);
+                    BroadcastUi.Place(_replies[i].GetComponent<RectTransform>(), 0.04f, 0.24f - i * 0.085f, 0.76f, 0.315f - i * 0.085f);
+                }
+                else
+                    BroadcastUi.Place(_replies[i].GetComponent<RectTransform>(), 0.04f, 0.22f - i * 0.09f, 0.96f, 0.30f - i * 0.09f);
+            }
+
+            if (_skipConversations != null)
+            {
+                var canSkipDay = CareerMoments.CanSkipCurrentDay(_career);
+                _skipConversations.gameObject.SetActive(canSkipDay);
+                if (canSkipDay)
+                {
+                    var english = LocalizationManager.Current == GameLanguage.English;
+                    _skipConversations.GetComponentInChildren<Text>().text = english ? "SKIP DAY" : "SALTAR O DIA";
+                    BroadcastUi.Place(_skipConversations.GetComponent<RectTransform>(), 0.78f, 0.06f, 0.96f, 0.315f);
+                }
             }
 
             if (_vibe != null)
@@ -3419,7 +3812,11 @@ namespace CoachMaster.UI.Scenes
 
         void Show(int index)
         {
-            if (index == 2) FillAcademy();
+            if (index == 2)
+            {
+                FillAcademy();
+                _academyLayoutPassesRemaining = 2;
+            }
             if (index == 4) FillTraining();
             if (index == 5) ShowTransfersZone(_transferPage);
             if (index == 1)
@@ -3914,7 +4311,7 @@ namespace CoachMaster.UI.Scenes
             var spent = finance.TransferSpentThisSeason;
             var total = Math.Max(0L, (long)current + spent);
             var overview = BroadcastUi.Panel(_officeBudgetContent, "BudgetOverview", new Color(0.07f, 0.12f, 0.2f, 0.98f));
-            BroadcastUi.Preferred(overview, 310);
+            BroadcastUi.Preferred(overview, 350);
 
             var leftHead = BroadcastUi.Label(overview.transform, "CurrentHead", english ? "CURRENT BUDGET" : "ORÇAMENTO DISPONÍVEL", 13, UiTheme.Fitness, TextAnchor.MiddleCenter, FontStyle.Bold);
             BroadcastUi.Place(leftHead.rectTransform, 0.025f, 0.68f, 0.34f, 0.9f);
@@ -3930,17 +4327,19 @@ namespace CoachMaster.UI.Scenes
             var rightCaption = BroadcastUi.Label(overview.transform, "SpentCaption", english ? "Transfer fees" : "Taxas de transferências", 12, UiTheme.Muted, TextAnchor.MiddleCenter);
             BroadcastUi.Place(rightCaption.rectTransform, 0.66f, 0.24f, 0.975f, 0.4f);
 
-            var ringObject = new GameObject("BudgetRing", typeof(RectTransform), typeof(Image));
+            var ringObject = new GameObject("BudgetRing", typeof(RectTransform), typeof(CanvasRenderer), typeof(FinanceDonutGraphic));
             var ringRect = ringObject.GetComponent<RectTransform>();
             ringRect.SetParent(overview.transform, false);
             ringRect.anchorMin = ringRect.anchorMax = new Vector2(0.5f, 0.55f);
-            ringRect.sizeDelta = new Vector2(270f, 270f);
-            var ring = ringObject.GetComponent<Image>();
-            ring.sprite = BroadcastUi.Ring;
-            ring.preserveAspect = true;
-            ring.color = current > 0 ? UiTheme.Fitness : UiTheme.Danger;
-            ring.raycastTarget = true;
-            BroadcastUi.Hit(ring, ShowFinanceDetails);
+            ringRect.sizeDelta = new Vector2(320f, 320f);
+            var ring = ringObject.GetComponent<FinanceDonutGraphic>();
+            ring.SetValues(new[] { (float)Math.Max(0, current), (float)Math.Max(0, spent) },
+                new[] { UiTheme.Fitness, UiTheme.Danger }, new Color(1f, 1f, 1f, 0.12f));
+            ring.raycastTarget = false;
+            var ringHit = BroadcastUi.Solid(overview.transform, "BudgetRingHit", new Color(0f, 0f, 0f, 0f), true);
+            BroadcastUi.Place(ringHit.rectTransform, 0.5f, 0.55f, 0.5f, 0.55f);
+            ringHit.rectTransform.sizeDelta = ringRect.sizeDelta;
+            BroadcastUi.Hit(ringHit, ShowFinanceDetails);
             var totalHead = BroadcastUi.Label(overview.transform, "TotalHead", english ? "TOTAL" : "TOTAL", 13, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
             totalHead.raycastTarget = false;
             BroadcastUi.Place(totalHead.rectTransform, 0.39f, 0.61f, 0.61f, 0.78f);
@@ -3977,45 +4376,289 @@ namespace CoachMaster.UI.Scenes
             var finance = _career.Club.Finance;
             var ticketIncome = finance == null ? 0 : finance.TicketIncomeThisSeason;
             var shirtIncome = finance == null ? 0 : finance.ShirtIncomeThisSeason;
-            var weeklyWages = 0;
-            foreach (var player in Squad(_career.Club)) weeklyWages += Mathf.Max(0, player.WeeklyWage);
             var seasonYear = _career.Calendar.CurrentDate.Month >= 7 ? _career.Calendar.CurrentDate.Year : _career.Calendar.CurrentDate.Year - 1;
-            var elapsedWeeks = Mathf.Clamp((int)((_career.Calendar.CurrentDate.Date - new DateTime(seasonYear, 7, 1)).TotalDays / 7) + 1, 1, 52);
-            var wageEstimate = weeklyWages * elapsedWeeks;
+            var seasonStart = new DateTime(seasonYear, 7, 1);
+            long wagesPaid = 0;
+            if (finance != null)
+                foreach (var transaction in finance.Transactions)
+                    if (transaction.Category == "wages" && transaction.DateTicks >= seasonStart.Ticks
+                        && transaction.DateTicks <= _career.Calendar.CurrentDate.Ticks && transaction.Amount < 0)
+                        wagesPaid -= transaction.Amount;
+            var wageEstimate = (int)Math.Min(int.MaxValue, wagesPaid);
             var sales = finance == null ? 0 : finance.PlayerSalesThisSeason;
             var transferSpend = finance == null ? 0 : finance.TransferSpentThisSeason;
-            var netEstimate = ticketIncome + shirtIncome + sales - wageEstimate - transferSpend;
-            return new[] { ticketIncome, shirtIncome, wageEstimate, netEstimate };
+            long travel = 0;
+            if (finance != null)
+                foreach (var transaction in finance.Transactions)
+                    if (transaction.Category == "travel" && transaction.DateTicks >= seasonStart.Ticks
+                        && transaction.DateTicks <= _career.Calendar.CurrentDate.Ticks && transaction.Amount < 0)
+                        travel -= transaction.Amount;
+            var travelCost = (int)Math.Min(int.MaxValue, travel);
+            var netEstimate = (int)Math.Max(int.MinValue, Math.Min(int.MaxValue,
+                (long)ticketIncome + shirtIncome + sales - wageEstimate - transferSpend - travelCost));
+            return new[] { ticketIncome, shirtIncome, sales, wageEstimate, travelCost, transferSpend, netEstimate };
         }
 
         void ShowFinanceDetails()
         {
+            ShowFinanceDetails(0);
+        }
+
+        void ShowFinanceDetails(int tab)
+        {
+            ShowFinanceDetails(tab, _financeMetricSelection);
+        }
+
+        void ShowFinanceDetails(int tab, int metric)
+        {
+            _financeMetricSelection = Mathf.Clamp(metric, 0, 2);
             var english = LocalizationManager.Current == GameLanguage.English;
             var finance = _career.Club.Finance;
             if (finance == null) return;
             var estimate = FinanceEstimates();
             OpenModal(english ? "FINANCE BREAKDOWN" : "DETALHE FINANCEIRO",
-                english ? "Current season figures for " + _career.Club.Name + "." : "Valores da época atual para " + _career.Club.Name + ".", false);
-            AddHead(english ? "BUDGET" : "ORÇAMENTO");
-            AddLine((english ? "Total allocation  " : "Orçamento total  ") + Euro((int)Math.Min(int.MaxValue, Math.Max(0L, (long)finance.TransferBudget + finance.TransferSpentThisSeason)))
-                + "\n" + (english ? "Available  " : "Disponível  ") + Euro(finance.TransferBudget)
-                + "\n" + (english ? "Spent on transfers  " : "Gasto em transferências  ") + Euro(finance.TransferSpentThisSeason));
-            AddHead(english ? "INCOME AND COSTS" : "RECEITAS E DESPESAS");
-            var playerSales = finance.PlayerSalesThisSeason > 0
-                ? Euro(finance.PlayerSalesThisSeason)
-                : (english ? "Not tracked" : "Não registadas");
-            AddLine((english ? "Ticket income  " : "Bilheteira  ") + Euro(estimate[0])
-                + "\n" + (english ? "Shirt sales  " : "Camisolas  ") + Euro(estimate[1])
-                + "\n" + (english ? "Player sales  " : "Vendas de jogadores  ") + playerSales
-                + "\n" + (english ? "Wages (estimate)  " : "Salários (estimativa)  ") + Euro(estimate[2])
-                + "\n" + (english ? "Transfer spending  " : "Gasto em transferências  ") + Euro(finance.TransferSpentThisSeason)
-                + "\n" + (english ? "Operating result (wages estimated)  " : "Resultado operacional (salários estimados)  ") + Euro(estimate[3]));
-            AddHead(english ? "CLUB ACCOUNTS" : "CONTAS DO CLUBE");
-            AddLine((english ? "Club balance  " : "Saldo do clube  ") + Euro(finance.Balance)
-                + "\n" + (english ? "Wage budget  " : "Orçamento salarial  ") + Euro(finance.WageBudget));
-            AddLine(english
-                ? "The board handles wages. Payroll above its weekly allowance reduces the transfer allocation for the rest of the season."
-                : "A direção gere os salários. Se a folha salarial ultrapassar o limite semanal, o orçamento de transferências diminui até ao fim da época.");
+                english ? "Season accounts · " + _career.Club.Name : "Contas da época · " + _career.Club.Name, false);
+            PrepareFinanceDashboard();
+            var tabs = BroadcastUi.Zone(_modalBody, "FinanceTabs", 0.015f, 0.91f, 0.985f, 0.995f);
+            var labels = english ? new[] { "OVERVIEW", "TRANSACTIONS", "BUDGET" } : new[] { "VISÃO GERAL", "TRANSAÇÕES", "ORÇAMENTO" };
+            for (var i = 0; i < labels.Length; i++)
+            {
+                var selected = i;
+                var button = BroadcastUi.Button(tabs, "FinanceTab" + i, labels[i], () => ShowFinanceDetails(selected),
+                    i == tab ? UiTheme.Accent : new Color(1f, 1f, 1f, 0.08f), i == tab ? UiTheme.ButtonText : Color.white, 12);
+                BroadcastUi.Place(button.GetComponent<RectTransform>(), i / 3f + 0.004f, 0.04f, (i + 1) / 3f - 0.004f, 0.96f);
+            }
+
+            var dashboard = BroadcastUi.Zone(_modalBody, "FinanceDashboard", 0.015f, 0.015f, 0.985f, 0.89f);
+            var income = Math.Max(0L, (long)estimate[0] + estimate[1] + estimate[2]);
+            var expenses = Math.Max(0L, (long)estimate[3] + estimate[4] + estimate[5]);
+            var net = income - expenses;
+            if (tab == 0) BuildFinanceOverview(dashboard, finance, estimate, income, expenses, net, english, _financeMetricSelection);
+            else if (tab == 1) BuildFinanceTransactions(dashboard, finance, english);
+            else BuildFinanceBudget(dashboard, finance, english);
+        }
+
+        void PrepareFinanceDashboard()
+        {
+            var layout = _modalBody.GetComponent<VerticalLayoutGroup>();
+            if (layout != null) layout.enabled = false;
+            var fitter = _modalBody.GetComponent<ContentSizeFitter>();
+            if (fitter != null) fitter.enabled = false;
+            var scrollRect = _modal.transform.Find("Card/Scroll")?.GetComponent<ScrollRect>();
+            Canvas.ForceUpdateCanvases();
+            if (scrollRect != null)
+            {
+                scrollRect.horizontal = false;
+                scrollRect.vertical = true;
+            }
+            var body = _modalBody;
+            body.anchorMin = new Vector2(0f, 1f);
+            body.anchorMax = new Vector2(1f, 1f);
+            body.pivot = new Vector2(0.5f, 1f);
+            body.anchoredPosition = Vector2.zero;
+            var viewportHeight = scrollRect != null && scrollRect.viewport != null ? scrollRect.viewport.rect.height : 0f;
+            body.sizeDelta = new Vector2(0f, Mathf.Max(viewportHeight, 320f));
+        }
+
+        void BuildFinanceOverview(Transform host, ClubFinance finance, int[] estimate, long income, long expenses, long net, bool english, int selectedMetric)
+        {
+            var left = BroadcastUi.Zone(host, "SummaryCards", 0.005f, 0.035f, 0.31f, 0.985f);
+            var metricTitles = english ? new[] { "PROFIT", "EARNINGS", "EXPENSES" } : new[] { "LUCRO", "RECEITAS", "DESPESAS" };
+            var values = new[]
+            {
+                new { Value = (int)Math.Max(int.MinValue, Math.Min(int.MaxValue, net)), Color = net >= 0 ? UiTheme.Fitness : UiTheme.Danger },
+                new { Value = (int)Math.Min(int.MaxValue, income), Color = UiTheme.Fitness },
+                new { Value = (int)Math.Min(int.MaxValue, expenses), Color = UiTheme.Danger }
+            };
+            for (var i = 0; i < values.Length; i++)
+            {
+                var selected = i;
+                var y1 = 0.995f - i / 3f;
+                var y0 = 0.675f - i / 3f;
+                var card = BroadcastUi.Panel(left, "FinanceMetric" + i, selectedMetric == i
+                    ? new Color(0.91f, 0.92f, 0.9f, 1f) : new Color(1f, 1f, 1f, 0.11f), true);
+                BroadcastUi.Place(card.rectTransform, 0.01f, y0, 0.99f, y1 - 0.015f);
+                BroadcastUi.Hit(card, () => ShowFinanceDetails(0, selected));
+                var activeText = selectedMetric == i ? new Color(0.08f, 0.09f, 0.1f) : Color.white;
+                var title = BroadcastUi.Label(card.transform, "Title", metricTitles[i], 20, activeText, TextAnchor.MiddleLeft, FontStyle.Bold);
+                title.raycastTarget = false;
+                BroadcastUi.Place(title.rectTransform, 0.055f, 0.62f, 0.9f, 0.92f);
+                var display = i == 2 ? -values[i].Value : values[i].Value;
+                var amount = BroadcastUi.Label(card.transform, "Amount", SignedEuro(display), 23, values[i].Color, TextAnchor.MiddleLeft, FontStyle.Bold);
+                amount.raycastTarget = false;
+                BroadcastUi.Place(amount.rectTransform, 0.055f, 0.12f, 0.9f, 0.62f);
+                var icon = BroadcastUi.Label(card.transform, "Icon", i == 0 ? "◉" : i == 1 ? "↑" : "↓", 28, new Color(0.08f, 0.09f, 0.1f, 0.28f), TextAnchor.MiddleRight, FontStyle.Bold);
+                icon.raycastTarget = false;
+                BroadcastUi.Place(icon.rectTransform, 0.72f, 0.24f, 0.95f, 0.72f);
+            }
+
+            var chart = BroadcastUi.Panel(host, "ProfitChart", new Color(0.055f, 0.075f, 0.1f, 0.97f));
+            BroadcastUi.Place(chart.rectTransform, 0.325f, 0.035f, 0.995f, 0.985f);
+            var heading = BroadcastUi.Label(chart.transform, "Heading", selectedMetric == 0
+                ? (english ? "SEASON PROFIT" : "RESULTADO DA ÉPOCA")
+                : selectedMetric == 1 ? (english ? "EARNINGS BREAKDOWN" : "DETALHE DAS RECEITAS")
+                : (english ? "EXPENSES BREAKDOWN" : "DETALHE DAS DESPESAS"), 24, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(heading.rectTransform, 0.035f, 0.84f, 0.95f, 0.97f);
+            var donutObject = new GameObject("IncomeExpenseDonut", typeof(RectTransform), typeof(CanvasRenderer), typeof(FinanceDonutGraphic));
+            donutObject.transform.SetParent(chart.transform, false);
+            var donutRect = donutObject.GetComponent<RectTransform>();
+            donutRect.anchorMin = donutRect.anchorMax = new Vector2(0.5f, 0.55f);
+            donutRect.sizeDelta = new Vector2(Mathf.Clamp(Screen.height * 0.22f, 150f, 230f), Mathf.Clamp(Screen.height * 0.22f, 150f, 230f));
+            var categoryNames = selectedMetric == 0
+                ? (english ? new[] { "Earnings", "Expenses" } : new[] { "Receitas", "Despesas" })
+                : selectedMetric == 1
+                    ? (english ? new[] { "Ticket sales", "Shirt sales", "Player sales" } : new[] { "Bilheteira", "Camisolas", "Vendas de jogadores" })
+                    : (english ? new[] { "Player wages", "Transfers", "Away travel" } : new[] { "Salários", "Transferências", "Viagens fora" });
+            var categoryValues = selectedMetric == 0
+                ? new[] { (float)income, (float)expenses }
+                : selectedMetric == 1
+                    ? new[] { (float)Math.Max(0, estimate[0]), (float)Math.Max(0, estimate[1]), (float)Math.Max(0, estimate[2]) }
+                    : new[] { (float)Math.Max(0, estimate[3]), (float)Math.Max(0, estimate[5]), (float)Math.Max(0, estimate[4]) };
+            var categoryColors = selectedMetric == 0
+                ? new[] { UiTheme.Fitness, UiTheme.Danger }
+                : selectedMetric == 1
+                    ? new[] { new Color(0.16f, 0.78f, 0.44f), new Color(0.11f, 0.73f, 0.88f), new Color(0.36f, 0.57f, 0.98f) }
+                    : new[] { UiTheme.Danger, new Color(0.94f, 0.38f, 0.18f), new Color(0.72f, 0.34f, 0.84f) };
+            donutObject.GetComponent<FinanceDonutGraphic>().SetValues(categoryValues, categoryColors, new Color(1f, 1f, 1f, 0.12f));
+            var selectedTotal = selectedMetric == 0 ? net : selectedMetric == 1 ? income : -expenses;
+            var centerValue = BroadcastUi.Label(chart.transform, "NetValue", Euro((int)Math.Max(int.MinValue, Math.Min(int.MaxValue, selectedTotal))), 20, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(centerValue.rectTransform, 0.37f, 0.48f, 0.63f, 0.62f);
+            var centerTitle = BroadcastUi.Label(chart.transform, "NetTitle", selectedMetric == 0 ? (english ? "PROFIT" : "LUCRO")
+                : selectedMetric == 1 ? (english ? "EARNINGS" : "RECEITAS") : (english ? "EXPENSES" : "DESPESAS"), 10, UiTheme.Muted, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(centerTitle.rectTransform, 0.37f, 0.62f, 0.63f, 0.7f);
+            for (var i = 0; i < categoryNames.Length; i++)
+            {
+                var x0 = 0.025f + i * (0.95f / categoryNames.Length);
+                var x1 = 0.025f + (i + 1) * (0.95f / categoryNames.Length);
+                var category = BroadcastUi.Label(chart.transform, "Category" + i,
+                    categoryNames[i] + "\n" + (selectedMetric == 2 || (selectedMetric == 0 && i == 1) ? "−" : "+") + Euro((int)Math.Min(int.MaxValue, (long)categoryValues[i])),
+                    14, categoryColors[i], TextAnchor.MiddleCenter, FontStyle.Bold);
+                BroadcastUi.Place(category.rectTransform, x0, 0.16f, x1, 0.255f);
+            }
+            var footer = BroadcastUi.Panel(chart.transform, "ValueFooter", new Color(0f, 0f, 0f, 0.2f));
+            BroadcastUi.Place(footer.rectTransform, 0.015f, 0.015f, 0.985f, 0.135f);
+            var balance = finance.Balance;
+            var worth = BroadcastUi.Label(footer.transform, "Worth", (english ? "CLUB BALANCE   " : "SALDO DO CLUBE   ") + Euro(balance), 16, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(worth.rectTransform, 0.02f, 0.08f, 0.49f, 0.92f);
+            var projection = BroadcastUi.Label(footer.transform, "Projection", (english ? "PROJECTED BALANCE   " : "SALDO PROJETADO   ") + Euro((int)Math.Max(int.MinValue, Math.Min(int.MaxValue, balance + net))), 16, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(projection.rectTransform, 0.51f, 0.08f, 0.98f, 0.92f);
+        }
+
+        void BuildFinanceTransactions(Transform host, ClubFinance finance, bool english)
+        {
+            var header = BroadcastUi.Panel(host, "TransactionsHeader", new Color(0.055f, 0.075f, 0.1f, 0.97f));
+            BroadcastUi.Place(header.rectTransform, 0.005f, 0.84f, 0.995f, 0.985f);
+            var title = BroadcastUi.Label(header.transform, "Title", english ? "SEASON TRANSACTIONS" : "TRANSAÇÕES DA ÉPOCA", 18, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(title.rectTransform, 0.02f, 0.08f, 0.98f, 0.92f);
+            var topSellers = ClubFinanceLedger.TopShirtSellers(_career, _career.Club);
+            var sellers = BroadcastUi.Panel(host, "TopShirtSellers", new Color(0.07f, 0.12f, 0.2f, 0.98f));
+            BroadcastUi.Place(sellers.rectTransform, 0.005f, 0.65f, 0.995f, 0.825f);
+            var sellerTitle = BroadcastUi.Label(sellers.transform, "Title",
+                (english ? "SHIRT REVENUE  " : "RECEITA DE CAMISOLAS  ") + Euro(finance.ShirtIncomeThisSeason)
+                + "     ·     " + (english ? "TOP SELLERS" : "MAIS VENDIDAS"),
+                12, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(sellerTitle.rectTransform, 0.02f, 0.65f, 0.98f, 0.95f);
+            for (var i = 0; i < 3; i++)
+            {
+                var player = i < topSellers.Count ? topSellers[i] : null;
+                var name = player != null ? BroadcastUi.ShortName(player.FullName) : (english ? "No sales recorded" : "Sem vendas registadas");
+                var x0 = 0.025f + i * 0.325f;
+                var seller = BroadcastUi.Panel(sellers.transform, "Seller" + i, new Color(1f, 1f, 1f, 0.05f));
+                BroadcastUi.Place(seller.rectTransform, x0, 0.07f, x0 + 0.31f, 0.61f);
+                var rank = BroadcastUi.Label(seller.transform, "Rank", (i + 1).ToString("00"), 14, UiTheme.Accent, TextAnchor.MiddleCenter, FontStyle.Bold);
+                BroadcastUi.Place(rank.rectTransform, 0.025f, 0.12f, 0.17f, 0.88f);
+                var label = BroadcastUi.Label(seller.transform, "Name", name, 13, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+                label.resizeTextForBestFit = true;
+                label.resizeTextMinSize = 9;
+                label.resizeTextMaxSize = 13;
+                BroadcastUi.Place(label.rectTransform, 0.2f, 0.12f, 0.97f, 0.88f);
+            }
+
+            var list = BroadcastUi.Panel(host, "TransactionList", new Color(0.055f, 0.075f, 0.1f, 0.97f));
+            BroadcastUi.Place(list.rectTransform, 0.005f, 0.015f, 0.995f, 0.635f);
+            var shown = 0;
+            for (var i = finance.Transactions.Count - 1; i >= 0 && shown < 12; i--)
+            {
+                var transaction = finance.Transactions[i];
+                if (transaction.Category == "shirt")
+                    continue;
+                var date = transaction.DateTicks > 0 && transaction.DateTicks <= DateTime.MaxValue.Ticks
+                    ? LocalizationManager.FormatDate(new DateTime(transaction.DateTicks), "dd MMM") : "—";
+                var row = BroadcastUi.Panel(list.transform, "Transaction" + shown, new Color(1f, 1f, 1f, shown % 2 == 0 ? 0.055f : 0.015f));
+                var rowTop = 0.98f - shown * 0.081f;
+                BroadcastUi.Place(row.rectTransform, 0.012f, rowTop - 0.075f, 0.988f, rowTop);
+                var detail = BroadcastUi.Label(row.transform, "Detail", date + "   ·   " + FinanceCategoryLabel(transaction.Category, english)
+                    + "   ·   " + transaction.Description, 12, Color.white, TextAnchor.MiddleLeft);
+                detail.resizeTextForBestFit = true;
+                detail.resizeTextMinSize = 9;
+                detail.resizeTextMaxSize = 12;
+                BroadcastUi.Place(detail.rectTransform, 0.02f, 0.08f, 0.76f, 0.92f);
+                var amount = BroadcastUi.Label(row.transform, "Amount", SignedEuro(transaction.Amount), 13,
+                    transaction.Amount >= 0 ? UiTheme.Fitness : UiTheme.Danger, TextAnchor.MiddleRight, FontStyle.Bold);
+                BroadcastUi.Place(amount.rectTransform, 0.77f, 0.08f, 0.98f, 0.92f);
+                shown++;
+            }
+            if (shown == 0)
+            {
+                var empty = BroadcastUi.Label(list.transform, "Empty", english ? "Transactions will appear here as the season progresses." : "As transações aparecem aqui ao longo da época.", 15, UiTheme.Muted, TextAnchor.MiddleCenter);
+                BroadcastUi.Stretch(empty.rectTransform);
+            }
+        }
+
+        void BuildFinanceBudget(Transform host, ClubFinance finance, bool english)
+        {
+            var panel = BroadcastUi.Panel(host, "TransferBudget", new Color(0.055f, 0.075f, 0.1f, 0.97f));
+            BroadcastUi.Place(panel.rectTransform, 0.005f, 0.025f, 0.995f, 0.985f);
+            var total = Math.Max(0L, (long)finance.TransferBudget + finance.TransferSpentThisSeason);
+            var title = BroadcastUi.Label(panel.transform, "Title", english ? "TRANSFER BUDGET" : "ORÇAMENTO DE TRANSFERÊNCIAS", 18, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(title.rectTransform, 0.24f, 0.87f, 0.76f, 0.98f);
+            var ringObject = new GameObject("BudgetDonut", typeof(RectTransform), typeof(CanvasRenderer), typeof(FinanceDonutGraphic));
+            ringObject.transform.SetParent(panel.transform, false);
+            var ringRect = ringObject.GetComponent<RectTransform>();
+            ringRect.anchorMin = ringRect.anchorMax = new Vector2(0.5f, 0.52f);
+            ringRect.sizeDelta = new Vector2(Mathf.Clamp(Screen.height * 0.3f, 190f, 300f), Mathf.Clamp(Screen.height * 0.3f, 190f, 300f));
+            ringObject.GetComponent<FinanceDonutGraphic>().SetValues(
+                new[] { (float)Math.Max(0, finance.TransferBudget), (float)Math.Max(0, finance.TransferSpentThisSeason) },
+                new[] { UiTheme.Fitness, UiTheme.Danger }, new Color(1f, 1f, 1f, 0.14f));
+            var centerTitle = BroadcastUi.Label(panel.transform, "TotalTitle", english ? "TOTAL" : "TOTAL", 13, UiTheme.Muted, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(centerTitle.rectTransform, 0.4f, 0.57f, 0.6f, 0.67f);
+            var center = BroadcastUi.Label(panel.transform, "Total", Euro((int)Math.Min(int.MaxValue, total)), 24, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(center.rectTransform, 0.34f, 0.43f, 0.66f, 0.59f);
+            var week = BroadcastUi.Label(panel.transform, "Week", english ? "TRANSFER ALLOCATION" : "VERBA DE TRANSFERÊNCIAS", 10, UiTheme.Muted, TextAnchor.MiddleCenter);
+            BroadcastUi.Place(week.rectTransform, 0.32f, 0.35f, 0.68f, 0.43f);
+            var currentTitle = BroadcastUi.Label(panel.transform, "CurrentTitle", english ? "AVAILABLE" : "DISPONÍVEL", 15, UiTheme.Fitness, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(currentTitle.rectTransform, 0.025f, 0.57f, 0.25f, 0.68f);
+            var current = BroadcastUi.Label(panel.transform, "Current", Euro(finance.TransferBudget), 22, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(current.rectTransform, 0.025f, 0.42f, 0.25f, 0.57f);
+            var spentTitle = BroadcastUi.Label(panel.transform, "SpentTitle", english ? "SPENT THIS SEASON" : "GASTO ESTA ÉPOCA", 15, UiTheme.Danger, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(spentTitle.rectTransform, 0.75f, 0.57f, 0.975f, 0.68f);
+            var spent = BroadcastUi.Label(panel.transform, "Spent", Euro(finance.TransferSpentThisSeason), 22, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(spent.rectTransform, 0.75f, 0.42f, 0.975f, 0.57f);
+            var note = BroadcastUi.Label(panel.transform, "BudgetNote", english
+                ? "Weekly wages come from the club balance and do not reduce the transfer budget."
+                : "Os salários saem semanalmente do saldo do clube e não reduzem o orçamento de transferências.",
+                13, UiTheme.Muted, TextAnchor.MiddleCenter);
+            BroadcastUi.Place(note.rectTransform, 0.12f, 0.12f, 0.88f, 0.28f);
+        }
+
+        string FinanceCategoryLabel(string category, bool english)
+        {
+            switch (category)
+            {
+                case "ticket": return english ? "Ticket sales" : "Receita de bilheteira";
+                case "shirt": return english ? "Shirt sale" : "Venda de camisola";
+                case "player-sale": return english ? "Player sale" : "Venda de jogador";
+                case "transfer-fee": return english ? "Transfer fee" : "Taxa de transferência";
+                case "wages": return english ? "Weekly wages" : "Salários semanais";
+                case "travel": return english ? "Away travel" : "Viagem fora";
+                default: return english ? "Other" : "Outro";
+            }
+        }
+
+        string SignedEuro(int amount)
+        {
+            var magnitude = (int)Math.Min(int.MaxValue, Math.Abs((long)amount));
+            return (amount < 0 ? "−" : "+") + Euro(magnitude);
         }
 
         void FillAcademy()
@@ -4023,9 +4666,13 @@ namespace CoachMaster.UI.Scenes
             if (_academyContent == null || _career == null) return;
             var existingPlayers = _career.AcademyPlayerIds.Count;
             var existingFixtures = _career.AcademyFixtures.Count;
+            var existingTactics = _career.AcademyTactics.Count;
             AcademyFactory.Ensure(_career, _career.Club.Id);
             AcademyFactory.EnsureSchedule(_career, _career.Club.Id);
-            if (existingPlayers != _career.AcademyPlayerIds.Count || existingFixtures != _career.AcademyFixtures.Count)
+            foreach (var ageGroup in AcademyFactory.AgeGroups)
+                AcademyTactics(ageGroup);
+            if (existingPlayers != _career.AcademyPlayerIds.Count || existingFixtures != _career.AcademyFixtures.Count
+                || existingTactics != _career.AcademyTactics.Count)
                 CareerStore.Save(_career);
             if (_academyAgeTabs != null)
                 for (var i = 0; i < _academyAgeTabs.Length; i++)
@@ -4036,20 +4683,16 @@ namespace CoachMaster.UI.Scenes
             Clear(_academyContent);
             var english = LocalizationManager.Current == GameLanguage.English;
             var group = AcademyFactory.AgeGroups[Mathf.Clamp(_academyAgeIndex, 0, AcademyFactory.AgeGroups.Length - 1)];
-            var viewNames = english ? new[] { "STARTING XI", "BENCH", "LINE-UP", "FIXTURES" } : new[] { "ONZE INICIAL", "BANCO", "ONZE NO CAMPO", "JOGOS" };
+            var viewNames = english ? new[] { "TACTICS", "SQUAD", "FIXTURES" } : new[] { "TÁTICAS", "PLANTEL", "JOGOS" };
             var heading = BroadcastUi.Label(_academyContent, "GroupHeading", group + "  ·  " + viewNames[Mathf.Clamp(_academyViewIndex, 0, viewNames.Length - 1)], 16, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
             BroadcastUi.Preferred(heading, 30);
-            if (_academyViewIndex == 3)
+            if (_academyViewIndex == 2)
             {
                 FillAcademyFixtures(group);
                 return;
             }
 
-            var prospects = new List<Player>();
-            foreach (var id in _career.AcademyPlayerIds)
-                if (_career.World.Players.TryGetValue(id, out var player) && player.ClubId == _career.Club.Id && AcademyFactory.GroupForAge(player.Age) == group)
-                    prospects.Add(player);
-            prospects.Sort((a, b) => PlayerAttributes.Overall(b).CompareTo(PlayerAttributes.Overall(a)));
+            var prospects = AcademyPlayers(group, _career.Club.Id);
             if (prospects.Count == 0)
             {
                 var empty = BroadcastUi.Label(_academyContent, "Empty", english ? "No youth players are currently in the academy." : "Não há jovens jogadores na academia neste momento.", 16, UiTheme.Muted, TextAnchor.MiddleCenter);
@@ -4057,16 +4700,114 @@ namespace CoachMaster.UI.Scenes
                 return;
             }
 
-            var starters = new List<Player>();
-            var bench = new List<Player>();
-            StartingShape.Split(prospects, _career.Club.Tactics.Formation, starters, bench);
-            if (_academyViewIndex == 2)
+            if (_academyViewIndex == 0)
             {
-                FillAcademyLineup(prospects);
+                FillAcademyTactics(group, prospects);
                 return;
             }
 
-            var shown = _academyViewIndex == 0 ? starters : bench;
+            FillAcademyRoster(prospects, english);
+        }
+
+        List<Player> AcademyPlayers(string group, string clubId)
+        {
+            var players = new List<Player>();
+            foreach (var id in _career.AcademyPlayerIds)
+                if (_career.World.Players.TryGetValue(id, out var player) && player.ClubId == clubId && AcademyFactory.GroupForAge(player.Age) == group)
+                    players.Add(player);
+            players.Sort((a, b) => PlayerAttributes.Overall(b).CompareTo(PlayerAttributes.Overall(a)));
+            return players;
+        }
+
+        void SplitAcademySquad(string group, List<Player> squad, string formation, List<Player> eleven, List<Player> bench)
+        {
+            eleven.Clear();
+            bench.Clear();
+            if (squad == null || squad.Count == 0) return;
+            if (!_career.AcademySquadOrders.TryGetValue(group, out var saved) || saved == null || saved.Count == 0)
+            {
+                StartingShape.Split(squad, formation, eleven, bench);
+                saved = new List<string>();
+                foreach (var player in eleven) saved.Add(player.Id);
+                foreach (var player in bench) saved.Add(player.Id);
+                _career.AcademySquadOrders[group] = saved;
+                CareerStore.Save(_career);
+                return;
+            }
+
+            var remaining = new List<Player>(squad);
+            var ordered = new List<Player>(squad.Count);
+            for (var i = 0; i < saved.Count; i++)
+            {
+                var index = remaining.FindIndex(player => player.Id == saved[i]);
+                if (index < 0) continue;
+                ordered.Add(remaining[index]);
+                remaining.RemoveAt(index);
+            }
+            remaining.Sort((a, b) => PlayerAttributes.Overall(b).CompareTo(PlayerAttributes.Overall(a)));
+            ordered.AddRange(remaining);
+            saved.Clear();
+            foreach (var player in ordered) saved.Add(player.Id);
+            var starterCount = Mathf.Min(11, ordered.Count);
+            for (var i = 0; i < starterCount; i++) eleven.Add(ordered[i]);
+            for (var i = starterCount; i < ordered.Count; i++) bench.Add(ordered[i]);
+        }
+
+        void SwapAcademyFieldOrder(string group, Player moving, int fromField, int toField)
+        {
+            if (moving == null || toField < 0 || _career == null) return;
+            var players = AcademyPlayers(group, _career.Club.Id);
+            var tactics = AcademyTactics(group);
+            var eleven = new List<Player>();
+            var bench = new List<Player>();
+            SplitAcademySquad(group, players, tactics.Formation, eleven, bench);
+            var order = _career.AcademySquadOrders[group];
+            var source = order.IndexOf(moving.Id);
+            if (source < 0 || toField >= eleven.Count || (fromField >= 0 && fromField >= eleven.Count)) return;
+            var target = toField;
+            var swap = order[source];
+            order[source] = order[target];
+            order[target] = swap;
+            CareerStore.Save(_career);
+            FillAcademy();
+        }
+
+        void HandleAcademyBenchClick(Player player, string group)
+        {
+            if (player == null) return;
+            if (!string.IsNullOrEmpty(_academySelectedBenchPlayerId)
+                && _academySelectedBenchPlayerId != player.Id)
+            {
+                var orderKey = AcademyFactory.AgeGroups[Mathf.Clamp(_academyAgeIndex, 0, AcademyFactory.AgeGroups.Length - 1)];
+                if (_career.AcademySquadOrders.TryGetValue(orderKey, out var order))
+                {
+                    var first = order.IndexOf(_academySelectedBenchPlayerId);
+                    var second = order.IndexOf(player.Id);
+                    if (first >= 11 && second >= 11)
+                    {
+                        var swap = order[first];
+                        order[first] = order[second];
+                        order[second] = swap;
+                        _academySelectedBenchPlayerId = "";
+                        CareerStore.Save(_career);
+                        FillAcademy();
+                        return;
+                    }
+                }
+            }
+
+            if (_academyLastBenchClickId == player.Id && Time.unscaledTime - _academyLastBenchClickAt <= 0.42f)
+            {
+                _academySelectedBenchPlayerId = player.Id;
+                _academyBenchGroup = 0;
+                FillAcademy();
+            }
+            _academyLastBenchClickId = player.Id;
+            _academyLastBenchClickAt = Time.unscaledTime;
+        }
+
+        void FillAcademyRoster(List<Player> shown, bool english)
+        {
             for (var i = 0; i < shown.Count; i++)
             {
                 var player = shown[i];
@@ -4083,7 +4824,7 @@ namespace CoachMaster.UI.Scenes
 
                 var name = BroadcastUi.Label(row.transform, "Name", player.FullName.ToUpperInvariant(), 15, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
                 BroadcastUi.Place(name.rectTransform, 0.105f, 0.53f, 0.58f, 0.94f);
-                var position = PresentationLabels.Position(player.Position);
+                var position = PresentationLabels.Position(player.Position, english);
                 var profile = BroadcastUi.Label(row.transform, "Profile", (english ? "AGE " : "IDADE ") + player.Age + "  ·  " + LocalizationManager.Translate(player.Nationality) + "  ·  " + position,
                     12, UiTheme.Accent, TextAnchor.MiddleLeft);
                 BroadcastUi.Place(profile.rectTransform, 0.105f, 0.12f, 0.58f, 0.52f);
@@ -4106,15 +4847,260 @@ namespace CoachMaster.UI.Scenes
             }
         }
 
-        void FillAcademyLineup(List<Player> prospects)
+        TacticalIdentity AcademyTactics(string group)
         {
-            if (_academyContent == null || prospects == null || prospects.Count == 0)
-                return;
-            var fieldPanel = BroadcastUi.Panel(_academyContent, "AcademyLineupPanel", new Color(0.06f, 0.25f, 0.14f, 1f));
-            BroadcastUi.Preferred(fieldPanel, 470f);
-            var field = BroadcastUi.Zone(fieldPanel.transform, "AcademyLineupPitch", 0.39f, 0.015f, 0.61f, 0.985f);
+            if (!_career.AcademyTactics.TryGetValue(group, out var tactics) || tactics == null)
+            {
+                var source = _career.Club.Tactics;
+                tactics = new TacticalIdentity
+                {
+                    Formation = source.Formation,
+                    Pressing = source.Pressing,
+                    BuildUp = source.BuildUp,
+                    FullBacks = source.FullBacks,
+                    DefensiveLine = source.DefensiveLine,
+                    Width = source.Width,
+                    Tempo = source.Tempo,
+                    PassingStyle = source.PassingStyle,
+                    AttackIdea = source.AttackIdea,
+                    Marking = source.Marking
+                };
+                _career.AcademyTactics[group] = tactics;
+            }
+            return tactics;
+        }
+
+        void FillAcademyTactics(string group, List<Player> squad)
+        {
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var club = _career.Club;
+            var tactics = AcademyTactics(group);
+            var panel = BroadcastUi.Panel(_academyContent, "AcademyTacticsPanel", new Color(0.06f, 0.25f, 0.14f, 0.96f));
+            BroadcastUi.Preferred(panel, 570f);
+
+            var field = BroadcastUi.Zone(panel.transform, "AcademyPitch", 0.095f, 0.32f, 0.345f, 0.98f);
             BroadcastUi.DrawVerticalHalfPitch(field, new Color(0.12f, 0.46f, 0.22f));
-            PlaceAcademyShape(field, prospects, _career.Club);
+            PlaceAcademyShape(field, squad, club, group);
+
+            var benchHeading = BroadcastUi.Label(panel.transform, "BenchHeading", _academyBenchGroup == 0
+                ? (english ? "SUBSTITUTES" : "SUPLENTES") : (english ? "RESERVES" : "RESERVAS"),
+                12, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(benchHeading.rectTransform, 0.015f, 0.275f, 0.42f, 0.315f);
+            if (!string.IsNullOrEmpty(_academySelectedBenchPlayerId)
+                && _career.World.Players.TryGetValue(_academySelectedBenchPlayerId, out var selectedBench))
+                benchHeading.text = (english ? "SELECTED: " : "SELECIONADO: ") + selectedBench.FullName
+                    + (english ? " · choose a replacement" : " · escolhe quem trocar");
+            var subs = BroadcastUi.Button(panel.transform, "AcademySubsTab", english ? "SUBSTITUTES" : "SUPLENTES",
+                () => { _academyBenchGroup = 0; FillAcademy(); }, _academyBenchGroup == 0 ? UiTheme.Accent : new Color(1f, 1f, 1f, 0.08f),
+                _academyBenchGroup == 0 ? UiTheme.ButtonText : Color.white, 10);
+            BroadcastUi.Place(subs.GetComponent<RectTransform>(), 0.015f, 0.23f, 0.21f, 0.275f);
+            var reserves = BroadcastUi.Button(panel.transform, "AcademyReservesTab", english ? "RESERVES" : "RESERVAS",
+                () => { _academyBenchGroup = 1; FillAcademy(); }, _academyBenchGroup == 1 ? UiTheme.Accent : new Color(1f, 1f, 1f, 0.08f),
+                _academyBenchGroup == 1 ? UiTheme.ButtonText : Color.white, 10);
+            BroadcastUi.Place(reserves.GetComponent<RectTransform>(), 0.215f, 0.23f, 0.42f, 0.275f);
+
+            var eleven = new List<Player>();
+            var bench = new List<Player>();
+            SplitAcademySquad(group, squad, tactics.Formation, eleven, bench);
+            var groupPlayers = new List<Player>();
+            for (var i = 0; i < bench.Count; i++)
+                if ((_academyBenchGroup == 0 && i < 7) || (_academyBenchGroup == 1 && i >= 7))
+                    groupPlayers.Add(bench[i]);
+            for (var i = 0; i < groupPlayers.Count; i++)
+            {
+                var x0 = 0.015f + i * (0.405f / groupPlayers.Count);
+                var x1 = 0.015f + (i + 1) * (0.405f / groupPlayers.Count);
+                AcademyBenchCard(panel.transform, groupPlayers[i], group, _academyBenchGroup == 1, x0 + 0.003f, x1 - 0.003f);
+            }
+
+            var paneNames = english ? new[] { "FORMATIONS", "ROLES", "INSTRUCTIONS", "TACTICS" }
+                : new[] { "FORMAÇÕES", "FUNÇÕES", "INSTRUÇÕES", "TÁTICAS" };
+            for (var i = 0; i < paneNames.Length; i++)
+            {
+                var pane = i;
+                var x0 = 0.44f + i * 0.138f;
+                var tab = BroadcastUi.Button(panel.transform, "AcademyPane" + i, paneNames[i], () =>
+                {
+                    _academyPane = pane;
+                    FillAcademy();
+                }, pane == _academyPane ? UiTheme.Accent : new Color(1f, 1f, 1f, 0.08f),
+                    pane == _academyPane ? UiTheme.ButtonText : Color.white, 10);
+                BroadcastUi.Place(tab.GetComponent<RectTransform>(), x0, 0.91f, x0 + 0.132f, 0.975f);
+            }
+            var body = BroadcastUi.Zone(panel.transform, "AcademyTacticSheet", 0.44f, 0.25f, 0.98f, 0.9f);
+            if (_academyPane == 0)
+                FillAcademyFormations(body, tactics, squad, english);
+            else if (_academyPane == 1)
+                FillAcademyRoles(body, group, squad, english);
+            else if (_academyPane == 2)
+                FillAcademyInstructions(body, squad, english);
+            else
+                FillAcademyTacticOptions(body, group, tactics, english);
+        }
+
+        void AcademyBenchCard(Transform host, Player player, string ageGroup, bool inReserves, float x0, float x1)
+        {
+            var selected = _academySelectedBenchPlayerId == player.Id;
+            var panel = host as RectTransform;
+            Canvas.ForceUpdateCanvases();
+            var size = panel == null ? Vector2.one : panel.rect.size;
+            var card = PersonCard(host, player, _career.Club, true, -1, true,
+                Mathf.Max(1f, size.x * (x1 - x0)), Mathf.Max(1f, size.y * 0.2f), player.Position,
+                "Academy:" + ageGroup, () => HandleAcademyBenchClick(player, ageGroup),
+                selected ? new Color(0.12f, 0.36f, 0.38f, 1f) : (Color?)null, inReserves);
+            card.anchorMin = card.anchorMax = new Vector2((x0 + x1) * 0.5f, 0.125f);
+            card.anchoredPosition = Vector2.zero;
+            var drag = card.GetComponent<SquadDragCard>();
+            if (drag != null)
+                drag.BenchReserves = inReserves;
+        }
+
+        void FillAcademyFormations(RectTransform host, TacticalIdentity tactics, List<Player> squad, bool english)
+        {
+            var forms = new[] { "4-3-3", "4-2-3-1", "4-4-2", "3-4-3", "5-4-1" };
+            for (var i = 0; i < forms.Length; i++)
+            {
+                var formation = forms[i];
+                var y1 = 0.95f - i * 0.17f;
+                var button = BroadcastUi.Button(host, "AcademyFormation" + i, formation, () =>
+                {
+                    tactics.Formation = formation;
+                    tactics.Summary = formation + " · " + tactics.Pressing + " · " + tactics.BuildUp;
+                    CareerStore.Save(_career);
+                    FillAcademy();
+                }, tactics.Formation == formation ? UiTheme.Accent : new Color(1f, 1f, 1f, 0.08f),
+                    tactics.Formation == formation ? UiTheme.ButtonText : Color.white, 17);
+                BroadcastUi.Place(button.GetComponent<RectTransform>(), 0.025f, y1 - 0.13f, 0.975f, y1);
+            }
+            var hint = BroadcastUi.Label(host, "AcademyFormationHint", english ? "The youth XI follows this formation and its role preferences." : "O onze jovem segue esta formação e as respetivas funções.", 12, UiTheme.Muted, TextAnchor.MiddleCenter);
+            BroadcastUi.Place(hint.rectTransform, 0.03f, 0.005f, 0.97f, 0.11f);
+        }
+
+        void FillAcademyRoles(RectTransform host, string group, List<Player> squad, bool english)
+        {
+            var roles = new[] { "captain", "penalty", "corner", "freekick" };
+            var labels = english ? new[] { "CAPTAIN", "PENALTIES", "CORNERS", "FREE KICKS" }
+                : new[] { "CAPITÃO", "PENÁLTIS", "CANTOS", "LIVRES" };
+            for (var i = 0; i < roles.Length; i++)
+            {
+                var key = group + ":" + roles[i];
+                var id = _career.AcademyRoleAssignments.TryGetValue(key, out var assigned) ? assigned : "";
+                var who = squad.Find(p => p.Id == id);
+                var label = labels[i] + "  ·  " + (who == null ? (english ? "Choose player" : "Escolher jogador") : BroadcastUi.ShortName(who.FullName));
+                var role = roles[i];
+                var roleLabel = labels[i];
+                var button = BroadcastUi.Button(host, "AcademyRole" + i, label, () => ShowAcademyRolePicker(group, role, roleLabel, squad, english),
+                    new Color(1f, 1f, 1f, 0.08f), Color.white, 14);
+                var y1 = 0.92f - i * 0.22f;
+                BroadcastUi.Place(button.GetComponent<RectTransform>(), 0.025f, y1 - 0.16f, 0.975f, y1);
+            }
+        }
+
+        void ShowAcademyRolePicker(string group, string role, string title, List<Player> squad, bool english)
+        {
+            OpenModal(title, english ? "Choose a player from this age group." : "Escolhe um jogador deste escalão.", false);
+            for (var i = 0; i < squad.Count; i++)
+            {
+                var player = squad[i];
+                var row = BroadcastUi.Button(_modalBody, "PickRole" + i, player.FullName + "  ·  " + PresentationLabels.Position(player.Position, english), () =>
+                {
+                    _career.AcademyRoleAssignments[group + ":" + role] = player.Id;
+                    CareerStore.Save(_career);
+                    CloseModal();
+                    FillAcademy();
+                }, new Color(0.1f, 0.04f, 0.2f, 0.9f), Color.white, 13);
+                BroadcastUi.Preferred(row.GetComponent<RectTransform>(), 36);
+            }
+        }
+
+        void FillAcademyInstructions(RectTransform host, List<Player> squad, bool english)
+        {
+            var scroll = BroadcastUi.Scroll(host, "AcademyOrdersScroll", out var content);
+            BroadcastUi.Stretch(scroll.GetComponent<RectTransform>());
+            for (var i = 0; i < squad.Count; i++)
+            {
+                var player = squad[i];
+                var button = BroadcastUi.Button(content, "AcademyOrder" + i,
+                    player.FullName + "  ·  " + LocalizationManager.Translate(string.IsNullOrEmpty(player.Duty) ? "Equilibrar" : player.Duty),
+                    () => ShowAcademyInstructionPicker(player, english), new Color(1f, 1f, 1f, 0.08f), Color.white, 11);
+                BroadcastUi.Preferred(button.GetComponent<RectTransform>(), 30);
+            }
+        }
+
+        void ShowAcademyInstructionPicker(Player player, bool english)
+        {
+            if (player == null) return;
+            var options = IndividualOrders.ForPosition(player.Position);
+            OpenModal(english ? "INDIVIDUAL INSTRUCTION" : "INSTRUÇÃO INDIVIDUAL", player.FullName, false);
+            for (var i = 0; i < options.Length; i++)
+            {
+                var option = options[i];
+                var button = BroadcastUi.Button(_modalBody, "AcademyDuty" + i, LocalizationManager.Translate(option), () =>
+                {
+                    player.Duty = option;
+                    CareerStore.Save(_career);
+                    CloseModal();
+                    FillAcademy();
+                }, option == player.Duty ? UiTheme.Accent : new Color(1f, 1f, 1f, 0.08f), Color.white, 13);
+                BroadcastUi.Preferred(button.GetComponent<RectTransform>(), 38);
+            }
+        }
+
+        void FillAcademyTacticOptions(RectTransform host, string group, TacticalIdentity tactics, bool english)
+        {
+            var rows = new[]
+            {
+                new { Title = english ? "PRESSING" : "PRESSÃO", Values = new[] { "Pressão muito alta", "Pressão alta", "Pressão média", "Pressão baixa" }, Current = tactics.Pressing },
+                new { Title = english ? "DEFENSIVE LINE" : "LINHA DEFENSIVA", Values = new[] { "Linha muito alta", "Linha defensiva alta", "Linha defensiva média", "Linha defensiva baixa", "Linha muito baixa" }, Current = tactics.DefensiveLine },
+                new { Title = english ? "BUILD-UP" : "CONSTRUÇÃO", Values = new[] { "Construção curta", "Jogo misto", "Construção longa" }, Current = tactics.BuildUp },
+                new { Title = english ? "FULL-BACKS" : "LATERAIS", Values = new[] { "Laterais ficam", "Laterais equilibram", "Laterais sobem" }, Current = tactics.FullBacks },
+                new { Title = english ? "WIDTH" : "LARGURA", Values = new[] { "Largura estreita", "Largura normal", "Largura larga" }, Current = tactics.Width },
+                new { Title = english ? "TEMPO" : "RITMO", Values = new[] { "Ritmo lento", "Ritmo normal", "Ritmo rápido" }, Current = tactics.Tempo },
+                new { Title = english ? "PASSING RISK" : "RISCO NO PASSE", Values = new[] { "Passe seguro", "Passe misto", "Passe arriscado" }, Current = tactics.PassingStyle },
+                new { Title = english ? "MARKING" : "MARCAÇÃO", Values = new[] { "Marcação zonal", "Marcação mista", "Marcação ao homem" }, Current = tactics.Marking },
+                new { Title = english ? "ATTACKING IDEA" : "IDEIA DE JOGO", Values = new[] { "Equilibrado", "Tiki-taka", "Posse", "Cruzamentos", "Jogo direto", "Bolas longas", "Remates de longe", "Contra-ataque" }, Current = tactics.AttackIdea }
+            };
+            for (var i = 0; i < rows.Length; i++)
+            {
+                var row = rows[i];
+                var index = i;
+                var button = BroadcastUi.Button(host, "AcademyTactic" + i, row.Title + "\n" + LocalizationManager.Translate(string.IsNullOrEmpty(row.Current) ? "—" : row.Current),
+                    () => ShowAcademyTacticPicker(group, index, row.Title, row.Values, row.Current, english),
+                    new Color(1f, 1f, 1f, 0.08f), Color.white, 10);
+                var top = 0.985f - i * 0.108f;
+                BroadcastUi.Place(button.GetComponent<RectTransform>(), 0.02f, top - 0.101f, 0.98f, top);
+            }
+        }
+
+        void ShowAcademyTacticPicker(string group, int index, string title, string[] options, string current, bool english)
+        {
+            var tactics = AcademyTactics(group);
+            OpenModal(title, english ? "Choose how this age group will play." : "Escolhe como este escalão vai jogar.", false);
+            AddHead(english ? "AVAILABLE OPTIONS" : "OPÇÕES DISPONÍVEIS");
+            for (var i = 0; i < options.Length; i++)
+            {
+                var option = options[i];
+                var button = BroadcastUi.Button(_modalBody, "AcademyTacticOption" + i, LocalizationManager.Translate(option), () =>
+                {
+                    switch (index)
+                    {
+                        case 0: tactics.Pressing = option; break;
+                        case 1: tactics.DefensiveLine = option; break;
+                        case 2: tactics.BuildUp = option; break;
+                        case 3: tactics.FullBacks = option; break;
+                        case 4: tactics.Width = option; break;
+                        case 5: tactics.Tempo = option; break;
+                        case 6: tactics.PassingStyle = option; break;
+                        case 7: tactics.Marking = option; break;
+                        case 8: tactics.AttackIdea = option; break;
+                    }
+                    tactics.Summary = tactics.Formation + " · " + tactics.Pressing + " · " + tactics.BuildUp;
+                    CareerStore.Save(_career);
+                    CloseModal();
+                    FillAcademy();
+                }, current == option ? UiTheme.Accent : new Color(1f, 1f, 1f, 0.08f), Color.white, 12);
+                BroadcastUi.Preferred(button.GetComponent<RectTransform>(), 34);
+            }
         }
 
         void FillAcademyFixtures(string group)
@@ -4161,71 +5147,48 @@ namespace CoachMaster.UI.Scenes
             AcademyFactory.Ensure(_career, club.Id);
             if (before != _career.AcademyPlayerIds.Count)
                 CareerStore.Save(_career);
-
-            var squad = new List<Player>();
-            foreach (var id in _career.AcademyPlayerIds)
-                if (_career.World.Players.TryGetValue(id, out var player)
-                    && player.ClubId == club.Id
-                    && AcademyFactory.GroupForAge(player.Age) == group)
-                    squad.Add(player);
-            squad.Sort((a, b) => PlayerAttributes.Overall(b).CompareTo(PlayerAttributes.Overall(a)));
-
-            var english = LocalizationManager.Current == GameLanguage.English;
-            var leagueName = "";
-            foreach (var league in _career.World.Leagues)
-                if (league.Id == club.LeagueId) { leagueName = LocalizationManager.Translate(league.Name); break; }
-            OpenModal(club.Name + "  ·  " + group,
-                (string.IsNullOrEmpty(leagueName) ? "" : leagueName + "  ·  ") + (english ? "Youth squad" : "Plantel da formação"), false);
-            AddHead((english ? "STARTING XI  ·  " : "ONZE INICIAL  ·  ") + club.Tactics.Formation);
-            var pitchPanel = BroadcastUi.Panel(_modalBody, "YouthPitchPanel", new Color(0.06f, 0.25f, 0.14f, 1f));
-            BroadcastUi.Preferred(pitchPanel, 360);
-            var pitch = BroadcastUi.Zone(pitchPanel.transform, "YouthHalfPitch", 0.31f, 0.02f, 0.69f, 0.98f);
-            BroadcastUi.DrawVerticalHalfPitch(pitch, new Color(0.12f, 0.46f, 0.22f));
-            PlaceAcademyShape(pitch, squad, club);
-
-            AddHead((english ? "SQUAD  ·  " : "PLANTEL  ·  ") + squad.Count);
-            for (var i = 0; i < squad.Count; i++)
-            {
-                var player = squad[i];
-                var row = BroadcastUi.Panel(_modalBody, "YouthPlayer" + i, new Color(0.035f, 0.075f, 0.1f, 0.96f), true);
-                BroadcastUi.Preferred(row, 32);
-                var name = BroadcastUi.Label(row.transform, "Name", player.SquadNumber + "  ·  " + player.FullName, 12, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
-                BroadcastUi.Place(name.rectTransform, 0.025f, 0.08f, 0.48f, 0.92f);
-                var position = BroadcastUi.Label(row.transform, "Position", PresentationLabels.Position(player.Position), 11, UiTheme.Accent, TextAnchor.MiddleCenter);
-                BroadcastUi.Place(position.rectTransform, 0.49f, 0.08f, 0.66f, 0.92f);
-                var age = BroadcastUi.Label(row.transform, "Age", (english ? "Age " : "Idade ") + player.Age, 11, UiTheme.Muted, TextAnchor.MiddleCenter);
-                BroadcastUi.Place(age.rectTransform, 0.67f, 0.08f, 0.82f, 0.92f);
-                var overall = BroadcastUi.Label(row.transform, "Overall", "OVR  " + PlayerAttributes.Overall(player), 11, UiTheme.Score, TextAnchor.MiddleRight, FontStyle.Bold);
-                BroadcastUi.Place(overall.rectTransform, 0.82f, 0.08f, 0.975f, 0.92f);
-            }
+            OpenClubDossier(club, 1, group, null);
         }
 
-        static void PlaceAcademyShape(RectTransform host, List<Player> squad, Club club)
+        void PlaceAcademyShape(RectTransform host, List<Player> squad, Club club, string group)
         {
             if (host == null || squad == null || club == null)
                 return;
+            var formation = club.Id == _career.Club.Id
+                ? AcademyTactics(group).Formation
+                : club.Tactics == null ? "4-3-3" : club.Tactics.Formation;
             var eleven = new List<Player>();
             var bench = new List<Player>();
-            StartingShape.Split(squad, club.Tactics.Formation, eleven, bench);
+            if (club.Id == _career.Club.Id)
+                SplitAcademySquad(group, squad, formation, eleven, bench);
+            else
+                StartingShape.Split(squad, formation, eleven, bench);
+            Canvas.ForceUpdateCanvases();
+            var bounds = host.rect.size;
+            var cardWidth = Mathf.Clamp(bounds.x * 0.19f, 82f, 104f);
+            var cardHeight = Mathf.Clamp(bounds.y * 0.19f, 72f, 88f);
+            var padX = cardWidth * 0.5f / Mathf.Max(1f, bounds.x) + 0.015f;
+            var padY = cardHeight * 0.5f / Mathf.Max(1f, bounds.y) + 0.02f;
+            var slotPositions = StartingShape.SlotPositions(formation);
             for (var index = 0; index < eleven.Count && index < 11; index++)
             {
                 var player = eleven[index];
-                var card = BroadcastUi.Panel(host, "YouthSlot" + player.Id, new Color(0.1f, 0.04f, 0.18f, 0.94f));
-                card.rectTransform.anchorMin = card.rectTransform.anchorMax = MatchEngine.Slot(true, index, club.Tactics.Formation);
-                card.rectTransform.sizeDelta = new Vector2(66f, 72f);
-                var portraitObject = new GameObject("Portrait", typeof(RectTransform), typeof(Image));
-                portraitObject.transform.SetParent(card.transform, false);
-                BroadcastUi.Place(portraitObject.GetComponent<RectTransform>(), 0.24f, 0.45f, 0.76f, 0.96f);
-                var portrait = portraitObject.GetComponent<Image>();
-                portrait.sprite = FaceBook.For(player);
-                portrait.preserveAspect = true;
-                portrait.raycastTarget = false;
-                var name = BroadcastUi.Label(card.transform, "Name", BroadcastUi.ShortName(player.FullName).ToUpperInvariant(), 8, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
-                BroadcastUi.Place(name.rectTransform, 0.02f, 0.22f, 0.98f, 0.46f);
-                var number = BroadcastUi.Label(card.transform, "Number", player.SquadNumber.ToString(), 9, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
-                BroadcastUi.Place(number.rectTransform, 0.04f, 0.78f, 0.3f, 0.98f);
-                var overall = BroadcastUi.Label(card.transform, "Overall", PlayerAttributes.Overall(player).ToString(), 9, UiTheme.Score, TextAnchor.MiddleCenter, FontStyle.Bold);
-                BroadcastUi.Place(overall.rectTransform, 0.7f, 0.78f, 0.96f, 0.98f);
+                var position = index < slotPositions.Length ? slotPositions[index] : player.Position;
+                var slot = MatchEngine.Slot(true, index, formation);
+                slot.x = Mathf.Clamp(slot.x, padX, 1f - padX);
+                slot.y = Mathf.Clamp(slot.y, padY, 1f - padY);
+                var interactive = club.Id == _career.Club.Id;
+                var card = PersonCard(host, player, club, true, interactive ? index : -1, false,
+                    cardWidth, cardHeight, position, interactive ? "Academy:" + group : null);
+                card.name = "YouthSlot" + player.Id;
+                card.anchorMin = card.anchorMax = slot;
+                card.anchoredPosition = Vector2.zero;
+                if (!interactive)
+                {
+                    var drag = card.GetComponent<SquadDragCard>();
+                    if (drag != null)
+                        drag.enabled = false;
+                }
             }
         }
 
@@ -4239,10 +5202,10 @@ namespace CoachMaster.UI.Scenes
 
         void PromoteAcademyPlayer(Player player)
         {
-            if (player == null || player.Age < 16 || _career == null || _career.Club == null)
+            if (player == null || player.Age < 16 || _career == null || _career.Club == null
+                || !_career.AcademyPlayerIds.Contains(player.Id) || _career.Club.PlayerIds.Contains(player.Id))
                 return;
-            if (!_career.Club.PlayerIds.Contains(player.Id))
-                _career.Club.PlayerIds.Add(player.Id);
+            _career.Club.PlayerIds.Add(player.Id);
             player.ClubId = _career.Club.Id;
             var used = new HashSet<int>();
             foreach (var id in _career.Club.PlayerIds)
@@ -4253,6 +5216,8 @@ namespace CoachMaster.UI.Scenes
                 player.SquadNumber++;
             _career.AcademyPlayerIds.Remove(player.Id);
             CareerStore.Save(_career);
+            if (_profileModalPlayer != null && _profileModalPlayer.Id == player.Id)
+                CloseModal();
             FillAcademy();
             FillTeam();
         }
@@ -4349,8 +5314,8 @@ namespace CoachMaster.UI.Scenes
                 empty.rectTransform.sizeDelta = new Vector2(240, 32);
             }
 
-            const float cardWidth = 78f;
-            const float cardHeight = 58f;
+            const float cardWidth = 96f;
+            const float cardHeight = 76f;
             const float cardGap = 8f;
             const float sidePadding = 12f;
             Canvas.ForceUpdateCanvases();
@@ -4701,7 +5666,8 @@ namespace CoachMaster.UI.Scenes
             var eleven = new List<Player>();
             var bench = new List<Player>();
             StartingShape.Resolve(Squad(club), club, eleven, bench);
-            var lines = StartingShape.Lines(club.Tactics.Formation);
+            var formation = club.Tactics == null ? "4-3-3" : club.Tactics.Formation;
+            var lines = StartingShape.Lines(formation);
             var cursor = 0;
             var rows = lines.Length;
             for (var row = 0; row < rows; row++)
@@ -4725,10 +5691,11 @@ namespace CoachMaster.UI.Scenes
             var eleven = new List<Player>();
             var bench = new List<Player>();
             StartingShape.Resolve(Squad(club), club, eleven, bench);
+            var formation = club.Tactics == null ? "4-3-3" : club.Tactics.Formation;
             for (var index = 0; index < eleven.Count && index < 11; index++)
             {
                 var card = PersonCard(host, eleven[index], club, fatigue, index, false, width, height);
-                card.anchorMin = card.anchorMax = MatchEngine.Slot(true, index, club.Tactics.Formation);
+                card.anchorMin = card.anchorMax = MatchEngine.Slot(true, index, formation);
                 card.sizeDelta = new Vector2(width, height);
             }
         }
@@ -4744,8 +5711,8 @@ namespace CoachMaster.UI.Scenes
             var field = host.rect.size;
             if (field.x <= 1f || field.y <= 1f)
                 field = new Vector2(Screen.width * 0.39f, Screen.height * 0.61f);
-            var width = Mathf.Clamp(field.x * 0.115f, 60f, 76f);
-            var height = Mathf.Clamp(field.y * 0.165f, 48f, 58f);
+            var width = Mathf.Clamp(field.x * 0.145f, 76f, 100f);
+            var height = Mathf.Clamp(field.y * 0.2f, 58f, 78f);
             var padX = width * 0.5f / field.x + 0.012f;
             var padY = height * 0.5f / field.y + 0.015f;
             for (var index = 0; index < eleven.Count && index < 11; index++)
@@ -4886,26 +5853,18 @@ namespace CoachMaster.UI.Scenes
             BuildPages(root);
             BuildPlay(root);
             BuildModal(root);
-            var hint = BroadcastUi.Label(root, "ControlHint", LocalizationManager.Translate("M · DEFINIÇÕES"), 15, UiTheme.Muted, TextAnchor.MiddleRight);
-            BroadcastUi.Place(hint.rectTransform, 0.42f, 0.008f, 0.98f, 0.048f);
-            var sample = Squad(_career.Club);
-            if (sample.Count > 0)
-            {
-                var shell = PersonCard(root, sample[0], _career.Club, true, -1, false, 110f, 148f);
-                shell.gameObject.name = "PlayerCardTemplate";
-                shell.gameObject.SetActive(false);
-                var drag = shell.GetComponent<SquadDragCard>();
-                if (drag != null)
-                    DestroyImmediate(drag);
-                var button = shell.GetComponent<Button>();
-                if (button != null)
-                    DestroyImmediate(button);
-            }
+            var hint = BroadcastUi.Label(root, "SettingsHint", LocalizationManager.Translate("M · DEFINIÇÕES"), 15, UiTheme.Muted, TextAnchor.MiddleRight);
+            BroadcastUi.Place(hint.rectTransform, 0.72f, 0.008f, 0.98f, 0.048f);
         }
 
         void BindDesign(Transform root)
         {
-            _cardTemplate = root.Find("PlayerCardTemplate");
+            var pagesRect = root.Find("Pages") as RectTransform;
+            if (pagesRect != null)
+                BroadcastUi.Place(pagesRect, 0.03f, 0.075f, 0.97f, 0.815f);
+            var settingsHint = root.Find("SettingsHint") as RectTransform;
+            if (settingsHint != null)
+                BroadcastUi.Place(settingsHint, 0.72f, 0.008f, 0.98f, 0.048f);
             var clubName = SceneBind.Get<Text>(root, "Header/ClubName");
             if (clubName != null)
                 clubName.text = _career.Club.Name.ToUpperInvariant();
@@ -4988,6 +5947,11 @@ namespace CoachMaster.UI.Scenes
                 var choice = i;
                 _replies[i] = SceneBind.Wire(root.Find("Pages/Home/Reply" + i), () => Answer(choice));
             }
+            var skipNode = root.Find("Pages/Home/SkipConversations");
+            _skipConversations = skipNode == null
+                ? BroadcastUi.Button(_pages[0].transform, "SkipConversations", "", SkipConversations, new Color(0.3f, 0.18f, 0.44f, 0.98f), Color.white, 13)
+                : SceneBind.Wire(skipNode, SkipConversations);
+            _skipConversations.gameObject.SetActive(false);
 
             _newsContent = root.Find("Pages/News/Scroll/Content") as RectTransform;
             EnsureMemoriesButton(root.Find("Pages/News"));
@@ -5068,6 +6032,7 @@ namespace CoachMaster.UI.Scenes
             _vibe = null;
             _tableContent = root.Find("Pages/Standings/Grid") as RectTransform;
             _play = SceneBind.Wire(root.Find("PlayMatch"), OnContinue);
+            BroadcastUi.Place(_play.GetComponent<RectTransform>(), 0.3f, 0.01f, 0.7f, 0.07f);
             _playLabel = _play.GetComponentInChildren<Text>();
             _modal = root.Find("Modal").gameObject;
             _modalTitle = SceneBind.Get<Text>(root, "Modal/Card/Title");
@@ -5107,6 +6072,15 @@ namespace CoachMaster.UI.Scenes
             if (academyIntro != null) academyIntro.text = english
                 ? "Youth prospects · players can be promoted from age 16"
                 : "Jovens promessas · promoção possível a partir dos 16 anos";
+            if (_academyViewTabs != null)
+            {
+                var academyViews = english ? new[] { "TACTICS", "SQUAD", "FIXTURES" } : new[] { "TÁTICAS", "PLANTEL", "JOGOS" };
+                for (var i = 0; i < _academyViewTabs.Length && i < academyViews.Length; i++)
+                {
+                    var label = _academyViewTabs[i].GetComponentInChildren<Text>();
+                    if (label != null) label.text = academyViews[i];
+                }
+            }
             var careerPage = _officeViews != null && _officeViews.Length > 1 ? _officeViews[1].transform.Find("Board") : null;
             if (careerPage != null)
             {
@@ -5168,215 +6142,36 @@ namespace CoachMaster.UI.Scenes
             }
         }
 
-        void ApplyCard(RectTransform card, Player player, Club club, bool showFatigue, int fieldIndex, bool bench)
+        RectTransform PersonCard(Transform parent, Player player, Club club, bool showFatigue, int fieldIndex, bool bench,
+            float cardWidth, float cardHeight, PlayerPosition? displayPosition = null, string dragContext = null,
+            Action clickOverride = null, Color? background = null, bool? benchReserves = null)
         {
-            var captured = player;
-            BroadcastUi.Hit(card.GetComponent<Image>(), () => OnPerson(captured, bench));
+            var position = displayPosition ?? CardPosition(player, club, fieldIndex);
+            float? fatigue = null;
+            if (showFatigue)
+            {
+                var coach = StaffReport.Find(_career.Club, StaffRole.FitnessCoach);
+                var fatigueTruth = bench ? Mathf.Min(player.Fatigue, 22) : player.Fatigue;
+                fatigue = StaffReport.Read(coach, player.Id, "cansaco", fatigueTruth, 0, 100);
+            }
+
+            var card = PlayerCardView.Create(parent, "P" + player.SquadNumber, player, club, position,
+                showFatigue, Marks(player, club), background, fatigue);
+            var rect = card.rectTransform;
+            rect.sizeDelta = new Vector2(cardWidth, cardHeight);
+            BroadcastUi.Hit(card, clickOverride ?? (() => OnPerson(player, bench)));
             if (bench || fieldIndex >= 0)
             {
                 var drag = card.gameObject.AddComponent<SquadDragCard>();
                 drag.Player = player;
                 drag.Bench = bench;
-                drag.BenchReserves = bench && _reserves;
+                drag.BenchReserves = benchReserves ?? _reserves;
                 drag.FieldIndex = fieldIndex;
+                drag.Context = dragContext ?? "";
                 if (bench)
                     drag.OnSwapWithField = SwapStarter;
             }
-
-            SetText(card, "BackNumber", player.SquadNumber.ToString());
-            SetText(card, "Name", BroadcastUi.ShortName(player.FullName).ToUpperInvariant());
-            SetText(card, "Position", PresentationLabels.Position(CardPosition(player, club, fieldIndex)));
-            SetText(card, "Nation", NationCode(player.Nationality));
-            var displayPosition = player.Position;
-            if (fieldIndex >= 0)
-            {
-                var slots = StartingShape.SlotPositions(club.Tactics == null ? "4-3-3" : club.Tactics.Formation);
-                if (fieldIndex < slots.Length)
-                    displayPosition = slots[fieldIndex];
-            }
-            SetText(card, "Overall", PlayerAttributes.CurrentOverallAtPosition(player, displayPosition).ToString());
-            SetText(card, "Extra", Marks(player, club));
-            NudgeCardItem(card, "Name", 0.028f, TextAnchor.MiddleCenter);
-            NudgeCardItem(card, "Position", 0.018f, TextAnchor.MiddleLeft);
-            NudgeCardItem(card, "Nation", 0.018f, TextAnchor.MiddleCenter);
-            NudgeCardItem(card, "Overall", 0.018f, TextAnchor.MiddleRight, 0.88f);
-            SetNationFlag(card, player.Nationality);
-            var face = card.Find("Face");
-            if (face != null)
-            {
-                var faceRect = face as RectTransform;
-                if (faceRect != null)
-                {
-                    var center = (faceRect.anchorMin + faceRect.anchorMax) * 0.5f;
-                    var size = (faceRect.anchorMax - faceRect.anchorMin) * 1.1f;
-                    center.y += 0.018f;
-                    faceRect.anchorMin = center - size * 0.5f;
-                    faceRect.anchorMax = center + size * 0.5f;
-                }
-                var image = face.GetComponent<Image>();
-                image.sprite = FaceBook.For(player);
-                image.preserveAspect = true;
-            }
-
-            var injury = card.Find("Injury");
-            var hurt = player.Injury != null && player.Injury.IsInjured;
-            if (hurt && injury == null)
-            {
-                var cross = BroadcastUi.Label(card, "Injury", "+", 22, new Color(0.92f, 0.16f, 0.18f), TextAnchor.MiddleCenter, FontStyle.Bold);
-                cross.rectTransform.anchorMin = cross.rectTransform.anchorMax = new Vector2(0.88f, 0.86f);
-                cross.rectTransform.sizeDelta = new Vector2(22, 22);
-            }
-            else if (injury != null)
-                injury.gameObject.SetActive(hurt);
-
-            var bar = card.Find("Fatigue");
-            if (bar != null)
-            {
-                bar.gameObject.SetActive(showFatigue);
-                if (showFatigue)
-                {
-                    var coach = StaffReport.Find(_career.Club, StaffRole.FitnessCoach);
-                    var fatigueTruth = bench ? Mathf.Min(player.Fatigue, 22) : player.Fatigue;
-                    var tired = StaffReport.Read(coach, player.Id, "cansaco", fatigueTruth, 0, 100);
-                    var fresh = Mathf.Clamp01(1f - tired / 100f);
-                    var fill = bar.Find("Fill");
-                    if (fill != null)
-                    {
-                        var image = fill.GetComponent<Image>();
-                        image.rectTransform.anchorMax = new Vector2(1f, Mathf.Max(0.08f, fresh));
-                        image.color = fresh >= 0.72f ? UiTheme.Fitness : fresh >= 0.5f ? UiTheme.FitnessLow : UiTheme.FitnessBad;
-                    }
-                }
-            }
-        }
-
-        static void SetText(Transform card, string child, string value)
-        {
-            var target = card.Find(child);
-            if (target == null)
-                return;
-            var text = target.GetComponent<Text>();
-            if (text != null)
-                text.text = value;
-        }
-
-        static void NudgeCardItem(Transform card, string child, float up, TextAnchor alignment, float maxX = 1f)
-        {
-            var item = card.Find(child);
-            var rect = item as RectTransform;
-            if (rect != null)
-            {
-                rect.anchorMin += new Vector2(0f, up);
-                rect.anchorMax = new Vector2(Mathf.Min(rect.anchorMax.x, maxX), rect.anchorMax.y + up);
-            }
-
-            var text = item == null ? null : item.GetComponent<Text>();
-            if (text != null)
-                text.alignment = alignment;
-        }
-
-        RectTransform PersonCard(Transform parent, Player player, Club club, bool showFatigue, int fieldIndex, bool bench, float cardWidth, float cardHeight)
-        {
-            if (_cardTemplate != null)
-            {
-                var copy = Instantiate(_cardTemplate.gameObject, parent);
-                copy.SetActive(true);
-                copy.name = "P" + player.SquadNumber;
-                var rect = copy.GetComponent<RectTransform>();
-                rect.sizeDelta = new Vector2(cardWidth, cardHeight);
-                ApplyCard(rect, player, club, showFatigue, fieldIndex, bench);
-                return rect;
-            }
-
-            var card = BroadcastUi.Panel(parent, "P" + player.SquadNumber, new Color(0.1f, 0.04f, 0.18f, 0.94f), true);
-            card.rectTransform.sizeDelta = new Vector2(cardWidth, cardHeight);
-            if (card.GetComponent<RectMask2D>() == null)
-                card.gameObject.AddComponent<RectMask2D>();
-            var captured = player;
-            if (bench)
-            {
-                var drag = card.gameObject.AddComponent<SquadDragCard>();
-                drag.Player = player;
-                drag.Bench = true;
-                drag.BenchReserves = _reserves;
-                drag.OnSwapWithField = SwapStarter;
-            }
-
-            BroadcastUi.Hit(card, () => OnPerson(captured, bench));
-            var shirt = BroadcastUi.Parse(club.JerseyPrimaryHex, UiTheme.Accent);
-            var backNumber = BroadcastUi.Label(card.transform, "BackNumber", player.SquadNumber.ToString(), 80, new Color(shirt.r, shirt.g, shirt.b, 0.22f), TextAnchor.MiddleCenter, FontStyle.Bold);
-            backNumber.resizeTextForBestFit = true;
-            backNumber.resizeTextMinSize = 10;
-            backNumber.resizeTextMaxSize = 160;
-            backNumber.horizontalOverflow = HorizontalWrapMode.Overflow;
-            backNumber.verticalOverflow = VerticalWrapMode.Overflow;
-            BroadcastUi.Place(backNumber.rectTransform, 0.02f, 0.02f, 0.98f, 0.98f);
-            var face = FaceImage(card.transform, player, 16f);
-            face.preserveAspect = true;
-            var faceRect = face.rectTransform;
-            var faceCenter = new Vector2(0.5f, 0.596f);
-            var faceSize = new Vector2(0.792f, 0.528f) * 1.1f;
-            faceRect.anchorMin = faceCenter - faceSize * 0.5f;
-            faceRect.anchorMax = faceCenter + faceSize * 0.5f;
-            faceRect.offsetMin = Vector2.zero;
-            faceRect.offsetMax = Vector2.zero;
-            faceRect.pivot = new Vector2(0.5f, 0.5f);
-            if (!bench)
-            {
-                var drop = card.gameObject.AddComponent<SquadDragCard>();
-                drop.Player = player;
-                drop.Bench = false;
-                drop.FieldIndex = fieldIndex;
-            }
-            var extra = BroadcastUi.Label(card.transform, "Extra", Marks(player, club), 11, UiTheme.Accent, TextAnchor.MiddleRight, FontStyle.Bold);
-            BroadcastUi.Place(extra.rectTransform, 0.72f, 0.84f, 0.98f, 0.98f);
-            if (player.Injury != null && player.Injury.IsInjured)
-            {
-                var cross = BroadcastUi.Label(card.transform, "Injury", "+", 22, new Color(0.92f, 0.16f, 0.18f), TextAnchor.MiddleCenter, FontStyle.Bold);
-                cross.rectTransform.anchorMin = cross.rectTransform.anchorMax = new Vector2(0.88f, 0.86f);
-                cross.rectTransform.sizeDelta = new Vector2(22, 22);
-            }
-            var name = BroadcastUi.Label(card.transform, "Name", BroadcastUi.ShortName(player.FullName).ToUpperInvariant(), 13, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
-            name.horizontalOverflow = HorizontalWrapMode.Overflow;
-            name.verticalOverflow = VerticalWrapMode.Overflow;
-            BroadcastUi.Place(name.rectTransform, 0.04f, 0.215f, 0.96f, 0.375f);
-            name.alignment = TextAnchor.MiddleCenter;
-            if (showFatigue)
-            {
-                var coach = StaffReport.Find(_career.Club, StaffRole.FitnessCoach);
-                var fatigueTruth = bench ? Mathf.Min(player.Fatigue, 22) : player.Fatigue;
-                var tired = StaffReport.Read(coach, player.Id, "cansaco", fatigueTruth, 0, 100);
-                var bg = BroadcastUi.Solid(card.transform, "Fatigue", new Color(1f, 1f, 1f, 0.16f));
-                bg.sprite = BroadcastUi.Round;
-                bg.type = Image.Type.Sliced;
-                BroadcastUi.Place(bg.rectTransform, 0.9f, 0.12f, 0.96f, 0.86f);
-                var fill = BroadcastUi.Solid(bg.transform, "Fill", UiTheme.Fitness);
-                fill.sprite = BroadcastUi.Round;
-                fill.type = Image.Type.Sliced;
-                var fresh = Mathf.Clamp01(1f - tired / 100f);
-                fill.rectTransform.anchorMin = Vector2.zero;
-                fill.rectTransform.anchorMax = new Vector2(1f, Mathf.Max(0.08f, fresh));
-                fill.rectTransform.offsetMin = Vector2.zero;
-                fill.rectTransform.offsetMax = Vector2.zero;
-                fill.color = fresh >= 0.72f ? UiTheme.Fitness : fresh >= 0.5f ? UiTheme.FitnessLow : UiTheme.FitnessBad;
-            }
-
-            var position = BroadcastUi.Label(card.transform, "Position", PresentationLabels.Position(CardPosition(player, club, fieldIndex)), 12, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
-            position.horizontalOverflow = HorizontalWrapMode.Overflow;
-            position.verticalOverflow = VerticalWrapMode.Overflow;
-            BroadcastUi.Place(position.rectTransform, 0.04f, 0.04f, 0.34f, 0.24f);
-            var nation = BroadcastUi.Solid(card.transform, "NationFlag", Color.white);
-            nation.sprite = FlagStudio.For(player.Nationality);
-            nation.preserveAspect = true;
-            nation.raycastTarget = false;
-            BroadcastUi.Place(nation.rectTransform, 0.34f, 0.04f, 0.66f, 0.24f);
-            var overall = BroadcastUi.Label(card.transform, "Overall", PlayerAttributes.CurrentOverallAtPosition(player, CardPosition(player, club, fieldIndex)).ToString(), 13, Color.white, TextAnchor.MiddleRight, FontStyle.Bold);
-            overall.horizontalOverflow = HorizontalWrapMode.Overflow;
-            overall.verticalOverflow = VerticalWrapMode.Overflow;
-            BroadcastUi.Place(overall.rectTransform, 0.66f, 0.04f, 0.88f, 0.24f);
-            overall.transform.SetAsLastSibling();
-
-            return card.rectTransform;
+            return rect;
         }
 
         static PlayerPosition CardPosition(Player player, Club club, int fieldIndex)
@@ -5385,40 +6180,6 @@ namespace CoachMaster.UI.Scenes
                 return player == null ? PlayerPosition.CentralMidfielder : player.Position;
             var slots = StartingShape.SlotPositions(club.Tactics == null ? "4-3-3" : club.Tactics.Formation);
             return fieldIndex < slots.Length ? slots[fieldIndex] : player.Position;
-        }
-
-        static void SetNationFlag(Transform card, string nationality)
-        {
-            if (card == null)
-                return;
-            var textNode = card.Find("Nation");
-            var source = textNode as RectTransform;
-            if (textNode != null)
-            {
-                var label = textNode.GetComponent<Text>();
-                if (label != null)
-                    label.enabled = false;
-            }
-
-            var existing = card.Find("NationFlag");
-            var flag = existing == null ? BroadcastUi.Solid(card, "NationFlag", Color.white) : existing.GetComponent<Image>();
-            if (flag == null)
-                return;
-            flag.sprite = FlagStudio.For(nationality);
-            flag.preserveAspect = true;
-            flag.raycastTarget = false;
-            if (source != null)
-            {
-                var target = flag.rectTransform;
-                target.anchorMin = source.anchorMin;
-                target.anchorMax = source.anchorMax;
-                target.pivot = source.pivot;
-                target.anchoredPosition = source.anchoredPosition;
-                target.sizeDelta = source.sizeDelta;
-                target.offsetMin = source.offsetMin;
-                target.offsetMax = source.offsetMax;
-            }
-            flag.transform.SetAsLastSibling();
         }
 
         void FillCalendar()
@@ -5471,7 +6232,8 @@ namespace CoachMaster.UI.Scenes
                 var card = BroadcastUi.Panel(_calendar, "Fixture" + i, new Color(0.14f, 0.06f, 0.28f, 0.9f), true);
                 BroadcastUi.Preferred(card, 104);
                 var captured = fixture;
-                BroadcastUi.Hit(card, () => OpenFixture(captured));
+                var capturedOpponent = opp;
+                BroadcastUi.Hit(card, () => OpenClubDossier(capturedOpponent));
                 var date = BroadcastUi.Label(card.transform, "Date", LocalizationManager.FormatDate(fixture.Date, "dd MMM").ToUpperInvariant(), 18, UiTheme.Score, TextAnchor.MiddleLeft, FontStyle.Bold);
                 BroadcastUi.Place(date.rectTransform, 0.02f, 0.52f, 0.14f, 0.92f);
                 var place = BroadcastUi.Label(card.transform, "Venue", venue, 13, UiTheme.Muted, TextAnchor.MiddleLeft, FontStyle.Bold);
@@ -5481,16 +6243,20 @@ namespace CoachMaster.UI.Scenes
                 badge.rectTransform.pivot = new Vector2(0.5f, 0.5f);
                 badge.rectTransform.anchoredPosition = Vector2.zero;
                 badge.rectTransform.sizeDelta = new Vector2(52, 52);
-                var name = BroadcastUi.Label(card.transform, "Name", opp.Name, 20, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
-                BroadcastUi.Place(name.rectTransform, 0.24f, 0.52f, 0.78f, 0.9f);
+                var profileClub = opp;
+                BroadcastUi.Hit(badge, () => OpenClubDossier(profileClub));
+                var name = BroadcastUi.Button(card.transform, "Name", opp.Name,
+                    () => OpenClubDossier(profileClub), new Color(1f, 1f, 1f, 0.01f), Color.white, 20);
+                BroadcastUi.Place(name.GetComponent<RectTransform>(), 0.24f, 0.52f, 0.78f, 0.9f);
                 var competition = SeasonSchedule.Competition(fixture.LeagueId);
                 var noteText = string.IsNullOrEmpty(competition) ? AssistantNote(opp) : LocalizationManager.Translate(competition);
                 var note = BroadcastUi.Label(card.transform, "Note", noteText, 14, UiTheme.Muted, TextAnchor.MiddleLeft);
                 BroadcastUi.Place(note.rectTransform, 0.24f, 0.08f, 0.8f, 0.5f);
                 var verdict = BroadcastUi.Label(card.transform, "Verdict", mark, 22, markColor, TextAnchor.MiddleCenter, FontStyle.Bold);
                 BroadcastUi.Place(verdict.rectTransform, 0.78f, 0.2f, 0.86f, 0.8f);
-                var result = BroadcastUi.Label(card.transform, "Score", score, 22, fixture.Played ? UiTheme.Score : Color.white, TextAnchor.MiddleRight, FontStyle.Bold);
-                BroadcastUi.Place(result.rectTransform, 0.84f, 0.2f, 0.98f, 0.8f);
+                var result = BroadcastUi.Button(card.transform, "Score", score, () => OpenFixture(captured),
+                    new Color(1f, 1f, 1f, 0.035f), fixture.Played ? UiTheme.Score : Color.white, 20);
+                BroadcastUi.Place(result.GetComponent<RectTransform>(), 0.84f, 0.2f, 0.98f, 0.8f);
             }
         }
 
@@ -5575,13 +6341,13 @@ namespace CoachMaster.UI.Scenes
             if (home != null)
             {
                 var clubButton = BroadcastUi.Button(_modalBody, "HomeClubProfile", LocalizationManager.Current == GameLanguage.English ? "VIEW " + home.ShortName : "VER " + home.ShortName,
-                    () => OpenClubDossier(home), new Color(0.16f, 0.08f, 0.29f, 1f), Color.white, 13);
+                    () => OpenNewsClubDossier(home, story), new Color(0.16f, 0.08f, 0.29f, 1f), Color.white, 13);
                 BroadcastUi.Preferred(clubButton.GetComponent<RectTransform>(), 38);
             }
             if (away != null)
             {
                 var clubButton = BroadcastUi.Button(_modalBody, "AwayClubProfile", LocalizationManager.Current == GameLanguage.English ? "VIEW " + away.ShortName : "VER " + away.ShortName,
-                    () => OpenClubDossier(away), new Color(0.16f, 0.08f, 0.29f, 1f), Color.white, 13);
+                    () => OpenNewsClubDossier(away, story), new Color(0.16f, 0.08f, 0.29f, 1f), Color.white, 13);
                 BroadcastUi.Preferred(clubButton.GetComponent<RectTransform>(), 38);
             }
 
@@ -5603,16 +6369,17 @@ namespace CoachMaster.UI.Scenes
         void OpenFixture(Fixture fixture)
         {
             var opp = _career.World.Clubs[fixture.OpponentId(_career.Coach.ClubId)];
+            var formation = opp.Tactics == null ? "4-3-3" : opp.Tactics.Formation;
             var venue = LocalizationManager.Translate(fixture.IsHome(_career.Coach.ClubId) ? "Casa" : "Fora");
             var scouted = _career.Scouted.Contains(opp.Id);
-            OpenModal(opp.Name, venue + "  ·  " + LocalizationManager.FormatDate(fixture.Date, "dd MMMM") + "  ·  " + opp.Tactics.Formation, scouted == false);
+            OpenModal(opp.Name, venue + "  ·  " + LocalizationManager.FormatDate(fixture.Date, "dd MMMM") + "  ·  " + formation, scouted == false);
             var crest = CrestImage(_modal.transform.Find("Card"), opp, 56f);
             crest.rectTransform.anchorMin = crest.rectTransform.anchorMax = new Vector2(0.07f, 0.9f);
             var clubCardButton = BroadcastUi.Button(_modalBody, "ClubProfile", LocalizationManager.Current == GameLanguage.English ? "OPEN CLUB PROFILE" : "ABRIR PERFIL DO CLUBE",
                 () => OpenClubDossier(opp), new Color(0.16f, 0.08f, 0.29f, 1f), Color.white, 13);
             BroadcastUi.Preferred(clubCardButton.GetComponent<RectTransform>(), 38);
             AddLine(AssistantNote(opp));
-            AddHead(LocalizationManager.Translate("PLANTEL") + "  ·  " + opp.Tactics.Formation);
+            AddHead(LocalizationManager.Translate("PLANTEL") + "  ·  " + formation);
             var pitch = BroadcastUi.Panel(_modalBody, "Shape", new Color(0.1f, 0.04f, 0.2f, 0.72f));
             BroadcastUi.Preferred(pitch, 520);
             var verticalPitch = BroadcastUi.Zone(pitch.transform, "VerticalHalfPitch", 0.39f, 0.01f, 0.61f, 0.99f);
@@ -5628,10 +6395,21 @@ namespace CoachMaster.UI.Scenes
 
         void OpenClubDossier(Club club)
         {
-            OpenClubDossier(club, 0);
+            OpenClubDossier(club, 0, null, null);
         }
 
         void OpenClubDossier(Club club, int selectedTab)
+        {
+            OpenClubDossier(club, selectedTab, null, null);
+        }
+
+        void OpenNewsClubDossier(Club club, PaperStory story)
+        {
+            if (story == null) return;
+            OpenClubDossier(club, 0, null, () => OpenStory(story));
+        }
+
+        void OpenClubDossier(Club club, int selectedTab, string youthGroup, Action returnTo)
         {
             if (club == null || _career == null) return;
             var english = LocalizationManager.Current == GameLanguage.English;
@@ -5641,13 +6419,14 @@ namespace CoachMaster.UI.Scenes
                 if (item.Id == club.LeagueId) { league = LocalizationManager.Translate(item.Name); break; }
             var lead = (string.IsNullOrEmpty(league) ? city : league + "  ·  " + city) + "  ·  " + (english ? "Founded " : "Fundado em ") + club.FoundedYear;
             OpenModal(club.Name, lead, false);
+            _dossierReturnAction = returnTo;
             var crest = CrestImage(_modal.transform.Find("Card"), club, 48f);
             crest.rectTransform.anchorMin = crest.rectTransform.anchorMax = new Vector2(0.05f, 0.925f);
             BroadcastUi.Place(_modalTitle.rectTransform, 0.09f, 0.88f, 0.91f, 0.97f);
 
             var labels = english
-                ? new[] { "OVERVIEW", "SQUAD", "MATCHES", "FINANCES", "TRANSFERS", "HISTORY", "FACILITIES" }
-                : new[] { "VISÃO GERAL", "PLANTEL", "JOGOS", "FINANÇAS", "TRANSFERÊNCIAS", "HISTÓRIA", "INSTALAÇÕES" };
+                ? new[] { "OVERVIEW", "SQUAD", "MATCHES", "PERFORMANCE", "TRANSFERS", "HISTORY" }
+                : new[] { "VISÃO GERAL", "PLANTEL", "JOGOS", "DESEMPENHO", "TRANSFERÊNCIAS", "HISTÓRIA" };
             var tabRow = BroadcastUi.Panel(_modalBody, "ClubProfileTabs", new Color(0.035f, 0.075f, 0.1f, 0.96f), true);
             BroadcastUi.Preferred(tabRow, 38);
             for (var i = 0; i < labels.Length; i++)
@@ -5656,7 +6435,7 @@ namespace CoachMaster.UI.Scenes
                 var x0 = i / (float)labels.Length;
                 var x1 = (i + 1) / (float)labels.Length;
                 var button = BroadcastUi.Button(tabRow.transform, "ClubTab" + i, labels[i],
-                    () => OpenClubDossier(club, tab), tab == selectedTab ? UiTheme.Accent : new Color(1f, 1f, 1f, 0.07f),
+                    () => OpenClubDossier(club, tab, youthGroup, returnTo), tab == selectedTab ? UiTheme.Accent : new Color(1f, 1f, 1f, 0.07f),
                     tab == selectedTab ? UiTheme.ButtonText : Color.white, 9);
                 BroadcastUi.Place(button.GetComponent<RectTransform>(), x0 + 0.003f, 0.08f, x1 - 0.003f, 0.92f);
             }
@@ -5664,12 +6443,14 @@ namespace CoachMaster.UI.Scenes
             switch (Mathf.Clamp(selectedTab, 0, labels.Length - 1))
             {
                 case 0: BuildClubOverview(club, city, league, english); break;
-                case 1: BuildClubSquad(club, english); break;
+                case 1:
+                    if (string.IsNullOrEmpty(youthGroup)) BuildClubSquad(club, english);
+                    else BuildYouthClubSquad(club, youthGroup, english);
+                    break;
                 case 2: BuildClubMatches(club, english); break;
-                case 3: BuildClubFinances(club, english); break;
+                case 3: BuildClubPerformance(club, english); break;
                 case 4: BuildClubTransfers(club, english); break;
                 case 5: BuildClubHistory(club, city, league, english); break;
-                case 6: BuildClubFacilities(club, city, league, english); break;
             }
         }
 
@@ -5729,8 +6510,9 @@ namespace CoachMaster.UI.Scenes
                     + "\n" + (english ? "Top scorer  " : "Melhor marcador  ") + topScorer.FullName + "  ·  " + Mathf.Max(0, topScorerGoals);
                 OverviewBlock(overview.transform, "Highlights", english ? "SQUAD HIGHLIGHTS" : "DESTAQUES DO PLANTEL", highlights, 0.025f, 0.22f, 0.64f, 0.45f);
             }
-            var identity = LocalizationManager.Translate(club.Tactics.Formation + " · " + club.Tactics.Pressing + " · " + club.Tactics.BuildUp
-                + " · " + club.Tactics.FullBacks + " · " + club.Tactics.DefensiveLine);
+            var clubTactics = club.Tactics ?? new TacticalIdentity { Formation = "4-3-3" };
+            var identity = LocalizationManager.Translate(clubTactics.Formation + " · " + clubTactics.Pressing + " · " + clubTactics.BuildUp
+                + " · " + clubTactics.FullBacks + " · " + clubTactics.DefensiveLine);
             OverviewBlock(overview.transform, "Identity", english ? "TACTICS" : "TÁTICAS", identity, 0.025f, 0.035f, 0.32f, 0.19f);
             var expectations = club.BoardObjectives == null || club.BoardObjectives.Count == 0
                 ? (english ? "The board expects steady progress." : "A direção espera uma evolução consistente.")
@@ -5741,7 +6523,7 @@ namespace CoachMaster.UI.Scenes
             BroadcastUi.Place(field.rectTransform, 0.67f, 0.035f, 0.98f, 0.97f);
             var pitch = BroadcastUi.Zone(field.transform, "VerticalHalfPitch", 0.04f, 0.02f, 0.96f, 0.98f);
             BroadcastUi.DrawVerticalHalfPitch(pitch, new Color(0.12f, 0.46f, 0.22f));
-            PlaceVerticalShape(pitch, club, false, 48f, 52f);
+            PlaceVerticalShape(pitch, club, false, 66f, 62f);
         }
 
         static void OverviewBlock(Transform parent, string name, string title, string body, float x0, float y0, float x1, float y1)
@@ -5762,16 +6544,96 @@ namespace CoachMaster.UI.Scenes
             var roster = Squad(club);
             roster.Sort((a, b) => PlayerAttributes.Overall(b).CompareTo(PlayerAttributes.Overall(a)));
             AddHead((english ? "FIRST TEAM  ·  " : "PLANTEL PRINCIPAL  ·  ") + roster.Count);
-            AddClubPitch(club, 360f, 58f, 62f);
-            for (var i = 0; i < roster.Count; i++)
+            var eleven = new List<Player>();
+            var bench = new List<Player>();
+            StartingShape.Resolve(roster, club, eleven, bench);
+            var formation = club.Tactics == null ? "4-3-3" : club.Tactics.Formation;
+            AddDossierLineup(club, eleven, formation, english, "ClubSquadPitch");
+            var substitutes = bench.GetRange(0, Mathf.Min(7, bench.Count));
+            AddDossierPlayerCards("ClubSubstitutes", english ? "SUBSTITUTES" : "SUPLENTES", substitutes, club, english);
+            if (bench.Count > substitutes.Count)
+                AddDossierPlayerCards("ClubReserves", english ? "RESERVES" : "RESERVAS", bench.GetRange(substitutes.Count, bench.Count - substitutes.Count), club, english);
+        }
+
+        void BuildYouthClubSquad(Club club, string ageGroup, bool english)
+        {
+            var before = _career.AcademyPlayerIds.Count;
+            AcademyFactory.Ensure(_career, club.Id);
+            if (before != _career.AcademyPlayerIds.Count)
+                CareerStore.Save(_career);
+            var roster = AcademyPlayers(ageGroup, club.Id);
+            var seniorFormation = club.Tactics == null ? "4-3-3" : club.Tactics.Formation;
+            var formation = club.Id == _career.Club.Id ? AcademyTactics(ageGroup).Formation : seniorFormation;
+            AddHead((english ? ageGroup + " YOUTH XI  ·  " : "ONZE " + ageGroup + "  ·  ")
+                + formation);
+            var eleven = new List<Player>();
+            var bench = new List<Player>();
+            StartingShape.Split(roster, formation, eleven, bench);
+            AddDossierLineup(club, eleven, formation, english, "YouthClubPitch");
+            var substitutes = bench.GetRange(0, Mathf.Min(7, bench.Count));
+            AddDossierPlayerCards("YouthClubSubstitutes", english ? "SUBSTITUTES" : "SUPLENTES", substitutes, club, english);
+            if (bench.Count > substitutes.Count)
+                AddDossierPlayerCards("YouthClubReserves", english ? "RESERVES" : "RESERVAS", bench.GetRange(substitutes.Count, bench.Count - substitutes.Count), club, english);
+        }
+
+        void AddDossierLineup(Club club, List<Player> eleven, string formation, bool english, string objectName)
+        {
+            var field = BroadcastUi.Panel(_modalBody, objectName, new Color(0.06f, 0.25f, 0.14f, 1f));
+            BroadcastUi.Preferred(field, 450f);
+            var pitch = BroadcastUi.Zone(field.transform, "VerticalHalfPitch", 0.18f, 0.02f, 0.82f, 0.98f);
+            BroadcastUi.DrawVerticalHalfPitch(pitch, new Color(0.12f, 0.46f, 0.22f));
+            Canvas.ForceUpdateCanvases();
+            var size = pitch.rect.size;
+            var cardWidth = Mathf.Clamp(size.x * 0.16f, 82f, 100f);
+            var cardHeight = Mathf.Clamp(size.y * 0.17f, 72f, 84f);
+            var padX = cardWidth * 0.5f / Mathf.Max(1f, size.x) + 0.012f;
+            var padY = cardHeight * 0.5f / Mathf.Max(1f, size.y) + 0.018f;
+            var positions = StartingShape.SlotPositions(formation);
+            for (var i = 0; i < eleven.Count && i < 11; i++)
             {
-                var player = roster[i];
-                var detail = BroadcastUi.Button(_modalBody, "SquadPlayer" + i,
-                    player.SquadNumber + "  " + player.FullName + "  ·  " + PresentationLabels.Position(player.Position)
-                    + "  ·  " + (english ? "Age " : "Idade ") + player.Age + "  ·  OVR " + PlayerAttributes.Overall(player),
-                    () => OpenPlayer(player), new Color(0.1f, 0.04f, 0.2f, 0.88f), Color.white, 13);
-                BroadcastUi.Preferred(detail.GetComponent<RectTransform>(), 35);
+                var slot = MatchEngine.Slot(true, i, formation);
+                slot.x = Mathf.Clamp(slot.x, padX, 1f - padX);
+                slot.y = Mathf.Clamp(slot.y, padY, 1f - padY);
+                var position = i < positions.Length ? positions[i] : eleven[i].Position;
+                AddDossierPlayerCard(pitch, eleven[i], club, slot, cardWidth, cardHeight, english, displayPosition: position);
             }
+        }
+
+        void AddDossierPlayerCards(string objectName, string title, List<Player> players, Club club, bool english)
+        {
+            if (players == null || players.Count == 0) return;
+            AddHead(title + "  ·  " + players.Count);
+            var row = BroadcastUi.Panel(_modalBody, objectName, new Color(0.035f, 0.075f, 0.1f, 0.96f));
+            BroadcastUi.Preferred(row, 150f);
+            for (var i = 0; i < players.Count; i++)
+            {
+                var x0 = i / (float)players.Count;
+                var x1 = (i + 1) / (float)players.Count;
+                var player = players[i];
+                AddDossierPlayerCard(row.transform, player, club, new Vector2((x0 + x1) * 0.5f, 0.5f),
+                    (x1 - x0) * row.rectTransform.rect.width - 8f, 132f, english, x0 + 0.004f, x1 - 0.004f, 0.06f, 0.94f);
+            }
+        }
+
+        void AddDossierPlayerCard(Transform host, Player player, Club club, Vector2 anchor, float width, float height,
+            bool english, float x0 = -1f, float x1 = -1f, float y0 = -1f, float y1 = -1f, PlayerPosition? displayPosition = null)
+        {
+            var card = PersonCard(host, player, club, true, -1, false, width, height,
+                displayPosition ?? player.Position, clickOverride: () => OpenPlayer(player));
+            if (x0 >= 0f)
+            {
+                card.anchorMin = new Vector2(x0, y0);
+                card.anchorMax = new Vector2(x1, y1);
+                card.sizeDelta = Vector2.zero;
+                card.offsetMin = Vector2.zero;
+                card.offsetMax = Vector2.zero;
+            }
+            else
+            {
+                card.anchorMin = card.anchorMax = anchor;
+                card.sizeDelta = new Vector2(width, height);
+            }
+            card.anchoredPosition = Vector2.zero;
         }
 
         void BuildClubMatches(Club club, bool english)
@@ -5794,26 +6656,188 @@ namespace CoachMaster.UI.Scenes
                 AddLine(english ? "No upcoming league matches." : "Sem próximos jogos da liga.");
         }
 
-        void BuildClubFinances(Club club, bool english)
+        void BuildClubPerformance(Club club, bool english)
         {
-            AddHead(english ? "BUDGET" : "ORÇAMENTO");
-            if (club.Finance == null)
+            if (club.Id != _career.Club.Id && !_career.Scouted.Contains(club.Id))
             {
-                AddLine(english ? "Financial information is unavailable." : "Informação financeira indisponível.");
+                var nextFixture = _career.NextUserFixture();
+                var freeDays = nextFixture == null ? 7 : (nextFixture.Date.Date - _career.Calendar.CurrentDate.Date).Days;
+                var analysisDays = Mathf.Max(0, Mathf.Min(3, freeDays - 1));
+                var locked = BroadcastUi.Panel(_modalBody, "ClubAnalysisLocked", new Color(0.045f, 0.07f, 0.095f, 0.98f));
+                BroadcastUi.Preferred(locked, 430f);
+                var heading = BroadcastUi.Label(locked.transform, "Heading", english ? "CLUB PERFORMANCE" : "DESEMPENHO DO CLUBE", 22, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+                BroadcastUi.Place(heading.rectTransform, 0.08f, 0.68f, 0.92f, 0.9f);
+                var iconObject = new GameObject("LockedChart", typeof(RectTransform), typeof(CanvasRenderer), typeof(FinanceDonutGraphic));
+                iconObject.transform.SetParent(locked.transform, false);
+                var iconRect = iconObject.GetComponent<RectTransform>();
+                iconRect.anchorMin = iconRect.anchorMax = new Vector2(0.5f, 0.52f);
+                iconRect.sizeDelta = new Vector2(160f, 160f);
+                iconObject.GetComponent<FinanceDonutGraphic>().SetValues(new[] { 1f }, new[] { new Color(0.2f, 0.85f, 0.42f) }, new Color(1f, 1f, 1f, 0.1f));
+                var message = BroadcastUi.Label(locked.transform, "Message", english
+                    ? "A scout report unlocks the club's results, tactical trends and player fit."
+                    : "O relatório do olheiro desbloqueia resultados, tendências táticas e afinidade dos jogadores.",
+                    15, UiTheme.Muted, TextAnchor.MiddleCenter);
+                BroadcastUi.Place(message.rectTransform, 0.1f, 0.12f, 0.9f, 0.3f);
+                if (_modalAction != null)
+                {
+                    _modalAction.gameObject.SetActive(true);
+                    _modalActionLabel.text = analysisDays > 0
+                        ? english ? "ANALYZE CLUB · " + analysisDays + " DAYS" : "ANALISAR CLUBE · " + analysisDays + " DIAS"
+                        : english ? "NO TIME BEFORE THE NEXT MATCH" : "SEM TEMPO ANTES DO PRÓXIMO JOGO";
+                    _modalAction.onClick.RemoveAllListeners();
+                    _modalAction.onClick.AddListener(() => AnalyzeClub(club));
+                    _modalAction.interactable = analysisDays > 0;
+                }
                 return;
             }
-            AddLine((english ? "Transfer budget  " : "Orçamento de transferências  ") + Euro(club.Finance.TransferBudget)
-                + "\n" + (english ? "Wage budget  " : "Orçamento salarial  ") + Euro(club.Finance.WageBudget)
-                + "\n" + (english ? "Club balance  " : "Saldo do clube  ") + Euro(club.Finance.Balance)
-                + "\n" + (english ? "Transfer spending  " : "Gasto em transferências  ") + Euro(club.Finance.TransferSpentThisSeason));
-            AddHead(english ? "INCOME" : "RECEITAS");
-            AddLine((english ? "Ticket income  " : "Bilheteira  ") + Euro(club.Finance.TicketIncomeThisSeason)
-                + "\n" + (english ? "Shirt sales  " : "Vendas de camisolas  ") + Euro(club.Finance.ShirtIncomeThisSeason)
-                + "\n" + (english ? "Player sales  " : "Vendas de jogadores  ") + Euro(club.Finance.PlayerSalesThisSeason));
-            var wages = 0;
-            foreach (var player in Squad(club)) wages += Mathf.Max(0, player.WeeklyWage);
-            AddHead(english ? "WAGES" : "SALÁRIOS");
-            AddLine((english ? "First-team weekly wages  " : "Salários semanais da equipa principal  ") + Euro(wages));
+            if (_modalAction != null) _modalAction.gameObject.SetActive(false);
+            var played = 0;
+            var wins = 0;
+            var draws = 0;
+            var losses = 0;
+            var goalsFor = 0;
+            var goalsAgainst = 0;
+            foreach (var fixture in _career.Fixtures)
+            {
+                if (!fixture.Played || !fixture.Involves(club.Id)) continue;
+                var home = fixture.IsHome(club.Id);
+                var scored = home ? fixture.HomeGoals : fixture.AwayGoals;
+                var conceded = home ? fixture.AwayGoals : fixture.HomeGoals;
+                played++;
+                goalsFor += scored;
+                goalsAgainst += conceded;
+                if (scored > conceded) wins++;
+                else if (scored == conceded) draws++;
+                else losses++;
+            }
+
+            SeasonSchedule.RebuildTable(_career);
+            var leaguePosition = 0;
+            var leagueClubCount = 0;
+            var leagueRows = new List<LeagueTableRow>();
+            foreach (var row in _career.Table)
+                if (row.LeagueId == club.LeagueId) leagueRows.Add(row);
+            leagueClubCount = leagueRows.Count;
+            leagueRows.Sort((a, b) =>
+            {
+                var points = b.Points.CompareTo(a.Points);
+                return points != 0 ? points : b.GoalDifference.CompareTo(a.GoalDifference);
+            });
+            leaguePosition = leagueRows.FindIndex(row => row.ClubId == club.Id) + 1;
+
+            var panel = BroadcastUi.Panel(_modalBody, "ClubPerformanceDashboard", new Color(0.045f, 0.07f, 0.095f, 0.98f));
+            BroadcastUi.Preferred(panel, 500f);
+            var title = BroadcastUi.Label(panel.transform, "Title", english ? "SEASON PERFORMANCE" : "DESEMPENHO DA ÉPOCA", 18, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(title.rectTransform, 0.02f, 0.91f, 0.98f, 0.99f);
+            var resultCard = BroadcastUi.Panel(panel.transform, "ResultsChart", new Color(0.07f, 0.12f, 0.2f, 0.98f));
+            BroadcastUi.Place(resultCard.rectTransform, 0.015f, 0.2f, 0.49f, 0.89f);
+            var resultTitle = BroadcastUi.Label(resultCard.transform, "Title", english ? "RESULTS" : "RESULTADOS", 13, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(resultTitle.rectTransform, 0.06f, 0.87f, 0.94f, 0.98f);
+            var donutObject = new GameObject("ResultsDonut", typeof(RectTransform), typeof(CanvasRenderer), typeof(FinanceDonutGraphic));
+            donutObject.transform.SetParent(resultCard.transform, false);
+            var donutRect = donutObject.GetComponent<RectTransform>();
+            donutRect.anchorMin = donutRect.anchorMax = new Vector2(0.5f, 0.58f);
+            donutRect.sizeDelta = new Vector2(Mathf.Clamp(Screen.height * 0.19f, 135f, 200f), Mathf.Clamp(Screen.height * 0.19f, 135f, 200f));
+            donutObject.GetComponent<FinanceDonutGraphic>().SetValues(new[] { (float)wins, (float)draws, (float)losses },
+                new[] { UiTheme.Fitness, new Color(0.95f, 0.69f, 0.16f), UiTheme.Danger }, new Color(1f, 1f, 1f, 0.12f));
+            var center = BroadcastUi.Label(resultCard.transform, "Matches", played.ToString(), 24, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(center.rectTransform, 0.4f, 0.52f, 0.6f, 0.66f);
+            var centerLabel = BroadcastUi.Label(resultCard.transform, "MatchesLabel", english ? "MATCHES" : "JOGOS", 9, UiTheme.Muted, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(centerLabel.rectTransform, 0.38f, 0.45f, 0.62f, 0.53f);
+            var resultLegend = BroadcastUi.Label(resultCard.transform, "Legend", (english ? "WINS " : "VITÓRIAS ") + wins + "     "
+                + (english ? "DRAWS " : "EMPATES ") + draws + "     " + (english ? "LOSSES " : "DERROTAS ") + losses,
+                11, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(resultLegend.rectTransform, 0.03f, 0.16f, 0.97f, 0.28f);
+            var record = BroadcastUi.Label(resultCard.transform, "Record", (english ? "Goals " : "Golos ") + goalsFor + "–" + goalsAgainst
+                + "    ·    " + (english ? "Difference " : "Diferença ") + (goalsFor - goalsAgainst), 12, UiTheme.Muted, TextAnchor.MiddleCenter);
+            BroadcastUi.Place(record.rectTransform, 0.03f, 0.045f, 0.97f, 0.15f);
+
+            var tacticsCard = BroadcastUi.Panel(panel.transform, "TacticalFit", new Color(0.07f, 0.12f, 0.2f, 0.98f));
+            BroadcastUi.Place(tacticsCard.rectTransform, 0.505f, 0.2f, 0.985f, 0.89f);
+            var tacticsTitle = BroadcastUi.Label(tacticsCard.transform, "Title", english ? "TACTICAL IDENTITY & PLAYER FIT" : "IDENTIDADE TÁTICA E AFINIDADE", 13, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(tacticsTitle.rectTransform, 0.04f, 0.87f, 0.96f, 0.98f);
+            var tactics = club.Tactics ?? new TacticalIdentity { Formation = "4-3-3" };
+            var identity = BroadcastUi.Label(tacticsCard.transform, "Identity", tactics.Formation + "   ·   " + LocalizationManager.Translate(tactics.Pressing)
+                + "   ·   " + LocalizationManager.Translate(tactics.BuildUp) + "\n" + LocalizationManager.Translate(tactics.Width)
+                + "   ·   " + LocalizationManager.Translate(tactics.Tempo) + "   ·   " + LocalizationManager.Translate(tactics.DefensiveLine),
+                11, UiTheme.Muted, TextAnchor.MiddleLeft);
+            BroadcastUi.Place(identity.rectTransform, 0.04f, 0.7f, 0.96f, 0.86f);
+            var winRate = played == 0 ? 0f : wins * 100f / played;
+            var roster = Squad(club);
+            var preferences = new Dictionary<string, int>();
+            var fits = new List<KeyValuePair<Player, float>>();
+            foreach (var player in roster)
+            {
+                var options = IndividualOrders.ForPosition(player.Position);
+                var bestOption = string.IsNullOrEmpty(player.Duty) ? "" : player.Duty;
+                var bestScore = -1f;
+                for (var i = 0; i < options.Length; i++)
+                {
+                    var score = PlayerTacticalFit.Evaluate(player, tactics, options[i]).TacticalScore;
+                    if (score <= bestScore) continue;
+                    bestScore = score;
+                    bestOption = options[i];
+                }
+                if (string.IsNullOrEmpty(bestOption)) continue;
+                preferences.TryGetValue(bestOption, out var count);
+                preferences[bestOption] = count + 1;
+                fits.Add(new KeyValuePair<Player, float>(player, bestScore));
+            }
+            fits.Sort((a, b) => b.Value.CompareTo(a.Value));
+            var shownFit = Mathf.Min(5, fits.Count);
+            for (var i = 0; i < shownFit; i++)
+            {
+                var player = fits[i].Key;
+                var best = "";
+                var options = IndividualOrders.ForPosition(player.Position);
+                var bestScore = -1f;
+                for (var optionIndex = 0; optionIndex < options.Length; optionIndex++)
+                {
+                    var score = PlayerTacticalFit.Evaluate(player, tactics, options[optionIndex]).TacticalScore;
+                    if (score <= bestScore) continue;
+                    bestScore = score;
+                    best = options[optionIndex];
+                }
+                var row = BroadcastUi.Panel(tacticsCard.transform, "Fit" + i, new Color(1f, 1f, 1f, 0.045f));
+                var top = 0.67f - i * 0.12f;
+                BroadcastUi.Place(row.rectTransform, 0.035f, top - 0.105f, 0.965f, top);
+                var name = BroadcastUi.Label(row.transform, "Player", BroadcastUi.ShortName(player.FullName) + "  ·  " + PresentationLabels.Position(player.Position, english), 11, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+                BroadcastUi.Place(name.rectTransform, 0.025f, 0.4f, 0.55f, 0.95f);
+                var order = BroadcastUi.Label(row.transform, "Order", LocalizationManager.Translate(best) + "  ·  " + bestScore.ToString("0.0") + "/20", 10, UiTheme.Accent, TextAnchor.MiddleRight);
+                BroadcastUi.Place(order.rectTransform, 0.56f, 0.4f, 0.98f, 0.95f);
+                var track = BroadcastUi.Solid(row.transform, "Track", new Color(1f, 1f, 1f, 0.12f));
+                BroadcastUi.Place(track.rectTransform, 0.025f, 0.12f, 0.975f, 0.32f);
+                var fill = BroadcastUi.Solid(track.transform, "Fill", UiTheme.Fitness);
+                fill.rectTransform.anchorMin = Vector2.zero;
+                fill.rectTransform.anchorMax = new Vector2(Mathf.Clamp01(bestScore / 20f), 1f);
+                fill.rectTransform.offsetMin = Vector2.zero;
+                fill.rectTransform.offsetMax = Vector2.zero;
+            }
+            var metrics = BroadcastUi.Zone(panel.transform, "PerformanceMetrics", 0.015f, 0.025f, 0.985f, 0.17f);
+            var goalsPerMatch = played == 0 ? 0f : goalsFor / (float)played;
+            var concededPerMatch = played == 0 ? 0f : goalsAgainst / (float)played;
+            AddPerformanceMetric(metrics, "Wins", english ? "WIN RATE" : "VITÓRIAS", winRate.ToString("0") + "%", winRate / 100f, 0f, 0.24f, 0.08f, 0.96f);
+            AddPerformanceMetric(metrics, "Scoring", english ? "GOALS / MATCH" : "GOLOS / JOGO", goalsPerMatch.ToString("0.0"), goalsPerMatch / 5f, 0.255f, 0.495f, 0.08f, 0.96f);
+            AddPerformanceMetric(metrics, "Defence", english ? "CONCEDED / MATCH" : "SOFRIDOS / JOGO", concededPerMatch.ToString("0.0"), 1f - concededPerMatch / 5f, 0.51f, 0.75f, 0.08f, 0.96f);
+            AddPerformanceMetric(metrics, "Position", english ? "LEAGUE POSITION" : "LUGAR NA LIGA", leaguePosition <= 0 ? "—" : leaguePosition.ToString(),
+                leaguePosition <= 0 ? 0f : 1f - (leaguePosition - 1f) / Mathf.Max(1f, leagueClubCount - 1f), 0.765f, 1f, 0.08f, 0.96f);
+        }
+
+        void AddPerformanceMetric(Transform parent, string objectName, string title, string value, float fill, float x0, float x1, float y0, float y1)
+        {
+            var card = BroadcastUi.Panel(parent, objectName, new Color(0.07f, 0.12f, 0.2f, 0.98f));
+            BroadcastUi.Place(card.rectTransform, x0, y0, x1, y1);
+            var heading = BroadcastUi.Label(card.transform, "Title", title, 9, UiTheme.Muted, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(heading.rectTransform, 0.025f, 0.65f, 0.975f, 0.94f);
+            var number = BroadcastUi.Label(card.transform, "Value", value, 19, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(number.rectTransform, 0.025f, 0.3f, 0.975f, 0.7f);
+            var bar = BroadcastUi.Solid(card.transform, "Track", new Color(1f, 1f, 1f, 0.14f));
+            BroadcastUi.Place(bar.rectTransform, 0.1f, 0.1f, 0.9f, 0.19f);
+            var fillBar = BroadcastUi.Solid(bar.transform, "Fill", UiTheme.Fitness);
+            fillBar.rectTransform.anchorMin = Vector2.zero;
+            fillBar.rectTransform.anchorMax = new Vector2(Mathf.Clamp01(fill), 1f);
+            fillBar.rectTransform.offsetMin = Vector2.zero;
+            fillBar.rectTransform.offsetMax = Vector2.zero;
         }
 
         void BuildClubTransfers(Club club, bool english)
@@ -5838,16 +6862,175 @@ namespace CoachMaster.UI.Scenes
 
         void BuildClubHistory(Club club, string city, string league, bool english)
         {
-            AddHead(english ? "CLUB HISTORY" : "HISTÓRIA DO CLUBE");
-            AddLine(string.IsNullOrEmpty(club.History)
+            var dashboard = BroadcastUi.Panel(_modalBody, "ClubHistoryDashboard", new Color(0.045f, 0.07f, 0.095f, 0.98f));
+            BroadcastUi.Preferred(dashboard, 500f);
+            var title = BroadcastUi.Label(dashboard.transform, "Title", english ? "CLUB HISTORY" : "HISTÓRIA DO CLUBE", 18, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(title.rectTransform, 0.02f, 0.91f, 0.98f, 0.99f);
+            var history = string.IsNullOrEmpty(club.History)
                 ? (english ? club.Name + " represent " + city + " and compete in " + league + "." : club.Name + " representa " + city + " e compete em " + league + ".")
-                : LocalizationManager.Translate(club.History));
-            AddHead(english ? "REPUTATION" : "REPUTAÇÃO");
-            AddLine(ReputationStars(club.Reputation) + "  ·  " + LocalizationManager.Translate(club.PublicReputation));
-            AddHead(english ? "BOARD OBJECTIVES" : "OBJETIVOS DA DIREÇÃO");
-            AddLine(club.BoardObjectives == null || club.BoardObjectives.Count == 0
-                ? (english ? "The board expects steady progress." : "A direção espera uma evolução consistente.")
-                : string.Join("\n", club.BoardObjectives.ConvertAll(item => "· " + LocalizationManager.Translate(item))));
+                : LocalizationManager.Translate(club.History);
+            var summary = BroadcastUi.Panel(dashboard.transform, "ClubStory", new Color(0.07f, 0.12f, 0.2f, 0.98f));
+            BroadcastUi.Place(summary.rectTransform, 0.015f, 0.71f, 0.985f, 0.885f);
+            var founded = BroadcastUi.Label(summary.transform, "Founded", (english ? "FOUNDED " : "FUNDADO EM ") + club.FoundedYear
+                + "   ·   " + ReputationStars(club.Reputation) + "   ·   " + LocalizationManager.Translate(club.PublicReputation), 12, UiTheme.Score, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(founded.rectTransform, 0.025f, 0.68f, 0.97f, 0.96f);
+            var story = BroadcastUi.Label(summary.transform, "Story", history, 12, Color.white, TextAnchor.MiddleLeft);
+            story.resizeTextForBestFit = true;
+            story.resizeTextMinSize = 10;
+            story.resizeTextMaxSize = 12;
+            BroadcastUi.Place(story.rectTransform, 0.025f, 0.08f, 0.97f, 0.68f);
+
+            var trophies = new List<FootballMemory>();
+            var events = new List<FootballMemory>();
+            foreach (var memory in _career.Memories)
+            {
+                if (memory == null || memory.ClubId != club.Id) continue;
+                var isTrophy = !string.IsNullOrEmpty(memory.Kind) && memory.Kind.IndexOf("titulo", StringComparison.OrdinalIgnoreCase) >= 0;
+                var displayMemory = new FootballMemory
+                {
+                    WhenTicks = memory.WhenTicks,
+                    Importance = memory.Importance,
+                    Kind = memory.Kind,
+                    ClubId = memory.ClubId,
+                    CompetitionId = memory.CompetitionId,
+                    RelatedClubId = memory.RelatedClubId,
+                    PlayerId = memory.PlayerId,
+                    Title = isTrophy ? ClubHistoryTrophyTitle(memory.CompetitionId, memory.Title, english) : LocalizationManager.Translate(memory.Title),
+                    Detail = isTrophy && english
+                        ? "Season winner · " + LocalizationManager.Translate(SeasonSchedule.Competition(memory.CompetitionId))
+                        : LocalizationManager.Translate(memory.Detail),
+                    Value = memory.Value
+                };
+                if (isTrophy) trophies.Add(displayMemory);
+                events.Add(displayMemory);
+            }
+            foreach (var trophy in _career.Trophies)
+            {
+                if (trophy == null || trophy.ClubId != club.Id) continue;
+                var alreadyShown = trophies.Exists(memory => memory.CompetitionId == trophy.CompetitionId
+                    && (memory.WhenTicks <= 0 || memory.WhenTicks > DateTime.MaxValue.Ticks || trophy.DateTicks <= 0 || trophy.DateTicks > DateTime.MaxValue.Ticks
+                        || new DateTime(memory.WhenTicks).Year == new DateTime(trophy.DateTicks).Year));
+                if (alreadyShown) continue;
+                var trophyMemory = new FootballMemory
+                {
+                    ClubId = club.Id,
+                    CompetitionId = trophy.CompetitionId,
+                    WhenTicks = trophy.DateTicks,
+                    Kind = "titulo",
+                    Title = ClubHistoryTrophyTitle(trophy.CompetitionId, trophy.Title, english),
+                    Detail = english ? "Competition winner · season " + trophy.SeasonStartYear + "/" + (trophy.SeasonStartYear + 1)
+                        : "Vencedor da competição · época " + trophy.SeasonStartYear + "/" + (trophy.SeasonStartYear + 1)
+                };
+                trophies.Add(trophyMemory);
+                events.Add(trophyMemory);
+            }
+            foreach (var fixture in _career.Fixtures)
+            {
+                if (fixture == null || !fixture.Played || !fixture.Involves(club.Id)) continue;
+                var opponentId = fixture.OpponentId(club.Id);
+                var opponent = _career.World.Clubs.TryGetValue(opponentId, out var other) ? other.ShortName : opponentId;
+                var goalsFor = fixture.IsHome(club.Id) ? fixture.HomeGoals : fixture.AwayGoals;
+                var goalsAgainst = fixture.IsHome(club.Id) ? fixture.AwayGoals : fixture.HomeGoals;
+                var result = goalsFor > goalsAgainst ? (english ? "Win" : "Vitória")
+                    : goalsFor == goalsAgainst ? (english ? "Draw" : "Empate") : (english ? "Defeat" : "Derrota");
+                events.Add(new FootballMemory
+                {
+                    ClubId = club.Id,
+                    WhenTicks = fixture.Date.Ticks,
+                    Kind = "match",
+                    Title = result + " " + goalsFor + "–" + goalsAgainst + " " + (english ? "against " : "frente a ") + opponent,
+                    Detail = LocalizationManager.Translate(SeasonSchedule.Competition(fixture.LeagueId))
+                });
+            }
+            foreach (var deal in _career.TransferHistory)
+            {
+                if (deal == null || (deal.FromClubId != club.Id && deal.ToClubId != club.Id)
+                    || !_career.World.Players.TryGetValue(deal.PlayerId ?? "", out var movedPlayer)) continue;
+                var fromName = _career.World.Clubs.TryGetValue(deal.FromClubId ?? "", out var fromClub) ? fromClub.ShortName : "—";
+                var toName = _career.World.Clubs.TryGetValue(deal.ToClubId ?? "", out var toClub) ? toClub.ShortName : "—";
+                events.Add(new FootballMemory
+                {
+                    ClubId = club.Id,
+                    WhenTicks = deal.DateTicks,
+                    Kind = "transfer",
+                    Title = (english ? "Transfer · " : "Transferência · ") + movedPlayer.FullName,
+                    Detail = fromName + " → " + toName + " · " + Euro(deal.Fee)
+                });
+            }
+            trophies.Sort((a, b) => b.WhenTicks.CompareTo(a.WhenTicks));
+            events.Sort((a, b) => b.WhenTicks.CompareTo(a.WhenTicks));
+            var trophyPanel = BroadcastUi.Panel(dashboard.transform, "Trophies", new Color(0.07f, 0.12f, 0.2f, 0.98f));
+            BroadcastUi.Place(trophyPanel.rectTransform, 0.015f, 0.43f, 0.985f, 0.69f);
+            var trophyHeading = BroadcastUi.Label(trophyPanel.transform, "Heading", english ? "TROPHIES" : "TROFÉUS", 12, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(trophyHeading.rectTransform, 0.02f, 0.78f, 0.98f, 0.98f);
+            var shownTrophies = Mathf.Min(3, trophies.Count);
+            for (var i = 0; i < shownTrophies; i++)
+            {
+                var trophy = trophies[i];
+                var x0 = 0.02f + i * 0.325f;
+                var card = BroadcastUi.Panel(trophyPanel.transform, "Trophy" + i, new Color(0.14f, 0.11f, 0.045f, 0.92f));
+                BroadcastUi.Place(card.rectTransform, x0, 0.06f, x0 + 0.31f, 0.76f);
+                var iconObject = new GameObject("Cup", typeof(RectTransform), typeof(CanvasRenderer), typeof(TrophySilhouette));
+                iconObject.transform.SetParent(card.transform, false);
+                var iconRect = iconObject.GetComponent<RectTransform>();
+                iconRect.anchorMin = iconRect.anchorMax = new Vector2(0.18f, 0.53f);
+                iconRect.sizeDelta = new Vector2(48f, 48f);
+                iconObject.GetComponent<TrophySilhouette>().color = new Color(1f, 0.77f, 0.2f);
+                var name = BroadcastUi.Label(card.transform, "Name", trophy.Title, 10, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+                name.resizeTextForBestFit = true;
+                name.resizeTextMinSize = 8;
+                name.resizeTextMaxSize = 10;
+                BroadcastUi.Place(name.rectTransform, 0.36f, 0.37f, 0.98f, 0.78f);
+                var date = BroadcastUi.Label(card.transform, "Date", trophy.WhenTicks > 0 && trophy.WhenTicks <= DateTime.MaxValue.Ticks
+                    ? new DateTime(trophy.WhenTicks).Year.ToString() : "—", 11, UiTheme.Score, TextAnchor.MiddleLeft);
+                BroadcastUi.Place(date.rectTransform, 0.36f, 0.12f, 0.98f, 0.38f);
+            }
+            if (shownTrophies == 0)
+            {
+                var empty = BroadcastUi.Label(trophyPanel.transform, "NoTrophies", english
+                    ? "Trophy records appear when this club wins a competition in your career."
+                    : "Os troféus aparecem quando este clube vencer uma competição durante a carreira.", 12, UiTheme.Muted, TextAnchor.MiddleCenter);
+                BroadcastUi.Place(empty.rectTransform, 0.04f, 0.1f, 0.96f, 0.74f);
+            }
+
+            var timeline = BroadcastUi.Panel(dashboard.transform, "Timeline", new Color(0.07f, 0.12f, 0.2f, 0.98f));
+            BroadcastUi.Place(timeline.rectTransform, 0.015f, 0.025f, 0.985f, 0.41f);
+            var timelineHeading = BroadcastUi.Label(timeline.transform, "Heading", english ? "MILESTONES" : "MARCOS HISTÓRICOS", 12, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(timelineHeading.rectTransform, 0.02f, 0.86f, 0.98f, 0.99f);
+            var shownEvents = 0;
+            for (var i = 0; i < events.Count && shownEvents < 4; i++)
+            {
+                var memory = events[i];
+                var date = memory.WhenTicks > 0 && memory.WhenTicks <= DateTime.MaxValue.Ticks
+                    ? new DateTime(memory.WhenTicks).ToString("dd MMM yyyy") : "—";
+                var yTop = 0.83f - shownEvents * 0.195f;
+                var row = BroadcastUi.Panel(timeline.transform, "Event" + shownEvents, new Color(1f, 1f, 1f, 0.035f));
+                BroadcastUi.Place(row.rectTransform, 0.02f, yTop - 0.175f, 0.98f, yTop);
+                var line = BroadcastUi.Label(row.transform, "Text", date + "   ·   " + memory.Title + "\n" + memory.Detail, 10, Color.white, TextAnchor.MiddleLeft);
+                line.resizeTextForBestFit = true;
+                line.resizeTextMinSize = 8;
+                line.resizeTextMaxSize = 10;
+                BroadcastUi.Place(line.rectTransform, 0.02f, 0.04f, 0.98f, 0.96f);
+                shownEvents++;
+            }
+            if (shownEvents == 0)
+            {
+                var foundation = BroadcastUi.Label(timeline.transform, "Foundation", (english ? "Founded in " : "Fundado em ") + club.FoundedYear
+                    + "   ·   " + (english ? "A new chapter begins with your career." : "Uma nova fase começa com esta carreira."),
+                    12, Color.white, TextAnchor.MiddleCenter);
+                BroadcastUi.Place(foundation.rectTransform, 0.04f, 0.18f, 0.96f, 0.76f);
+            }
+        }
+
+        string ClubHistoryTrophyTitle(string competitionId, string sourceTitle, bool english)
+        {
+            if (!english) return LocalizationManager.Translate(sourceTitle);
+            if (competitionId == "league:campeoes") return "Champions League winner";
+            var competition = LocalizationManager.Translate(SeasonSchedule.Competition(competitionId));
+            if (string.IsNullOrEmpty(competition)) return LocalizationManager.Translate(sourceTitle);
+            return !string.IsNullOrEmpty(competitionId) && competitionId.StartsWith("cup:", StringComparison.Ordinal)
+                ? "Cup winner · " + competition
+                : "League champion · " + competition;
         }
 
         void BuildClubFacilities(Club club, string city, string league, bool english)
@@ -5939,9 +7122,42 @@ namespace CoachMaster.UI.Scenes
             });
             if (SettingsPrefs.AutosaveEnabled)
                 CareerStore.AutoSaveIfDue(_career, SettingsPrefs.AutosaveDays, SettingsPrefs.AutosaveSlots);
+            CareerStore.Save(_career);
             FillBoard();
             Refresh();
             OpenFixture(fixture);
+        }
+
+        void AnalyzeClub(Club club)
+        {
+            if (club == null || _career == null) return;
+            var next = _career.NextUserFixture();
+            var free = next == null ? 7 : (next.Date.Date - _career.Calendar.CurrentDate.Date).Days;
+            if (free <= 1)
+            {
+                if (_modalActionLabel != null)
+                    _modalActionLabel.text = LocalizationManager.Current == GameLanguage.English
+                        ? "NO TIME BEFORE THE NEXT MATCH" : "SEM TEMPO ANTES DO PRÓXIMO JOGO";
+                if (_modalAction != null) _modalAction.interactable = false;
+                return;
+            }
+
+            var days = Mathf.Min(3, free - 1);
+            AdvanceCareerDays(days);
+            _career.Scouted.Add(club.Id);
+            var english = LocalizationManager.Current == GameLanguage.English;
+            _career.Board.Insert(0, new CoachNote
+            {
+                Day = _career.Calendar.WeekdayName,
+                Hour = _career.Calendar.ClockText,
+                When = _career.Calendar.CurrentDate,
+                Text = english
+                    ? "Club analysis completed for " + club.ShortName + ". Performance graphs and tactical trends are now available."
+                    : "Análise do " + club.ShortName + " concluída. Os gráficos de desempenho e as tendências táticas estão disponíveis."
+            });
+            CareerStore.Save(_career);
+            Refresh();
+            OpenClubDossier(club, 3);
         }
 
         void OpenDutyModal(Player player)
@@ -6077,7 +7293,11 @@ namespace CoachMaster.UI.Scenes
             flag.preserveAspect = true;
             flag.raycastTarget = false;
             BroadcastUi.Place(flag.rectTransform, 0.12f, 0.62f, 0.15f, 0.88f);
-            var positionLabel = ProfileText(header.transform, "Position", "#" + player.SquadNumber + "  ·  " + ProfilePosition(player.Position, english) + (player.IsCaptain ? (english ? "  ·  CAPTAIN" : "  ·  CAPITÃO") : player.IsViceCaptain ? (english ? "  ·  VICE-CAPTAIN" : "  ·  SUBCAPITÃO") : ""), 16, UiTheme.Accent, FontStyle.Bold, 0.16f, 0.62f, 0.42f, 0.9f);
+            var positionLabel = ProfileText(header.transform, "Position", "#" + player.SquadNumber + "  ·  " + ProfilePosition(player.Position, english) + (player.IsCaptain ? (english ? "  ·  CAPTAIN" : "  ·  CAPITÃO") : player.IsViceCaptain ? (english ? "  ·  VICE-CAPTAIN" : "  ·  SUBCAPITÃO") : ""), 15, UiTheme.Accent, FontStyle.Bold, 0.16f, 0.62f, 0.43f, 0.79f);
+            var profileName = ProfileText(header.transform, "PlayerName", player.FullName, 22, Color.white, FontStyle.Bold, 0.16f, 0.81f, 0.43f, 0.98f);
+            profileName.resizeTextForBestFit = true;
+            profileName.resizeTextMinSize = 14;
+            profileName.resizeTextMaxSize = 22;
             var clubLabel = ProfileText(header.transform, "Club", (_career.World.Clubs.TryGetValue(player.ClubId, out var club) ? club.Name : (english ? "Unknown club" : "Clube desconhecido")) + "  ·  " + player.Age + (english ? " years" : " anos"), 13, Color.white, FontStyle.Bold, 0.12f, 0.38f, 0.43f, 0.61f);
             var positions = new List<PlayerPosition> { player.Position };
             for (var i = 0; i < player.AlternatePositions.Count; i++)
@@ -6386,20 +7606,20 @@ namespace CoachMaster.UI.Scenes
 
         static string ProfilePosition(PlayerPosition position, bool english)
         {
-            if (!english)
-                return PresentationLabels.Position(position);
             switch (position)
             {
-                case PlayerPosition.Goalkeeper: return "GK";
-                case PlayerPosition.RightBack: return "RB";
-                case PlayerPosition.CentreBack: return "CB";
-                case PlayerPosition.LeftBack: return "LB";
-                case PlayerPosition.DefensiveMidfielder: return "DM";
-                case PlayerPosition.CentralMidfielder: return "CM";
-                case PlayerPosition.AttackingMidfielder: return "AM";
-                case PlayerPosition.RightWinger: return "RW";
-                case PlayerPosition.LeftWinger: return "LW";
-                case PlayerPosition.Striker: return "ST";
+                case PlayerPosition.Goalkeeper: return english ? "GK" : "GR";
+                case PlayerPosition.RightBack: return english ? "RB" : "LD";
+                case PlayerPosition.CentreBack: return english ? "CB" : "DC";
+                case PlayerPosition.LeftBack: return english ? "LB" : "LE";
+                case PlayerPosition.DefensiveMidfielder: return english ? "DM" : "MDC";
+                case PlayerPosition.CentralMidfielder: return english ? "CM" : "MC";
+                case PlayerPosition.AttackingMidfielder: return english ? "AM" : "MO";
+                case PlayerPosition.RightWinger: return english ? "RW" : "ED";
+                case PlayerPosition.LeftWinger: return english ? "LW" : "EE";
+                case PlayerPosition.RightMidfielder: return english ? "RM" : "MD";
+                case PlayerPosition.LeftMidfielder: return english ? "LM" : "ME";
+                case PlayerPosition.Striker: return english ? "ST" : "PL";
                 default: return "?";
             }
         }
@@ -6443,17 +7663,12 @@ namespace CoachMaster.UI.Scenes
             {
                 var date = _career.Calendar.CurrentDate.Date.AddYears(years);
                 player.ContractEndTicks = new DateTime(date.Year, 6, 30).Ticks;
-                var transferBudgetChange = GlobalTransferMarket.AdjustTransferBudgetForWage(_career, _career.Club, player.Id, wage);
                 player.WeeklyWage = wage;
                 CareerStore.Save(_career);
                 OpenModal(english ? "Deal agreed" : "Acordo alcançado", player.FullName, true);
                 AddLine(english
                     ? "The player accepted " + Euro(wage) + "/week for " + years + " years."
                     : "O jogador aceitou " + Euro(wage) + "/semana por " + years + " anos.");
-                if (transferBudgetChange != 0)
-                    AddLine(english
-                        ? "The board adjusted the transfer budget by " + (transferBudgetChange > 0 ? "+" : "−") + Euro(Mathf.Abs(transferBudgetChange)) + " to account for the wage allowance."
-                        : "A direção ajustou o orçamento de transferências em " + (transferBudgetChange > 0 ? "+" : "−") + Euro(Mathf.Abs(transferBudgetChange)) + " devido ao limite salarial.");
                 _modalActionLabel.text = english ? "DONE" : "CONCLUÍDO";
                 _modalAction.onClick.RemoveAllListeners();
                 _modalAction.onClick.AddListener(() => { CloseModal(); OpenPlayer(player); });
@@ -6560,6 +7775,8 @@ namespace CoachMaster.UI.Scenes
                     defence = (a.Tackling * 1.15f + a.Positioning * 1.2f + a.WorkRate + a.Strength * 0.5f) / 3.85f;
                     break;
                 case PlayerPosition.CentralMidfielder:
+                case PlayerPosition.RightMidfielder:
+                case PlayerPosition.LeftMidfielder:
                 case PlayerPosition.AttackingMidfielder:
                     attack = (a.Passing * 1.1f + a.Dribbling + a.Finishing * 0.65f + a.Decisions * 1.1f) / 3.85f;
                     defence = (a.Tackling * 0.8f + a.Positioning + a.WorkRate) / 2.8f;
@@ -7078,8 +8295,10 @@ namespace CoachMaster.UI.Scenes
         void AdvanceCareerDays(int days)
         {
             days = Mathf.Max(1, days);
+            var previousDay = _career.Calendar.CurrentDate.Date;
             AdvancePlayerSystems(days);
             _career.Calendar.AdvanceDays(days);
+            ClubFinanceLedger.SettleWeeklyPayroll(_career, previousDay, _career.Calendar.CurrentDate.Date);
         }
 
         void AdvancePlayerSystems(int days)
@@ -7123,7 +8342,15 @@ namespace CoachMaster.UI.Scenes
         void ApplyFocusedTraining(int days)
         {
             days = Mathf.Max(1, days);
-            foreach (var player in Squad(_career.Club))
+            var trainees = Squad(_career.Club);
+            foreach (var id in _career.AcademyPlayerIds)
+            {
+                if (!_career.World.Players.TryGetValue(id, out var youth) || youth.ClubId != _career.Club.Id)
+                    continue;
+                if (trainees.Find(player => player.Id == youth.Id) == null)
+                    trainees.Add(youth);
+            }
+            foreach (var player in trainees)
             {
                 if (player.Injury != null && player.Injury.IsInjured)
                     continue;
@@ -7403,8 +8630,9 @@ namespace CoachMaster.UI.Scenes
             BroadcastUi.Preferred(label, 88);
         }
 
-        void OpenModal(string title, string lead, bool action)
+        void OpenModal(string title, string lead, bool action, bool compact = false)
         {
+            _dossierReturnAction = null;
             _profileModalPlayer = null;
             _profileModalOrders = false;
             if (_modalTitle != null) _modalTitle.gameObject.SetActive(true);
@@ -7440,7 +8668,8 @@ namespace CoachMaster.UI.Scenes
             var card = _modal.transform.Find("Card");
             if (card != null)
             {
-                BroadcastUi.Place(card as RectTransform, 0.04f, 0.03f, 0.96f, 0.97f);
+                BroadcastUi.Place(card as RectTransform, compact ? 0.28f : 0.04f, compact ? 0.32f : 0.03f,
+                    compact ? 0.72f : 0.96f, compact ? 0.68f : 0.97f);
                 for (var i = card.childCount - 1; i >= 0; i--)
                 {
                     var child = card.GetChild(i);
@@ -7449,19 +8678,31 @@ namespace CoachMaster.UI.Scenes
                     Destroy(child.gameObject);
                 }
             }
-            BroadcastUi.Place(_modalTitle.rectTransform, 0.08f, 0.88f, 0.91f, 0.97f);
-            BroadcastUi.Place(_modalLead.rectTransform, 0.05f, 0.78f, 0.95f, 0.88f);
+            BroadcastUi.Place(_modalTitle.rectTransform,
+                compact ? 0.06f : 0.08f, compact ? 0.8f : 0.88f,
+                compact ? 0.84f : 0.91f, compact ? 0.96f : 0.97f);
+            BroadcastUi.Place(_modalLead.rectTransform, compact ? 0.06f : 0.05f,
+                compact ? 0.58f : 0.78f, compact ? 0.94f : 0.95f, compact ? 0.78f : 0.88f);
             var scroll = _modal.transform.Find("Card/Scroll") as RectTransform;
             if (scroll != null)
-                BroadcastUi.Place(scroll, 0.04f, 0.14f, 0.96f, 0.76f);
+                BroadcastUi.Place(scroll, compact ? 0.06f : 0.04f, compact ? 0.26f : 0.14f,
+                    compact ? 0.94f : 0.96f, compact ? 0.55f : 0.76f);
             _modalTitle.text = title;
             _modalLead.text = lead;
+            _modalTitle.fontSize = compact ? 22 : 26;
+            _modalLead.fontSize = compact ? 14 : 15;
             _modalAction.gameObject.SetActive(action);
             _modalAction.onClick.RemoveAllListeners();
+            _modalActionLabel.fontSize = compact ? 14 : 16;
+            if (compact)
+                BroadcastUi.Place(_modalAction.GetComponent<RectTransform>(), 0.2f, 0.05f, 0.8f, 0.22f);
+            else
+                BroadcastUi.Place(_modalAction.GetComponent<RectTransform>(), 0.32f, 0.04f, 0.78f, 0.13f);
             if (_modalClose != null)
             {
                 _modalClose.gameObject.SetActive(true);
-                BroadcastUi.Place(_modalClose.GetComponent<RectTransform>(), 0.935f, 0.895f, 0.98f, 0.97f);
+                BroadcastUi.Place(_modalClose.GetComponent<RectTransform>(), compact ? 0.91f : 0.935f,
+                    compact ? 0.84f : 0.895f, compact ? 0.98f : 0.98f, compact ? 0.97f : 0.97f);
             }
             _modal.SetActive(true);
             _modal.transform.SetAsLastSibling();
@@ -7469,6 +8710,8 @@ namespace CoachMaster.UI.Scenes
 
         void CloseModal()
         {
+            var returnTo = _dossierReturnAction;
+            _dossierReturnAction = null;
             _offer = null;
             _profileModalPlayer = null;
             _profileModalOrders = false;
@@ -7476,6 +8719,8 @@ namespace CoachMaster.UI.Scenes
                 _modal.SetActive(false);
             if (_modalClose != null)
                 _modalClose.gameObject.SetActive(false);
+            if (returnTo != null)
+                returnTo();
         }
 
         void AddHead(string title)

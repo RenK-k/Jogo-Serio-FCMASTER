@@ -25,8 +25,11 @@ namespace CoachMaster.App
         RawImage _loadingLogo;
         RawImage _loadingLogoBlend;
         Texture2D _loadingAnimation;
-        Texture2D _loadingSnapshot;
+        Texture2D _loadingFallback;
         Coroutine _loadRoutine;
+        string _loadingTarget;
+        string _queuedScene;
+        const float LoadingScreenDelay = 0.32f;
         const float LoadingFrameSeconds = 0.05f;
         const int LoadingFrameColumns = 8;
         const int LoadingFrameRows = 8;
@@ -85,6 +88,7 @@ namespace CoachMaster.App
                 scalers[i].referenceResolution = new Vector2(1920f / scale, 1080f / scale);
                 scalers[i].screenMatchMode = CanvasScaler.ScreenMatchMode.Shrink;
             }
+            UiScaleInvariant.ApplyAll();
         }
 
         static void FitCanvases() => ApplyUiScale();
@@ -124,9 +128,22 @@ namespace CoachMaster.App
 
         public void Open(string sceneName)
         {
-            if (_loadRoutine != null)
-                StopCoroutine(_loadRoutine);
-            _loadRoutine = StartCoroutine(LoadScene(sceneName));
+            if (string.IsNullOrEmpty(sceneName))
+                return;
+            if (_loadRoutine != null || IsLoading)
+            {
+                if (sceneName != _loadingTarget)
+                    _queuedScene = sceneName;
+                return;
+            }
+
+            var operation = SceneManager.LoadSceneAsync(sceneName);
+            if (operation == null)
+                return;
+
+            _loadingTarget = sceneName;
+            IsLoading = true;
+            _loadRoutine = StartCoroutine(LoadScene(operation));
         }
 
         void BuildLoadingOverlay()
@@ -157,8 +174,12 @@ namespace CoachMaster.App
             backdropRect.offsetMax = Vector2.zero;
             _loadingBackdrop = backdropObject.GetComponent<RawImage>();
             _loadingBackdrop.raycastTarget = false;
+            _loadingBackdrop.color = new Color(0.02f, 0.012f, 0.04f, 1f);
 
             _loadingAnimation = Resources.Load<Texture2D>("fcmasterGIFAnimated");
+            _loadingFallback = Resources.Load<Texture2D>("fcmasterGIF");
+            if (_loadingFallback == null)
+                _loadingFallback = BroadcastUi.BrandTexture;
 
             var logoObject = new GameObject("LoadingMark", typeof(RectTransform), typeof(RawImage));
             logoObject.transform.SetParent(canvasObject.transform, false);
@@ -180,64 +201,68 @@ namespace CoachMaster.App
             canvasObject.SetActive(false);
         }
 
-        IEnumerator LoadScene(string sceneName)
+        IEnumerator LoadScene(AsyncOperation operation)
         {
-            yield return new WaitForEndOfFrame();
-            if (_loadingSnapshot != null)
-                Destroy(_loadingSnapshot);
-            _loadingSnapshot = ScreenCapture.CaptureScreenshotAsTexture();
-            _loadingBackdrop.texture = _loadingSnapshot;
-            SetLoadingFrame(0);
-            IsLoading = true;
-            _loadingCanvas.gameObject.SetActive(true);
-            _loadingGroup.alpha = 0f;
-            var fadeIn = 0f;
-            while (fadeIn < 1f)
+            // Let short scene changes finish without showing a loading flash.
+            yield return null;
+            var waited = 0f;
+            while (!operation.isDone && waited < LoadingScreenDelay)
             {
-                fadeIn += Time.unscaledDeltaTime / (SettingsPrefs.ReduceMotion ? 0.06f : 0.22f);
-                _loadingGroup.alpha = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(fadeIn));
+                waited += Time.unscaledDeltaTime;
                 yield return null;
             }
 
-            var operation = SceneManager.LoadSceneAsync(sceneName);
-            if (operation == null)
+            var showLoadingScreen = !operation.isDone;
+            if (showLoadingScreen)
             {
-                yield return FadeLoadingOut();
-                IsLoading = false;
-                _loadRoutine = null;
-                yield break;
+                _loadingBackdrop.texture = null;
+                _loadingCanvas.gameObject.SetActive(true);
+                _loadingGroup.alpha = 0f;
+                SetLoadingFrame(0, 0f);
+
+                var fadeIn = 0f;
+                while (fadeIn < 1f)
+                {
+                    fadeIn += Time.unscaledDeltaTime / (SettingsPrefs.ReduceMotion ? 0.06f : 0.18f);
+                    _loadingGroup.alpha = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(fadeIn));
+                    yield return null;
+                }
             }
 
             var animationElapsed = 0f;
-            var visibleAfterLoad = 0f;
-            while (!operation.isDone || visibleAfterLoad < 0.25f)
+            while (!operation.isDone)
             {
                 var delta = Time.unscaledDeltaTime;
-                if (SettingsPrefs.ReduceMotion)
-                    SetLoadingFrame(0);
-                else
+                if (showLoadingScreen)
                 {
-                    animationElapsed = (animationElapsed + delta) % (LoadingFrameSeconds * LoadingFrameCount);
-                    var framePosition = animationElapsed / LoadingFrameSeconds;
-                    var frameIndex = Mathf.FloorToInt(framePosition);
-                    SetLoadingFrame(frameIndex, framePosition - frameIndex);
+                    if (SettingsPrefs.ReduceMotion)
+                        SetLoadingFrame(0);
+                    else
+                    {
+                        animationElapsed = (animationElapsed + delta) % (LoadingFrameSeconds * LoadingFrameCount);
+                        var framePosition = animationElapsed / LoadingFrameSeconds;
+                        var frameIndex = Mathf.FloorToInt(framePosition);
+                        SetLoadingFrame(frameIndex, framePosition - frameIndex);
+                    }
                 }
-                if (operation.isDone)
-                    visibleAfterLoad += delta;
                 yield return null;
             }
 
-            yield return FadeLoadingOut();
+            if (showLoadingScreen)
+                yield return FadeLoadingOut();
             IsLoading = false;
             _loadRoutine = null;
+            _loadingTarget = null;
+            var queuedScene = _queuedScene;
+            _queuedScene = null;
+            if (!string.IsNullOrEmpty(queuedScene))
+                Open(queuedScene);
         }
 
         void SetLoadingFrame(int index, float blend = 0f)
         {
             if (_loadingLogo == null)
                 return;
-            if (_loadingAnimation == null)
-                _loadingAnimation = Resources.Load<Texture2D>("fcmasterGIFAnimated");
             if (_loadingAnimation != null)
             {
                 var frame = ((index % LoadingFrameCount) + LoadingFrameCount) % LoadingFrameCount;
@@ -247,9 +272,7 @@ namespace CoachMaster.App
                 return;
             }
 
-            _loadingLogo.texture = Resources.Load<Texture2D>("fcmasterGIF");
-            if (_loadingLogo.texture == null)
-                _loadingLogo.texture = BroadcastUi.BrandTexture;
+            _loadingLogo.texture = _loadingFallback;
             _loadingLogo.uvRect = new Rect(0f, 0f, 1f, 1f);
             _loadingLogo.color = Color.white;
             if (_loadingLogoBlend != null)
@@ -280,18 +303,11 @@ namespace CoachMaster.App
             var fade = 0f;
             while (fade < 1f)
             {
-                fade += Time.unscaledDeltaTime / (SettingsPrefs.ReduceMotion ? 0.06f : 0.28f);
-                _loadingGroup.alpha = Mathf.Lerp(start, 0f, Mathf.Clamp01(fade));
+                fade += Time.unscaledDeltaTime / (SettingsPrefs.ReduceMotion ? 0.06f : 0.18f);
+                _loadingGroup.alpha = Mathf.Lerp(start, 0f, Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(fade)));
                 yield return null;
             }
             _loadingCanvas.gameObject.SetActive(false);
-            if (_loadingBackdrop != null)
-                _loadingBackdrop.texture = null;
-            if (_loadingSnapshot != null)
-            {
-                Destroy(_loadingSnapshot);
-                _loadingSnapshot = null;
-            }
             IsLoading = false;
         }
     }

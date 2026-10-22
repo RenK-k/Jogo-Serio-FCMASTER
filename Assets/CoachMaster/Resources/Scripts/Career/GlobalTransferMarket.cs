@@ -106,8 +106,6 @@ namespace CoachMaster.Career
 
             var oldWage = Math.Max(0, player.WeeklyWage);
             var newWage = Math.Max(oldWage, Mathf.RoundToInt(oldWage * (1f + Mathf.Clamp(buyer.Reputation - seller.Reputation, -20, 40) / 100f)));
-            AdjustTransferBudgetForWage(career, seller, player.Id, 0);
-            AdjustTransferBudgetForWage(career, buyer, player.Id, newWage, true);
             seller.PlayerIds.Remove(player.Id);
             seller.ManualLineup.Remove(player.Id);
             seller.ManualBenchOrder.Remove(player.Id);
@@ -127,6 +125,10 @@ namespace CoachMaster.Career
             buyer.Finance.Balance -= fee;
             buyer.Finance.TransferBudget -= fee;
             buyer.Finance.TransferSpentThisSeason += fee;
+            ClubFinanceLedger.Record(seller, career.Calendar.CurrentDate, fee, "player-sale",
+                player.FullName, player.Id);
+            ClubFinanceLedger.Record(buyer, career.Calendar.CurrentDate, -fee, "transfer-fee",
+                player.FullName, player.Id);
 
             var record = new TransferRecord
             {
@@ -145,52 +147,6 @@ namespace CoachMaster.Career
             if (career.TransferHistory.Count > 300)
                 career.TransferHistory.RemoveAt(career.TransferHistory.Count - 1);
             return record;
-        }
-
-        public static int AdjustTransferBudgetForWage(CareerState career, Club club, string playerId, int newWeeklyWage, bool addIfMissing = false)
-        {
-            if (career == null || career.World == null || career.Calendar == null || club == null || club.Finance == null
-                || club.Finance.WageBudget <= 0 || string.IsNullOrEmpty(playerId))
-                return 0;
-
-            long oldPayroll = 0;
-            long newPayroll = 0;
-            var found = false;
-            foreach (var id in club.PlayerIds)
-            {
-                if (!career.World.Players.TryGetValue(id, out var rosterPlayer) || rosterPlayer == null)
-                    continue;
-                var oldWage = Math.Max(0, rosterPlayer.WeeklyWage);
-                oldPayroll += oldWage;
-                if (rosterPlayer.Id == playerId)
-                {
-                    found = true;
-                    newPayroll += Math.Max(0, newWeeklyWage);
-                }
-                else
-                    newPayroll += oldWage;
-            }
-
-            if (!found && addIfMissing)
-                newPayroll += Math.Max(0, newWeeklyWage);
-            if (!found && !addIfMissing)
-                return 0;
-
-            var cap = (long)club.Finance.WageBudget;
-            var oldExcess = Math.Max(0L, oldPayroll - cap);
-            var newExcess = Math.Max(0L, newPayroll - cap);
-            if (oldExcess == newExcess)
-                return 0;
-
-            var date = career.Calendar.CurrentDate.Date;
-            var seasonStartYear = date.Month >= 7 ? date.Year : date.Year - 1;
-            var seasonStart = new DateTime(seasonStartYear, 7, 1);
-            var elapsedWeeks = Mathf.Clamp((int)((date - seasonStart).TotalDays / 7) + 1, 1, 52);
-            var remainingWeeks = 53 - elapsedWeeks;
-            var adjustment = (oldExcess - newExcess) * remainingWeeks;
-            var updated = Math.Max(0L, Math.Min(int.MaxValue, (long)club.Finance.TransferBudget + adjustment));
-            club.Finance.TransferBudget = (int)updated;
-            return (int)Math.Max(int.MinValue, Math.Min(int.MaxValue, adjustment));
         }
 
         public static int MarketValue(Player player)

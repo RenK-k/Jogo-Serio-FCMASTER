@@ -59,6 +59,58 @@ namespace CoachMaster.Career
             Pull(career);
         }
 
+        public static bool SkipConversationsForCurrentDay(CareerState career, string note)
+        {
+            if (career == null || career.Current == null || career.Current.Kind != MomentKind.Talk || career.Current.Answered)
+                return false;
+
+            var day = career.Current.When.Date;
+            career.Current.Answered = true;
+            for (var i = career.Upcoming.Count - 1; i >= 0; i--)
+            {
+                var moment = career.Upcoming[i];
+                if (moment != null && moment.Kind == MomentKind.Talk && moment.When.Date == day)
+                    career.Upcoming.RemoveAt(i);
+            }
+
+            if (!string.IsNullOrEmpty(note))
+                career.Notebook.Insert(0, career.Calendar.ClockText + "  " + note);
+            return true;
+        }
+
+        public static bool CanSkipCurrentDay(CareerState career)
+        {
+            if (career == null || career.Current == null || career.Current.Kind == MomentKind.Match)
+                return false;
+            var day = career.Current.When.Date;
+            for (var i = 0; i < career.Upcoming.Count; i++)
+            {
+                var moment = career.Upcoming[i];
+                if (moment != null && moment.Kind == MomentKind.Match && moment.Fixture != null
+                    && !moment.Fixture.Played && moment.When.Date == day)
+                    return false;
+            }
+            foreach (var fixture in career.Fixtures)
+                if (fixture != null && !fixture.Played && !fixture.Walkover
+                    && fixture.Involves(career.Coach.ClubId) && fixture.Date.Date == day)
+                    return false;
+            return true;
+        }
+
+        public static bool SkipCurrentDay(CareerState career, string note)
+        {
+            if (!CanSkipCurrentDay(career)) return false;
+            var skippedDay = career.Current.When.Date;
+            if (!string.IsNullOrEmpty(note))
+                career.Notebook.Insert(0, career.Calendar.ClockText + "  " + note);
+            career.Current = null;
+            for (var i = career.Upcoming.Count - 1; i >= 0; i--)
+                if (career.Upcoming[i] != null && career.Upcoming[i].When.Date == skippedDay)
+                    career.Upcoming.RemoveAt(i);
+            career.Calendar.SetInstant(skippedDay.AddDays(1).AddHours(8));
+            return true;
+        }
+
         public static void Answer(CareerState career, int choice)
         {
             var moment = career.Current;

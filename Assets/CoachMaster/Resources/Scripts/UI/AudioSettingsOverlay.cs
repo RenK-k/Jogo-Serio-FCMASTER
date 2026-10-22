@@ -206,6 +206,9 @@ namespace CoachMaster.UI
         void BuildAudioPage(Transform parent)
         {
             var page = Page(parent, 4, "SOM E MÚSICA");
+            var pageNote = page.transform.Find("PageNote");
+            if (pageNote != null)
+                pageNote.gameObject.SetActive(false);
             _now = BroadcastUi.Label(page.transform, "Now", "", 13, UiTheme.Muted, TextAnchor.MiddleLeft);
             BroadcastUi.Place(_now.rectTransform, 0.04f, 0.87f, 0.94f, 0.92f);
             var previous = BroadcastUi.Button(page.transform, "PreviousTrack", "ANTERIOR", () => { GameAudio.PreviousTrack(); Refresh(); }, new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 12);
@@ -379,10 +382,15 @@ namespace CoachMaster.UI
         void BuildAccessibilityPage(Transform parent)
         {
             var page = Page(parent, 7, "INTERFACE E ACESSIBILIDADE");
+            var english = LocalizationManager.Current == GameLanguage.English;
             AddOption(page.transform, "Scale", "Escala do interface", "Aumenta ou reduz todos os ecrãs. A resolução permanece igual.", () => Percent(SettingsPrefs.UiScale), () => { SettingsPrefs.UiScaleIndex = (SettingsPrefs.UiScaleIndex + 1) % 5; GameRoot.ApplyUiScale(); Refresh(); }, 0.76f);
             AddOption(page.transform, "Motion", "Reduzir animações", "Encurta os fades das mensagens e transições de carregamento.", () => OnOff(SettingsPrefs.ReduceMotion), () => SettingsPrefs.ReduceMotion = !SettingsPrefs.ReduceMotion, 0.63f);
             AddOption(page.transform, "ControllerHints", "Ajuda de teclado e comando", "Mostra os controlos de navegação no rodapé dos ecrãs.", () => OnOff(SettingsPrefs.ControllerHints), () => SettingsPrefs.ControllerHints = !SettingsPrefs.ControllerHints, 0.50f);
             AddOption(page.transform, "Language", "Idioma", "Escolhe o idioma do jogo.", LanguageLabel, CycleLanguage, 0.37f);
+            AddOption(page.transform, "SkipDayConfirmation",
+                english ? "Confirm before skipping a day" : "Confirmar antes de saltar o dia",
+                english ? "Restore the confirmation prompt after choosing not to show it again." : "Volta a mostrar a confirmação se escolheste não a voltar a mostrar.",
+                () => OnOff(SettingsPrefs.SkipDayConfirmation), () => SettingsPrefs.SkipDayConfirmation = !SettingsPrefs.SkipDayConfirmation, 0.24f);
         }
 
         void BuildAdvancedPage(Transform parent)
@@ -467,6 +475,7 @@ namespace CoachMaster.UI
             track.type = Image.Type.Sliced;
             BroadcastUi.Place(track.rectTransform, 0.62f, 0.2f, 0.97f, 0.48f);
             var trackButton = track.gameObject.AddComponent<Button>();
+            trackButton.transition = Selectable.Transition.None;
             var trackNavigation = trackButton.navigation;
             trackNavigation.mode = Navigation.Mode.None;
             trackButton.navigation = trackNavigation;

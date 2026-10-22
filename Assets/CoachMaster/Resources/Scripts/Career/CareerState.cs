@@ -26,10 +26,14 @@ namespace CoachMaster.Career
         public List<SeasonLine> Season { get; } = new List<SeasonLine>();
         public List<SeasonLine> CareerTotals { get; } = new List<SeasonLine>();
         public List<string> AcademyPlayerIds { get; } = new List<string>();
+        public Dictionary<string, TacticalIdentity> AcademyTactics { get; } = new Dictionary<string, TacticalIdentity>();
+        public Dictionary<string, List<string>> AcademySquadOrders { get; } = new Dictionary<string, List<string>>();
+        public Dictionary<string, string> AcademyRoleAssignments { get; } = new Dictionary<string, string>();
         public HashSet<string> AcademyClubIds { get; } = new HashSet<string>();
         public HashSet<string> AcademyScheduleClubIds { get; } = new HashSet<string>();
         public List<AcademyFixture> AcademyFixtures { get; } = new List<AcademyFixture>();
         public List<TransferRecord> TransferHistory { get; } = new List<TransferRecord>();
+        public List<CareerTrophy> Trophies { get; } = new List<CareerTrophy>();
         public long LastGlobalTransferTicks { get; set; }
         public long LastWorldNewsTicks { get; set; }
         public int CompletedSeasons { get; set; }
@@ -121,5 +125,14 @@ namespace CoachMaster.Career
         public int AgeAtTransfer { get; set; }
         public int OverallAtTransfer { get; set; }
         public string Type { get; set; }
+    }
+
+    public sealed class CareerTrophy
+    {
+        public string ClubId { get; set; }
+        public string CompetitionId { get; set; }
+        public int SeasonStartYear { get; set; }
+        public long DateTicks { get; set; }
+        public string Title { get; set; }
     }
 }

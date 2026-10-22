@@ -20,7 +20,9 @@ namespace CoachMaster.Domain
         AttackingMidfielder,
         RightWinger,
         LeftWinger,
-        Striker
+        Striker,
+        LeftMidfielder,
+        RightMidfielder
     }
 
     public enum PreferredFoot

@@ -297,12 +297,14 @@ namespace CoachMaster.Career
             var am = new[] { PlayerPosition.AttackingMidfielder, PlayerPosition.CentralMidfielder, PlayerPosition.RightWinger };
             var rw = new[] { PlayerPosition.RightWinger, PlayerPosition.Striker, PlayerPosition.AttackingMidfielder };
             var lw = new[] { PlayerPosition.LeftWinger, PlayerPosition.Striker, PlayerPosition.AttackingMidfielder };
+            var rm = new[] { PlayerPosition.RightMidfielder, PlayerPosition.CentralMidfielder, PlayerPosition.RightWinger, PlayerPosition.DefensiveMidfielder };
+            var lm = new[] { PlayerPosition.LeftMidfielder, PlayerPosition.CentralMidfielder, PlayerPosition.LeftWinger, PlayerPosition.DefensiveMidfielder };
             var st = new[] { PlayerPosition.Striker, PlayerPosition.AttackingMidfielder, PlayerPosition.RightWinger };
 
             switch (formation)
             {
                 case "4-4-2":
-                    return new[] { gk, rb, cb, cb, lb, rw, cm, cm, lw, st, st };
+                    return new[] { gk, rb, cb, cb, lb, rm, cm, cm, lm, st, st };
                 case "4-2-3-1":
                     return new[] { gk, rb, cb, cb, lb, dm, dm, rw, am, lw, st };
                 case "3-4-3":

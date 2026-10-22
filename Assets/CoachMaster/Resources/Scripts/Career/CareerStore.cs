@@ -261,8 +261,19 @@ namespace CoachMaster.Career
                 "financeledger|2"
             };
             lines.Add("academy|" + string.Join(",", career.AcademyPlayerIds));
+            foreach (var academyTactic in career.AcademyTactics)
+            {
+                var t = academyTactic.Value;
+                if (t == null) continue;
+                lines.Add("academytactic|" + Esc(academyTactic.Key) + "|" + Esc(t.Formation) + "|" + Esc(t.Pressing) + "|" + Esc(t.BuildUp) + "|" + Esc(t.FullBacks) + "|" + Esc(t.DefensiveLine) + "|" + Esc(t.Width) + "|" + Esc(t.Tempo) + "|" + Esc(t.PassingStyle) + "|" + Esc(t.AttackIdea) + "|" + Esc(t.Marking));
+            }
+            foreach (var order in career.AcademySquadOrders)
+                lines.Add("academysquadorder|" + Esc(order.Key) + "|" + string.Join(",", order.Value));
+            foreach (var role in career.AcademyRoleAssignments)
+                lines.Add("academyrole|" + Esc(role.Key) + "|" + role.Value);
             foreach (var academyClubId in career.AcademyClubIds)
                 lines.Add("academyclub|" + academyClubId);
+            lines.Add("scoutedclub|" + string.Join(",", career.Scouted));
             foreach (var academyClubId in career.AcademyScheduleClubIds)
                 lines.Add("academyschedule|" + academyClubId);
             lines.Add("globaltransferdate|" + career.LastGlobalTransferTicks);
@@ -271,6 +282,8 @@ namespace CoachMaster.Career
                 lines.Add("academyfixture|" + Esc(fixture.Id) + "|" + fixture.ClubId + "|" + fixture.AgeGroup + "|" + fixture.Date.Ticks + "|" + fixture.HomeClubId + "|" + fixture.AwayClubId + "|" + (fixture.Played ? "1" : "0") + "|" + fixture.HomeGoals + "|" + fixture.AwayGoals);
             foreach (var transfer in career.TransferHistory)
                 lines.Add("transfer|" + transfer.DateTicks + "|" + transfer.PlayerId + "|" + transfer.FromClubId + "|" + transfer.ToClubId + "|" + transfer.Fee + "|" + transfer.WeeklyWage + "|" + transfer.ContractYears + "|" + transfer.AgeAtTransfer + "|" + transfer.OverallAtTransfer + "|" + Esc(transfer.Type));
+            foreach (var trophy in career.Trophies)
+                lines.Add("trophy|" + trophy.ClubId + "|" + trophy.CompetitionId + "|" + trophy.SeasonStartYear + "|" + trophy.DateTicks + "|" + Esc(trophy.Title));
             foreach (var memory in career.Memories)
                 lines.Add("memory|" + memory.WhenTicks + "|" + memory.Importance + "|" + Esc(memory.Kind) + "|" + memory.ClubId + "|" + memory.CompetitionId + "|" + memory.RelatedClubId + "|" + memory.PlayerId + "|" + Esc(memory.Title) + "|" + Esc(memory.Detail) + "|" + memory.Value);
             foreach (var trust in career.ManagerTrust)
@@ -296,7 +309,11 @@ namespace CoachMaster.Career
                 lines.Add("clubstate|" + club.Id + "|" + club.DressingRoomTension);
                 lines.Add("squad|" + club.Id + "|" + string.Join(",", club.PlayerIds));
                 if (club.Finance != null)
+                {
                     lines.Add("clubfinance|" + club.Id + "|" + club.Finance.Balance + "|" + club.Finance.WageBudget + "|" + club.Finance.TransferBudget + "|" + club.Finance.TransferSpentThisSeason + "|" + club.Finance.TicketIncomeThisSeason + "|" + club.Finance.ShirtIncomeThisSeason + "|" + club.Finance.PlayerSalesThisSeason);
+                    foreach (var transaction in club.Finance.Transactions)
+                        lines.Add("financetransaction|" + club.Id + "|" + transaction.DateTicks + "|" + transaction.Amount + "|" + Esc(transaction.Category) + "|" + Esc(transaction.Description) + "|" + Esc(transaction.PlayerId));
+                }
             }
 
             foreach (var fixture in career.Fixtures)
@@ -534,6 +551,38 @@ namespace CoachMaster.Career
                     case "tactic":
                         ApplyTactic(career, bits);
                         break;
+                    case "academytactic":
+                        if (bits.Length > 11)
+                        {
+                            career.AcademyTactics[Un(bits[1])] = new TacticalIdentity
+                            {
+                                Formation = Un(bits[2]), Pressing = Un(bits[3]), BuildUp = Un(bits[4]),
+                                FullBacks = Un(bits[5]), DefensiveLine = Un(bits[6]), Width = Un(bits[7]),
+                                Tempo = Un(bits[8]), PassingStyle = Un(bits[9]), AttackIdea = Un(bits[10]), Marking = Un(bits[11])
+                            };
+                        }
+                        break;
+                    case "academysquadorder":
+                        if (bits.Length > 2)
+                        {
+                            var group = Un(bits[1]);
+                            if (!career.AcademySquadOrders.TryGetValue(group, out var order))
+                            {
+                                order = new List<string>();
+                                career.AcademySquadOrders[group] = order;
+                            }
+                            order.Clear();
+                            if (!string.IsNullOrEmpty(bits[2])) order.AddRange(bits[2].Split(','));
+                        }
+                        break;
+                    case "scoutedclub":
+                        career.Scouted.Clear();
+                        AddIds(career.Scouted, bits);
+                        break;
+                    case "academyrole":
+                        if (bits.Length > 2)
+                            career.AcademyRoleAssignments[Un(bits[1])] = bits[2];
+                        break;
                     case "roles":
                         if (bits.Length > 3)
                         {
@@ -585,6 +634,23 @@ namespace CoachMaster.Career
                             if (bits.Length > 6 && int.TryParse(bits[6], out var ticketIncome)) financeClub.Finance.TicketIncomeThisSeason = Math.Max(0, ticketIncome);
                             if (bits.Length > 7 && int.TryParse(bits[7], out var shirtIncome)) financeClub.Finance.ShirtIncomeThisSeason = Math.Max(0, shirtIncome);
                             if (bits.Length > 8 && int.TryParse(bits[8], out var playerSales)) financeClub.Finance.PlayerSalesThisSeason = Math.Max(0, playerSales);
+                        }
+                        break;
+                    case "financetransaction":
+                        if (bits.Length > 5 && career.World.Clubs.TryGetValue(bits[1], out var transactionClub)
+                            && transactionClub.Finance != null && long.TryParse(bits[2], out var transactionTicks)
+                            && int.TryParse(bits[3], out var transactionAmount))
+                        {
+                            transactionClub.Finance.Transactions.Add(new FinanceTransaction
+                            {
+                                DateTicks = transactionTicks,
+                                Amount = transactionAmount,
+                                Category = Un(bits[4]),
+                                Description = Un(bits[5]),
+                                PlayerId = bits.Length > 6 ? Un(bits[6]) : ""
+                            });
+                            if (transactionClub.Finance.Transactions.Count > 240)
+                                transactionClub.Finance.Transactions.RemoveAt(0);
                         }
                         break;
                     case "academyclub":
@@ -642,6 +708,14 @@ namespace CoachMaster.Career
                                 Type = Un(bits[10])
                             });
                         }
+                        break;
+                    case "trophy":
+                        if (bits.Length > 5 && int.TryParse(bits[3], out var trophySeason) && long.TryParse(bits[4], out var trophyDate))
+                            career.Trophies.Add(new CareerTrophy
+                            {
+                                ClubId = bits[1], CompetitionId = bits[2], SeasonStartYear = trophySeason,
+                                DateTicks = trophyDate, Title = Un(bits[5])
+                            });
                         break;
                     case "academy":
                         if (bits.Length > 1 && !string.IsNullOrEmpty(bits[1]))

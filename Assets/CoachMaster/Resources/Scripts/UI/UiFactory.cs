@@ -74,6 +74,7 @@ namespace CoachMaster.UI
             rect.SetParent(parent, false);
             go.GetComponent<Image>().color = color;
             var button = go.GetComponent<Button>();
+            button.transition = Selectable.Transition.None;
             var navigation = button.navigation;
             navigation.mode = Navigation.Mode.None;
             button.navigation = navigation;

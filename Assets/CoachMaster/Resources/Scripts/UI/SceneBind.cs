@@ -25,6 +25,7 @@ namespace CoachMaster.UI
             var button = target.GetComponent<Button>();
             if (button == null)
                 return null;
+            button.transition = Selectable.Transition.None;
             button.onClick.RemoveAllListeners();
             button.onClick.AddListener(() =>
             {

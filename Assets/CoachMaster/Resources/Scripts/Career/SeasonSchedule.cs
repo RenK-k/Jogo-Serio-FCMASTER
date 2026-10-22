@@ -173,6 +173,28 @@ namespace CoachMaster.Career
                 homeClub.Finance.TicketIncomeThisSeason += ticketIncome;
                 homeClub.Finance.ShirtIncomeThisSeason += shirtIncome;
                 homeClub.Finance.Balance += ticketIncome + shirtIncome;
+                ClubFinanceLedger.Record(homeClub, fixture.Date, ticketIncome, "ticket", homeClub.Stadium);
+                var shirtSellers = ClubFinanceLedger.TopShirtSellers(career, homeClub);
+                var remainingShirtIncome = shirtIncome;
+                var shirtWeights = new[] { 50, 30, 20 };
+                for (var i = 0; i < shirtSellers.Count; i++)
+                {
+                    var share = i == shirtSellers.Count - 1
+                        ? remainingShirtIncome
+                        : shirtIncome * shirtWeights[i] / 100;
+                    remainingShirtIncome -= share;
+                    ClubFinanceLedger.Record(homeClub, fixture.Date, share, "shirt", shirtSellers[i].FullName, shirtSellers[i].Id);
+                }
+                if (shirtSellers.Count == 0)
+                    ClubFinanceLedger.Record(homeClub, fixture.Date, shirtIncome, "shirt", homeClub.Name);
+            }
+            if (!fixture.Walkover && career.World.Clubs.TryGetValue(fixture.AwayClubId, out var awayClub) && awayClub.Finance != null)
+            {
+                var travelCost = 6500 + System.Math.Max(0, 90 - awayClub.Reputation) * 180;
+                awayClub.Finance.Balance -= travelCost;
+                var destination = career.World.Clubs.TryGetValue(fixture.HomeClubId, out var travelDestinationClub)
+                    ? travelDestinationClub.Stadium : fixture.HomeClubId;
+                ClubFinanceLedger.Record(awayClub, fixture.Date, -travelCost, "travel", destination);
             }
             ApplyTeam(career, fixture.LeagueId, fixture.HomeClubId, fixture.HomeGoals, fixture.AwayGoals);
             ApplyTeam(career, fixture.LeagueId, fixture.AwayClubId, fixture.AwayGoals, fixture.HomeGoals);
@@ -336,6 +358,23 @@ namespace CoachMaster.Career
             CareerNotificationQueue.Enqueue("CONQUISTA HISTÓRICA", title + ". Este título passa a fazer parte da história do clube.");
         }
 
+        static void RecordGlobalTrophy(CareerState career, string clubId, string competitionId, string title)
+        {
+            if (career == null || string.IsNullOrEmpty(clubId) || string.IsNullOrEmpty(competitionId)) return;
+            var startYear = career.Calendar.CurrentDate.Month >= 7 ? career.Calendar.CurrentDate.Year : career.Calendar.CurrentDate.Year - 1;
+            foreach (var existing in career.Trophies)
+                if (existing.ClubId == clubId && existing.CompetitionId == competitionId && existing.SeasonStartYear == startYear)
+                    return;
+            career.Trophies.Add(new CareerTrophy
+            {
+                ClubId = clubId,
+                CompetitionId = competitionId,
+                SeasonStartYear = startYear,
+                DateTicks = career.Calendar.CurrentDate.Ticks,
+                Title = title
+            });
+        }
+
         static void PublishAwards(CareerState career)
         {
             foreach (var league in career.World.Leagues)
@@ -347,10 +386,12 @@ namespace CoachMaster.Career
                     continue;
                 var champ = ClubName(career, rows[0].ClubId);
                 var yours = rows[0].ClubId == career.Coach.ClubId ? " É o teu clube." : "";
+                var leagueTrophy = "Campeão da " + league.Name;
+                RecordGlobalTrophy(career, rows[0].ClubId, league.Id, leagueTrophy);
                 Newsroom.Publish(career, "Diário da Liga", champ + " é campeão da " + league.Name,
                     champ + " fecha a " + league.Name + " com " + rows[0].Points + " pontos, " + rows[0].Won + " vitórias e " + rows[0].GoalsFor + " golos marcados." + yours);
                 if (rows[0].ClubId == career.Coach.ClubId)
-                    RecordSeasonTrophy(career, league.Id, "Campeão da " + league.Name, "A equipa terminou a liga em primeiro lugar com " + rows[0].Points + " pontos.");
+                    RecordSeasonTrophy(career, league.Id, leagueTrophy, "A equipa terminou a liga em primeiro lugar com " + rows[0].Points + " pontos.");
             }
 
             var champs = Ranked(career, "league:campeoes");
@@ -359,6 +400,7 @@ namespace CoachMaster.Career
                 var name = ClubName(career, champs[0].ClubId);
                 Newsroom.Publish(career, "A Gazeta do Relvado", name + " levanta a Liga dos Campeões",
                     "A prova dos primeiros classificados de cada país fica em " + name + ", com " + champs[0].Points + " pontos.");
+                RecordGlobalTrophy(career, champs[0].ClubId, "league:campeoes", "Campeão da Liga dos Campeões");
                 if (champs[0].ClubId == career.Coach.ClubId)
                     RecordSeasonTrophy(career, "league:campeoes", "Campeão da Liga dos Campeões", "A equipa venceu a prova continental com " + champs[0].Points + " pontos.");
             }
@@ -380,6 +422,7 @@ namespace CoachMaster.Career
                 var name = ClubName(career, winner);
                 var yours = winner == career.Coach.ClubId ? " O teu clube fica com o troféu." : "";
                 Newsroom.Publish(career, "O Bancada", name + " vence a " + title, name + " leva a " + title + " nesta época." + yours);
+                RecordGlobalTrophy(career, winner, cupId, "Vencedor da " + title);
                 if (winner == career.Coach.ClubId)
                     RecordSeasonTrophy(career, cupId, "Vencedor da " + title, "A equipa conquistou a competição a eliminar " + title + ".");
             }

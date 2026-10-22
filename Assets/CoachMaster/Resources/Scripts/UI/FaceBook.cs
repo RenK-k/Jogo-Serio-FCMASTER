@@ -1034,9 +1034,29 @@ namespace CoachMaster.UI
             }
         }
 
+        static string NameNation(string nationality)
+        {
+            switch (nationality)
+            {
+                case "Escócia": return "Scotland";
+                case "Irlanda": return "Ireland";
+                case "Dinamarca": return "Denmark";
+                case "Suécia": return "Sweden";
+                case "Áustria": return "Austria";
+                case "Polónia": return "Poland";
+                case "Croácia": return "Croatia";
+                case "Sérvia": return "Serbia";
+                case "República Checa": return "Czech Republic";
+                case "Hungria": return "Hungary";
+                case "Suíça": return "Switzerland";
+                case "Roménia": return "Romania";
+                default: return FolderNation(nationality);
+            }
+        }
+
         static void Names(string nationality, out string[] first, out string[] last)
         {
-            switch (FolderNation(nationality))
+            switch (NameNation(nationality))
             {
                 case "Brazil":
                     first = new[] { "Lucas", "Gabriel", "Matheus", "Rafael", "Gustavo", "Felipe", "Thiago", "Leonardo", "Vinícius", "Caio", "Henrique", "Eduardo", "Marcelo", "Danilo", "Rodrigo" };
@@ -1092,6 +1112,48 @@ namespace CoachMaster.UI
                 case "England":
                     first = new[] { "Oliver", "George", "Harry", "Jack", "Charlie", "Thomas", "William", "James", "Alfie", "Freddie", "Theo", "Joshua", "Edward", "Archie", "Henry" };
                     last = new[] { "Smith", "Jones", "Taylor", "Brown", "Williams", "Wilson", "Johnson", "Davies", "Robinson", "Wright", "Thompson", "Evans", "Walker", "White", "Green" };
+                    return;
+                case "Scotland":
+                    first = new[] { "Angus", "Callum", "Ewan", "Finlay", "Fraser", "Hamish", "Lewis", "Liam", "Rory", "Scott", "Aidan", "Cameron", "Duncan", "Iain", "Kieran" };
+                    last = new[] { "Campbell", "Stewart", "Murray", "Fraser", "MacLeod", "Robertson", "Thomson", "McDonald", "Graham", "Morrison", "Ferguson", "MacKenzie", "Reid", "Ross", "Kerr" };
+                    return;
+                case "Ireland":
+                    first = new[] { "Cian", "Conor", "Darragh", "Eoin", "Fionn", "Jack", "James", "Liam", "Oisín", "Pádraig", "Ronan", "Sean", "Tadhg", "Aidan", "Finn" };
+                    last = new[] { "Murphy", "Kelly", "Byrne", "Ryan", "Doyle", "Walsh", "O'Sullivan", "McCarthy", "Gallagher", "O'Brien", "Kennedy", "Lynch", "Murray", "Quinn", "Brennan" };
+                    return;
+                case "Denmark":
+                    first = new[] { "William", "Noah", "Oscar", "Lucas", "Carl", "Alfred", "Malthe", "Emil", "Oliver", "Valdemar", "Magnus", "Victor", "Elias", "Frederik", "Mikkel" };
+                    last = new[] { "Nielsen", "Jensen", "Hansen", "Andersen", "Christensen", "Larsen", "Sørensen", "Rasmussen", "Jørgensen", "Petersen", "Madsen", "Kristensen", "Olsen", "Thomsen", "Poulsen" };
+                    return;
+                case "Sweden":
+                    first = new[] { "William", "Liam", "Noah", "Hugo", "Lucas", "Oscar", "Oliver", "Elias", "Viktor", "Albin", "Axel", "Isak", "Emil", "Erik", "Anton" };
+                    last = new[] { "Andersson", "Johansson", "Karlsson", "Nilsson", "Eriksson", "Larsson", "Olsson", "Persson", "Svensson", "Gustafsson", "Pettersson", "Jonsson", "Jansson", "Hansson", "Bengtsson" };
+                    return;
+                case "Austria":
+                case "Switzerland":
+                    first = new[] { "Lukas", "Leon", "David", "Felix", "Noah", "Elias", "Jonas", "Fabian", "Simon", "Florian", "Matteo", "Nico", "Julian", "Moritz", "Adrian" };
+                    last = new[] { "Huber", "Müller", "Bauer", "Wagner", "Steiner", "Berger", "Fischer", "Weber", "Moser", "Meyer", "Schmid", "Keller", "Hofer", "Brunner", "Graf" };
+                    return;
+                case "Poland":
+                    first = new[] { "Jakub", "Antoni", "Jan", "Szymon", "Aleksander", "Franciszek", "Filip", "Mikołaj", "Kacper", "Michał", "Wojciech", "Adam", "Mateusz", "Piotr", "Tomasz" };
+                    last = new[] { "Nowak", "Kowalski", "Wiśniewski", "Wójcik", "Kowalczyk", "Kamiński", "Lewandowski", "Zieliński", "Szymański", "Woźniak", "Dąbrowski", "Kozłowski", "Jankowski", "Mazur", "Krawczyk" };
+                    return;
+                case "Croatia":
+                case "Serbia":
+                    first = new[] { "Luka", "Marko", "Ivan", "Mateo", "Petar", "Nikola", "Filip", "Stefan", "Andrej", "Milan", "Vuk", "Dario", "Ante", "Nemanja", "Miloš" };
+                    last = new[] { "Kovačević", "Jovanović", "Horvat", "Petrović", "Matić", "Novak", "Babić", "Tomić", "Marković", "Ilić", "Pavlović", "Knežević", "Radić", "Vuković", "Perić" };
+                    return;
+                case "Czech Republic":
+                    first = new[] { "Jakub", "Jan", "Tomáš", "Adam", "Matyáš", "Filip", "Lukáš", "Vojtěch", "Ondřej", "Daniel", "Dominik", "Šimon", "Marek", "David", "Pavel" };
+                    last = new[] { "Novák", "Svoboda", "Novotný", "Dvořák", "Černý", "Procházka", "Kučera", "Veselý", "Horák", "Němec", "Pokorný", "Marek", "Pospíšil", "Hájek", "Král" };
+                    return;
+                case "Hungary":
+                    first = new[] { "Bence", "Máté", "Levente", "Noel", "Ádám", "Dávid", "Milán", "Zalán", "Péter", "Balázs", "Dániel", "Marcell", "Gergő", "Kristóf", "Zoltán" };
+                    last = new[] { "Nagy", "Kovács", "Tóth", "Szabó", "Horváth", "Varga", "Kiss", "Molnár", "Németh", "Farkas", "Balogh", "Papp", "Lakatos", "Takács", "Juhász" };
+                    return;
+                case "Romania":
+                    first = new[] { "Andrei", "Alexandru", "David", "Ștefan", "Mihai", "Ionuț", "Radu", "Vlad", "Gabriel", "Darius", "Rareș", "Matei", "Florin", "Denis", "Cătălin" };
+                    last = new[] { "Popa", "Popescu", "Ionescu", "Dumitru", "Stan", "Stoica", "Gheorghe", "Radu", "Dobre", "Marin", "Matei", "Constantin", "Tudor", "Munteanu", "Florea" };
                     return;
                 case "Netherlands":
                     first = new[] { "Daan", "Sem", "Bram", "Luuk", "Thijs", "Stijn", "Sven", "Lars", "Ruben", "Joost", "Milan", "Jesse", "Mees", "Finn", "Levi" };

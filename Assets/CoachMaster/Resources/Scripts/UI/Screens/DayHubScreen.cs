@@ -324,6 +324,8 @@ namespace CoachMaster.UI.Screens
                 case PlayerPosition.LeftBack: return new Vector2(0.18f, 0.27f);
                 case PlayerPosition.DefensiveMidfielder: return new Vector2(0.5f, 0.43f);
                 case PlayerPosition.CentralMidfielder: return new Vector2(0.5f, 0.53f);
+                case PlayerPosition.RightMidfielder: return new Vector2(0.78f, 0.53f);
+                case PlayerPosition.LeftMidfielder: return new Vector2(0.22f, 0.53f);
                 case PlayerPosition.AttackingMidfielder: return new Vector2(0.5f, 0.64f);
                 case PlayerPosition.RightWinger: return new Vector2(0.78f, 0.76f);
                 case PlayerPosition.LeftWinger: return new Vector2(0.22f, 0.76f);

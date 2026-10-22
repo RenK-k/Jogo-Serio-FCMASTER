@@ -20,12 +20,11 @@ namespace CoachMaster.UI
         Button _backToResult;
         Button _closeButton;
         Image _backdrop;
-        Image _resizeGrip;
         Text _windowTitle;
         RectTransform _cardRect;
         RectTransform _parentRect;
         MatchAnalysisWindowDrag _dragHandle;
-        MatchAnalysisWindowResize _resizeHandle;
+        readonly List<MatchAnalysisWindowResize> _resizeHandles = new List<MatchAnalysisWindowResize>();
         MatchAnalysisDismiss _dismissLayer;
         readonly List<string> _playerOptionIds = new List<string>();
         System.Action _returnToResult;
@@ -36,8 +35,10 @@ namespace CoachMaster.UI
         string _playerId;
         bool _visible;
         bool _finalMode;
+        bool _modeInitialized;
         int _languageStamp = -1;
         int _dataStamp = -1;
+        float _nextDataCheckTime;
         bool _dirty = true;
 
         public static MatchAnalysisPanel Attach(Transform parent, MatchSession match)
@@ -112,16 +113,32 @@ namespace CoachMaster.UI
             BroadcastUi.Place(_closeButton.GetComponent<RectTransform>(), 0.94f, 0.925f, 0.99f, 0.99f);
             _dragHandle = header.gameObject.AddComponent<MatchAnalysisWindowDrag>();
             _dragHandle.Initialize(_cardRect, _parentRect);
-            _resizeGrip = BroadcastUi.Solid(card.transform, "ResizeGrip", new Color(0.3f, 0.8f, 1f, 0.8f), true);
-            _resizeGrip.rectTransform.anchorMin = _resizeGrip.rectTransform.anchorMax = new Vector2(1f, 0f);
-            _resizeGrip.rectTransform.pivot = new Vector2(1f, 0f);
-            _resizeGrip.rectTransform.anchoredPosition = new Vector2(-8f, 8f);
-            _resizeGrip.rectTransform.sizeDelta = new Vector2(22f, 22f);
-            _resizeHandle = _resizeGrip.gameObject.AddComponent<MatchAnalysisWindowResize>();
-            _resizeHandle.Initialize(_cardRect, _parentRect);
+            AddResizeHandle(card.transform, "ResizeLeft", new Vector2(0f, 0.04f), new Vector2(0f, 0.96f), new Vector2(18f, 0f), true, false, false, false);
+            AddResizeHandle(card.transform, "ResizeRight", new Vector2(1f, 0.04f), new Vector2(1f, 0.96f), new Vector2(18f, 0f), false, true, false, false);
+            AddResizeHandle(card.transform, "ResizeBottom", new Vector2(0.04f, 0f), new Vector2(0.96f, 0f), new Vector2(0f, 18f), false, false, true, false);
+            AddResizeHandle(card.transform, "ResizeTop", new Vector2(0.04f, 1f), new Vector2(0.96f, 1f), new Vector2(0f, 18f), false, false, false, true);
+            AddResizeHandle(card.transform, "ResizeBottomLeft", Vector2.zero, Vector2.zero, new Vector2(28f, 28f), true, false, true, false);
+            AddResizeHandle(card.transform, "ResizeBottomRight", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(28f, 28f), false, true, true, false);
+            AddResizeHandle(card.transform, "ResizeTopLeft", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(28f, 28f), true, false, false, true);
+            AddResizeHandle(card.transform, "ResizeTopRight", Vector2.one, Vector2.one, new Vector2(28f, 28f), false, true, false, true);
+            _closeButton.transform.SetAsLastSibling();
             SetFinalMode(false);
             SetVisible(false);
             RefreshControls();
+        }
+
+        void AddResizeHandle(Transform parent, string name, Vector2 anchorMin, Vector2 anchorMax,
+            Vector2 sizeDelta, bool left, bool right, bool bottom, bool top)
+        {
+            var handleImage = BroadcastUi.Solid(parent, name, new Color(0f, 0f, 0f, 0f), true);
+            var rect = handleImage.rectTransform;
+            rect.anchorMin = anchorMin;
+            rect.anchorMax = anchorMax;
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = sizeDelta;
+            var resize = handleImage.gameObject.AddComponent<MatchAnalysisWindowResize>();
+            resize.Initialize(_cardRect, _parentRect, left, right, bottom, top);
+            _resizeHandles.Add(resize);
         }
 
         Dropdown CreateDropdown(Transform parent, string name, float x0, float y0, float x1, float y1,
@@ -134,6 +151,8 @@ namespace CoachMaster.UI
             var rect = root.GetComponent<RectTransform>();
             BroadcastUi.Place(rect, x0, y0, x1, y1);
             var dropdown = root.GetComponent<Dropdown>();
+            dropdown.transition = Selectable.Transition.None;
+            dropdown.targetGraphic = image;
             var caption = BroadcastUi.Label(root.transform, "Label", "", 10, Color.white, TextAnchor.MiddleLeft);
             caption.raycastTarget = false;
             BroadcastUi.Place(caption.rectTransform, 0.04f, 0.05f, 0.86f, 0.95f);
@@ -287,7 +306,7 @@ namespace CoachMaster.UI
         {
             _visible = visible;
             if (_backdrop != null)
-                _backdrop.gameObject.SetActive(visible);
+                _backdrop.gameObject.SetActive(visible && _finalMode);
             if (_cardRect != null)
             {
                 _cardRect.gameObject.SetActive(visible);
@@ -304,27 +323,31 @@ namespace CoachMaster.UI
 
         public void SetFinalMode(bool finalMode)
         {
+            var modeChanged = !_modeInitialized || _finalMode != finalMode;
             _finalMode = finalMode;
+            _modeInitialized = true;
             if (_cardRect == null || _parentRect == null)
                 return;
-            var size = _parentRect.rect.size;
-            if (size.x < 10f || size.y < 10f)
-                size = new Vector2(Screen.width, Screen.height);
-            var factor = finalMode ? 0.94f : 0.72f;
-            var height = finalMode ? 0.92f : 0.82f;
-            _cardRect.sizeDelta = new Vector2(size.x * factor, size.y * height);
-            _cardRect.anchoredPosition = Vector2.zero;
+            if (modeChanged)
+            {
+                var size = _parentRect.rect.size;
+                if (size.x < 10f || size.y < 10f)
+                    size = new Vector2(Screen.width, Screen.height);
+                var factor = finalMode ? 0.94f : 0.36f;
+                var height = finalMode ? 0.92f : 0.42f;
+                _cardRect.sizeDelta = new Vector2(size.x * factor, size.y * height);
+                _cardRect.anchoredPosition = finalMode ? Vector2.zero : new Vector2(size.x * 0.29f, -size.y * 0.24f);
+            }
             if (_backdrop != null)
             {
                 _backdrop.color = new Color(0.015f, 0.01f, 0.045f, finalMode ? 0.88f : 0f);
-                _backdrop.gameObject.SetActive(_visible);
+                _backdrop.gameObject.SetActive(_visible && finalMode);
             }
             if (_dragHandle != null)
                 _dragHandle.enabled = !finalMode;
-            if (_resizeHandle != null)
-                _resizeHandle.enabled = !finalMode;
-            if (_resizeGrip != null)
-                _resizeGrip.gameObject.SetActive(!finalMode);
+            for (var i = 0; i < _resizeHandles.Count; i++)
+                if (_resizeHandles[i] != null)
+                    _resizeHandles[i].enabled = !finalMode;
             if (_windowTitle != null)
                 _windowTitle.text = LocalizationManager.Current == GameLanguage.English
                     ? (finalMode ? "FULL-TIME MATCH ANALYSIS" : "LIVE MATCH ANALYSIS")
@@ -360,10 +383,18 @@ namespace CoachMaster.UI
         {
             if (_match == null || _visual == null)
                 return;
-            RefreshControls();
+
+            if (_languageStamp != (int)LocalizationManager.Current)
+                _dirty = true;
+            if (!_dirty && Time.unscaledTime < _nextDataCheckTime)
+                return;
+
+            _nextDataCheckTime = Time.unscaledTime + 0.2f;
             var stamp = DataStamp();
             if (!_dirty && stamp == _dataStamp)
                 return;
+
+            RefreshControls();
             _dataStamp = stamp;
             _dirty = false;
             DrawCurrentView();
@@ -776,8 +807,8 @@ namespace CoachMaster.UI
                 return;
             var scale = _canvas == null ? 1f : Mathf.Max(0.01f, _canvas.scaleFactor);
             var position = _window.anchoredPosition + eventData.delta / scale;
-            var maxX = Mathf.Max(0f, (_bounds.rect.width - _window.rect.width * 0.35f) * 0.5f);
-            var maxY = Mathf.Max(0f, (_bounds.rect.height - _window.rect.height * 0.35f) * 0.5f);
+            var maxX = Mathf.Max(0f, (_bounds.rect.width - _window.rect.width) * 0.5f);
+            var maxY = Mathf.Max(0f, (_bounds.rect.height - _window.rect.height) * 0.5f);
             _window.anchoredPosition = new Vector2(Mathf.Clamp(position.x, -maxX, maxX), Mathf.Clamp(position.y, -maxY, maxY));
         }
     }
@@ -787,26 +818,60 @@ namespace CoachMaster.UI
         RectTransform _window;
         RectTransform _bounds;
         Canvas _canvas;
+        Vector2 _pointerStart;
+        Vector2 _sizeStart;
+        Vector2 _positionStart;
+        bool _left;
+        bool _right;
+        bool _bottom;
+        bool _top;
 
-        public void Initialize(RectTransform window, RectTransform bounds)
+        public void Initialize(RectTransform window, RectTransform bounds, bool left, bool right, bool bottom, bool top)
         {
             _window = window;
             _bounds = bounds;
             _canvas = bounds == null ? null : bounds.GetComponentInParent<Canvas>();
+            _left = left;
+            _right = right;
+            _bottom = bottom;
+            _top = top;
         }
 
-        public void OnBeginDrag(PointerEventData eventData) { }
+        public void OnBeginDrag(PointerEventData eventData)
+        {
+            if (_window == null)
+                return;
+            _pointerStart = eventData.position;
+            _sizeStart = _window.sizeDelta;
+            _positionStart = _window.anchoredPosition;
+        }
 
         public void OnDrag(PointerEventData eventData)
         {
             if (_window == null || _bounds == null)
                 return;
             var scale = _canvas == null ? 1f : Mathf.Max(0.01f, _canvas.scaleFactor);
-            var size = _window.sizeDelta + eventData.delta / scale;
+            var pointerDelta = (eventData.position - _pointerStart) / scale;
             var boundsSize = _bounds.rect.size;
-            size.x = Mathf.Clamp(size.x, boundsSize.x * 0.48f, boundsSize.x * 0.96f);
-            size.y = Mathf.Clamp(size.y, boundsSize.y * 0.5f, boundsSize.y * 0.96f);
-            _window.sizeDelta = size;
+            var widthDelta = _right ? pointerDelta.x : _left ? -pointerDelta.x : 0f;
+            var heightDelta = _top ? pointerDelta.y : _bottom ? -pointerDelta.y : 0f;
+            var minWidth = Mathf.Min(220f, boundsSize.x * 0.2f);
+            var minHeight = Mathf.Min(160f, boundsSize.y * 0.2f);
+            var width = Mathf.Clamp(_sizeStart.x + widthDelta, minWidth, boundsSize.x * 0.96f);
+            var height = Mathf.Clamp(_sizeStart.y + heightDelta, minHeight, boundsSize.y * 0.96f);
+            var appliedWidthDelta = width - _sizeStart.x;
+            var appliedHeightDelta = height - _sizeStart.y;
+            var position = _positionStart;
+            if (_left) position.x -= appliedWidthDelta * 0.5f;
+            else if (_right) position.x += appliedWidthDelta * 0.5f;
+            if (_bottom) position.y -= appliedHeightDelta * 0.5f;
+            else if (_top) position.y += appliedHeightDelta * 0.5f;
+            var maxX = Mathf.Max(0f, (boundsSize.x - width) * 0.5f);
+            var maxY = Mathf.Max(0f, (boundsSize.y - height) * 0.5f);
+            position.x = Mathf.Clamp(position.x, -maxX, maxX);
+            position.y = Mathf.Clamp(position.y, -maxY, maxY);
+            _window.anchoredPosition = position;
+            _window.sizeDelta = new Vector2(width, height);
         }
     }
 

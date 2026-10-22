@@ -110,6 +110,10 @@ namespace CoachMaster.Domain
                 case PlayerPosition.AttackingMidfielder:
                     weighted = attr.Passing * 1.25f + attr.Dribbling * 1.2f + attr.Finishing + attr.Positioning * 1.15f + attr.Composure * 1.2f + attr.Decisions * 1.2f + attr.Pace * 0.8f;
                     weight = 7.8f; break;
+                case PlayerPosition.LeftMidfielder:
+                case PlayerPosition.RightMidfielder:
+                    weighted = attr.Pace + attr.Stamina * 1.2f + attr.Crossing * 1.1f + attr.Passing * 1.15f + attr.Positioning + attr.Decisions + attr.WorkRate * 1.1f;
+                    weight = 7.55f; break;
                 case PlayerPosition.RightWinger:
                 case PlayerPosition.LeftWinger:
                     weighted = attr.Pace * 1.25f + attr.Dribbling * 1.25f + attr.Crossing * 1.15f + attr.Finishing + attr.Passing + attr.Decisions + attr.Stamina * 0.8f;

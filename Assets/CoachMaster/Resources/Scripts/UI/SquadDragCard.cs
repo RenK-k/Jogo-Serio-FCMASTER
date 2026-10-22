@@ -13,6 +13,7 @@ namespace CoachMaster.UI
         public bool Bench;
         public bool BenchReserves;
         public int FieldIndex = -1;
+        public string Context = "";
         public Action<Player, int> OnSwapWithField;
 
         Canvas _canvas;
@@ -31,7 +32,17 @@ namespace CoachMaster.UI
         static Player _pendingBenchPlayer;
         static bool _pendingBenchTarget;
         static bool _pendingBenchSource;
+        static string _pendingContext = "";
+        static string _pendingBenchContext = "";
         bool _dragging;
+
+        void OnEnable()
+        {
+            var scaleLock = GetComponent<UiScaleInvariant>();
+            if (scaleLock == null)
+                scaleLock = gameObject.AddComponent<UiScaleInvariant>();
+            scaleLock.Apply();
+        }
 
         public static bool Holding
         {
@@ -52,25 +63,41 @@ namespace CoachMaster.UI
             _pendingFrom = -1;
             _pendingBenchPlayer = null;
             _pendingBenchSource = false;
+            _pendingContext = "";
+            _pendingBenchContext = "";
         }
 
         public static bool ConsumeSwap(out Player player, out int fieldIndex, out int fromField)
         {
+            return ConsumeSwap(out player, out fieldIndex, out fromField, out _);
+        }
+
+        public static bool ConsumeSwap(out Player player, out int fieldIndex, out int fromField, out string context)
+        {
             player = _pendingPlayer;
             fieldIndex = _pendingIndex;
             fromField = _pendingFrom;
+            context = _pendingContext;
             _pendingPlayer = null;
             _pendingIndex = -1;
             _pendingFrom = -1;
+            _pendingContext = "";
             return player != null && fieldIndex >= 0;
         }
 
         public static bool ConsumeBenchGroupDrop(out Player player, out bool fromReserves, out bool toReserves)
         {
+            return ConsumeBenchGroupDrop(out player, out fromReserves, out toReserves, out _);
+        }
+
+        public static bool ConsumeBenchGroupDrop(out Player player, out bool fromReserves, out bool toReserves, out string context)
+        {
             player = _pendingBenchPlayer;
             fromReserves = _pendingBenchSource;
             toReserves = _pendingBenchTarget;
+            context = _pendingBenchContext;
             _pendingBenchPlayer = null;
+            _pendingBenchContext = "";
             return player != null;
         }
 
@@ -139,6 +166,7 @@ namespace CoachMaster.UI
                     _pendingBenchPlayer = Player;
                     _pendingBenchSource = BenchReserves;
                     _pendingBenchTarget = reserves;
+                    _pendingBenchContext = Context;
                 }
                 return;
             }
@@ -148,6 +176,7 @@ namespace CoachMaster.UI
             _pendingPlayer = Player;
             _pendingIndex = target.FieldIndex;
             _pendingFrom = Bench ? -1 : FieldIndex;
+            _pendingContext = Context;
         }
 
         void OnDisable()
@@ -176,7 +205,7 @@ namespace CoachMaster.UI
             for (var i = 0; i < Hits.Count; i++)
             {
                 var card = Hits[i].gameObject.GetComponentInParent<SquadDragCard>();
-                if (card == null || card.Bench || card.FieldIndex < 0 || card == this)
+                if (card == null || card.Bench || card.FieldIndex < 0 || card == this || card.Context != Context)
                     continue;
                 return card;
             }
@@ -185,7 +214,7 @@ namespace CoachMaster.UI
             for (var i = 0; i < cards.Length; i++)
             {
                 var card = cards[i];
-                if (card == null || card.Bench || card.FieldIndex < 0 || card == this)
+                if (card == null || card.Bench || card.FieldIndex < 0 || card == this || card.Context != Context)
                     continue;
                 var rect = card.transform as RectTransform;
                 if (rect != null && RectTransformUtility.RectangleContainsScreenPoint(rect, eventData.position, eventData.pressEventCamera))
@@ -205,12 +234,12 @@ namespace CoachMaster.UI
                 var node = Hits[i].gameObject.transform;
                 while (node != null)
                 {
-                    if (node.name == "ReservesTab")
+                    if (node.name.Contains("ReservesTab"))
                     {
                         toReserves = true;
                         return true;
                     }
-                    if (node.name == "SubsTab")
+                    if (node.name.Contains("SubsTab"))
                     {
                         toReserves = false;
                         return true;

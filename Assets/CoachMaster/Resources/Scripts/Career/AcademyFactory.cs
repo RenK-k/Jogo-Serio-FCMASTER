@@ -1,24 +1,13 @@
 using System;
 using System.Collections.Generic;
 using CoachMaster.Domain;
+using CoachMaster.UI;
 using UnityEngine;
 
 namespace CoachMaster.Career
 {
     public static class AcademyFactory
     {
-        static readonly string[] FirstNames =
-        {
-            "Alex", "Sam", "Riley", "Jamie", "Taylor", "Morgan", "Jordan", "Robin",
-            "Casey", "Avery", "Cameron", "Dani", "Noa", "Lee", "Charlie", "Mika"
-        };
-
-        static readonly string[] Surnames =
-        {
-            "Silva", "Costa", "Santos", "Moreira", "Ferreira", "Ribeiro", "Sousa", "Pereira",
-            "Oliveira", "Martins", "Carvalho", "Gomes", "Lopes", "Alves", "Rocha", "Mendes"
-        };
-
         static readonly PlayerPosition[] Positions =
         {
             PlayerPosition.Goalkeeper, PlayerPosition.RightBack, PlayerPosition.CentreBack,
@@ -39,6 +28,9 @@ namespace CoachMaster.Career
                 return;
 
             career.AcademyClubIds.Add(clubId);
+            for (var i = career.AcademyPlayerIds.Count - 1; i >= 0; i--)
+                if (club.PlayerIds.Contains(career.AcademyPlayerIds[i]))
+                    career.AcademyPlayerIds.RemoveAt(i);
             var nationality = Nationality(club.LeagueId);
             var clubSeed = StableHash(club.Id);
             for (var groupIndex = 0; groupIndex < AgeGroups.Length; groupIndex++)
@@ -53,27 +45,36 @@ namespace CoachMaster.Career
                 }
 
                 var slot = 1;
-                while (currentCount < SquadSize && slot <= SquadSize + 12)
+                while (currentCount < SquadSize && slot <= SquadSize + 256)
                 {
                     var id = "academy:" + club.Id + ":" + group.ToLowerInvariant() + ":" + slot;
+                    var seed = unchecked(clubSeed + groupIndex * 104729 + slot * 7919);
                     if (career.World.Players.TryGetValue(id, out var existingPlayer))
                     {
-                        if (!career.AcademyPlayerIds.Contains(id) && existingPlayer.ClubId == clubId)
+                        if (existingPlayer.ClubId == clubId && (club.PlayerIds == null || !club.PlayerIds.Contains(id)))
+                        {
+                            existingPlayer.FullName = FaceBook.PersonName(nationality, seed);
+                            existingPlayer.Nationality = nationality;
+                            if (string.IsNullOrEmpty(existingPlayer.TrainingFocus))
+                                existingPlayer.TrainingFocus = TrainingFocusFor(existingPlayer.Position);
+                        }
+                        if (!career.AcademyPlayerIds.Contains(id) && existingPlayer.ClubId == clubId
+                            && (club.PlayerIds == null || !club.PlayerIds.Contains(id)))
                             career.AcademyPlayerIds.Add(id);
-                        if (existingPlayer.ClubId == clubId && GroupForAge(existingPlayer.Age) == group)
+                        if (existingPlayer.ClubId == clubId && GroupForAge(existingPlayer.Age) == group
+                            && (club.PlayerIds == null || !club.PlayerIds.Contains(id)))
                             currentCount++;
                         slot++;
                         continue;
                     }
 
-                    var seed = unchecked(clubSeed + groupIndex * 104729 + slot * 7919);
                     var age = AgeForGroup(group, slot);
                     var position = Positions[(slot - 1 + groupIndex * 3) % Positions.Length];
                     var player = new Player
                     {
                         Id = id,
                         ClubId = club.Id,
-                        FullName = FirstNames[Math.Abs(seed % FirstNames.Length)] + " " + Surnames[Math.Abs((seed >> 5) % Surnames.Length)],
+                        FullName = FaceBook.PersonName(nationality, seed),
                         Age = age,
                         SquadNumber = slot,
                         Position = position,
@@ -91,6 +92,7 @@ namespace CoachMaster.Career
                         WeightKg = 48 + Math.Abs((seed >> 8) % 30),
                         WeakFootQuality = 1 + Math.Abs((seed >> 12) % 5),
                         TrainingRating = 55 + Math.Abs((seed >> 14) % 40),
+                        TrainingFocus = TrainingFocusFor(position),
                         Injury = new InjuryState(),
                         Personality = (PersonalityTrait)Math.Abs(seed % 7),
                         Attributes = PlayerAttributes.Roll(seed, position, Math.Max(35, club.Reputation - 20)),
@@ -180,6 +182,22 @@ namespace CoachMaster.Career
             return "Portugal";
         }
 
+        static string TrainingFocusFor(PlayerPosition position)
+        {
+            switch (position)
+            {
+                case PlayerPosition.Goalkeeper: return "positioning";
+                case PlayerPosition.RightBack:
+                case PlayerPosition.LeftBack:
+                case PlayerPosition.CentreBack:
+                case PlayerPosition.DefensiveMidfielder: return "defending";
+                case PlayerPosition.RightWinger:
+                case PlayerPosition.LeftWinger: return "pace";
+                case PlayerPosition.Striker: return "finishing";
+                default: return "passing";
+            }
+        }
+
         static int StableHash(string value)
         {
             unchecked
@@ -249,7 +267,12 @@ namespace CoachMaster.Career
 
             var eleven = new List<Player>();
             var bench = new List<Player>();
-            StartingShape.Split(squad, career.Club.Tactics.Formation, eleven, bench);
+            var formation = career.World.Clubs.TryGetValue(fixture.ClubId, out var fixtureClub)
+                && fixtureClub.Tactics != null ? fixtureClub.Tactics.Formation : "4-3-3";
+            if (fixture.ClubId == career.Club.Id && career.AcademyTactics.TryGetValue(fixture.AgeGroup, out var academyTactics)
+                && academyTactics != null && !string.IsNullOrEmpty(academyTactics.Formation))
+                formation = academyTactics.Formation;
+            StartingShape.Split(squad, formation, eleven, bench);
             var competitionId = "academy-" + fixture.AgeGroup;
             foreach (var player in eleven)
                 AddStats(career, player.Id, competitionId, 1, 0, 0);
@@ -278,7 +301,8 @@ namespace CoachMaster.Career
             var options = new List<Player>();
             foreach (var player in eleven)
                 if (player.Position == PlayerPosition.Striker || player.Position == PlayerPosition.LeftWinger
-                    || player.Position == PlayerPosition.RightWinger || player.Position == PlayerPosition.AttackingMidfielder)
+                    || player.Position == PlayerPosition.RightWinger || player.Position == PlayerPosition.AttackingMidfielder
+                    || player.Position == PlayerPosition.LeftMidfielder || player.Position == PlayerPosition.RightMidfielder)
                     options.Add(player);
             if (options.Count == 0) options.AddRange(eleven);
             return options.Count == 0 ? null : options[random.Next(options.Count)];

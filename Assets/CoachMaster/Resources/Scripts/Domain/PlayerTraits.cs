@@ -230,7 +230,9 @@ namespace CoachMaster.Domain
             var position = Value(a == null ? 10 : a.Positioning);
             var keeper = player.Position == PlayerPosition.Goalkeeper;
             var attack = player.Position == PlayerPosition.Striker || player.Position == PlayerPosition.LeftWinger || player.Position == PlayerPosition.RightWinger || player.Position == PlayerPosition.AttackingMidfielder;
-            var wide = player.Position == PlayerPosition.LeftWinger || player.Position == PlayerPosition.RightWinger || player.Position == PlayerPosition.LeftBack || player.Position == PlayerPosition.RightBack;
+            var wide = player.Position == PlayerPosition.LeftWinger || player.Position == PlayerPosition.RightWinger
+                || player.Position == PlayerPosition.LeftMidfielder || player.Position == PlayerPosition.RightMidfielder
+                || player.Position == PlayerPosition.LeftBack || player.Position == PlayerPosition.RightBack;
             var middle = player.Position == PlayerPosition.CentralMidfielder || player.Position == PlayerPosition.DefensiveMidfielder || player.Position == PlayerPosition.AttackingMidfielder;
             var defender = player.Position == PlayerPosition.CentreBack || player.Position == PlayerPosition.LeftBack || player.Position == PlayerPosition.RightBack || player.Position == PlayerPosition.DefensiveMidfielder;
             var overall = PlayerAttributes.Overall(player);
@@ -331,6 +333,7 @@ namespace CoachMaster.Domain
             var attack = player.Position == PlayerPosition.Striker || player.Position == PlayerPosition.LeftWinger
                 || player.Position == PlayerPosition.RightWinger || player.Position == PlayerPosition.AttackingMidfielder;
             var wide = player.Position == PlayerPosition.LeftWinger || player.Position == PlayerPosition.RightWinger
+                || player.Position == PlayerPosition.LeftMidfielder || player.Position == PlayerPosition.RightMidfielder
                 || player.Position == PlayerPosition.LeftBack || player.Position == PlayerPosition.RightBack;
             var middle = player.Position == PlayerPosition.CentralMidfielder || player.Position == PlayerPosition.DefensiveMidfielder
                 || player.Position == PlayerPosition.AttackingMidfielder;

@@ -126,6 +126,9 @@ namespace CoachMaster.Domain
                     return Weights("Desarme", 1.1f, "Passe", 1f, "Resistência", 1f, "Posicionamento", 1f, "Decisão", 0.9f);
                 case PlayerPosition.CentralMidfielder:
                     return Weights("Passe", 1.1f, "Resistência", 1f, "Drible", 0.8f, "Decisão", 1.1f, "Entrega", 0.8f);
+                case PlayerPosition.RightMidfielder:
+                case PlayerPosition.LeftMidfielder:
+                    return Weights("Resistência", 1.1f, "Cruzamento", 1f, "Passe", 1f, "Posicionamento", 0.9f, "Entrega", 1f, "Decisão", 0.9f);
                 case PlayerPosition.AttackingMidfielder:
                     return Weights("Passe", 1.1f, "Drible", 1f, "Finalização", 0.8f, "Frieza", 0.9f, "Decisão", 1.2f);
                 case PlayerPosition.RightWinger:

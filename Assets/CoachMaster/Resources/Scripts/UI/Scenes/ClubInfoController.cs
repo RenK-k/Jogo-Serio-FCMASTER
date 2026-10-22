@@ -117,7 +117,7 @@ namespace CoachMaster.UI.Scenes
 
             var choose = BroadcastUi.Button(root, "Choose", "ASSUMIR O BANCO", () => GameRoot.Instance.Open(SceneNames.CreateCareer), UiTheme.Accent, UiTheme.ButtonText, 20);
             BroadcastUi.Place(choose.GetComponent<RectTransform>(), 0.34f, 0.065f, 0.66f, 0.14f);
-            var hint = BroadcastUi.Label(root, "ControlHint", LocalizationManager.Translate("M · DEFINIÇÕES"), 15, UiTheme.Muted, TextAnchor.MiddleLeft);
+            var hint = BroadcastUi.Label(root, "SettingsHint", LocalizationManager.Translate("M · DEFINIÇÕES"), 15, UiTheme.Muted, TextAnchor.MiddleLeft);
             BroadcastUi.Place(hint.rectTransform, 0.04f, 0.008f, 0.5f, 0.05f);
         }
 
@@ -133,27 +133,14 @@ namespace CoachMaster.UI.Scenes
             var eleven = new List<Player>();
             var bench = new List<Player>();
             StartingShape.Split(squad, club.Tactics.Formation, eleven, bench);
+            var slotPositions = StartingShape.SlotPositions(club.Tactics.Formation);
             for (var index = 0; index < eleven.Count && index < 11; index++)
             {
                 var player = eleven[index];
-                var card = BroadcastUi.Panel(host, "P" + player.SquadNumber, new Color(0.1f, 0.04f, 0.18f, 0.94f));
+                var position = index < slotPositions.Length ? slotPositions[index] : player.Position;
+                var card = PlayerCardView.Create(host, "P" + player.SquadNumber, player, club, position, true);
                 card.rectTransform.anchorMin = card.rectTransform.anchorMax = MatchEngine.Slot(true, index, club.Tactics.Formation);
-                card.rectTransform.sizeDelta = new Vector2(68, 78);
-                var faceGo = new GameObject("Face", typeof(RectTransform), typeof(Image));
-                var faceRect = faceGo.GetComponent<RectTransform>();
-                faceRect.SetParent(card.transform, false);
-                faceRect.anchorMin = faceRect.anchorMax = new Vector2(0.5f, 0.7f);
-                faceRect.sizeDelta = new Vector2(32, 32);
-                var face = faceGo.GetComponent<Image>();
-                face.sprite = FaceBook.For(player);
-                face.preserveAspect = true;
-                face.raycastTarget = false;
-                var number = BroadcastUi.Label(card.transform, "Number", player.SquadNumber.ToString(), 10, UiTheme.Score, TextAnchor.MiddleLeft, FontStyle.Bold);
-                BroadcastUi.Place(number.rectTransform, 0.04f, 0.78f, 0.28f, 0.96f);
-                var name = BroadcastUi.Label(card.transform, "Name", BroadcastUi.ShortName(player.FullName).ToUpperInvariant(), 9, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
-                BroadcastUi.Place(name.rectTransform, 0.02f, 0.28f, 0.98f, 0.48f);
-                var meta = BroadcastUi.Label(card.transform, "Meta", PresentationLabels.Position(player.Position) + "  ·  " + LocalizationManager.Translate(player.Nationality), 8, UiTheme.Accent, TextAnchor.MiddleCenter);
-                BroadcastUi.Place(meta.rectTransform, 0.02f, 0.04f, 0.98f, 0.27f);
+                card.rectTransform.sizeDelta = new Vector2(88, 100);
             }
         }
 

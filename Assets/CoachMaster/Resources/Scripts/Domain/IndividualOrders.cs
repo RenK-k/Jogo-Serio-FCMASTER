@@ -79,6 +79,9 @@ namespace CoachMaster.Domain
                 case PlayerPosition.RightWinger:
                 case PlayerPosition.LeftWinger:
                     return new[] { "Cortar para dentro equilibrado", "Cortar para dentro ofensivo", "Ficar aberto equilibrado", "Ficar aberto defensivo", "Só desmarcação", "Defensivo" };
+                case PlayerPosition.RightMidfielder:
+                case PlayerPosition.LeftMidfielder:
+                    return new[] { "Ficar aberto equilibrado", "Ficar aberto defensivo", "Chegar à área equilibrado", "Só desmarcação", "Defensivo" };
                 case PlayerPosition.Striker:
                     return new[] { "Ficar na área", "Só desmarcação", "Mover-se equilibrado", "Mover-se ofensivo", "Chegar à área ofensivo", "Defensivo" };
                 default:

@@ -73,6 +73,8 @@ namespace CoachMaster.MatchPlay
         float _curl;
         readonly Vector2[] _homeMotion = new Vector2[11];
         readonly Vector2[] _awayMotion = new Vector2[11];
+        readonly Vector2[] _homePreviousMotion = new Vector2[11];
+        readonly Vector2[] _awayPreviousMotion = new Vector2[11];
         int _homeRunner = -1;
         int _awayRunner = -1;
         bool _motionReady;
@@ -597,17 +599,26 @@ namespace CoachMaster.MatchPlay
         float OffsideLine(bool attackingHome)
         {
             var defenders = attackingHome ? _match.AwayOnField : _match.HomeOnField;
-            var depths = new List<float>();
+            var deepest = float.NegativeInfinity;
+            var secondDeepest = float.NegativeInfinity;
+            var count = 0;
             for (var i = 0; i < defenders.Count && i < 11; i++)
             {
                 var point = MotionOf(!attackingHome, i);
-                depths.Add(attackingHome ? point.y : 1f - point.y);
+                var depth = attackingHome ? point.y : 1f - point.y;
+                count++;
+                if (depth >= deepest)
+                {
+                    secondDeepest = deepest;
+                    deepest = depth;
+                }
+                else if (depth > secondDeepest)
+                    secondDeepest = depth;
             }
 
-            if (depths.Count < 2)
+            if (count < 2)
                 return BackLine(!attackingHome);
-            depths.Sort();
-            return depths[depths.Count - 2];
+            return secondDeepest;
         }
 
         float BackLine(bool defendingHome)
@@ -675,6 +686,17 @@ namespace CoachMaster.MatchPlay
             if (!_motionReady)
                 return PlayerSpot(home, index);
             return home ? _homeMotion[index] : _awayMotion[index];
+        }
+
+        public Vector2 ShownMotionOf(bool home, int index)
+        {
+            index = Mathf.Clamp(index, 0, 10);
+            if (!_motionReady || _match.Phase == MatchPhase.HalfTime || _match.Phase == MatchPhase.FullTime)
+                return MotionOf(home, index);
+
+            var current = home ? _homeMotion[index] : _awayMotion[index];
+            var previous = home ? _homePreviousMotion[index] : _awayPreviousMotion[index];
+            return Vector2.Lerp(previous, current, Mathf.Clamp01(_stepAccumulator / FixedStep));
         }
 
         public Vector2 ShownBall()
@@ -764,6 +786,8 @@ namespace CoachMaster.MatchPlay
                 {
                     _homeMotion[i] = PlayerSpot(true, i);
                     _awayMotion[i] = PlayerSpot(false, i);
+                    _homePreviousMotion[i] = _homeMotion[i];
+                    _awayPreviousMotion[i] = _awayMotion[i];
                 }
 
                 _motionReady = true;
@@ -779,8 +803,10 @@ namespace CoachMaster.MatchPlay
         void GlideSide(bool home, Vector2[] motion, float dt)
         {
             var squad = home ? _match.HomeOnField : _match.AwayOnField;
+            var previousMotion = home ? _homePreviousMotion : _awayPreviousMotion;
             for (var i = 0; i < motion.Length; i++)
             {
+                previousMotion[i] = motion[i];
                 if (i < squad.Count && IsPlayerInjured(squad[i]))
                     continue;
                 var goal = i < squad.Count ? PlayerSpot(home, i) : motion[i];
@@ -907,7 +933,10 @@ namespace CoachMaster.MatchPlay
             if (crossInsideBox)
             {
                 var keeper = Person(home, 0);
-                var stepOut = keeper != null && keeper.HasTrait(PlayerTrait.GuardaRedesSaiDaBaliza) ? 0.065f
+                var duty = keeper == null ? "" : keeper.Duty ?? "";
+                var stepOut = duty == "Ficar na linha" ? 0f
+                    : duty == "Sair nos cruzamentos" ? 0.065f
+                    : keeper != null && keeper.HasTrait(PlayerTrait.GuardaRedesSaiDaBaliza) ? 0.065f
                     : keeper != null && keeper.HasTrait(PlayerTrait.GuardaRedesSaiAosCruzamentos) ? 0.05f : 0.025f;
                 y = home ? Mathf.Min(BallTarget.y, ownY + stepOut) : Mathf.Max(BallTarget.y, ownY - stepOut);
             }
@@ -2051,19 +2080,28 @@ namespace CoachMaster.MatchPlay
             if (attackerDepth <= 0.5f + positionEpsilon || attackerDepth <= ballDepth + positionEpsilon)
                 return false;
             var opp = home ? _match.AwayOnField : _match.HomeOnField;
-            var depths = new System.Collections.Generic.List<float>();
+            var deepest = float.NegativeInfinity;
+            var secondDeepest = float.NegativeInfinity;
+            var count = 0;
             for (var i = 0; i < opp.Count && i < 11; i++)
             {
                 if (IsPlayerInjured(opp[i]))
                     continue;
                 var mark = MotionOf(!home, i);
-                depths.Add(home ? mark.y : 1f - mark.y);
+                var depth = home ? mark.y : 1f - mark.y;
+                count++;
+                if (depth >= deepest)
+                {
+                    secondDeepest = deepest;
+                    deepest = depth;
+                }
+                else if (depth > secondDeepest)
+                    secondDeepest = depth;
             }
 
-            if (depths.Count < 2)
+            if (count < 2)
                 return false;
-            depths.Sort();
-            var secondLastDefender = depths[depths.Count - 2];
+            var secondLastDefender = secondDeepest;
             var line = Mathf.Max(ballDepth, secondLastDefender);
             return attackerDepth > line + positionEpsilon;
         }

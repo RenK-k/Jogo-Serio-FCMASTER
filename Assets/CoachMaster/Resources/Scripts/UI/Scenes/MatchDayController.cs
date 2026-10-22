@@ -36,6 +36,11 @@ namespace CoachMaster.UI.Scenes
         int _noteCount = -1;
         bool _snap = true;
         float _slow;
+        int _lastHudHomeGoals = int.MinValue;
+        int _lastHudAwayGoals = int.MinValue;
+        int _lastHudClockMinute = int.MinValue;
+        int _lastHudClockSecond = int.MinValue;
+        int _lastHudClockExtra = int.MinValue;
 
         Text _score;
         Text _clock;
@@ -78,6 +83,7 @@ namespace CoachMaster.UI.Scenes
         bool _matchFinalized;
         bool _analysisAtHalfTime;
         bool _analysisAtFullTime;
+        bool _liveAnalysisDismissed;
         bool _pauseAfterEvent;
         GameObject _tactics;
         GameObject _presetConfirm;
@@ -119,6 +125,9 @@ namespace CoachMaster.UI.Scenes
         Text _awayChances;
         Text _homeRatings;
         Text _awayRatings;
+        readonly List<RatingRow> _homeRatingRows = new List<RatingRow>();
+        readonly List<RatingRow> _awayRatingRows = new List<RatingRow>();
+        string _selectedSubPlayerId;
         Button[] _tabs;
         Text _speedLabel;
         MatchAnalysisPanel _analysis;
@@ -149,10 +158,12 @@ namespace CoachMaster.UI.Scenes
                 BroadcastUi.Mount(this);
                 BindMatch(design);
                 Show(BoardTab.Fitness);
+                OpenLiveAnalysis();
                 return;
             }
 
             Build();
+            OpenLiveAnalysis();
         }
 
         public void BakeDesign(CareerState career, MatchSession match)
@@ -251,6 +262,7 @@ namespace CoachMaster.UI.Scenes
             if (_slow <= 0f)
             {
                 _slow = 0.3f;
+                RefreshPlanLabel();
                 RefreshSides();
                 RefreshRatings();
                 RefreshStats();
@@ -273,7 +285,12 @@ namespace CoachMaster.UI.Scenes
             if (_fullTime != null && _fullTime.activeSelf) { FinishMatch(); return true; }
             if (_analysisAtHalfTime) { ReturnToHalfTime(); return true; }
             if (_analysisAtFullTime) { ReturnToFullTimeResult(); return true; }
-            if (_analysis != null && _analysis.IsVisible) { Show(BoardTab.Fitness); return true; }
+            if (_analysis != null && _analysis.IsVisible)
+            {
+                _liveAnalysisDismissed = true;
+                _analysis.SetVisible(false);
+                return true;
+            }
             if (_match != null && _match.Phase != MatchPhase.HalfTime && _match.Phase != MatchPhase.FullTime)
             {
                 OpenPause();
@@ -296,6 +313,16 @@ namespace CoachMaster.UI.Scenes
             }
 
             return _career != null && _career.League != null ? _career.League.Name : "Liga";
+        }
+
+        void OpenLiveAnalysis()
+        {
+            if (_analysis == null)
+                return;
+            _liveAnalysisDismissed = false;
+            _analysis.SetFinalMode(false);
+            _analysis.SetVisible(true);
+            _analysis.Refresh();
         }
 
         void Build()
@@ -686,11 +713,11 @@ namespace CoachMaster.UI.Scenes
 
         void BuildFitness(Transform root)
         {
-            _fitnessPage = BroadcastUi.Zone(root, "Fitness", 0f, 0.12f, 1f, 0.75f).gameObject;
+            _fitnessPage = BroadcastUi.Zone(root, "Fitness", 0f, 0.105f, 1f, 0.76f).gameObject;
             var page = _fitnessPage.transform;
-            _homeCol = BuildColumn(page, "HomeXi", 0.015f, 0.02f, 0.22f, 0.98f, true);
-            var pitchZone = BroadcastUi.Zone(page, "PitchZone", 0.23f, 0.03f, 0.77f, 0.97f);
-            _pitch = BroadcastUi.Zone(pitchZone, "Pitch", 0.04f, 0.04f, 0.96f, 0.96f);
+            _homeCol = BuildColumn(page, "HomeXi", 0.01f, 0.015f, 0.19f, 0.985f, true);
+            var pitchZone = BroadcastUi.Zone(page, "PitchZone", 0.20f, 0.01f, 0.80f, 0.99f);
+            _pitch = BroadcastUi.Zone(pitchZone, "Pitch", 0.025f, 0.025f, 0.975f, 0.975f);
             BroadcastUi.DrawPitch(_pitch, new Color(0.12f, 0.46f, 0.22f));
             WorldCatalog.PaintClub(_match.Home);
             WorldCatalog.PaintClub(_match.Away);
@@ -699,7 +726,7 @@ namespace CoachMaster.UI.Scenes
             _homeColor = BroadcastUi.Parse(_match.Home.JerseyPrimaryHex, Color.white);
             _awayColor = BroadcastUi.Parse(_match.Away.JerseyPrimaryHex, new Color(0.85f, 0.2f, 0.2f));
             _ball = SpawnBall();
-            _awayCol = BuildColumn(page, "AwayXi", 0.78f, 0.02f, 0.985f, 0.98f, false);
+            _awayCol = BuildColumn(page, "AwayXi", 0.81f, 0.015f, 0.99f, 0.985f, false);
         }
 
         SideColumn BuildColumn(Transform parent, string name, float x0, float y0, float x1, float y1, bool home)
@@ -871,7 +898,7 @@ namespace CoachMaster.UI.Scenes
 
         void BuildRatings(Transform root)
         {
-            _ratingsPage = BroadcastUi.Panel(root, "Ratings", new Color(0.08f, 0.03f, 0.16f, 0.35f)).gameObject;
+            _ratingsPage = BroadcastUi.Panel(root, "Ratings", new Color(0.045f, 0.035f, 0.075f, 0.98f)).gameObject;
             BroadcastUi.Place(_ratingsPage.GetComponent<RectTransform>(), 0.05f, 0.14f, 0.95f, 0.76f);
             var page = _ratingsPage.transform;
             var leftTitle = BroadcastUi.Label(page, "HomeTitle", _match.Home.ShortName.ToUpperInvariant(), 18, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
@@ -942,7 +969,7 @@ namespace CoachMaster.UI.Scenes
             var speed = BroadcastUi.Button(_footer.transform, "Speed", MatchSpeedText(), CycleSpeed, new Color(1f, 1f, 1f, 0f), UiTheme.Accent, 16);
             BroadcastUi.Place(speed.GetComponent<RectTransform>(), 0.52f, 0.08f, 0.66f, 0.92f);
             _speedLabel = speed.GetComponentInChildren<Text>();
-            var hint = BroadcastUi.Label(_footer.transform, "ControlHint", LocalizationManager.Translate("M · DEFINIÇÕES"), 14, UiTheme.Muted, TextAnchor.MiddleRight);
+            var hint = BroadcastUi.Label(_footer.transform, "SettingsHint", LocalizationManager.Translate("M · DEFINIÇÕES"), 14, UiTheme.Muted, TextAnchor.MiddleRight);
             BroadcastUi.Place(hint.rectTransform, 0.66f, 0f, 0.98f, 1f);
         }
 
@@ -1096,44 +1123,27 @@ namespace CoachMaster.UI.Scenes
                         continue;
                     if (player.Id == _tacticFocus)
                         focus = player;
-                    var spot = TacticSpot(_tacticPitch, player, club, player.Id == _tacticFocus);
+                    var spot = TacticSpot(_tacticPitch, player, club, cursor - 1, player.Id == _tacticFocus);
                     spot.anchorMin = spot.anchorMax = new Vector2((count - col) / (count + 1f), y);
-                    spot.sizeDelta = new Vector2(84, 72);
+                    spot.sizeDelta = new Vector2(88, 96);
                 }
             }
 
             DrawTacticOrders(focus);
         }
 
-        RectTransform TacticSpot(Transform parent, Player player, Club club, bool selected)
+        RectTransform TacticSpot(Transform parent, Player player, Club club, int fieldIndex, bool selected)
         {
-            var card = BroadcastUi.Panel(parent, "T" + player.Id, selected ? new Color(0.16f, 0.42f, 0.78f, 0.96f) : new Color(0.1f, 0.04f, 0.18f, 0.94f), true);
-            if (card.GetComponent<RectMask2D>() == null)
-                card.gameObject.AddComponent<RectMask2D>();
+            var positions = StartingShape.SlotPositions(club == null || club.Tactics == null ? "4-3-3" : club.Tactics.Formation);
+            var position = fieldIndex >= 0 && fieldIndex < positions.Length ? positions[fieldIndex] : player.Position;
+            var card = PlayerCardView.Create(parent, "T" + player.Id, player, club, position, true,
+                background: selected ? new Color(0.16f, 0.42f, 0.78f, 0.96f) : (Color?)null);
             var who = player;
             BroadcastUi.Hit(card, () =>
             {
                 _tacticFocus = who.Id;
                 DrawRoles();
             });
-            var shirt = club == null ? UiTheme.Accent : BroadcastUi.Parse(club.JerseyPrimaryHex, UiTheme.Accent);
-            var number = BroadcastUi.Label(card.transform, "No", player.SquadNumber.ToString(), 42, new Color(shirt.r, shirt.g, shirt.b, 0.22f), TextAnchor.MiddleCenter, FontStyle.Bold);
-            number.raycastTarget = false;
-            BroadcastUi.Place(number.rectTransform, 0.04f, 0.04f, 0.96f, 0.96f);
-            var faceGo = new GameObject("Face", typeof(RectTransform), typeof(Image));
-            var face = faceGo.GetComponent<Image>();
-            face.sprite = FaceBook.For(player);
-            face.preserveAspect = true;
-            face.raycastTarget = false;
-            face.rectTransform.SetParent(card.transform, false);
-            BroadcastUi.Place(face.rectTransform, 0.22f, 0.48f, 0.78f, 0.96f);
-            var name = BroadcastUi.Label(card.transform, "Name", BroadcastUi.ShortName(player.FullName).ToUpperInvariant(), 11, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
-            name.raycastTarget = false;
-            BroadcastUi.Place(name.rectTransform, 0.02f, 0.28f, 0.98f, 0.5f);
-            var duty = string.IsNullOrEmpty(player.Duty) ? "Equilibrar" : player.Duty;
-            var meta = BroadcastUi.Label(card.transform, "Meta", duty, 10, UiTheme.Accent, TextAnchor.MiddleCenter, FontStyle.Bold);
-            meta.raycastTarget = false;
-            BroadcastUi.Place(meta.rectTransform, 0.02f, 0.04f, 0.98f, 0.28f);
             return card.rectTransform;
         }
 
@@ -2248,7 +2258,11 @@ namespace CoachMaster.UI.Scenes
         {
             if (_analysisAtFullTime) ReturnToFullTimeResult();
             else if (_analysisAtHalfTime) ReturnToHalfTime();
-            else Show(BoardTab.Fitness);
+            else
+            {
+                _liveAnalysisDismissed = true;
+                Show(BoardTab.Fitness);
+            }
         }
 
         GameObject Overlay(Transform root, string name, float x0, float y0, float x1, float y1, out Transform card)
@@ -2278,18 +2292,23 @@ namespace CoachMaster.UI.Scenes
             if (tab == BoardTab.Ratings && !SettingsPrefs.LiveRatings)
                 tab = BoardTab.Fitness;
             _tab = tab;
+            if (tab == BoardTab.Stats && _match != null
+                && (_match.Phase == MatchPhase.FirstHalf || _match.Phase == MatchPhase.SecondHalf))
+                _liveAnalysisDismissed = false;
             _fitnessPage.SetActive(!_analysisAtFullTime);
             _ratingsPage.SetActive(tab == BoardTab.Ratings && !_analysisAtFullTime);
             _statsPage.SetActive(tab == BoardTab.Stats && !_analysisAtFullTime);
             if (_analysis != null)
             {
                 _analysis.SetFinalMode(_analysisAtFullTime);
-                _analysis.SetVisible(_analysisAtFullTime || tab == BoardTab.Stats);
+                var inLivePlay = _match != null
+                    && (_match.Phase == MatchPhase.FirstHalf || _match.Phase == MatchPhase.SecondHalf);
+                _analysis.SetVisible(_analysisAtFullTime || _analysisAtHalfTime || (inLivePlay && !_liveAnalysisDismissed));
             }
             if (_homeCol != null && _homeCol.Root != null)
-                _homeCol.Root.SetActive(tab != BoardTab.Stats);
+                _homeCol.Root.SetActive(tab != BoardTab.Stats && tab != BoardTab.Ratings);
             if (_awayCol != null && _awayCol.Root != null)
-                _awayCol.Root.SetActive(tab != BoardTab.Stats);
+                _awayCol.Root.SetActive(tab != BoardTab.Stats && tab != BoardTab.Ratings);
             for (var i = 0; i < _tabs.Length; i++)
             {
                 if (_tabs[i] == null)
@@ -2352,6 +2371,7 @@ namespace CoachMaster.UI.Scenes
             if (bench.Count == 0)
                 return;
             _subFromPause = fromPause;
+            _selectedSubPlayerId = null;
             _paused = true;
             if (_pause != null)
                 _pause.SetActive(false);
@@ -2373,9 +2393,9 @@ namespace CoachMaster.UI.Scenes
             _subStatus = BroadcastUi.Label(card, "Status", "", 15, UiTheme.Muted, TextAnchor.MiddleRight);
             BroadcastUi.Place(_subStatus.rectTransform, 0.4f, 0.9f, 0.86f, 0.98f);
             var pitch = BroadcastUi.Panel(card, "PitchBg", new Color(0.05f, 0.16f, 0.08f, 1f));
-            BroadcastUi.Place(pitch.rectTransform, 0.365f, 0.29f, 0.635f, 0.86f);
+            BroadcastUi.Place(pitch.rectTransform, 0.3f, 0.29f, 0.7f, 0.86f);
             BroadcastUi.DrawVerticalHalfPitch(pitch.rectTransform, new Color(0.12f, 0.46f, 0.22f));
-            _subPitch = BroadcastUi.Zone(card, "Pitch", 0.365f, 0.29f, 0.635f, 0.86f);
+            _subPitch = BroadcastUi.Zone(card, "Pitch", 0.3f, 0.29f, 0.7f, 0.86f);
             var benchTitle = BroadcastUi.Label(card, "BenchTitle", "SUPLENTES", 14, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
             BroadcastUi.Place(benchTitle.rectTransform, 0.04f, 0.25f, 0.3f, 0.31f);
             _subBench = BroadcastUi.Zone(card, "Bench", 0.04f, 0.05f, 0.96f, 0.25f);
@@ -2397,7 +2417,9 @@ namespace CoachMaster.UI.Scenes
             var left = home ? _match.HomeSubsLeft : _match.AwaySubsLeft;
             var club = home ? _match.Home : _match.Away;
             if (_subStatus != null)
-                _subStatus.text = left > 0 ? "Arrasta o suplente para o lugar. Restam " + left + "." : "Sem substituições.";
+                _subStatus.text = left <= 0 ? "Sem substituições." : string.IsNullOrEmpty(_selectedSubPlayerId)
+                    ? "Arrasta um suplente ou seleciona-o e escolhe quem sai. Restam " + left + "."
+                    : "Escolhe no campo quem sai. Restam " + left + ".";
             var formation = UserTactics().Formation;
             for (var index = 0; index < field.Count && index < 11; index++)
             {
@@ -2406,7 +2428,7 @@ namespace CoachMaster.UI.Scenes
                 {
                     var card = SubCard(_subPitch, player, club, false, index);
                     card.anchorMin = card.anchorMax = MatchEngine.Slot(true, index, formation);
-                    card.sizeDelta = new Vector2(76, 64);
+                    card.sizeDelta = new Vector2(90, 82);
                 }
             }
 
@@ -2418,15 +2440,22 @@ namespace CoachMaster.UI.Scenes
                     continue;
                 var card = SubCard(_subBench, player, club, true, i);
                 card.anchorMin = card.anchorMax = new Vector2((i + 0.5f) / shown, 0.5f);
-                card.sizeDelta = new Vector2(118, 104);
+                card.sizeDelta = new Vector2(132, 114);
             }
         }
 
         RectTransform SubCard(Transform parent, Player player, Club club, bool bench, int index)
         {
-            var card = BroadcastUi.Panel(parent, "S" + player.Id, new Color(0.1f, 0.04f, 0.18f, 0.94f), true);
-            if (card.GetComponent<RectMask2D>() == null)
-                card.gameObject.AddComponent<RectMask2D>();
+            var selected = bench && _selectedSubPlayerId == player.Id;
+            var position = player.Position;
+            if (!bench)
+            {
+                var positions = StartingShape.SlotPositions(UserTactics().Formation);
+                if (index >= 0 && index < positions.Length)
+                    position = positions[index];
+            }
+            var card = PlayerCardView.Create(parent, "S" + player.Id, player, club, position, true,
+                background: selected ? new Color(0.12f, 0.36f, 0.38f, 1f) : (Color?)null);
             var drag = card.gameObject.AddComponent<SquadDragCard>();
             drag.Player = player;
             drag.Bench = bench;
@@ -2435,36 +2464,36 @@ namespace CoachMaster.UI.Scenes
             var sentOff = _match.SentOffPlayers.Contains(player.Id);
             if ((bench && injured) || sentOff)
                 drag.enabled = false;
-            var shirt = BroadcastUi.Parse(club.JerseyPrimaryHex, UiTheme.Accent);
-            var number = BroadcastUi.Label(card.transform, "No", player.SquadNumber.ToString(), 64, new Color(shirt.r, shirt.g, shirt.b, 0.22f), TextAnchor.MiddleCenter, FontStyle.Bold);
-            number.resizeTextForBestFit = true;
-            number.resizeTextMinSize = 10;
-            number.resizeTextMaxSize = 120;
-            BroadcastUi.Place(number.rectTransform, 0.04f, 0.04f, 0.96f, 0.96f);
-            var faceGo = new GameObject("Face", typeof(RectTransform), typeof(Image));
-            var face = faceGo.GetComponent<Image>();
-            face.sprite = FaceBook.For(player);
-            face.preserveAspect = true;
-            face.raycastTarget = false;
-            face.rectTransform.SetParent(card.transform, false);
-            BroadcastUi.Place(face.rectTransform, 0.18f, 0.46f, 0.82f, 0.96f);
-            var name = BroadcastUi.Label(card.transform, "Name", BroadcastUi.ShortName(player.FullName).ToUpperInvariant(), 12, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
-            BroadcastUi.Place(name.rectTransform, 0.04f, 0.28f, 0.96f, 0.48f);
-            var meta = BroadcastUi.Label(card.transform, "Meta", PresentationLabels.Position(player.Position), 11, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
-            BroadcastUi.Place(meta.rectTransform, 0.04f, 0.14f, 0.96f, 0.3f);
-            var form = BroadcastUi.Label(card.transform, "Form", "OVR " + PlayerAttributes.Overall(player) + "   Cans. " + player.Fatigue, 11, UiTheme.Accent, TextAnchor.MiddleCenter, FontStyle.Bold);
-            BroadcastUi.Place(form.rectTransform, 0.02f, 0.01f, 0.98f, 0.16f);
-            if (injured)
-            {
-                var cross = BroadcastUi.Label(card.transform, "Injury", "+ LESIONADO", 14, new Color(1f, 0.18f, 0.2f), TextAnchor.MiddleCenter, FontStyle.Bold);
-                BroadcastUi.Place(cross.rectTransform, 0.06f, 0.77f, 0.94f, 0.98f);
-            }
+            BroadcastUi.Hit(card, () => OnSubCardClicked(player, bench, index));
             if (sentOff)
             {
-                var red = BroadcastUi.Label(card.transform, "SentOff", "EXPULSO", 14, new Color(1f, 0.18f, 0.2f), TextAnchor.MiddleCenter, FontStyle.Bold);
-                BroadcastUi.Place(red.rectTransform, 0.06f, 0.77f, 0.94f, 0.98f);
+                var red = BroadcastUi.Label(card.transform, "SentOff", "×", 22, new Color(1f, 0.18f, 0.2f), TextAnchor.MiddleCenter, FontStyle.Bold);
+                red.rectTransform.anchorMin = red.rectTransform.anchorMax = new Vector2(0.88f, 0.86f);
+                red.rectTransform.sizeDelta = new Vector2(22f, 22f);
             }
             return card.rectTransform;
+        }
+
+        void OnSubCardClicked(Player player, bool bench, int index)
+        {
+            if (player == null)
+                return;
+            if (bench)
+            {
+                if (player.Injury != null && player.Injury.IsInjured || _match.SentOffPlayers.Contains(player.Id))
+                    return;
+                _selectedSubPlayerId = _selectedSubPlayerId == player.Id ? null : player.Id;
+                DrawSubPitch();
+                return;
+            }
+            if (string.IsNullOrEmpty(_selectedSubPlayerId))
+                return;
+            var incoming = PlayerOf(_selectedSubPlayerId);
+            if (incoming == null)
+                return;
+            ApplyDragSub(incoming, index, -1);
+            _selectedSubPlayerId = null;
+            DrawSubPitch();
         }
 
         void ApplyDragSub(Player incoming, int fieldIndex, int fromField)
@@ -2633,11 +2662,27 @@ namespace CoachMaster.UI.Scenes
 
         void RefreshHud()
         {
-            _score.text = _match.HomeGoals + "  -  " + _match.AwayGoals;
-            if (_plan != null)
-                _plan.text = TacticPresets.Active(UserTactics());
-            _clock.text = Clock(_match.Minute);
-            _ticker.text = _match.LastEvent;
+            if (_match.HomeGoals != _lastHudHomeGoals || _match.AwayGoals != _lastHudAwayGoals)
+            {
+                _lastHudHomeGoals = _match.HomeGoals;
+                _lastHudAwayGoals = _match.AwayGoals;
+                _score.text = _lastHudHomeGoals + "  -  " + _lastHudAwayGoals;
+            }
+
+            var addedTime = _match.Minute >= 90f;
+            var clockMinute = addedTime ? 90 : Mathf.FloorToInt(_match.Minute);
+            var clockSecond = addedTime ? -1 : Mathf.FloorToInt((_match.Minute - clockMinute) * 60f);
+            var clockExtra = addedTime ? Mathf.FloorToInt(_match.Minute - 90f) : -1;
+            if (clockMinute != _lastHudClockMinute || clockSecond != _lastHudClockSecond || clockExtra != _lastHudClockExtra)
+            {
+                _lastHudClockMinute = clockMinute;
+                _lastHudClockSecond = clockSecond;
+                _lastHudClockExtra = clockExtra;
+                _clock.text = Clock(_match.Minute);
+            }
+
+            if (_ticker.text != _match.LastEvent)
+                _ticker.text = _match.LastEvent;
             if (_heard != _match.LastEvent)
             {
                 _heard = _match.LastEvent;
@@ -2708,6 +2753,15 @@ namespace CoachMaster.UI.Scenes
             }
         }
 
+        void RefreshPlanLabel()
+        {
+            if (_plan == null)
+                return;
+            var activePlan = TacticPresets.Active(UserTactics());
+            if (_plan.text != activePlan)
+                _plan.text = activePlan;
+        }
+
         void PositionEventPopup(bool hasPlayer, string text)
         {
             if (_eventCard == null)
@@ -2745,26 +2799,42 @@ namespace CoachMaster.UI.Scenes
             {
                 var homeOn = i < _match.HomeOnField.Count;
                 var awayOn = i < _match.AwayOnField.Count;
-                _homeTokens[i].Rect.gameObject.SetActive(homeOn);
-                _awayTokens[i].Rect.gameObject.SetActive(awayOn);
+                var homeToken = _homeTokens[i];
+                var awayToken = _awayTokens[i];
+                if (homeToken.Rect.gameObject.activeSelf != homeOn)
+                    homeToken.Rect.gameObject.SetActive(homeOn);
+                if (awayToken.Rect.gameObject.activeSelf != awayOn)
+                    awayToken.Rect.gameObject.SetActive(awayOn);
                 if (homeOn)
                 {
-                    var slot = _engine.MotionOf(true, i);
-                    Move(_homeTokens[i], ToPitch(slot), _match.HomeHasBall && i == _match.BallHolder, Jumping(true, i));
-                    _homeTokens[i].Number.text = Shirt(_match.HomeOnField, i);
-                    _homeTokens[i].Rect.GetComponent<Image>().color = _homeColor;
-                    _homeTokens[i].Injury.gameObject.SetActive(Injured(_match.HomeOnField[i]));
-                    Dive(_homeTokens[i], _engine.KeeperDive(true), i == 0);
+                    var playerId = _match.HomeOnField[i];
+                    var slot = _engine.ShownMotionOf(true, i);
+                    Move(homeToken, ToPitch(slot), _match.HomeHasBall && i == _match.BallHolder, Jumping(true, i));
+                    if (homeToken.PlayerId != playerId)
+                    {
+                        homeToken.PlayerId = playerId;
+                        homeToken.Number.text = Shirt(_match.HomeOnField, i);
+                    }
+                    var injured = Injured(playerId);
+                    if (homeToken.Injury.gameObject.activeSelf != injured)
+                        homeToken.Injury.gameObject.SetActive(injured);
+                    Dive(homeToken, _engine.KeeperDive(true), i == 0);
                 }
 
                 if (awayOn)
                 {
-                    var slot = _engine.MotionOf(false, i);
-                    Move(_awayTokens[i], ToPitch(slot), !_match.HomeHasBall && i == _match.BallHolder, Jumping(false, i));
-                    _awayTokens[i].Number.text = Shirt(_match.AwayOnField, i);
-                    _awayTokens[i].Rect.GetComponent<Image>().color = _awayColor;
-                    _awayTokens[i].Injury.gameObject.SetActive(Injured(_match.AwayOnField[i]));
-                    Dive(_awayTokens[i], _engine.KeeperDive(false), i == 0);
+                    var playerId = _match.AwayOnField[i];
+                    var slot = _engine.ShownMotionOf(false, i);
+                    Move(awayToken, ToPitch(slot), !_match.HomeHasBall && i == _match.BallHolder, Jumping(false, i));
+                    if (awayToken.PlayerId != playerId)
+                    {
+                        awayToken.PlayerId = playerId;
+                        awayToken.Number.text = Shirt(_match.AwayOnField, i);
+                    }
+                    var injured = Injured(playerId);
+                    if (awayToken.Injury.gameObject.activeSelf != injured)
+                        awayToken.Injury.gameObject.SetActive(injured);
+                    Dive(awayToken, _engine.KeeperDive(false), i == 0);
                 }
             }
 
@@ -2883,20 +2953,15 @@ namespace CoachMaster.UI.Scenes
                 return false;
             if (index == _match.BallHolder)
                 return true;
-            var spot = _engine.MotionOf(home, index);
+            var spot = _engine.ShownMotionOf(home, index);
             var depth = home ? spot.y : 1f - spot.y;
             return depth > 0.7f && Mathf.Abs(spot.x - 0.5f) < 0.22f;
         }
 
         void Move(Token token, Vector2 anchor, bool hasBall, bool jumping)
         {
-            var current = token.Rect.anchorMin;
-            var rate = _engine != null && _engine.DeadBall ? 5f : 6f;
-            if (_engine != null)
-                rate *= Mathf.Clamp(_engine.MovementSpeedScale, 0.5f, 4f);
-            var next = _snap ? anchor : Vector2.Lerp(current, anchor, 1f - Mathf.Exp(-Time.deltaTime * rate));
-            token.Rect.anchorMin = next;
-            token.Rect.anchorMax = next;
+            token.Rect.anchorMin = anchor;
+            token.Rect.anchorMax = anchor;
             var lift = _engine == null ? 0f : Mathf.Clamp01(_engine.BallHeight);
             var swell = jumping ? lift * lift : 0f;
             token.Rect.anchoredPosition = new Vector2(0f, swell * 22f);
@@ -2973,29 +3038,71 @@ namespace CoachMaster.UI.Scenes
         {
             if (_tab != BoardTab.Ratings)
                 return;
-            _homeRatings.text = RatingBlock(_match.HomeOnField, _match.HomeBench);
-            _awayRatings.text = RatingBlock(_match.AwayOnField, _match.AwayBench);
+            if (_homeRatingRows.Count == 0)
+                BuildRatingRows(_homeRatings, _homeRatingRows);
+            if (_awayRatingRows.Count == 0)
+                BuildRatingRows(_awayRatings, _awayRatingRows);
+            RefreshRatingRows(_homeRatingRows, _match.HomeOnField, _match.HomeBench);
+            RefreshRatingRows(_awayRatingRows, _match.AwayOnField, _match.AwayBench);
         }
 
-        string RatingBlock(List<string> field, List<string> bench)
+        void BuildRatingRows(Text host, List<RatingRow> rows)
         {
-            var lines = new List<string>();
-            AppendRatings(lines, field);
-            lines.Add("");
-            lines.Add("Banco");
-            AppendRatings(lines, bench);
-            return string.Join("\n", lines);
-        }
-
-        void AppendRatings(List<string> lines, List<string> ids)
-        {
-            for (var i = 0; i < ids.Count; i++)
+            if (host == null)
+                return;
+            host.text = "";
+            host.enabled = false;
+            const int rowCount = 21;
+            var parent = host.rectTransform;
+            var step = 0.88f / rowCount;
+            for (var i = 0; i < rowCount; i++)
             {
-                var player = PlayerOf(ids[i]);
-                var number = player == null ? (i + 1).ToString() : player.SquadNumber.ToString();
-                var name = player == null ? NameAt(ids, i) : BroadcastUi.ShortName(player.FullName);
-                lines.Add(number.PadLeft(2) + "   " + name.PadRight(16) + "   " + _match.RatingOf(ids[i]).ToString("0.0"));
+                var y1 = 0.94f - i * step;
+                var row = new RatingRow();
+                row.Number = BroadcastUi.Label(parent, "Number" + i, "", 11, UiTheme.Muted, TextAnchor.MiddleLeft);
+                BroadcastUi.Place(row.Number.rectTransform, 0.01f, y1 - step, 0.11f, y1);
+                row.Name = BroadcastUi.Label(parent, "Player" + i, "", 11, Color.white, TextAnchor.MiddleLeft);
+                row.Name.horizontalOverflow = HorizontalWrapMode.Overflow;
+                row.Name.resizeTextForBestFit = true;
+                row.Name.resizeTextMinSize = 8;
+                row.Name.resizeTextMaxSize = 11;
+                BroadcastUi.Place(row.Name.rectTransform, 0.13f, y1 - step, 0.73f, y1);
+                row.Score = BroadcastUi.Label(parent, "Rating" + i, "", 11, UiTheme.Accent, TextAnchor.MiddleRight, FontStyle.Bold);
+                BroadcastUi.Place(row.Score.rectTransform, 0.76f, y1 - step, 0.99f, y1);
+                rows.Add(row);
             }
+        }
+
+        void RefreshRatingRows(List<RatingRow> rows, List<string> field, List<string> bench)
+        {
+            if (rows == null || rows.Count == 0)
+                return;
+            for (var i = 0; i < rows.Count; i++)
+            {
+                rows[i].Number.text = "";
+                rows[i].Name.text = "";
+                rows[i].Score.text = "";
+                rows[i].Name.color = Color.white;
+            }
+            var starters = Mathf.Min(field.Count, 11);
+            for (var i = 0; i < starters; i++)
+                SetRatingRow(rows[i], field, i);
+            var benchHeader = 11;
+            rows[benchHeader].Name.text = LocalizationManager.Current == GameLanguage.English ? "SUBSTITUTES" : "SUPLENTES";
+            rows[benchHeader].Name.color = UiTheme.Accent;
+            var count = Mathf.Min(bench.Count, rows.Count - benchHeader - 1);
+            for (var i = 0; i < count; i++)
+                SetRatingRow(rows[benchHeader + 1 + i], bench, i);
+        }
+
+        void SetRatingRow(RatingRow row, List<string> ids, int index)
+        {
+            if (row == null || index < 0 || index >= ids.Count)
+                return;
+            var player = PlayerOf(ids[index]);
+            row.Number.text = player == null ? (index + 1).ToString() : player.SquadNumber.ToString();
+            row.Name.text = player == null ? NameAt(ids, index) : BroadcastUi.ShortName(player.FullName);
+            row.Score.text = _match.RatingOf(ids[index]).ToString("0.0");
         }
 
         void RefreshStats()
@@ -3208,11 +3315,19 @@ namespace CoachMaster.UI.Scenes
             public string PlayerId;
         }
 
+        sealed class RatingRow
+        {
+            public Text Number;
+            public Text Name;
+            public Text Score;
+        }
+
         sealed class Token
         {
             public RectTransform Rect;
             public Text Number;
             public Text Injury;
+            public string PlayerId;
         }
 
         sealed class SideColumn

@@ -90,10 +90,12 @@ namespace CoachMaster.Domain
                 case PlayerPosition.CentreBack: return new[] { PlayerPosition.RightBack, PlayerPosition.LeftBack, PlayerPosition.DefensiveMidfielder };
                 case PlayerPosition.LeftBack: return new[] { PlayerPosition.CentreBack, PlayerPosition.RightBack, PlayerPosition.LeftWinger, PlayerPosition.DefensiveMidfielder };
                 case PlayerPosition.DefensiveMidfielder: return new[] { PlayerPosition.CentralMidfielder, PlayerPosition.CentreBack, PlayerPosition.AttackingMidfielder };
-                case PlayerPosition.CentralMidfielder: return new[] { PlayerPosition.DefensiveMidfielder, PlayerPosition.AttackingMidfielder, PlayerPosition.RightWinger, PlayerPosition.LeftWinger };
+                case PlayerPosition.CentralMidfielder: return new[] { PlayerPosition.DefensiveMidfielder, PlayerPosition.AttackingMidfielder, PlayerPosition.RightMidfielder, PlayerPosition.LeftMidfielder };
                 case PlayerPosition.AttackingMidfielder: return new[] { PlayerPosition.CentralMidfielder, PlayerPosition.Striker, PlayerPosition.RightWinger, PlayerPosition.LeftWinger };
-                case PlayerPosition.RightWinger: return new[] { PlayerPosition.LeftWinger, PlayerPosition.AttackingMidfielder, PlayerPosition.Striker, PlayerPosition.RightBack };
-                case PlayerPosition.LeftWinger: return new[] { PlayerPosition.RightWinger, PlayerPosition.AttackingMidfielder, PlayerPosition.Striker, PlayerPosition.LeftBack };
+                case PlayerPosition.RightWinger: return new[] { PlayerPosition.RightMidfielder, PlayerPosition.LeftWinger, PlayerPosition.AttackingMidfielder, PlayerPosition.Striker };
+                case PlayerPosition.LeftWinger: return new[] { PlayerPosition.LeftMidfielder, PlayerPosition.RightWinger, PlayerPosition.AttackingMidfielder, PlayerPosition.Striker };
+                case PlayerPosition.RightMidfielder: return new[] { PlayerPosition.RightWinger, PlayerPosition.CentralMidfielder, PlayerPosition.DefensiveMidfielder, PlayerPosition.AttackingMidfielder };
+                case PlayerPosition.LeftMidfielder: return new[] { PlayerPosition.LeftWinger, PlayerPosition.CentralMidfielder, PlayerPosition.DefensiveMidfielder, PlayerPosition.AttackingMidfielder };
                 case PlayerPosition.Striker: return new[] { PlayerPosition.AttackingMidfielder, PlayerPosition.RightWinger, PlayerPosition.LeftWinger };
                 default: return new PlayerPosition[0];
             }
@@ -112,6 +114,8 @@ namespace CoachMaster.Domain
                 case PlayerPosition.CentreBack: return (a.Strength + a.Tackling + a.Positioning + a.Composure + a.Decisions) / 5f;
                 case PlayerPosition.DefensiveMidfielder: return (a.Tackling + a.Passing + a.Stamina + a.Positioning + a.Decisions) / 5f;
                 case PlayerPosition.CentralMidfielder: return (a.Passing + a.Stamina + a.Dribbling + a.Decisions + a.WorkRate) / 5f;
+                case PlayerPosition.RightMidfielder:
+                case PlayerPosition.LeftMidfielder: return (a.Passing + a.Stamina + a.Crossing + a.Positioning + a.WorkRate) / 5f;
                 case PlayerPosition.AttackingMidfielder: return (a.Passing + a.Dribbling + a.Finishing + a.Composure + a.Decisions) / 5f;
                 case PlayerPosition.RightWinger:
                 case PlayerPosition.LeftWinger: return (a.Pace + a.Dribbling + a.Crossing + a.Finishing + a.Passing) / 5f;

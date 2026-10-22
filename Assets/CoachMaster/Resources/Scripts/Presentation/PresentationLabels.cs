@@ -6,18 +6,25 @@ namespace CoachMaster.Presentation
     {
         public static string Position(PlayerPosition position)
         {
+            return Position(position, false);
+        }
+
+        public static string Position(PlayerPosition position, bool english)
+        {
             switch (position)
             {
-                case PlayerPosition.Goalkeeper: return "GR";
-                case PlayerPosition.RightBack: return "LD";
-                case PlayerPosition.CentreBack: return "DC";
-                case PlayerPosition.LeftBack: return "LE";
-                case PlayerPosition.DefensiveMidfielder: return "MDC";
-                case PlayerPosition.CentralMidfielder: return "MC";
-                case PlayerPosition.AttackingMidfielder: return "MO";
-                case PlayerPosition.RightWinger: return "ED";
-                case PlayerPosition.LeftWinger: return "EE";
-                case PlayerPosition.Striker: return "PL";
+                case PlayerPosition.Goalkeeper: return english ? "GK" : "GR";
+                case PlayerPosition.RightBack: return english ? "RB" : "LD";
+                case PlayerPosition.CentreBack: return english ? "CB" : "DC";
+                case PlayerPosition.LeftBack: return english ? "LB" : "LE";
+                case PlayerPosition.DefensiveMidfielder: return english ? "DM" : "MDC";
+                case PlayerPosition.CentralMidfielder: return english ? "CM" : "MC";
+                case PlayerPosition.AttackingMidfielder: return english ? "AM" : "MO";
+                case PlayerPosition.RightWinger: return english ? "RW" : "ED";
+                case PlayerPosition.LeftWinger: return english ? "LW" : "EE";
+                case PlayerPosition.LeftMidfielder: return english ? "LM" : "ME";
+                case PlayerPosition.RightMidfielder: return english ? "RM" : "MD";
+                case PlayerPosition.Striker: return english ? "ST" : "PL";
                 default: return "?";
             }
         }

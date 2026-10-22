@@ -114,9 +114,7 @@ namespace CoachMaster.UI
             }
 
             if (_hint != null)
-            {
-                _hint.text = LocalizationManager.Translate("M · DEFINIÇÕES");
-            }
+                _hint.text = NavigationHintText();
 
             if (Typing())
             {
@@ -260,8 +258,6 @@ namespace CoachMaster.UI
 
         void EnsureHint()
         {
-            if (_hint != null && !AudioSettingsOverlay.IsVisible)
-                return;
             Canvas canvas = null;
             if (AudioSettingsOverlay.IsVisible && GameRoot.Instance != null)
                 canvas = GameRoot.Instance.GetComponent<AudioSettingsOverlay>()?.SettingsCanvas;
@@ -269,9 +265,12 @@ namespace CoachMaster.UI
                 canvas = FindFirstObjectByType<Canvas>();
             if (canvas == null)
                 return;
+            if (_hint != null && _hint.GetComponentInParent<Canvas>() == canvas)
+                return;
+            _hint = null;
             foreach (var text in canvas.GetComponentsInChildren<Text>(true))
             {
-                if (text.gameObject.name == "ControlHint" && text.gameObject.activeInHierarchy)
+                if (text.gameObject.name == "NavigationHelpHint" && text.gameObject.activeInHierarchy)
                 {
                     _hint = text;
                     _hint.color = UiTheme.Accent;
@@ -281,7 +280,7 @@ namespace CoachMaster.UI
                 }
             }
 
-            var go = new GameObject("ControlHint", typeof(RectTransform), typeof(Text));
+            var go = new GameObject("NavigationHelpHint", typeof(RectTransform), typeof(Text));
             var rect = go.GetComponent<RectTransform>();
             rect.SetParent(canvas.transform, false);
             rect.anchorMin = new Vector2(0f, 0f);
@@ -300,6 +299,14 @@ namespace CoachMaster.UI
             outline.effectColor = new Color(0f, 0f, 0f, 0.9f);
             outline.effectDistance = new Vector2(1.5f, -1.5f);
             outline.useGraphicAlpha = false;
+        }
+
+        static string NavigationHintText()
+        {
+            var english = LocalizationManager.Current == GameLanguage.English;
+            if (UsingKeyboard)
+                return english ? "ENTER · SELECT     ESC · BACK" : "ENTER · SELECIONAR     ESC · VOLTAR";
+            return english ? "A · SELECT     O/B · BACK" : "A · SELECIONAR     O/B · VOLTAR";
         }
 
         void RefreshButtons()

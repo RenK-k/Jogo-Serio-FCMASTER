@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace CoachMaster.Domain
 {
     public sealed class ClubFinance
@@ -10,5 +13,15 @@ namespace CoachMaster.Domain
         public int ShirtIncomeThisSeason { get; set; }
         public int PlayerSalesThisSeason { get; set; }
         public string PublicSituation { get; set; }
+        public List<FinanceTransaction> Transactions { get; } = new List<FinanceTransaction>();
+    }
+
+    public sealed class FinanceTransaction
+    {
+        public long DateTicks { get; set; }
+        public int Amount { get; set; }
+        public string Category { get; set; }
+        public string Description { get; set; }
+        public string PlayerId { get; set; }
     }
 }

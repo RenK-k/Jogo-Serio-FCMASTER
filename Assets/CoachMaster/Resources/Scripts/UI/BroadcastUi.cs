@@ -224,6 +224,7 @@ namespace CoachMaster.UI
         {
             var image = Panel(parent, name, color, true);
             var button = image.gameObject.AddComponent<Button>();
+            button.transition = Selectable.Transition.None;
             var navigation = button.navigation;
             navigation.mode = Navigation.Mode.None;
             button.navigation = navigation;
@@ -275,6 +276,7 @@ namespace CoachMaster.UI
         {
             image.raycastTarget = true;
             var button = image.gameObject.AddComponent<Button>();
+            button.transition = Selectable.Transition.None;
             var navigation = button.navigation;
             navigation.mode = Navigation.Mode.None;
             button.navigation = navigation;
