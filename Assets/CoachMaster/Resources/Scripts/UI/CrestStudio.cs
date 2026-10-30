@@ -19,6 +19,20 @@ namespace CoachMaster.UI
                 return Fallback;
             }
             WorldCatalog.PaintClub(club);
+            var crestPath = WorldCatalog.CrestPath(club.Name);
+            if (!string.IsNullOrEmpty(crestPath))
+            {
+                var artKey = "file|" + crestPath;
+                if (Cache.TryGetValue(artKey, out var art) && art != null)
+                    return art;
+                var sprites = Resources.LoadAll<Sprite>(crestPath);
+                var badge = LargestBadge(sprites);
+                if (badge != null)
+                {
+                    Cache[artKey] = badge;
+                    return badge;
+                }
+            }
             var key = club.Id + "|" + club.ShortName + "|" + club.JerseyPrimaryHex + "|" + club.JerseySecondaryHex + "|" + club.JerseyShortsHex + "|" + club.KitPattern;
             if (Cache.TryGetValue(key, out var cached) && cached != null)
                 return cached;
@@ -26,6 +40,26 @@ namespace CoachMaster.UI
             var sprite = Draw(club);
             Cache[key] = sprite;
             return sprite;
+        }
+
+        static Sprite LargestBadge(Sprite[] sprites)
+        {
+            if (sprites == null || sprites.Length == 0)
+                return null;
+            Sprite best = null;
+            var area = 0f;
+            for (var i = 0; i < sprites.Length; i++)
+            {
+                var sprite = sprites[i];
+                if (sprite == null)
+                    continue;
+                var size = sprite.rect.width * sprite.rect.height;
+                if (size <= area)
+                    continue;
+                area = size;
+                best = sprite;
+            }
+            return best;
         }
 
         static Sprite Draw(Club club)

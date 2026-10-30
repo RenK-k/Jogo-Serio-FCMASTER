@@ -98,15 +98,18 @@ namespace CoachMaster.UI
             var go = new GameObject("Input", typeof(RectTransform), typeof(Image), typeof(InputField));
             var rect = go.GetComponent<RectTransform>();
             rect.SetParent(parent, false);
-            go.GetComponent<Image>().color = UiTheme.PanelAlt;
+            var plate = go.GetComponent<Image>();
+            plate.color = new Color(0.16f, 0.08f, 0.28f, 1f);
+            plate.sprite = BroadcastUi.Round;
+            plate.type = Image.Type.Sliced;
 
-            var text = Label(rect, "Text", "", 22, UiTheme.Text, TextAnchor.MiddleLeft);
+            var text = Label(rect, "Text", "", 16, UiTheme.Text, TextAnchor.MiddleLeft);
             Stretch(text.rectTransform);
             text.rectTransform.offsetMin = new Vector2(16, 4);
             text.rectTransform.offsetMax = new Vector2(-16, -4);
             text.supportRichText = false;
 
-            var ph = Label(rect, "Placeholder", placeholder, 22, UiTheme.Muted, TextAnchor.MiddleLeft);
+            var ph = Label(rect, "Placeholder", placeholder, 16, UiTheme.Muted, TextAnchor.MiddleLeft);
             Stretch(ph.rectTransform);
             ph.rectTransform.offsetMin = new Vector2(16, 4);
             ph.rectTransform.offsetMax = new Vector2(-16, -4);

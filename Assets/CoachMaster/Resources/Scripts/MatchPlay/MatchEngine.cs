@@ -75,6 +75,10 @@ namespace CoachMaster.MatchPlay
         readonly Vector2[] _awayMotion = new Vector2[11];
         readonly Vector2[] _homePreviousMotion = new Vector2[11];
         readonly Vector2[] _awayPreviousMotion = new Vector2[11];
+        readonly Vector2[] _homeStride = new Vector2[11];
+        readonly int[] _homeMark = new int[11];
+        readonly int[] _awayMark = new int[11];
+        readonly Vector2[] _awayStride = new Vector2[11];
         int _homeRunner = -1;
         int _awayRunner = -1;
         bool _motionReady;
@@ -92,12 +96,12 @@ namespace CoachMaster.MatchPlay
         string _pendingScorerId;
         string _pendingAssistId;
         string _pendingGoalDescription;
-        public MatchEngine(MatchSession match, string userClubId = null, float injuryMultiplier = 1f, float refereeMultiplier = 1f)
+        public MatchEngine(MatchSession match, string userClubId = null, float injuryMultiplier = 1f, float refereeMultiplier = 1f, int? seed = null)
         {
             _match = match;
             _injuryMultiplier = Mathf.Clamp(injuryMultiplier, 0.5f, 1.5f);
             _refereeMultiplier = Mathf.Clamp(refereeMultiplier, 0.6f, 1.4f);
-            _rng = new System.Random(match.Fixture.Id.GetHashCode());
+            _rng = new System.Random(seed ?? match.Fixture.Id.GetHashCode());
             Kickoff(true);
         }
 
@@ -158,11 +162,13 @@ namespace CoachMaster.MatchPlay
             var previousBall = Ball;
             var targetDelta = BallTarget - Ball;
             var targetDistance = targetDelta.magnitude;
-            var maxSpeed = Mathf.Clamp(Travel, 0.1f, 1.1f);
-            var brakingSpeed = Mathf.Sqrt(Mathf.Max(0f, 2.4f * targetDistance));
-            var desiredSpeed = Mathf.Min(maxSpeed, brakingSpeed);
+            var maxSpeed = Mathf.Clamp(Travel, 0.12f, 0.85f);
+            var brakeStart = 0.05f;
+            var desiredSpeed = targetDistance < brakeStart
+                ? Mathf.Max(0.08f, maxSpeed * (targetDistance / brakeStart))
+                : maxSpeed;
             var desiredVelocity = targetDistance > 0.0001f ? targetDelta / targetDistance * desiredSpeed : Vector2.zero;
-            _ballVelocity = Vector2.MoveTowards(_ballVelocity, desiredVelocity, 2.4f * dt);
+            _ballVelocity = Vector2.MoveTowards(_ballVelocity, desiredVelocity, 1.6f * dt);
             if (_ballVelocity.magnitude > maxSpeed)
                 _ballVelocity = _ballVelocity.normalized * maxSpeed;
             var displacement = _ballVelocity * dt;
@@ -285,9 +291,30 @@ namespace CoachMaster.MatchPlay
                     }
                 }
 
+                if (ActionKind == "pass" && _pendingPass != null)
+                {
+                    var receiver = -1;
+                    var best = 0.2f;
+                    for (var i = 0; i < squad.Count && i < 11; i++)
+                    {
+                        if (squad[i] == _pendingPass.PasserId)
+                            continue;
+                        var distance = Vector2.Distance(Ball, MotionOf(side, i));
+                        if (!string.IsNullOrEmpty(_pendingPass.IntendedReceiverId) && squad[i] == _pendingPass.IntendedReceiverId)
+                            distance -= 0.04f;
+                        if (distance < best)
+                        {
+                            best = distance;
+                            receiver = i;
+                        }
+                    }
+                    if (receiver >= 0)
+                        ResolvePendingPass(true, false, squad[receiver]);
+                }
+
                 if (near >= 0 && nearDistance <= 0.1f)
                 {
-                    if (ActionKind == "pass")
+                    if (ActionKind == "pass" && _pendingPass != null && squad[near] != _pendingPass.PasserId)
                         ResolvePendingPass(true, false, squad[near]);
                     _match.BallHolder = near;
                     var control = ControlOf(side, near);
@@ -320,8 +347,17 @@ namespace CoachMaster.MatchPlay
                 if (dir.sqrMagnitude < 0.0004f)
                     dir = side ? Vector2.up : Vector2.down;
                 dir.Normalize();
-                BallTarget = Ball + dir * 0.3f;
-                Travel = 0.42f;
+                if (near >= 0 && nearDistance <= 0.28f)
+                {
+                    var feet = MotionOf(side, near);
+                    BallTarget = Vector2.Lerp(Ball, feet, 0.7f);
+                    Travel = 0.18f;
+                    _ballVelocity *= 0.4f;
+                    return;
+                }
+
+                BallTarget = Ball + dir * 0.08f;
+                Travel = 0.2f;
                 ActionKind = "loose";
                 Launch(0f);
                 return;
@@ -480,31 +516,23 @@ namespace CoachMaster.MatchPlay
                     var followedOpponent = false;
                     if (marking.IndexOf("homem", StringComparison.OrdinalIgnoreCase) >= 0)
                     {
-                        var opponents = home ? _match.AwayOnField : _match.HomeOnField;
-                        var nearestOpponent = -1;
-                        var nearestDistance = float.MaxValue;
-                        var nearestSpot = spot;
-                        for (var opponentIndex = 1; opponentIndex < opponents.Count && opponentIndex < 11; opponentIndex++)
+                        var marks = home ? _homeMark : _awayMark;
+                        var marked = index < marks.Length ? marks[index] : -1;
+                        if (marked >= 0)
                         {
-                            if (IsPlayerInjured(opponents[opponentIndex]))
-                                continue;
-                            var opponentSpot = MotionOf(!home, opponentIndex);
-                            var opponentDistance = Vector2.Distance(spot, opponentSpot);
-                            if (opponentDistance >= nearestDistance)
-                                continue;
-                            nearestDistance = opponentDistance;
-                            nearestOpponent = opponentIndex;
-                            nearestSpot = opponentSpot;
-                        }
-                        if (nearestOpponent >= 0 && nearestDistance < 0.34f)
-                        {
-                            spot = Vector2.MoveTowards(spot, nearestSpot, (marker ? 0.075f : 0.04f) + press * 0.05f);
-                            followedOpponent = true;
+                            var nearestSpot = MotionOf(!home, marked);
+                            var nearestDistance = Vector2.Distance(spot, nearestSpot);
+                            if (nearestDistance < 0.42f)
+                            {
+                                spot = Vector2.MoveTowards(spot, nearestSpot, (marker ? 0.075f : 0.04f) + press * 0.05f);
+                                followedOpponent = true;
+                            }
                         }
                     }
                     if (DirectPlan(shape) && shape.Pressing != null && shape.Pressing.Contains("baixa"))
                     {
-                        spot.x = Mathf.Lerp(spot.x, 0.5f, 0.16f);
+                        var slide = Mathf.Lerp(0.5f, Ball.x, 0.72f);
+                        spot.x = Mathf.Lerp(spot.x, slide, 0.62f);
                         if (raw.y < 0.55f)
                             spot.y = home ? Mathf.Min(spot.y, 0.42f) : Mathf.Max(spot.y, 0.58f);
                     }
@@ -515,9 +543,52 @@ namespace CoachMaster.MatchPlay
 
             if (attacking && index > 0 && index != _match.BallHolder)
                 KeepOnside(ref spot, home);
+            if (_motionReady && index > 0)
+            {
+                for (var other = 1; other < 11; other++)
+                {
+                    if (other == index)
+                        continue;
+                    var mate = MotionOf(home, other);
+                    var gap = spot - mate;
+                    var distance = gap.magnitude;
+                    if (distance >= 0.055f || distance <= 0.0001f)
+                        continue;
+                    spot += gap / distance * (0.055f - distance);
+                }
+            }
             spot.x = Mathf.Clamp(spot.x, 0.05f, 0.95f);
             spot.y = Mathf.Clamp(spot.y, 0.04f, 0.96f);
             return spot;
+        }
+
+        void AssignMarks(bool home)
+        {
+            var marks = home ? _homeMark : _awayMark;
+            for (var i = 0; i < marks.Length; i++)
+                marks[i] = -1;
+            var opponents = home ? _match.AwayOnField : _match.HomeOnField;
+            var used = new bool[11];
+            for (var i = 1; i < 11; i++)
+            {
+                var spot = FormationSpot(home, i);
+                var best = -1;
+                var bestDistance = 0.48f;
+                for (var opponent = 1; opponent < opponents.Count && opponent < 11; opponent++)
+                {
+                    if (used[opponent] || IsPlayerInjured(opponents[opponent]))
+                        continue;
+                    var distance = Vector2.Distance(spot, MotionOf(!home, opponent));
+                    if (distance >= bestDistance)
+                        continue;
+                    bestDistance = distance;
+                    best = opponent;
+                }
+                if (best < 0)
+                    continue;
+                marks[i] = best;
+                used[best] = true;
+            }
         }
 
         void PeelAway(bool home, ref Vector2 spot, int index)
@@ -726,7 +797,8 @@ namespace CoachMaster.MatchPlay
                 return;
             }
 
-            var hop = Mathf.Min(dt * Mathf.Max(Travel, 0.15f) + 0.006f, 0.09f);
+            var gap = Vector2.Distance(_drawn, logical);
+            var hop = Mathf.Max(dt * 1.8f, gap * Mathf.Clamp01(dt * 12f));
             _drawn = Vector2.MoveTowards(_drawn, logical, hop);
         }
 
@@ -757,9 +829,12 @@ namespace CoachMaster.MatchPlay
         Vector2 ReceivePoint(bool home, int index)
         {
             var now = MotionOf(home, index);
-            var lead = Mathf.Lerp(0.012f, 0.004f, ControlOf(home, index));
-            var y = home ? now.y + lead : now.y - lead;
-            return new Vector2(Mathf.Clamp(now.x, 0.06f, 0.94f), Mathf.Clamp(y, 0.05f, 0.95f));
+            var run = PlayerSpot(home, index);
+            var control = ControlOf(home, index);
+            var aim = Vector2.Lerp(now, run, Mathf.Lerp(0.48f, 0.22f, control));
+            var lead = Mathf.Lerp(0.012f, 0.004f, control);
+            var y = home ? aim.y + lead : aim.y - lead;
+            return new Vector2(Mathf.Clamp(aim.x, 0.06f, 0.94f), Mathf.Clamp(y, 0.05f, 0.95f));
         }
 
         float ControlOf(bool home, int index)
@@ -788,6 +863,8 @@ namespace CoachMaster.MatchPlay
                     _awayMotion[i] = PlayerSpot(false, i);
                     _homePreviousMotion[i] = _homeMotion[i];
                     _awayPreviousMotion[i] = _awayMotion[i];
+                    _homeStride[i] = Vector2.zero;
+                    _awayStride[i] = Vector2.zero;
                 }
 
                 _motionReady = true;
@@ -795,6 +872,11 @@ namespace CoachMaster.MatchPlay
 
             _homeRunner = _match.HomeHasBall ? FindRunner(true, _match.BallHolder) : -1;
             _awayRunner = !_match.HomeHasBall ? FindRunner(false, _match.BallHolder) : -1;
+            if (_motionReady)
+            {
+                AssignMarks(true);
+                AssignMarks(false);
+            }
 
             GlideSide(true, _homeMotion, step);
             GlideSide(false, _awayMotion, step);
@@ -812,8 +894,13 @@ namespace CoachMaster.MatchPlay
                 var goal = i < squad.Count ? PlayerSpot(home, i) : motion[i];
                 var carrying = home == _match.HomeHasBall && i == _match.BallHolder;
                 var chasingLooseBall = i > 0 && IsLooseBallChaser(home, i);
-                if (carrying && (ActionKind == "pass" || ActionKind == "cross"))
-                    goal = BallTarget;
+                if ((ActionKind == "pass" || ActionKind == "cross") && home == _match.HomeHasBall)
+                {
+                    if (carrying)
+                        goal = Vector2.Lerp(goal, Ball, 0.35f);
+                    else if (IsIntendedReceiver(home, i))
+                        goal = Vector2.Lerp(goal, BallTarget, 0.82f);
+                }
                 else if (carrying && ActionKind == "solo")
                     goal = Vector2.Lerp(goal, Ball, 0.72f);
                 else if (carrying && (ActionKind == "touch" || _settle > 0f))
@@ -847,12 +934,27 @@ namespace CoachMaster.MatchPlay
                 if (i == 0)
                     speed *= 0.18f;
                 var previous = motion[i];
-                if (!IsFinite(goal) || goal.x < 0.01f || goal.x > 0.99f || goal.y < 0.01f || goal.y > 0.99f)
+                if (!IsFinite(goal))
                 {
                     Diagnose("jogador " + (i < squad.Count ? squad[i] : i.ToString()), "alvo de movimento inválido", previous, goal, dt);
                     goal = IsFinite(previous) ? previous : home ? new Vector2(0.5f, 0.06f) : new Vector2(0.5f, 0.94f);
                 }
-                var next = Vector2.MoveTowards(previous, goal, speed * dt);
+                else
+                {
+                    goal.x = Mathf.Clamp(goal.x, 0.03f, 0.97f);
+                    goal.y = Mathf.Clamp(goal.y, 0.03f, 0.97f);
+                }
+                var stride = home ? _homeStride : _awayStride;
+                var toGoal = goal - previous;
+                var gap = toGoal.magnitude;
+                var desired = gap > 0.012f ? toGoal / gap * speed : Vector2.zero;
+                var accel = gap < 0.04f ? 0.45f : 0.9f;
+                stride[i] = Vector2.MoveTowards(stride[i], desired, accel * dt);
+                var step = stride[i] * dt;
+                var limit = speed * dt;
+                if (step.magnitude > limit)
+                    step = step.normalized * limit;
+                var next = previous + step;
                 if (!IsFinite(next) || Vector2.Distance(previous, next) > speed * dt + 0.001f)
                 {
                     Diagnose("jogador " + (i < squad.Count ? squad[i] : i.ToString()), "deslocamento inválido", previous, next, dt);
@@ -882,6 +984,14 @@ namespace CoachMaster.MatchPlay
             var sway = Mathf.Sin(_match.Minute * 5.5f + index) * weave;
             var forward = home ? push : -push;
             return new Vector2(Mathf.Clamp(spot.x + sway, 0.08f, 0.92f), Mathf.Clamp(spot.y + forward, 0.08f, 0.9f));
+        }
+
+        bool IsIntendedReceiver(bool home, int index)
+        {
+            if (_pendingPass == null || string.IsNullOrEmpty(_pendingPass.IntendedReceiverId))
+                return false;
+            var squad = home ? _match.HomeOnField : _match.AwayOnField;
+            return index >= 0 && index < squad.Count && squad[index] == _pendingPass.IntendedReceiverId;
         }
 
         bool IsLooseBallChaser(bool home, int index)
@@ -1749,6 +1859,15 @@ namespace CoachMaster.MatchPlay
                 if (passerPlayer.HasTrait(PlayerTrait.PassadorLongo) && forward > 0.06f && hop > 0.22f)
                     fail *= 0.9f;
             }
+            if (laneBlocked && !flairPass)
+                fail += 0.09f;
+            var pressure = MarkerGap(home, from);
+            if (pressure < 0.055f)
+                fail += 0.07f;
+            else if (pressure < 0.09f)
+                fail += 0.035f;
+            if (fail > 0.42f)
+                fail = 0.42f;
             ResolvePendingPass(false, false, null);
             var passEvent = _match.RecordPass(home, squad[from], squad[next], passOrigin, BallTarget, through);
             var miss = _rng.NextDouble() < fail;
@@ -2073,11 +2192,10 @@ namespace CoachMaster.MatchPlay
             var spot = MotionOf(home, index);
             var attackerDepth = home ? spot.y : 1f - spot.y;
             var ballDepth = home ? Ball.y : 1f - Ball.y;
-            const float positionEpsilon = 0.0025f;
 
-            // A player level with the halfway line, ball, or second-last opponent is onside.
-            // Keep tolerance to a few pixels so the model does not erase real offside calls.
-            if (attackerDepth <= 0.5f + positionEpsilon || attackerDepth <= ballDepth + positionEpsilon)
+            // The centre circle is still midfield. Offside only starts beyond it,
+            // on a pass played clearly forward of the ball.
+            if (attackerDepth <= 0.58f || attackerDepth <= ballDepth + 0.03f)
                 return false;
             var opp = home ? _match.AwayOnField : _match.HomeOnField;
             var deepest = float.NegativeInfinity;
@@ -2103,7 +2221,7 @@ namespace CoachMaster.MatchPlay
                 return false;
             var secondLastDefender = secondDeepest;
             var line = Mathf.Max(ballDepth, secondLastDefender);
-            return attackerDepth > line + positionEpsilon;
+            return attackerDepth > line + 0.02f;
         }
 
         void FlagOffside(bool home, int index)
@@ -2169,7 +2287,7 @@ namespace CoachMaster.MatchPlay
 
             var quality = AttackStrength(home ? _match.HomeTactics : _match.AwayTactics);
             var save = DefenseStrength(home ? _match.AwayTactics : _match.HomeTactics);
-            var boost = home ? _match.AttackBoost : 0f;
+            var boost = home ? _match.AttackBoost : _match.AwayAttackBoost;
             var wall = home ? _match.DefenseBoost : 0f;
             var personal = 0.0;
             var aim = 0.55;
@@ -2323,6 +2441,7 @@ namespace CoachMaster.MatchPlay
                 Bump(shooterId, 0.12f);
                 _match.LastEvent = keeperFootSave ? how + " O guarda-redes defende com os pés."
                     : bigSave ? "Grande defesa. " + how : how + " O guarda-redes defende.";
+                Announce(bigSave ? "GRANDE DEFESA" : "DEFESA", shooterId);
                 if (bigSave)
                     GameAudio.BigSave();
                 _match.HomeHasBall = !home;
@@ -2336,6 +2455,7 @@ namespace CoachMaster.MatchPlay
                 BallTarget = home ? new Vector2(side, 0.97f) : new Vector2(side, 0.03f);
                 _match.RecordShot(home, shooterId, shotOrigin, BallTarget, (float)chance, "post", header);
                 _match.LastEvent = how + " Bate na trave.";
+                Announce("FOI AO POSTE", shooterId);
                 if (home) _match.HomeChances++;
                 else _match.AwayChances++;
                 GameAudio.ShotPost();
@@ -2345,6 +2465,7 @@ namespace CoachMaster.MatchPlay
                 BallTarget = MissWide(home);
                 _match.RecordShot(home, shooterId, shotOrigin, BallTarget, (float)chance, "miss", header);
                 _match.LastEvent = narrow ? how + " Passa ao lado da baliza." : how + " Falha a baliza.";
+                Announce("REMATE FALHADO", shooterId);
                 if (narrow)
                     GameAudio.ShotWide();
             }
@@ -2390,7 +2511,7 @@ namespace CoachMaster.MatchPlay
             var name = squad.Count == 0 ? "o cobrador" : Name(squad[Mathf.Clamp(taker, 0, squad.Count - 1)]);
             Announce("CANTO", squad.Count == 0 ? null : squad[Mathf.Clamp(taker, 0, squad.Count - 1)]);
             _match.LastEvent = "Canto. " + name + " vai bater o canto.";
-            _match.AddNote("Canto.", "corner");
+            _match.AddNote("Canto.", "corner", squad.Count == 0 ? null : squad[Mathf.Clamp(taker, 0, squad.Count - 1)]);
         }
 
         void GoalKick(bool home)
@@ -2447,12 +2568,12 @@ namespace CoachMaster.MatchPlay
             Announce(_piecePenalty ? "PENÁLTI" : "FALTA", squad[index]);
             if (_piecePenalty)
                 GameAudio.Penalty();
-            _match.AddNote((_piecePenalty ? "Penálti. " : "Falta de ") + fouler + " (" + side + ").", "foul");
+            _match.AddNote((_piecePenalty ? "Penálti. " : "Falta de ") + fouler + " (" + side + ").", "foul", squad[index]);
             if (_match.Minute >= _quietCards && _rng.NextDouble() < Mathf.Clamp(0.22f * _refereeMultiplier, 0.05f, 0.45f))
             {
                 var red = Book(squad[index], false);
                 Announce(red ? "CARTÃO VERMELHO" : "CARTÃO AMARELO", squad[index]);
-                _match.AddNote((red ? "Segundo amarelo e expulsão para " : "Amarelo para ") + fouler + ".", red ? "red" : "yellow");
+                _match.AddNote((red ? "Segundo amarelo e expulsão para " : "Amarelo para ") + fouler + ".", red ? "red" : "yellow", squad[index]);
                 _quietCards = _match.Minute + 12f;
             }
         }
@@ -2537,7 +2658,7 @@ namespace CoachMaster.MatchPlay
             Hold = 1.3f;
             Book(id, red);
             Announce(red ? "CARTÃO VERMELHO" : "CARTÃO AMARELO", id);
-            _match.AddNote((red ? "Vermelho para " : "Amarelo para ") + name + ".", red ? "red" : "yellow");
+            _match.AddNote((red ? "Vermelho para " : "Amarelo para ") + name + ".", red ? "red" : "yellow", id);
         }
 
         void Announce(string text, string playerId = null)

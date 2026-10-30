@@ -111,9 +111,6 @@ namespace CoachMaster.UI.Scenes
                 var pick = BroadcastUi.Button(card.transform, "Select", LocalizationManager.Translate("ESCOLHER"), choose, UiTheme.Accent, UiTheme.ButtonText, 16);
                 BroadcastUi.Place(pick.GetComponent<RectTransform>(), 0.74f, 0.28f, 0.96f, 0.72f);
             }
-
-            var hint = BroadcastUi.Label(root, "SettingsHint", LocalizationManager.Translate("M · DEFINIÇÕES"), 15, UiTheme.Muted, TextAnchor.MiddleLeft);
-            BroadcastUi.Place(hint.rectTransform, 0.08f, 0.008f, 0.8f, 0.05f);
         }
 
         static void SetCardText(Transform card, string childName, string value)

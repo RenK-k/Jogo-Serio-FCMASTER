@@ -300,7 +300,7 @@ namespace CoachMaster.Career
                 var hurt = player.Injury != null && player.Injury.IsInjured ? "1" : "0";
                 var days = player.Injury == null ? 0 : player.Injury.DaysRemaining;
                 var desc = player.Injury == null ? "" : player.Injury.Description;
-                lines.Add("player|" + player.Id + "|" + player.Morale + "|" + player.Fatigue + "|" + Esc(player.Duty) + "|" + (player.IsCaptain ? "1" : "0") + "|" + hurt + "|" + days + "|" + Esc(desc) + "|" + player.ClubId + "|" + player.Age + "|" + TraitCodes(player) + "|" + player.Form + "|" + player.Fitness + "|" + player.TrainingRating + "|" + player.HeightCm + "|" + player.WeightKg + "|" + player.WeakFootQuality + "|" + PlayerPositionProfile.Encode(player) + "|" + player.Reputation + "|" + player.WeeklyWage + "|" + player.ContractEndTicks + "|" + Esc(player.TrainingFocus) + "|" + player.TrainingProgress);
+                lines.Add("player|" + player.Id + "|" + player.Morale + "|" + player.Fatigue + "|" + Esc(player.Duty) + "|" + (player.IsCaptain ? "1" : "0") + "|" + hurt + "|" + days + "|" + Esc(desc) + "|" + player.ClubId + "|" + player.Age + "|" + TraitCodes(player) + "|" + player.Form + "|" + player.Fitness + "|" + player.TrainingRating + "|" + player.HeightCm + "|" + player.WeightKg + "|" + player.WeakFootQuality + "|" + PlayerPositionProfile.Encode(player) + "|" + player.Reputation + "|" + player.WeeklyWage + "|" + player.ContractEndTicks + "|" + Esc(player.TrainingFocus) + "|" + player.TrainingProgress + "|" + player.TrainingIntensity + "|" + player.TrainingStreak);
             }
 
             foreach (var club in career.World.Clubs.Values)
@@ -837,6 +837,14 @@ namespace CoachMaster.Career
                 ReconcileLegacyFinance(career);
             if (financeLedgerVersion < 2)
                 UpgradePremierLeagueFinances(career);
+            if (career.World != null && career.World.Clubs != null)
+            {
+                foreach (var club in career.World.Clubs.Values)
+                {
+                    WorldCatalog.RefreshPresentedClub(club);
+                    WorldCatalog.EnsureThreeColors(club);
+                }
+            }
             if (career.LastAutoSaveDateTicks <= 0)
                 career.LastAutoSaveDateTicks = career.Calendar.CurrentDate.Ticks;
             if (!hasCareerProgress && ticks > 0)
@@ -1022,6 +1030,9 @@ namespace CoachMaster.Career
             if (bits.Length > 21 && long.TryParse(bits[21], out var contractEnd) && contractEnd > 0) player.ContractEndTicks = contractEnd;
             if (bits.Length > 22) player.TrainingFocus = Un(bits[22]);
             if (bits.Length > 23 && int.TryParse(bits[23], out var trainingProgress)) player.TrainingProgress = System.Math.Max(0, trainingProgress % 100);
+            if (bits.Length > 24 && int.TryParse(bits[24], out var intensity)) player.TrainingIntensity = System.Math.Max(0, System.Math.Min(2, intensity));
+            else player.TrainingIntensity = 1;
+            if (bits.Length > 25 && int.TryParse(bits[25], out var streak)) player.TrainingStreak = System.Math.Max(0, streak);
             if (bits.Length > 11)
             {
                 player.Traits.Clear();

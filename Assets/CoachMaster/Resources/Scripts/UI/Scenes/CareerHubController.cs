@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using CoachMaster.App;
@@ -7,6 +7,8 @@ using CoachMaster.Domain;
 using CoachMaster.MatchPlay;
 using CoachMaster.Presentation;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 namespace CoachMaster.UI.Scenes
@@ -59,6 +61,7 @@ namespace CoachMaster.UI.Scenes
         Button[] _replies;
         Button _skipConversations;
         Text _clock;
+        Text _alertLabel;
         RectTransform _phoneSheet;
         RectTransform _phoneList;
         GameObject _phoneApps;
@@ -69,6 +72,10 @@ namespace CoachMaster.UI.Scenes
         string _phoneApp = "Mensagens";
         bool _phoneInThread;
         PhoneNote _activePhoneNote;
+        int _memoryShelf = 1;
+        int _boardWeekOffset;
+        int _boardWeekDay = -1;
+        string _tacticSelection = "preset";
         int _socialFeedDaySeed = int.MinValue;
         readonly HashSet<string> _phoneAnswered = new HashSet<string>();
         Text _dateLine;
@@ -106,6 +113,11 @@ namespace CoachMaster.UI.Scenes
         RectTransform _tableContent;
         RectTransform _tabBar;
         RectTransform _boardContent;
+        RectTransform _careerRecordContent;
+        RectTransform _inboxMessages;
+        RectTransform _inboxNews;
+        RectTransform _inboxSide;
+        GameObject _staffSheet;
         RectTransform _pitch;
         RectTransform _subs;
         RectTransform _subsViewport;
@@ -123,6 +135,11 @@ namespace CoachMaster.UI.Scenes
         Text _modalActionLabel;
         Button _modalClose;
         Action _dossierReturnAction;
+        Action _sheetReturn;
+        Club _dossierClub;
+        int _dossierTab;
+        string _dossierYouth;
+        Action _dossierBack;
         Button _keyboardScoutBack;
         Player _profileModalPlayer;
         bool _profileModalOrders;
@@ -141,8 +158,14 @@ namespace CoachMaster.UI.Scenes
         bool _transferHistorySortByFee;
         int _financeMetricSelection;
         int _teamZone;
+        int _hubPage;
         bool _individualTraining;
+        bool _focusModalFrame;
+        bool _academyViewFocused;
+        List<Player> _registrationOrder;
+        GameObject _focusMenu;
         int _renewalAttempt;
+        bool _enterPressRoom;
 
         void Start()
         {
@@ -170,7 +193,7 @@ namespace CoachMaster.UI.Scenes
                 FillStaff();
                 FillCalendar();
                 if (_phoneSheet != null)
-                    _phoneSheet.SetAsLastSibling();
+                    _phoneSheet.gameObject.SetActive(false);
                 return;
             }
 
@@ -184,12 +207,10 @@ namespace CoachMaster.UI.Scenes
             RefreshCareerTabLabels();
             BuildPlay(root);
             BuildModal(root);
-            var hint = BroadcastUi.Label(root, "SettingsHint", LocalizationManager.Translate("M · DEFINIÇÕES"), 15, UiTheme.Muted, TextAnchor.MiddleRight);
-            BroadcastUi.Place(hint.rectTransform, 0.72f, 0.008f, 0.98f, 0.048f);
             Show(0);
             Refresh();
             if (_phoneSheet != null)
-                _phoneSheet.SetAsLastSibling();
+                _phoneSheet.gameObject.SetActive(false);
         }
 
         void OnDestroy()
@@ -204,6 +225,7 @@ namespace CoachMaster.UI.Scenes
             RefreshCareerTabLabels();
             RefreshLocalizedPresentation();
             FillBoard();
+            FillInbox();
             if (_pages != null)
             {
                 for (var i = 0; i < _pages.Length; i++)
@@ -257,13 +279,12 @@ namespace CoachMaster.UI.Scenes
                 }
             }
 
-            if (_phoneSheet != null)
-            {
-                var target = _phoneOpen ? 1f : 0f;
-                _phoneSlide = Mathf.MoveTowards(_phoneSlide, target, Time.deltaTime * 3.4f);
-                var y0 = Mathf.Lerp(0.935f, 0.16f, _phoneSlide);
-                BroadcastUi.Place(_phoneSheet, 0.4f, y0, 0.6f, y0 + 0.72f);
-            }
+            if (_phoneSheet != null && _phoneSheet.gameObject.activeSelf)
+                _phoneSheet.gameObject.SetActive(false);
+
+            ReadPadTabs();
+            if (Gamepad.current != null && Gamepad.current.buttonWest.wasPressedThisFrame)
+                OpenRegistrationSheet();
 
             if (_phoneOpen && _phoneApp == "X" && !_phoneInThread && _phonePage != null && _phonePage.activeSelf && _career != null)
             {
@@ -281,6 +302,11 @@ namespace CoachMaster.UI.Scenes
 
         void LateUpdate()
         {
+            if (_focusModalFrame && _modal != null && _modal.activeSelf)
+            {
+                _focusModalFrame = false;
+                ControlChrome.FocusWithin(_modal.transform.Find("Card"));
+            }
             if (_academyLayoutPassesRemaining > 0 && _academyContent != null
                 && _pages != null && _pages.Length > 2 && _pages[2] != null && _pages[2].activeSelf)
             {
@@ -333,6 +359,7 @@ namespace CoachMaster.UI.Scenes
             BroadcastUi.Place(caption.rectTransform, 0.08f, 0.68f, 0.92f, 0.94f);
             _clock = BroadcastUi.Label(clockCard.transform, "Clock", "18:00", 32, UiTheme.Score, TextAnchor.MiddleCenter, FontStyle.Bold);
             BroadcastUi.Place(_clock.rectTransform, 0.04f, 0.08f, 0.96f, 0.72f);
+            EnsureAlert(root);
         }
 
         void BuildPhone(Transform root)
@@ -823,6 +850,38 @@ namespace CoachMaster.UI.Scenes
         {
             var list = new List<PhoneNote>();
             var english = LocalizationManager.Current == GameLanguage.English;
+            var deskNotes = 0;
+            if (PressDutyOpen())
+            {
+                var press = new PhoneNote(english ? "Press officer" : "Assessor de imprensa",
+                    english ? "The press conference is waiting. Leave the room and open this again to send the assistant, or to skip it."
+                        : "A conferência de imprensa está à espera. Se saíres, abre outra vez: o adjunto pode ir, ou o clube não comparece.",
+                    "urgente", null, _career.Club.Id);
+                press.Important = true;
+                list.Add(press);
+            }
+            if (SquadDutyOpen())
+            {
+                var competitionName = CompetitionTitle(PendingRegistration());
+                var squadNote = new PhoneNote(english ? "Board" : "Direção",
+                    english ? "Register the squad for " + competitionName + " before it starts. The list lasts the whole season."
+                        : "Inscreve o plantel na " + competitionName + " antes de a competição começar. A lista vale a época toda.",
+                    "urgente", null, _career.Club.Id);
+                squadNote.Important = true;
+                list.Add(squadNote);
+            }
+            foreach (var note in _career.Board)
+            {
+                if (note == null || string.IsNullOrEmpty(note.Text) || !note.Text.StartsWith("✉") || deskNotes >= 4)
+                    continue;
+                var raw = note.Text.Substring(1).Trim();
+                if (raw.IndexOf("\nxi|", StringComparison.Ordinal) >= 0
+                    || raw.StartsWith("Sugestão do adjunto", StringComparison.Ordinal)
+                    || raw.StartsWith("Adjunto\n", StringComparison.Ordinal))
+                    continue;
+                list.Add(new PhoneNote(english ? "Board" : "Direção", raw, "gabinete", null, _career.Club.Id));
+                deskNotes++;
+            }
             foreach (var offer in _career.JobOffers)
             {
                 if (offer.Resolved || !_career.World.Clubs.TryGetValue(offer.ClubId ?? "", out var hiringClub))
@@ -877,6 +936,14 @@ namespace CoachMaster.UI.Scenes
                 AddPlayerNote(list, seen, tired, english
                     ? tired.FullName.Split(' ')[0] + " says their legs feel heavy. Playing again straight away could affect their performance."
                     : tired.FullName.Split(' ')[0] + " escreveu: as pernas estão pesadas. Se jogar seguido, o rendimento cai.");
+            var listedShown = 0;
+            foreach (var id in _career.Listed)
+            {
+                if (listedShown >= 3 || !_career.World.Players.TryGetValue(id, out var listed) || listed.ClubId != club.Id)
+                    continue;
+                AddPlayerNote(list, seen, listed, ListingReaction(listed, english));
+                listedShown++;
+            }
             if (captain != null)
                 AddPlayerNote(list, seen, captain, captain.Morale >= 60
                     ? (english ? "The squad is behind you. I can speak to them before training if you want." : "O grupo está contigo. Se quiseres, falo com eles antes do treino.")
@@ -1568,6 +1635,51 @@ namespace CoachMaster.UI.Scenes
             list.Add(new PhoneNote(player.FullName, text, "jogador", player.Id, player.ClubId, PlayerReplyGroup(player, text)));
         }
 
+        static int ListingShock(Player player)
+        {
+            switch (player.Personality)
+            {
+                case PersonalityTrait.Temperamental: return 8;
+                case PersonalityTrait.Ambitious: return 2;
+                case PersonalityTrait.Professional: return 3;
+                case PersonalityTrait.Insecure: return 7;
+                case PersonalityTrait.Leader: return 5;
+                default: return 4;
+            }
+        }
+
+        static string ListingReaction(Player player, bool english)
+        {
+            var name = player.FullName.Split(' ')[0];
+            switch (player.Personality)
+            {
+                case PersonalityTrait.Ambitious:
+                    return english
+                        ? name + ": if I'm for sale, I want a club that plays me. Don't leave me hanging."
+                        : name + ": se estou à venda, quero um clube onde jogue. Não me deixem aqui à espera.";
+                case PersonalityTrait.Temperamental:
+                    return english
+                        ? name + ": you put me on the list without a word. The dressing room heard it before I did."
+                        : name + ": meteste-me na lista sem me dizeres nada. O balneário soube antes de mim.";
+                case PersonalityTrait.Professional:
+                    return english
+                        ? name + ": I'll keep working. Just tell me if I should still prepare as a starter."
+                        : name + ": continuo a trabalhar. Diz-me só se ainda me preparo como titular.";
+                case PersonalityTrait.Insecure:
+                    return english
+                        ? name + ": so I'm the one you want to sell. I don't know what I did wrong."
+                        : name + ": então sou eu que queres vender. Não sei o que fiz de errado.";
+                case PersonalityTrait.Leader:
+                    return english
+                        ? name + ": I'll keep the group calm, but they will ask why their captain is listed."
+                        : name + ": mantenho o grupo calmo, mas vão perguntar porque é que o capitão está à venda.";
+                default:
+                    return english
+                        ? name + ": I saw my name on the transfer list. I needed to hear it from you."
+                        : name + ": vi o meu nome na lista de transferências. Queria ter ouvido isto de ti.";
+            }
+        }
+
         static string PlayerReplyGroup(Player player, string text)
         {
             if (player.Injury != null && player.Injury.IsInjured)
@@ -1637,6 +1749,7 @@ namespace CoachMaster.UI.Scenes
             public string AuthorHandle;
             public string AvatarKey;
             public bool Verified;
+            public bool Important;
 
             public PhoneNote(string who, string text, string channel, string playerId, string clubId, string replyGroup = null, string meta = null)
             {
@@ -1688,38 +1801,8 @@ namespace CoachMaster.UI.Scenes
 
         GameObject BuildHome(Transform host)
         {
-            var page = BroadcastUi.Panel(host, "Home", new Color(0.08f, 0.03f, 0.16f, 0.55f));
+            var page = BroadcastUi.Panel(host, "Home", new Color(0f, 0f, 0f, 0f));
             BroadcastUi.Stretch(page.rectTransform);
-            _homeTitle = BroadcastUi.Label(page.transform, "Title", "", 30, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
-            BroadcastUi.Place(_homeTitle.rectTransform, 0.16f, 0.86f, 0.96f, 0.97f);
-            var faceGo = new GameObject("EventFace", typeof(RectTransform), typeof(Image));
-            var faceRect = faceGo.GetComponent<RectTransform>();
-            faceRect.SetParent(page.transform, false);
-            faceRect.anchorMin = faceRect.anchorMax = new Vector2(0.06f, 0.9f);
-            faceRect.sizeDelta = new Vector2(72, 72);
-            _homeFace = faceGo.GetComponent<Image>();
-            _homeFace.preserveAspect = true;
-            _homeFace.raycastTarget = false;
-            _homeFace.gameObject.SetActive(false);
-            var scroll = BroadcastUi.Scroll(page.transform, "Scroll", out var content);
-            BroadcastUi.Place(scroll.GetComponent<RectTransform>(), 0.03f, 0.34f, 0.97f, 0.85f);
-            _homeBody = BroadcastUi.Label(content, "Body", "", 20, Color.white, TextAnchor.UpperLeft);
-            BroadcastUi.Preferred(_homeBody, 180);
-            _nextChip = BroadcastUi.Label(page.transform, "Next", "", 18, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
-            BroadcastUi.Place(_nextChip.rectTransform, 0.04f, 0.22f, 0.96f, 0.32f);
-            _replies = new Button[3];
-            for (var i = 0; i < 3; i++)
-            {
-                var choice = i;
-                _replies[i] = BroadcastUi.Button(page.transform, "Reply" + i, "", () => Answer(choice), new Color(0.16f, 0.08f, 0.3f, 0.95f), Color.white, 16);
-                var y = 0.22f - i * 0.09f;
-                BroadcastUi.Place(_replies[i].GetComponent<RectTransform>(), 0.04f, y, 0.96f, y + 0.08f);
-                _replies[i].gameObject.SetActive(false);
-            }
-            _skipConversations = BroadcastUi.Button(page.transform, "SkipConversations", "", SkipConversations,
-                new Color(0.3f, 0.18f, 0.44f, 0.98f), Color.white, 13);
-            _skipConversations.gameObject.SetActive(false);
-
             return page.gameObject;
         }
 
@@ -1752,12 +1835,22 @@ namespace CoachMaster.UI.Scenes
             BroadcastUi.Place(_memoriesButton.GetComponent<RectTransform>(), 0.73f, 0.9f, 0.97f, 0.98f);
         }
 
+        void BuildCareerRecord(Transform host)
+        {
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var title = BroadcastUi.Label(host, "Title", english ? "CAREER RECORD" : "REGISTO DA CARREIRA", 16, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(title.rectTransform, 0.03f, 0.9f, 0.7f, 0.98f);
+            var scroll = BroadcastUi.Scroll(host, "RecordScroll", out _careerRecordContent);
+            BroadcastUi.Place(scroll.GetComponent<RectTransform>(), 0.02f, 0.03f, 0.98f, 0.88f);
+            FillCareerRecord();
+        }
+
         GameObject BuildBoard(Transform host)
         {
             var page = BroadcastUi.Panel(host, "Board", new Color(0.08f, 0.03f, 0.16f, 0.5f));
             BroadcastUi.Stretch(page.rectTransform);
             var english = LocalizationManager.Current == GameLanguage.English;
-            var title = BroadcastUi.Label(page.transform, "Title", english ? "MY CAREER" : "A MINHA CARREIRA", 16, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            var title = BroadcastUi.Label(page.transform, "Title", english ? "BOARD" : "QUADRO", 16, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
             BroadcastUi.Place(title.rectTransform, 0.03f, 0.9f, 0.6f, 0.98f);
             var hint = BroadcastUi.Label(page.transform, "Hint", english ? "Write a personal note about what happened. This is not the news feed." : "Escreve uma nota pessoal sobre o que aconteceu. Isto não é o jornal.", 14, UiTheme.Muted, TextAnchor.MiddleRight);
             BroadcastUi.Place(hint.rectTransform, 0.35f, 0.9f, 0.97f, 0.98f);
@@ -1829,10 +1922,7 @@ namespace CoachMaster.UI.Scenes
             var english = LocalizationManager.Current == GameLanguage.English;
             var title = BroadcastUi.Label(page.transform, "Title", english ? "TRAINING" : "TREINO", 18, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
             BroadcastUi.Place(title.rectTransform, 0.025f, 0.92f, 0.4f, 0.99f);
-            _trainingTeamTab = BroadcastUi.Button(page.transform, "TeamTraining", english ? "TEAM" : "EQUIPA", () => { _individualTraining = false; RefreshTrainingModeTabs(); FillTraining(); }, UiTheme.Accent, UiTheme.ButtonText, 14);
-            BroadcastUi.Place(_trainingTeamTab.GetComponent<RectTransform>(), 0.55f, 0.92f, 0.74f, 0.99f);
-            _trainingIndividualTab = BroadcastUi.Button(page.transform, "IndividualTraining", english ? "INDIVIDUAL" : "INDIVIDUAL", () => { _individualTraining = true; RefreshTrainingModeTabs(); FillTraining(); }, new Color(1f, 1f, 1f, 0.08f), Color.white, 14);
-            BroadcastUi.Place(_trainingIndividualTab.GetComponent<RectTransform>(), 0.755f, 0.92f, 0.975f, 0.99f);
+            _individualTraining = true;
             _trainingSearch = UiFactory.Input(page.transform, english ? "Search players" : "Procurar jogadores");
             _trainingSearch.name = "TrainingSearch";
             BroadcastUi.Place(_trainingSearch.GetComponent<RectTransform>(), 0.025f, 0.84f, 0.72f, 0.91f);
@@ -1865,8 +1955,8 @@ namespace CoachMaster.UI.Scenes
             var columns = BroadcastUi.Panel(_trainingContent, "TrainingColumns", new Color(0.02f, 0.045f, 0.07f, 0.98f), true);
             BroadcastUi.Preferred(columns, 34);
             var columnNames = english
-                ? new[] { "PLAYER", "FOCUS", "TYPE", "PROGRESS", "PROJECTED", "MATCH EXPERIENCE", "TREND" }
-                : new[] { "JOGADOR", "FOCO", "TIPO", "PROGRESSO", "PREVISÃO", "EXPERIÊNCIA DE JOGO", "TENDÊNCIA" };
+                ? new[] { "PLAYER", "FOCUS", "INTENSITY", "PROGRESS", "MARK", "SESSIONS", "TREND" }
+                : new[] { "JOGADOR", "FOCO", "INTENSIDADE", "PROGRESSO", "NOTA", "SESSÕES", "TENDÊNCIA" };
             var columnBounds = new[] { 0.06f, 0.22f, 0.4f, 0.5f, 0.66f, 0.79f, 0.93f, 0.995f };
             for (var column = 0; column < columnNames.Length; column++)
             {
@@ -1886,29 +1976,36 @@ namespace CoachMaster.UI.Scenes
                 portrait.sprite = FaceBook.For(player);
                 portrait.preserveAspect = true;
                 portrait.raycastTarget = false;
+                var positionLabel = BroadcastUi.Label(row.transform, "Position", ProfilePosition(player.Position, english), 11, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+                BroadcastUi.Place(positionLabel.rectTransform, columnBounds[0], 0.16f, columnBounds[0] + 0.045f, 0.84f);
                 var name = BroadcastUi.Label(row.transform, "Name", player.FullName, 11, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
-                BroadcastUi.Place(name.rectTransform, columnBounds[0], 0.16f, columnBounds[1] - 0.008f, 0.84f);
-                var current = Array.IndexOf(focusKeys, player.TrainingFocus ?? "");
-                if (current < 0) current = i % focusNames.Length;
-                player.TrainingFocus = focusKeys[current];
-                var captured = player;
-                var focus = BroadcastUi.Button(row.transform, "Focus", focusNames[current], () =>
+                BroadcastUi.Place(name.rectTransform, columnBounds[0] + 0.048f, 0.16f, columnBounds[1] - 0.008f, 0.84f);
+                var playerKeys = FocusKeys(player.Position);
+                var current = Array.IndexOf(playerKeys, player.TrainingFocus ?? "");
+                if (current < 0)
                 {
-                    var index = Array.IndexOf(focusKeys, captured.TrainingFocus ?? "");
-                    var nextFocus = focusKeys[(index + 1 + focusKeys.Length) % focusKeys.Length];
-                    if (_individualTraining)
-                        captured.TrainingFocus = nextFocus;
-                    else
-                        foreach (var teammate in Squad(_career.Club)) teammate.TrainingFocus = nextFocus;
-                    CareerStore.Save(_career);
-                    FillTraining();
-                }, new Color(1f, 1f, 1f, 0.08f), Color.white, 12);
+                    current = 0;
+                    player.TrainingFocus = playerKeys[0];
+                }
+                var captured = player;
+                var focus = BroadcastUi.Button(row.transform, "Focus", FocusName(player.TrainingFocus, english) + "  ▼", () => OpenFocusMenu(captured), new Color(1f, 1f, 1f, 0.08f), Color.white, 11);
                 BroadcastUi.Place(focus.GetComponent<RectTransform>(), columnBounds[1], 0.12f, columnBounds[2] - 0.008f, 0.88f);
-                focus.GetComponentInChildren<Text>().fontSize = 10;
+                var focusText = focus.GetComponentInChildren<Text>();
+                focusText.fontSize = 10;
+                focusText.resizeTextForBestFit = false;
                 var isRest = player.TrainingFocus == "rest";
                 var isInjured = player.Injury != null && player.Injury.IsInjured;
-                var type = BroadcastUi.Label(row.transform, "FocusType", isRest ? (english ? "RECOVERY" : "RECUPERAÇÃO") : (english ? "ATTRIBUTE" : "ATRIBUTO"), 9, UiTheme.Muted, TextAnchor.MiddleCenter, FontStyle.Bold);
-                BroadcastUi.Place(type.rectTransform, columnBounds[2], 0.12f, columnBounds[3] - 0.008f, 0.88f);
+                var intensityNames = english ? new[] { "Low", "Normal", "High" } : new[] { "Baixa", "Normal", "Alta" };
+                var intensityIndex = Mathf.Clamp(player.TrainingIntensity, 0, 2);
+                var intensityTone = intensityIndex == 2 ? new Color(0.72f, 0.18f, 0.16f, 1f) : intensityIndex == 0 ? new Color(0.12f, 0.42f, 0.28f, 1f) : new Color(1f, 1f, 1f, 0.08f);
+                var intensity = BroadcastUi.Button(row.transform, "Intensity", intensityNames[intensityIndex], () =>
+                {
+                    var next = (captured.TrainingIntensity + 1) % 3;
+                    captured.TrainingIntensity = next;
+                    CareerStore.Save(_career);
+                    FillTraining();
+                }, intensityTone, Color.white, 11);
+                BroadcastUi.Place(intensity.GetComponent<RectTransform>(), columnBounds[2], 0.12f, columnBounds[3] - 0.008f, 0.88f);
                 var progressValue = Mathf.Clamp(player.TrainingProgress, 0, 99);
                 var progress = progressValue / 100f;
                 var bar = BroadcastUi.Zone(row.transform, "Progress", columnBounds[3], 0.43f, columnBounds[4] - 0.045f, 0.62f);
@@ -1918,22 +2015,14 @@ namespace CoachMaster.UI.Scenes
                 fill.rectTransform.offsetMin = fill.rectTransform.offsetMax = Vector2.zero;
                 var value = BroadcastUi.Label(row.transform, "ProgressValue", progressValue + "%", 10, UiTheme.Accent, TextAnchor.MiddleCenter, FontStyle.Bold);
                 BroadcastUi.Place(value.rectTransform, columnBounds[4] - 0.045f, 0.12f, columnBounds[4], 0.88f);
-                var expectedIncrease = isRest || isInjured ? 0 : player.Age <= 24 ? 14 : 7;
-                var projected = isRest || isInjured ? progressValue : Mathf.Min(100, progressValue + expectedIncrease);
-                var projectedLabel = isInjured ? (english ? "INJURED" : "LESIONADO")
-                    : isRest ? (english ? "RECOVERY" : "RECUPERAÇÃO") : projected + "%";
-                var projection = BroadcastUi.Label(row.transform, "Projected", projectedLabel, 10, Color.white, TextAnchor.MiddleCenter);
+                var markLabel = isInjured ? (english ? "INJURED" : "LESIONADO") : WeekMark(player).ToString();
+                var projection = BroadcastUi.Label(row.transform, "Projected", markLabel, 14, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
                 BroadcastUi.Place(projection.rectTransform, columnBounds[4], 0.12f, columnBounds[5] - 0.006f, 0.88f);
-                var seasonLine = FindSeasonLine(player.Id);
-                var appearances = seasonLine == null ? 0 : seasonLine.Apps;
-                var experience = appearances < 3 ? (english ? "INSUFFICIENT" : "INSUFICIENTE")
-                    : appearances < 8 ? (english ? "DEVELOPING" : "A DESENVOLVER")
-                    : (english ? "SUFFICIENT" : "SUFICIENTE");
-                var matchExperience = BroadcastUi.Label(row.transform, "MatchExperience", experience, 9,
-                    appearances < 3 ? UiTheme.Danger : appearances < 8 ? UiTheme.FitnessLow : UiTheme.Fitness,
-                    TextAnchor.MiddleCenter, FontStyle.Bold);
+                var sessions = isRest || isInjured ? "—" : player.TrainingStreak.ToString();
+                var matchExperience = BroadcastUi.Label(row.transform, "MatchExperience", sessions, 12, UiTheme.Accent, TextAnchor.MiddleCenter, FontStyle.Bold);
                 BroadcastUi.Place(matchExperience.rectTransform, columnBounds[5], 0.12f, columnBounds[6] - 0.006f, 0.88f);
-                var trend = BroadcastUi.Label(row.transform, "Trend", isRest || isInjured ? "—" : "↗", 15, isRest || isInjured ? UiTheme.Muted : UiTheme.Fitness, TextAnchor.MiddleCenter, FontStyle.Bold);
+                var rising = !isRest && !isInjured && player.TrainingStreak >= 3 && player.Fatigue < 70;
+                var trend = BroadcastUi.Label(row.transform, "Trend", isRest || isInjured ? "—" : rising ? "↗" : player.Fatigue > 75 ? "↘" : "·", 15, rising ? UiTheme.Fitness : player.Fatigue > 75 ? UiTheme.Danger : UiTheme.Muted, TextAnchor.MiddleCenter, FontStyle.Bold);
                 BroadcastUi.Place(trend.rectTransform, columnBounds[6], 0.12f, columnBounds[7], 0.88f);
             }
             if (visible.Count == 0)
@@ -1974,7 +2063,8 @@ namespace CoachMaster.UI.Scenes
                 if (player.TrainingFocus == "rest") recoveryCount++;
                 else attributeCount++;
             var breakdown = BroadcastUi.Label(overview.transform, "OverviewBreakdown",
-                (english ? "Attribute" : "Atributo") + "   " + attributeCount + "\n" + (english ? "Recovery" : "Recuperação") + "   " + recoveryCount,
+                (english ? "Attribute" : "Atributo") + "   " + attributeCount + "\n" + (english ? "Recovery" : "Recuperação") + "   " + recoveryCount
+                + "\n" + (english ? "High intensity is faster and riskier." : "Intensidade alta acelera e aumenta o risco."),
                 11, Color.white, TextAnchor.MiddleLeft);
             BroadcastUi.Place(breakdown.rectTransform, 0.54f, 0.27f, 0.96f, 0.65f);
 
@@ -1983,27 +2073,33 @@ namespace CoachMaster.UI.Scenes
             BroadcastUi.Stretch(distribution.rectTransform);
             var distributionTitle = BroadcastUi.Label(distribution.transform, "Title", english ? "DISTRIBUTION BY FOCUS" : "DISTRIBUIÇÃO POR FOCO", 11, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
             BroadcastUi.Place(distributionTitle.rectTransform, 0.045f, 0.88f, 0.96f, 0.99f);
+            var counts = new Dictionary<string, int>();
             var maxCount = 1;
-            var counts = new int[focusKeys.Length];
             foreach (var player in players)
             {
-                var index = Array.IndexOf(focusKeys, player.TrainingFocus ?? "");
-                if (index >= 0) counts[index]++;
-                maxCount = Mathf.Max(maxCount, index >= 0 ? counts[index] : 0);
+                var key = string.IsNullOrEmpty(player.TrainingFocus) ? "rest" : player.TrainingFocus;
+                if (!counts.ContainsKey(key))
+                    counts[key] = 0;
+                counts[key]++;
+                maxCount = Mathf.Max(maxCount, counts[key]);
             }
-            for (var i = 0; i < focusNames.Length; i++)
+            var shown = 0;
+            foreach (var pair in counts)
             {
-                var top = 0.85f - i * 0.105f;
-                var row = BroadcastUi.Zone(distribution.transform, "Focus" + i, 0.035f, top - 0.09f, 0.965f, top);
-                var label = BroadcastUi.Label(row, "Name", focusNames[i], 9, Color.white, TextAnchor.MiddleLeft);
-                BroadcastUi.Place(label.rectTransform, 0f, 0f, 0.52f, 1f);
-                var value = BroadcastUi.Label(row, "Count", counts[i].ToString(), 9, UiTheme.Muted, TextAnchor.MiddleRight, FontStyle.Bold);
-                BroadcastUi.Place(value.rectTransform, 0.52f, 0f, 0.64f, 1f);
+                if (shown >= 8)
+                    break;
+                var top = 0.85f - shown * 0.105f;
+                var row = BroadcastUi.Zone(distribution.transform, "Focus" + shown, 0.035f, top - 0.09f, 0.965f, top);
+                var label = BroadcastUi.Label(row, "Name", FocusName(pair.Key, english) + "   ·   " + FocusMix(pair.Key, english), 9, Color.white, TextAnchor.MiddleLeft);
+                BroadcastUi.Place(label.rectTransform, 0f, 0f, 0.78f, 1f);
+                var value = BroadcastUi.Label(row, "Count", pair.Value.ToString(), 9, UiTheme.Muted, TextAnchor.MiddleRight, FontStyle.Bold);
+                BroadcastUi.Place(value.rectTransform, 0.78f, 0f, 0.9f, 1f);
                 var track = BroadcastUi.Solid(row, "Track", new Color(1f, 1f, 1f, 0.12f));
-                BroadcastUi.Place(track.rectTransform, 0.69f, 0.34f, 1f, 0.66f);
+                BroadcastUi.Place(track.rectTransform, 0.92f, 0.34f, 1f, 0.66f);
                 var bar = BroadcastUi.Solid(track.transform, "Fill", UiTheme.Accent);
                 BroadcastUi.Stretch(bar.rectTransform);
-                bar.rectTransform.anchorMax = new Vector2(Mathf.Clamp01(counts[i] / (float)maxCount), 1f);
+                bar.rectTransform.anchorMax = new Vector2(Mathf.Clamp01(pair.Value / (float)maxCount), 1f);
+                shown++;
             }
         }
 
@@ -2040,28 +2136,29 @@ namespace CoachMaster.UI.Scenes
             var title = BroadcastUi.Label(page, "OfficeTitle", english ? "OFFICE" : "ESCRITÓRIO", 16, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
             BroadcastUi.Place(title.rectTransform, 0.02f, 0.935f, 0.28f, 0.995f);
             var tabNames = english
-                ? new[] { "BUDGET", "MY CAREER", "CALENDAR", "STAFF" }
-                : new[] { "ORÇAMENTO", "A MINHA CARREIRA", "CALENDÁRIO", "EQUIPA TÉCNICA" };
+                ? new[] { "BUDGET", "MY CAREER", "BOARD", "CALENDAR", "STAFF" }
+                : new[] { "ORÇAMENTO", "A MINHA CARREIRA", "QUADRO", "CALENDÁRIO", "EQUIPA TÉCNICA" };
             _officeTabs = new Button[tabNames.Length];
             _officeViews = new GameObject[tabNames.Length];
             for (var i = 0; i < tabNames.Length; i++)
             {
                 var captured = i;
-                var x0 = 0.01f + i * 0.247f;
+                var x0 = 0.008f + i * 0.198f;
                 _officeTabs[i] = BroadcastUi.Button(page, "OfficeTab" + i, tabNames[i], () => ShowOfficeTab(captured),
-                    new Color(1f, 1f, 1f, 0.08f), Color.white, 14);
-                BroadcastUi.Place(_officeTabs[i].GetComponent<RectTransform>(), x0, 0.855f, x0 + 0.237f, 0.925f);
+                    new Color(1f, 1f, 1f, 0.08f), Color.white, 12);
+                BroadcastUi.Place(_officeTabs[i].GetComponent<RectTransform>(), x0, 0.855f, x0 + 0.19f, 0.925f);
                 var view = BroadcastUi.Zone(page, "OfficeView" + i, 0.01f, 0.015f, 0.99f, 0.835f);
                 _officeViews[i] = view.gameObject;
                 view.gameObject.SetActive(false);
             }
 
             BuildOfficeBudget(_officeViews[0].transform);
-            BuildBoard(_officeViews[1].transform);
-            BuildCalendar(_officeViews[2].transform);
-            var staffTitle = BroadcastUi.Label(_officeViews[3].transform, "StaffTitle", english ? "CLUB STAFF" : "EQUIPA TÉCNICA DO CLUBE", 14, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BuildCareerRecord(_officeViews[1].transform);
+            BuildBoard(_officeViews[2].transform);
+            BuildCalendar(_officeViews[3].transform);
+            var staffTitle = BroadcastUi.Label(_officeViews[4].transform, "StaffTitle", english ? "CLUB STAFF" : "EQUIPA TÉCNICA DO CLUBE", 14, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
             BroadcastUi.Place(staffTitle.rectTransform, 0.025f, 0.91f, 0.975f, 0.99f);
-            var staffScroll = BroadcastUi.Scroll(_officeViews[3].transform, "StaffScroll", out _staffHost);
+            var staffScroll = BroadcastUi.Scroll(_officeViews[4].transform, "StaffScroll", out _staffHost);
             BroadcastUi.Place(staffScroll.GetComponent<RectTransform>(), 0.01f, 0.02f, 0.99f, 0.9f);
             ShowOfficeTab(_officeTab);
         }
@@ -2092,9 +2189,10 @@ namespace CoachMaster.UI.Scenes
             }
 
             if (_officeTab == 0) FillOfficeBudget();
-            else if (_officeTab == 1) FillBoard();
-            else if (_officeTab == 2) FillCalendar();
-            else if (_officeTab == 3) FillStaff();
+            else if (_officeTab == 1) FillCareerRecord();
+            else if (_officeTab == 2) FillBoard();
+            else if (_officeTab == 3) FillCalendar();
+            else if (_officeTab == 4) FillStaff();
         }
 
         GameObject BuildTeam(Transform host)
@@ -2115,14 +2213,17 @@ namespace CoachMaster.UI.Scenes
             _pitch = BroadcastUi.Zone(page.transform, "Pitch", 0.03f, 0.31f, 0.42f, 0.92f);
             ConfigureTeamPitch();
             var labels = LocalizationManager.Current == GameLanguage.English
-                ? new[] { "FORMATIONS", "ROLES", "INSTRUCTIONS", "TACTICS" }
-                : new[] { "FORMAÇÕES", "FUNÇÕES", "INSTRUÇÕES", "TÁTICAS" };
+                ? new[] { "ROLES", "TACTICS" }
+                : new[] { "FUNÇÕES", "TÁTICAS" };
+            var paneIds = new[] { 1, 3 };
             _paneTabs = new Button[labels.Length];
+            if (_pane == 0 || _pane == 2)
+                _pane = 1;
             for (var i = 0; i < labels.Length; i++)
             {
-                var pane = i;
+                var pane = paneIds[i];
                 var y1 = 0.93f - i * 0.075f;
-                _paneTabs[i] = BroadcastUi.Button(page.transform, "Pane" + i, labels[i], () => SelectPane(pane), new Color(1f, 1f, 1f, 0.08f), Color.white, 14);
+                _paneTabs[i] = BroadcastUi.Button(page.transform, "Pane" + pane, labels[i], () => SelectPane(pane), new Color(1f, 1f, 1f, 0.08f), Color.white, 14);
                 BroadcastUi.Place(_paneTabs[i].GetComponent<RectTransform>(), 0.45f, y1 - 0.068f, 0.98f, y1);
             }
 
@@ -2578,7 +2679,7 @@ namespace CoachMaster.UI.Scenes
                 return;
             }
 
-            var sign = BroadcastUi.Button(row.transform, "Sign", LocalizationManager.Translate("CONTRATAR"), () => Sign(captured), new Color(0.15f, 0.55f, 0.28f, 1f), Color.white, 13);
+            var sign = BroadcastUi.Button(row.transform, "Sign", LocalizationManager.Current == GameLanguage.English ? "NEGOTIATE" : "NEGOCIAR", () => OpenTransferNegotiation(captured), new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 13);
             BroadcastUi.Place(sign.GetComponent<RectTransform>(), 0.8f, 0.18f, 0.97f, 0.82f);
         }
 
@@ -2623,6 +2724,7 @@ namespace CoachMaster.UI.Scenes
 
         void CompleteScouts()
         {
+            var changedScout = false;
             var now = _career.Calendar.CurrentDate.Date;
             for (var i = _career.ScoutJobs.Count - 1; i >= 0; i--)
             {
@@ -2631,6 +2733,7 @@ namespace CoachMaster.UI.Scenes
                     continue;
                 _career.ScoutedPlayers.Add(job.PlayerId);
                 _career.ScoutJobs.RemoveAt(i);
+                changedScout = true;
                 if (_career.World.Players.TryGetValue(job.PlayerId, out var player))
                 {
                     _career.Board.Insert(0, new CoachNote
@@ -2638,10 +2741,12 @@ namespace CoachMaster.UI.Scenes
                         Day = _career.Calendar.WeekdayName,
                         Hour = _career.Calendar.ClockText,
                         When = _career.Calendar.CurrentDate,
-                        Text = "O olheiro entregou o relatório de " + player.FullName + "."
+                        Text = "✉ O olheiro entregou o relatório de " + player.FullName + "."
                     });
                 }
             }
+            if (ResolveDeskJobs() || changedScout)
+                CareerStore.Save(_career);
         }
 
         static int MarketValue(Player player)
@@ -2682,6 +2787,79 @@ namespace CoachMaster.UI.Scenes
             return (int)(System.Math.Round(value / 50000.0, System.MidpointRounding.AwayFromZero) * 50000.0);
         }
 
+        string FinanceLine(Club club, bool english)
+        {
+            if (club == null || club.Finance == null)
+                return "";
+            if (!ClubFinancesKnown(club))
+                return "\n" + (english ? "Budgets stay private until the press leaks them." : "As verbas só aparecem se a imprensa as divulgar.");
+            return "\n" + (english ? "Transfer budget  " : "Orçamento de transferências  ") + Euro(club.Finance.TransferBudget)
+                + "   ·   " + (english ? "Club balance  " : "Saldo do clube  ") + Euro(club.Finance.Balance);
+        }
+
+        bool ClubFinancesKnown(Club club)
+        {
+            if (club == null || _career == null || _career.Club == null)
+                return false;
+            if (club.Id == _career.Club.Id)
+                return true;
+            return _career.Notebook != null && _career.Notebook.Contains("leak|" + club.Id);
+        }
+
+        string SystemFit(Player player)
+        {
+            if (player == null)
+                return "F";
+            var score = PlayerAttributes.CurrentOverallAtPosition(player, player.Position);
+            var tactics = _career == null || _career.Club == null ? null : _career.Club.Tactics;
+            if (tactics != null)
+            {
+                var press = tactics.Pressing ?? "";
+                if (press.IndexOf("alta", StringComparison.OrdinalIgnoreCase) >= 0 || press.IndexOf("high", StringComparison.OrdinalIgnoreCase) >= 0)
+                    score += (PlayerAttributes.CurrentValue(player, "Velocidade") + PlayerAttributes.CurrentValue(player, "Entrega") - 20) / 5;
+                var build = tactics.BuildUp ?? "";
+                if (build.IndexOf("curta", StringComparison.OrdinalIgnoreCase) >= 0 || build.IndexOf("short", StringComparison.OrdinalIgnoreCase) >= 0)
+                    score += (PlayerAttributes.CurrentValue(player, "Passe") - 10) / 4;
+                var line = tactics.DefensiveLine ?? "";
+                if (line.IndexOf("alta", StringComparison.OrdinalIgnoreCase) >= 0 || line.IndexOf("high", StringComparison.OrdinalIgnoreCase) >= 0)
+                    score += (PlayerAttributes.CurrentValue(player, "Velocidade") - 10) / 5;
+            }
+            score = Mathf.Clamp(score, 1, 99);
+            if (score >= 90) return "S";
+            if (score >= 86) return "A+";
+            if (score >= 82) return "A";
+            if (score >= 78) return "A-";
+            if (score >= 74) return "B+";
+            if (score >= 70) return "B";
+            if (score >= 66) return "B-";
+            if (score >= 62) return "C+";
+            if (score >= 58) return "C";
+            if (score >= 54) return "C-";
+            if (score >= 50) return "D";
+            if (score >= 46) return "E";
+            return "F";
+        }
+
+        static Color FitGradeColor(string grade)
+        {
+            switch (grade)
+            {
+                case "S": return new Color(1f, 0.82f, 0.25f);
+                case "A+": return new Color(0.45f, 0.95f, 0.55f);
+                case "A": return new Color(0.25f, 0.82f, 0.45f);
+                case "A-": return new Color(0.2f, 0.7f, 0.4f);
+                case "B+": return new Color(0.45f, 0.75f, 1f);
+                case "B": return new Color(0.3f, 0.58f, 0.95f);
+                case "B-": return new Color(0.25f, 0.45f, 0.82f);
+                case "C+": return new Color(0.95f, 0.85f, 0.35f);
+                case "C": return new Color(0.9f, 0.72f, 0.25f);
+                case "C-": return new Color(0.85f, 0.58f, 0.2f);
+                case "D": return new Color(0.9f, 0.45f, 0.25f);
+                case "E": return new Color(0.85f, 0.3f, 0.28f);
+                default: return new Color(0.65f, 0.65f, 0.7f);
+            }
+        }
+
         static string Euro(int value)
         {
             if (LocalizationManager.Current == GameLanguage.English)
@@ -2699,19 +2877,212 @@ namespace CoachMaster.UI.Scenes
             return value.ToString("N0", CultureInfo.GetCultureInfo("pt-PT")) + " €";
         }
 
-        void Sign(Player player)
+        int WeeklyWageRoom()
         {
-            if (player == null || player.ClubId == _career.Club.Id || !_career.ScoutedPlayers.Contains(player.Id))
+            if (_career == null || _career.Club == null || _career.Club.Finance == null)
+                return 0;
+            var weekly = 0;
+            foreach (var player in Squad(_career.Club))
+                if (player != null)
+                    weekly += Math.Max(0, player.WeeklyWage);
+            var budget = _career.Club.Finance.WageBudget;
+            if (budget <= 0)
+                return int.MaxValue;
+            if (budget > weekly * 8)
+                return Math.Max(0, budget / 52 - weekly);
+            return Math.Max(0, budget - weekly);
+        }
+
+        bool TransferWindowOpen()
+        {
+            var month = _career == null || _career.Calendar == null ? 0 : _career.Calendar.CurrentDate.Month;
+            return month == 1 || month == 7 || month == 8;
+        }
+
+        void OpenTransferNegotiation(Player player)
+        {
+            if (player == null || _career == null || player.ClubId == _career.Club.Id)
                 return;
+            var previous = transform.Find("TransferSheet");
+            if (previous != null)
+                Destroy(previous.gameObject);
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var sheet = BroadcastUi.Panel(transform, "TransferSheet", new Color(0.08f, 0.03f, 0.16f, 0.98f), true);
+            BroadcastUi.Place(sheet.rectTransform, 0.04f, 0.08f, 0.96f, 0.96f);
+            sheet.transform.SetAsLastSibling();
+            var close = BroadcastUi.Button(sheet.transform, "Close", "×", () => Destroy(sheet.gameObject), new Color(1f, 1f, 1f, 0.1f), Color.white, 20);
+            BroadcastUi.Place(close.GetComponent<RectTransform>(), 0.94f, 0.9f, 0.985f, 0.975f);
+
+            var header = BroadcastUi.Panel(sheet.transform, "Header", new Color(0.12f, 0.05f, 0.24f, 1f), false);
+            BroadcastUi.Place(header.rectTransform, 0.015f, 0.86f, 0.92f, 0.98f);
+            var faceSlot = BroadcastUi.Zone(header.transform, "FaceSlot", 0.01f, 0.08f, 0.08f, 0.92f);
+            FaceImage(faceSlot, player, 56f);
+            var name = BroadcastUi.Label(header.transform, "Name", player.FullName, 22, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(name.rectTransform, 0.1f, 0.48f, 0.55f, 0.92f);
+            var meta = BroadcastUi.Label(header.transform, "Meta", player.Age + (english ? " years  ·  " : " anos  ·  ") + ProfilePosition(player.Position, english), 14, new Color(0.78f, 0.8f, 0.88f), TextAnchor.MiddleLeft);
+            BroadcastUi.Place(meta.rectTransform, 0.1f, 0.08f, 0.48f, 0.48f);
+            _career.World.Clubs.TryGetValue(player.ClubId ?? "", out var seller);
+            if (seller != null)
+            {
+                var crestSlot = BroadcastUi.Zone(header.transform, "Crest", 0.5f, 0.18f, 0.58f, 0.82f);
+                CrestImage(crestSlot, seller, 36f);
+                var clubName = BroadcastUi.Label(header.transform, "Club", seller.ShortName, 16, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+                BroadcastUi.Place(clubName.rectTransform, 0.6f, 0.18f, 0.98f, 0.82f);
+            }
+
+            var finance = _career.Club.Finance;
+            var asking = GlobalTransferMarket.RequiredFee(_career, player);
+            var budget = finance == null ? 0 : finance.TransferBudget;
+            var balance = finance == null ? 0 : finance.Balance;
+            var room = WeeklyWageRoom();
+            var window = TransferWindowOpen();
+            var sellerCanSell = seller != null && seller.PlayerIds != null && seller.PlayerIds.Count > 11;
+
+            var details = BroadcastUi.Panel(sheet.transform, "Details", new Color(0.1f, 0.04f, 0.2f, 1f), false);
+            BroadcastUi.Place(details.rectTransform, 0.015f, 0.2f, 0.4f, 0.84f);
+            SectionTitle(details.transform, english ? "THE DEAL" : "O NEGÓCIO");
+            ContractRow(details.transform, "Ask", english ? "Club's asking price" : "Pedido do clube", Euro(asking), 0.78f);
+            ContractRow(details.transform, "Budget", english ? "Transfer budget" : "Orçamento de transferências", Euro(budget), 0.66f);
+            ContractRow(details.transform, "Balance", english ? "Club balance" : "Saldo do clube", Euro(balance), 0.54f);
+            ContractRow(details.transform, "Wages", english ? "Weekly wage room" : "Folga na massa salarial", room >= int.MaxValue / 2 ? "—" : Euro(room) + (english ? " /wk" : " /sem"), 0.42f);
+            ContractRow(details.transform, "Window", english ? "Market" : "Mercado", window ? (english ? "Open" : "Aberto") : (english ? "Closed" : "Fechado"), 0.3f);
+            ContractRow(details.transform, "Seller", english ? "Selling club" : "Clube vendedor", sellerCanSell ? (english ? "Can sell" : "Pode vender") : (english ? "Squad would drop below 11" : "O plantel ficava abaixo de 11"), 0.18f);
+            var rule = BroadcastUi.Label(details.transform, "Rule", english
+                ? "Nothing is signed, and nothing leaves the budget, until a proposal is accepted."
+                : "Nada se assina e nada sai do orçamento enquanto uma proposta não for aceite.", 13, new Color(0.78f, 0.8f, 0.88f), TextAnchor.UpperLeft);
+            rule.horizontalOverflow = HorizontalWrapMode.Wrap;
+            BroadcastUi.Place(rule.rectTransform, 0.05f, 0.02f, 0.95f, 0.14f);
+
+            var middle = BroadcastUi.Panel(sheet.transform, "Middle", new Color(0.1f, 0.04f, 0.2f, 1f), false);
+            BroadcastUi.Place(middle.rectTransform, 0.41f, 0.2f, 0.67f, 0.84f);
+            SectionTitle(middle.transform, english ? "WHAT THE MOVE COSTS" : "O QUE A MUDANÇA CUSTA");
+            var currentWage = Math.Max(250, player.WeeklyWage);
+            ContractRow(middle.transform, "Now", english ? "Wage at his club" : "Salário no clube dele", Euro(currentWage) + (english ? " /wk" : " /sem"), 0.74f);
+            ContractRow(middle.transform, "Low", english ? "Below the asking price" : "Abaixo do pedido", Euro(Mathf.RoundToInt(asking * 0.82f)), 0.6f);
+            ContractRow(middle.transform, "Level", english ? "The asking price" : "O pedido", Euro(asking), 0.48f);
+            ContractRow(middle.transform, "High", english ? "To get it done" : "Para fechar já", Euro(Mathf.RoundToInt(asking * 1.12f)), 0.36f);
+            var note = BroadcastUi.Label(middle.transform, "Note", english
+                ? "A low fee is often refused. The wage has to fit the wage bill as well as the fee fitting the budget and the balance."
+                : "Um valor baixo é recusado muitas vezes. O salário tem de caber na massa salarial, e o valor no orçamento e no saldo.", 13, Color.white, TextAnchor.UpperLeft);
+            note.horizontalOverflow = HorizontalWrapMode.Wrap;
+            BroadcastUi.Place(note.rectTransform, 0.05f, 0.06f, 0.95f, 0.28f);
+
+            var right = BroadcastUi.Panel(sheet.transform, "Right", new Color(0.1f, 0.04f, 0.2f, 1f), false);
+            BroadcastUi.Place(right.rectTransform, 0.68f, 0.2f, 0.985f, 0.84f);
+            SectionTitle(right.transform, english ? "AFTER A YES" : "SE DISSEREM QUE SIM");
+            ContractRow(right.transform, "Fee", english ? "Fee leaves both the budget and the balance" : "O valor sai do orçamento e do saldo", "", 0.7f);
+            ContractRow(right.transform, "Pay", english ? "The agreed wage starts that week" : "O salário acordado começa nessa semana", "", 0.56f);
+            ContractRow(right.transform, "Years", english ? "Contract length is part of the offer" : "A duração entra na proposta", "", 0.42f);
+            var block = !window ? (english ? "The window is closed. January, July and August." : "O mercado está fechado. Janeiro, julho e agosto.")
+                : !sellerCanSell ? (english ? "The selling club cannot go below 11 players." : "O clube vendedor não pode ficar com menos de 11.")
+                : budget <= 0 ? (english ? "There is no transfer budget." : "Não há orçamento de transferências.")
+                : (english ? "Pick an offer the club can actually pay." : "Escolhe uma proposta que o clube consiga pagar.");
+            var blockLabel = BroadcastUi.Label(right.transform, "Block", block, 14, Color.white, TextAnchor.UpperLeft);
+            blockLabel.horizontalOverflow = HorizontalWrapMode.Wrap;
+            BroadcastUi.Place(blockLabel.rectTransform, 0.05f, 0.08f, 0.95f, 0.32f);
+
+            var fees = new[] { Mathf.Max(80000, Mathf.RoundToInt(asking * 0.82f)), asking, Mathf.RoundToInt(asking * 1.12f) };
+            var wages = new[] { currentWage, Mathf.Max(currentWage, Mathf.RoundToInt(currentWage * 1.08f)), Mathf.Max(currentWage, Mathf.RoundToInt(currentWage * 1.22f)) };
+            var terms = new[] { 2, 3, 4 };
+            var titles = english ? new[] { "Below the price", "The asking price", "Get it done" } : new[] { "Abaixo do valor", "O pedido do clube", "Para fechar já" };
+            for (var i = 0; i < fees.Length; i++)
+            {
+                var fee = fees[i];
+                var wage = wages[i];
+                var years = terms[i];
+                var affordable = window && sellerCanSell && finance != null && fee <= budget && fee <= balance && (room >= int.MaxValue / 2 || wage <= room);
+                var x0 = 0.015f + i * 0.27f;
+                var card = BroadcastUi.Panel(sheet.transform, "Offer" + i, new Color(0.14f, 0.06f, 0.28f, 1f), true);
+                BroadcastUi.Place(card.rectTransform, x0, 0.02f, x0 + 0.25f, 0.17f);
+                var heading = BroadcastUi.Label(card.transform, "H", titles[i], 13, new Color(0.85f, 0.8f, 0.95f), TextAnchor.MiddleLeft, FontStyle.Bold);
+                BroadcastUi.Place(heading.rectTransform, 0.06f, 0.68f, 0.94f, 0.94f);
+                var money = BroadcastUi.Label(card.transform, "M", Euro(fee) + "   ·   " + Euro(wage) + (english ? "/wk" : "/sem") + "   ·   " + years + (english ? " yrs" : " anos"), 12, Color.white, TextAnchor.MiddleLeft);
+                BroadcastUi.Place(money.rectTransform, 0.06f, 0.38f, 0.94f, 0.66f);
+                var capturedFee = fee;
+                var capturedWage = wage;
+                var capturedYears = years;
+                var captured = player;
+                var button = BroadcastUi.Button(card.transform, "Go", affordable ? (english ? "PROPOSE" : "PROPOR") : (english ? "CANNOT PAY" : "SEM VERBA"), () =>
+                {
+                    if (!affordable)
+                    {
+                        OpenTransferRefusal(captured, english ? "This offer does not fit the budget, the balance or the wage bill. Nothing was charged." : "Esta proposta não cabe no orçamento, no saldo ou na massa salarial. Não foi debitado nada.");
+                        return;
+                    }
+                    ResolveTransferOffer(captured, capturedFee, capturedWage, capturedYears);
+                }, affordable ? new Color(0.85f, 0.15f, 0.55f, 1f) : new Color(0.25f, 0.12f, 0.16f, 1f), Color.white, 13);
+                BroadcastUi.Place(button.GetComponent<RectTransform>(), 0.06f, 0.08f, 0.94f, 0.34f);
+            }
+        }
+
+        void OpenTransferRefusal(Player player, string reason)
+        {
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var sheet = transform.Find("TransferSheet");
+            if (sheet != null)
+                Destroy(sheet.gameObject);
+            OpenModal(english ? "No deal" : "Sem acordo", player == null ? "" : player.FullName, true);
+            AddLine(reason);
+            _modalActionLabel.text = english ? "BACK" : "VOLTAR";
+            _modalAction.onClick.RemoveAllListeners();
+            _modalAction.onClick.AddListener(() =>
+            {
+                CloseModal();
+                if (player != null)
+                    OpenTransferNegotiation(player);
+            });
+        }
+
+        void ResolveTransferOffer(Player player, int fee, int wage, int years)
+        {
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var sheet = transform.Find("TransferSheet");
+            if (sheet != null)
+                Destroy(sheet.gameObject);
+            if (player == null || _career == null || player.ClubId == _career.Club.Id || !_career.ScoutedPlayers.Contains(player.Id))
+                return;
+            if (!TransferWindowOpen())
+            {
+                OpenTransferRefusal(player, english ? "The window is closed. Nothing was charged." : "O mercado está fechado. Não foi debitado nada.");
+                return;
+            }
             if (!_career.World.Clubs.TryGetValue(player.ClubId ?? "", out var seller) || seller.PlayerIds.Count <= 11)
+            {
+                OpenTransferRefusal(player, english ? "The selling club would drop below 11 players. Nothing was charged." : "O clube vendedor ficava com menos de 11 jogadores. Não foi debitado nada.");
                 return;
-            var cost = GlobalTransferMarket.RequiredFee(_career, player);
-            if (_career.Club.Finance != null && _career.Club.Finance.TransferBudget < cost)
+            }
+            var finance = _career.Club.Finance;
+            var room = WeeklyWageRoom();
+            if (finance == null || fee > finance.TransferBudget || fee > finance.Balance || (room < int.MaxValue / 2 && wage > room))
+            {
+                OpenTransferRefusal(player, english ? "The club cannot pay this fee and wage. Nothing was charged." : "O clube não consegue pagar este valor e este salário. Não foi debitado nada.");
                 return;
+            }
+            var asking = Mathf.Max(1, GlobalTransferMarket.RequiredFee(_career, player));
+            var ratio = fee / (float)asking;
+            var acceptance = ratio >= 1.08f ? 90 : ratio >= 0.98f ? 72 : ratio >= 0.9f ? 38 : 14;
+            acceptance = Mathf.Clamp(acceptance + (player.Morale - 50) / 8, 8, 94);
+            var seed = player.Id + "|" + fee + "|" + wage + "|" + _career.Calendar.CurrentDate.Ticks + "|" + (++_renewalAttempt);
+            var roll = 0;
+            unchecked { foreach (var c in seed) roll = roll * 31 + c; }
+            if ((roll & 0x7fffffff) % 100 >= acceptance)
+            {
+                OpenTransferRefusal(player, english
+                    ? "The selling club refused " + Euro(fee) + ". The budget is unchanged."
+                    : "O clube vendedor recusou " + Euro(fee) + ". O orçamento mantém-se.");
+                return;
+            }
+            var before = finance.TransferBudget;
             var previousClubId = seller.Id;
             var previousClubName = seller.Name;
-            var deal = GlobalTransferMarket.CompleteDeal(_career, player, seller, _career.Club, cost, 3, "User transfer");
-            if (deal == null) return;
+            var deal = GlobalTransferMarket.CompleteDeal(_career, player, seller, _career.Club, fee, years, "User transfer");
+            if (deal == null || finance.TransferBudget >= before)
+            {
+                OpenTransferRefusal(player, english ? "The deal did not go through. Nothing was charged." : "O negócio não avançou. Não foi debitado nada.");
+                return;
+            }
+            player.WeeklyWage = wage;
+            deal.WeeklyWage = wage;
             _career.Listed.Remove(player.Id);
             _career.Targets.Remove(player.Id);
             _career.ScoutedPlayers.Remove(player.Id);
@@ -2725,11 +3096,16 @@ namespace CoachMaster.UI.Scenes
                 RelatedClubId = previousClubId,
                 PlayerId = player.Id,
                 Title = "Novo reforço: " + player.FullName,
-                Detail = player.FullName + " chegou ao " + _career.Club.Name + " vindo de " + previousClubName + " por " + Euro(cost) + "."
+                Detail = player.FullName + " chegou ao " + _career.Club.Name + " vindo de " + previousClubName + " por " + Euro(fee) + ". Orçamento: " + Euro(before) + " → " + Euro(finance.TransferBudget) + "."
             });
-            CareerNotificationQueue.Enqueue("REFORÇO CONFIRMADO", player.FullName + " juntou-se ao " + _career.Club.Name + ". A contratação fica registada na história do clube.");
             CareerStore.Save(_career);
-            FillMarket();
+            OpenModal(english ? "Deal agreed" : "Acordo alcançado", player.FullName, true);
+            AddLine(english
+                ? Euro(fee) + " left the transfer budget (" + Euro(before) + " → " + Euro(finance.TransferBudget) + "). Wage " + Euro(wage) + "/week for " + years + " years."
+                : Euro(fee) + " saíram do orçamento (" + Euro(before) + " → " + Euro(finance.TransferBudget) + "). Salário " + Euro(wage) + "/semana por " + years + " anos.");
+            _modalActionLabel.text = english ? "DONE" : "CONCLUÍDO";
+            _modalAction.onClick.RemoveAllListeners();
+            _modalAction.onClick.AddListener(() => { CloseModal(); Refresh(); });
         }
 
         Club SaleBuyer(Player player, out int offerValue)
@@ -2857,8 +3233,34 @@ namespace CoachMaster.UI.Scenes
                 ClubId = club.Id,
                 FullName = "Olheiro do clube",
                 Role = StaffRole.Scout,
-                Judgement = 14
+                Judgement = StaffProfile.Spread(club.Id + ":olheiro", StaffRole.Scout, club.Reputation)
             });
+        }
+
+        static void VaryStaff(Club club)
+        {
+            if (club == null || club.Staff == null || club.Staff.Count == 0)
+                return;
+            var lowest = 99;
+            var highest = 0;
+            foreach (var member in club.Staff)
+            {
+                if (member == null)
+                    continue;
+                if (member.Judgement < lowest)
+                    lowest = member.Judgement;
+                if (member.Judgement > highest)
+                    highest = member.Judgement;
+            }
+
+            if (highest - lowest > 4)
+                return;
+            foreach (var member in club.Staff)
+            {
+                if (member == null)
+                    continue;
+                member.Judgement = StaffProfile.Spread(member.Id, member.Role, club.Reputation);
+            }
         }
 
         void SelectPane(int pane)
@@ -2881,63 +3283,657 @@ namespace CoachMaster.UI.Scenes
                 return;
             Clear(_tacticsBody);
             var t = _career.Club.Tactics;
-            var index = 0;
-            const int count = 9;
-            TacticButton(index++, count, "Pressão", "Quando a equipa sai à bola sem posse.", new[] { "Pressão muito alta", "Pressão alta", "Pressão média", "Pressão baixa" }, t.Pressing, value => t.Pressing = value);
-            TacticButton(index++, count, "Linha defensiva", "Altura do bloco sem bola.", new[] { "Linha muito alta", "Linha defensiva alta", "Linha defensiva média", "Linha defensiva baixa", "Linha muito baixa" }, t.DefensiveLine, value => t.DefensiveLine = value);
-            TacticButton(index++, count, "Construção", "Como a bola sai da defesa.", new[] { "Construção curta", "Jogo misto", "Construção longa" }, t.BuildUp, value => t.BuildUp = value);
-            TacticButton(index++, count, "Laterais", "O que os laterais fazem com a posse.", new[] { "Laterais ficam", "Laterais equilibram", "Laterais sobem" }, string.IsNullOrEmpty(t.FullBacks) ? "Laterais equilibram" : t.FullBacks, value => t.FullBacks = value);
-            TacticButton(index++, count, "Largura", "Onde a equipa ocupa o campo.", new[] { "Largura estreita", "Largura normal", "Largura larga" }, string.IsNullOrEmpty(t.Width) ? "Largura normal" : t.Width, value => t.Width = value);
-            TacticButton(index++, count, "Ritmo", "Velocidade com que a posse avança.", new[] { "Ritmo lento", "Ritmo normal", "Ritmo rápido" }, string.IsNullOrEmpty(t.Tempo) ? "Ritmo normal" : t.Tempo, value => t.Tempo = value);
-            TacticButton(index++, count, "Risco no passe", "Seguro fica curto. Arriscado parte linhas.", new[] { "Passe seguro", "Passe misto", "Passe arriscado" }, string.IsNullOrEmpty(t.PassingStyle) ? "Passe misto" : t.PassingStyle, value => t.PassingStyle = value);
-            TacticButton(index++, count, "Marcação", "Zonal guarda zonas. Ao homem segue o adversário.", new[] { "Marcação zonal", "Marcação mista", "Marcação ao homem" }, string.IsNullOrEmpty(t.Marking) ? "Marcação mista" : t.Marking, value => t.Marking = value);
-            TacticButton(index, count, "Ideia de jogo", "O que a equipa procura com a bola.", new[] { "Equilibrado", "Tiki-taka", "Posse", "Cruzamentos", "Jogo direto", "Bolas longas", "Remates de longe", "Contra-ataque" }, string.IsNullOrEmpty(t.AttackIdea) ? "Equilibrado" : t.AttackIdea, value => t.AttackIdea = value);
+            var presetMatch = TacticPresets.MatchingPresetIndex(t);
+            var presetName = presetMatch == 2 ? "Gegenpressing" : presetMatch < 0 ? TacticPresets.CustomName : TacticPresets.Names[Mathf.Clamp(presetMatch, 0, TacticPresets.Names.Length - 1)];
+            var summary = BroadcastUi.Label(_tacticsBody, "Summary",
+                presetName + "\n" + t.Formation + "\n" + t.Pressing + " · " + t.DefensiveLine,
+                13, Color.white, TextAnchor.UpperLeft);
+            summary.horizontalOverflow = HorizontalWrapMode.Wrap;
+            BroadcastUi.Place(summary.rectTransform, 0.04f, 0.42f, 0.96f, 0.96f);
+            var open = BroadcastUi.Button(_tacticsBody, "OpenSheet", "EDITAR TÁTICA", OpenTacticsSheet, UiTheme.Accent, UiTheme.ButtonText, 14);
+            BroadcastUi.Place(open.GetComponent<RectTransform>(), 0.04f, 0.08f, 0.96f, 0.32f);
         }
 
-        void TacticButton(int index, int count, string title, string help, string[] options, string current, Action<string> pick)
+        void ShowTacticChoices(string title, string help, string[] options, string current, Action<string> pick, Transform host = null)
         {
-            var step = 1f / count;
-            var y1 = 1f - index * step;
-            var shown = string.IsNullOrEmpty(current) ? "escolher" : current;
-            var button = BroadcastUi.Button(_tacticsBody, "Tac" + index, title.ToUpperInvariant() + "\n" + shown, () =>
-            {
-                ShowTacticChoices(title, help, options, current, pick);
-            }, new Color(1f, 1f, 1f, 0.08f), Color.white, 13);
-            var label = button.GetComponentInChildren<Text>();
-            if (label != null)
-                label.alignment = TextAnchor.MiddleCenter;
-            BroadcastUi.Place(button.GetComponent<RectTransform>(), 0.02f, y1 - step + 0.008f, 0.98f, y1 - 0.006f);
-        }
-
-        void ShowTacticChoices(string title, string help, string[] options, string current, Action<string> pick)
-        {
-            var layer = BroadcastUi.Zone(_tacticsBody, "Choices", 0f, 0f, 1f, 1f);
-            var dim = BroadcastUi.Solid(layer, "Dim", new Color(0.04f, 0.01f, 0.1f, 0.55f), true);
+            var parent = host != null ? host : _tacticsBody;
+            if (parent == null)
+                return;
+            var previous = parent.Find("Choices");
+            if (previous != null)
+                Destroy(previous.gameObject);
+            var layer = BroadcastUi.Zone(parent, "Choices", 0f, 0f, 1f, 1f);
+            var dim = BroadcastUi.Solid(layer, "Dim", new Color(0f, 0f, 0f, 0f), true);
             BroadcastUi.Stretch(dim.rectTransform);
-            BroadcastUi.Hit(dim, FillTactics);
+            BroadcastUi.Catch(dim, () => Destroy(layer.gameObject));
             var card = BroadcastUi.Panel(layer, "Card", new Color(0.12f, 0.05f, 0.24f, 0.98f), true);
             BroadcastUi.Place(card.rectTransform, 0.02f, 0.04f, 0.98f, 0.96f);
             var head = BroadcastUi.Label(card.transform, "Title", title.ToUpperInvariant(), 16, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
             BroadcastUi.Place(head.rectTransform, 0.06f, 0.86f, 0.78f, 0.97f);
             var note = BroadcastUi.Label(card.transform, "Help", help, 13, Color.white, TextAnchor.UpperLeft);
             BroadcastUi.Place(note.rectTransform, 0.06f, 0.74f, 0.94f, 0.86f);
-            var room = 0.7f;
-            var step = room / Mathf.Max(1, options.Length);
+            var room = 0.68f;
+            var step = Mathf.Min(0.1f, room / Mathf.Max(1, options.Length));
             for (var i = 0; i < options.Length; i++)
             {
                 var option = options[i];
                 var on = option == current;
-                var y1 = 0.72f - i * step;
+                var y1 = 0.7f - i * step;
                 var row = BroadcastUi.Button(card.transform, "Opt" + i, option, () =>
                 {
                     pick(option);
                     _career.Club.Tactics.Summary = _career.Club.Tactics.Formation + " · " + _career.Club.Tactics.Pressing + " · " + _career.Club.Tactics.BuildUp;
-                    FillTactics();
                     if (_teamTitle != null)
                         _teamTitle.text = "PLANTEL  ·  " + _career.Club.Tactics.Formation;
+                    if (host != null)
+                        OpenTacticsSheet();
+                    else
+                        FillTactics();
                 }, on ? UiTheme.Accent : new Color(1f, 1f, 1f, 0.08f), on ? UiTheme.ButtonText : Color.white, 14);
                 BroadcastUi.Place(row.GetComponent<RectTransform>(), 0.06f, y1 - step + 0.008f, 0.94f, y1 - 0.004f);
             }
+        }
+
+        void OpenTacticsSheet()
+        {
+            var previous = transform.Find("TacticsSheet");
+            if (previous != null)
+                Destroy(previous.gameObject);
+            var contractOpen = transform.Find("ContractSheet");
+            if (contractOpen != null)
+                Destroy(contractOpen.gameObject);
+            var sheet = BroadcastUi.Panel(transform, "TacticsSheet", new Color(0.1f, 0.04f, 0.2f, 0.98f), true);
+            BroadcastUi.Place(sheet.rectTransform, 0.015f, 0.105f, 0.985f, 0.985f);
+            sheet.transform.SetAsLastSibling();
+            if (_career.Club.Tactics == null)
+                _career.Club.Tactics = new TacticalIdentity();
+            var t = _career.Club.Tactics;
+            if (string.IsNullOrEmpty(t.Formation))
+                t.Formation = "4-3-3";
+            if (string.IsNullOrEmpty(_tacticSelection) || _tacticSelection == "preset")
+                _tacticSelection = "home";
+
+            var title = BroadcastUi.Label(sheet.transform, "Title", "TÁTICA", 18, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(title.rectTransform, 0.015f, 0.925f, 0.12f, 0.99f);
+            var forms = new[] { "4-3-3", "4-2-3-1", "4-4-2", "3-4-3", "5-4-1" };
+            for (var i = 0; i < forms.Length; i++)
+            {
+                var formation = forms[i];
+                var on = t.Formation == formation;
+                var x0 = 0.13f + i * 0.1f;
+                var formButton = BroadcastUi.Button(sheet.transform, "Form" + i, formation, () =>
+                    CommitTactic(item => item.Formation = formation),
+                    on ? UiTheme.Accent : new Color(1f, 1f, 1f, 0.08f), on ? UiTheme.ButtonText : Color.white, 13);
+                BroadcastUi.Place(formButton.GetComponent<RectTransform>(), x0, 0.93f, x0 + 0.092f, 0.985f);
+            }
+            var close = BroadcastUi.Button(sheet.transform, "Close", "×", () => Destroy(sheet.gameObject), new Color(1f, 1f, 1f, 0.12f), Color.white, 20);
+            BroadcastUi.Place(close.GetComponent<RectTransform>(), 0.94f, 0.93f, 0.985f, 0.985f);
+
+            var presetIndex = new[] { 0, 2, 1, 3, 4 };
+            var presetLabels = new[] { "Equilíbrio", "Gegenpressing", "Jogo pelas alas", "Contra-ataque", "Posse" };
+            var activePreset = TacticPresets.MatchingPresetIndex(t);
+            for (var i = 0; i < presetIndex.Length; i++)
+            {
+                var index = presetIndex[i];
+                var on = activePreset == index;
+                var x0 = 0.015f + i * 0.16f;
+                var chip = BroadcastUi.Button(sheet.transform, "Preset" + i, presetLabels[i], () =>
+                {
+                    _tacticSelection = "home";
+                    CommitTactic(item => TacticPresets.Apply(item, index));
+                }, on ? UiTheme.Accent : new Color(1f, 1f, 1f, 0.08f), on ? UiTheme.ButtonText : Color.white, 13);
+                var chipText = chip.GetComponentInChildren<Text>();
+                if (chipText != null)
+                {
+                    chipText.resizeTextForBestFit = true;
+                    chipText.resizeTextMinSize = 10;
+                    chipText.resizeTextMaxSize = 13;
+                }
+                BroadcastUi.Place(chip.GetComponent<RectTransform>(), x0, 0.855f, x0 + 0.15f, 0.915f);
+            }
+            if (activePreset < 0)
+            {
+                var custom = BroadcastUi.Label(sheet.transform, "Custom", "Personalizada", 13, UiTheme.Accent, TextAnchor.MiddleCenter, FontStyle.Bold);
+                BroadcastUi.Place(custom.rectTransform, 0.82f, 0.855f, 0.98f, 0.915f);
+            }
+
+            var eleven = new List<Player>();
+            var bench = new List<Player>();
+            StartingShape.Resolve(Squad(_career.Club), _career.Club, eleven, bench);
+            var positions = StartingShape.SlotPositions(t.Formation);
+            Player picked = null;
+            var pickedSlot = -1;
+            if (_tacticSelection.StartsWith("player:"))
+            {
+                var id = _tacticSelection.Substring("player:".Length);
+                for (var i = 0; i < eleven.Count && i < 11; i++)
+                {
+                    if (eleven[i].Id != id)
+                        continue;
+                    picked = eleven[i];
+                    pickedSlot = i;
+                    break;
+                }
+                if (picked == null)
+                    _tacticSelection = "home";
+            }
+
+            var left = BroadcastUi.Panel(sheet.transform, "Left", new Color(0.08f, 0.03f, 0.16f, 0.98f), true);
+            BroadcastUi.Place(left.rectTransform, 0.012f, 0.02f, 0.3f, 0.84f);
+            var center = BroadcastUi.Panel(sheet.transform, "Center", new Color(0.12f, 0.05f, 0.24f, 0.98f), true);
+            BroadcastUi.Place(center.rectTransform, 0.31f, 0.02f, 0.69f, 0.84f);
+            var pitch = BroadcastUi.Panel(sheet.transform, "PitchCard", new Color(0.07f, 0.28f, 0.13f, 1f), true);
+            BroadcastUi.Place(pitch.rectTransform, 0.7f, 0.02f, 0.988f, 0.84f);
+            PaintTacticPitch(pitch.transform, t, pickedSlot, eleven, picked);
+
+            if (picked != null)
+                PaintPlayerDuties(left.transform, center.transform, picked, pickedSlot < positions.Length ? positions[pickedSlot] : picked.Position);
+            else if (_tacticSelection == "xi")
+                PaintXiList(left.transform, center.transform, eleven, positions, t);
+            else if (_tacticSelection != "home")
+                PaintTacticOptions(left.transform, center.transform, t, _tacticSelection);
+            else
+                PaintTacticHome(left.transform, center.transform, t);
+        }
+
+        void PaintTacticHome(Transform left, Transform center, TacticalIdentity t)
+        {
+            var keys = new[] { "home", "xi" };
+            var labels = new[] { "Tática", "Funções" };
+            for (var i = 0; i < keys.Length; i++)
+            {
+                var key = keys[i];
+                var y1 = 0.98f - i * 0.088f;
+                TacticRow(left, "Cat" + i, labels[i], key == "home", () =>
+                {
+                    _tacticSelection = key;
+                    OpenTacticsSheet();
+                }, y1 - 0.08f, y1);
+            }
+            var name = TacticPresetName(t);
+            TacticHeading(center, name, t.Formation + "  ·  " + (string.IsNullOrEmpty(t.Preset) ? "Por definir" : t.Preset));
+            TacticChips(center, t.Pressing, t.BuildUp);
+            var presetMatch = TacticPresets.MatchingPresetIndex(t);
+            var copy = presetMatch < 0
+                ? "O preset foi alterado. Cada instrução à esquerda muda uma peça: pressão, linha, construção, laterais e a ideia de jogo."
+                : TacticPresets.Describe(presetMatch);
+            var body = BroadcastUi.Label(center, "Body", copy, 15, Color.white, TextAnchor.UpperLeft);
+            body.horizontalOverflow = HorizontalWrapMode.Wrap;
+            BroadcastUi.Place(body.rectTransform, 0.06f, 0.38f, 0.94f, 0.64f);
+            if (TacticPresets.MatchingPresetIndex(t) < 0)
+            {
+                var edited = BroadcastUi.Label(center, "Edited", "Editaste o preset. A equipa joga esta versão personalizada.", 13, UiTheme.Accent, TextAnchor.UpperLeft);
+                edited.horizontalOverflow = HorizontalWrapMode.Wrap;
+                BroadcastUi.Place(edited.rectTransform, 0.06f, 0.36f, 0.94f, 0.46f);
+            }
+            var bars = BroadcastUi.Label(center, "Bars", "TRAÇOS DA EQUIPA", 12, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(bars.rectTransform, 0.06f, 0.3f, 0.94f, 0.36f);
+            TacticBar(center, "P", "Pressão", TacticHeat(t.Pressing), 0.22f);
+            TacticBar(center, "L", "Linha", TacticHeat(t.DefensiveLine), 0.15f);
+            TacticBar(center, "R", "Ritmo", TacticHeat(t.Tempo), 0.08f);
+            TacticBar(center, "A", "Risco no passe", TacticHeat(t.PassingStyle), 0.01f);
+        }
+
+        void PaintTacticOptions(Transform left, Transform center, TacticalIdentity t, string key)
+        {
+            string title;
+            string[] options;
+            string current;
+            TacticCategory(key, t, out title, out options, out current);
+            TacticRow(left, "Back", "‹  Equipa", false, () =>
+            {
+                _tacticSelection = "home";
+                OpenTacticsSheet();
+            }, 0.9f, 0.98f);
+            var step = Mathf.Min(0.1f, 0.86f / Mathf.Max(1, options.Length));
+            for (var i = 0; i < options.Length; i++)
+            {
+                var option = options[i];
+                var y1 = 0.88f - i * step;
+                TacticRow(left, "Opt" + i, option, option == current, () => ApplyTacticOption(key, option), y1 - step + 0.008f, y1);
+            }
+            TacticHeading(center, string.IsNullOrEmpty(current) ? title : current, title);
+            TacticChips(center, title, t.Formation);
+            var body = BroadcastUi.Label(center, "Body", TacticBlurb(current), 15, Color.white, TextAnchor.UpperLeft);
+            body.horizontalOverflow = HorizontalWrapMode.Wrap;
+            BroadcastUi.Place(body.rectTransform, 0.06f, 0.36f, 0.94f, 0.64f);
+            var bars = BroadcastUi.Label(center, "Bars", "PESO DESTA ESCOLHA", 12, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(bars.rectTransform, 0.06f, 0.32f, 0.94f, 0.4f);
+            var heat = TacticHeat(current);
+            TacticBar(center, "A", "Intensidade", heat, 0.24f);
+            TacticBar(center, "B", "Risco", Mathf.Clamp01(heat * 0.9f), 0.17f);
+            TacticBar(center, "C", "Espaço", Mathf.Clamp01(1.05f - heat), 0.1f);
+            TacticBar(center, "D", "Bloco", TacticHeat(t.DefensiveLine), 0.03f);
+        }
+
+        void PaintXiList(Transform left, Transform center, List<Player> eleven, PlayerPosition[] positions, TacticalIdentity t)
+        {
+            TacticRow(left, "Back", "‹  Equipa", false, () =>
+            {
+                _tacticSelection = "home";
+                OpenTacticsSheet();
+            }, 0.9f, 0.98f);
+            var count = Mathf.Min(11, eleven.Count);
+            var step = 0.86f / Mathf.Max(1, count);
+            for (var i = 0; i < count; i++)
+            {
+                var player = eleven[i];
+                var y1 = 0.88f - i * step;
+                var captured = player;
+                TacticRow(left, "Xi" + i, BroadcastUi.ShortName(player.FullName), false, () =>
+                {
+                    _tacticSelection = "player:" + captured.Id;
+                    OpenTacticsSheet();
+                }, y1 - step + 0.004f, y1);
+            }
+            TacticHeading(center, "Onze", t.Formation);
+            var body = BroadcastUi.Label(center, "Body", "Escolhe um jogador na lista ou no campo. A função dele abre aqui, com os atributos que a função pede.", 15, Color.white, TextAnchor.UpperLeft);
+            body.horizontalOverflow = HorizontalWrapMode.Wrap;
+            BroadcastUi.Place(body.rectTransform, 0.06f, 0.55f, 0.94f, 0.78f);
+        }
+
+        void PaintPlayerDuties(Transform left, Transform center, Player player, PlayerPosition position)
+        {
+            var options = IndividualOrders.ForPosition(position);
+            TacticRow(left, "Back", "‹  Onze", false, () =>
+            {
+                _tacticSelection = "xi";
+                OpenTacticsSheet();
+            }, 0.9f, 0.98f);
+            var step = Mathf.Min(0.11f, 0.86f / Mathf.Max(1, options.Length));
+            for (var i = 0; i < options.Length; i++)
+            {
+                var duty = options[i];
+                var y1 = 0.88f - i * step;
+                var captured = player;
+                var chosen = duty;
+                TacticRow(left, "Duty" + i, duty, player.Duty == duty, () =>
+                {
+                    captured.Duty = chosen;
+                    _tacticSelection = "player:" + captured.Id;
+                    OpenTacticsSheet();
+                }, y1 - step + 0.008f, y1);
+            }
+            var role = string.IsNullOrEmpty(player.Duty) ? "Sem função" : player.Duty;
+            TacticHeading(center, role, BroadcastUi.ShortName(player.FullName) + "  ·  " + PresentationLabels.Position(position));
+            TacticChips(center, PresentationLabels.Position(position), string.IsNullOrEmpty(player.Duty) ? "Por escolher" : "Função ativa");
+            var fit = PlayerTacticalFit.Evaluate(player, _career.Club.Tactics, role);
+            var strongest = LocalizationManager.Translate(fit.StrongestAttribute ?? "—");
+            var development = LocalizationManager.Translate(fit.DevelopmentAttribute ?? "—");
+            var fitText = "ADEQUAÇÃO À FUNÇÃO  " + fit.RoleGrade + "  (" + fit.RoleScore.ToString("0.0") + "/20)   ·   ADEQUAÇÃO AO SISTEMA  " + fit.TacticalGrade + "  (" + fit.TacticalScore.ToString("0.0") + "/20)\nPonto forte: " + strongest + " " + fit.StrongestValue + "   ·   A desenvolver: " + development + " " + fit.DevelopmentValue + "\nA familiaridade tática ainda não é modelada. A nota explica a adequação e não aumenta atributos no jogo.";
+            var body = BroadcastUi.Label(center, "Body", fitText + "\n\n" + DutyBlurb(player.Duty), 15, Color.white, TextAnchor.UpperLeft);
+            body.horizontalOverflow = HorizontalWrapMode.Wrap;
+            BroadcastUi.Place(body.rectTransform, 0.06f, 0.08f, 0.94f, 0.64f);
+        }
+
+        void PaintTacticPitch(Transform host, TacticalIdentity tactics, int highlight, List<Player> eleven, Player picked)
+        {
+            var formation = tactics == null || string.IsNullOrEmpty(tactics.Formation) ? "4-3-3" : tactics.Formation;
+            var pitch = host as RectTransform;
+            BroadcastUi.DrawVerticalPitch(pitch, new Color(0.1f, 0.45f, 0.22f));
+            var caption = BroadcastUi.Label(host, "Shape", formation, 14, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            caption.raycastTarget = false;
+            BroadcastUi.Place(caption.rectTransform, 0.2f, 0.9f, 0.8f, 0.98f);
+            var push = TacticPush(tactics);
+            for (var i = 0; i < 11; i++)
+            {
+                var away = MatchEngine.Slot(false, i, "4-4-2");
+                away.y = Mathf.Clamp(away.y - push * 0.35f, 0.52f, 0.96f);
+                var mark = BroadcastUi.Panel(host, "Opp" + i, new Color(0.75f, 0.22f, 0.22f, 0.85f), false);
+                var oppSize = 0.028f;
+                BroadcastUi.Place(mark.rectTransform, away.x - oppSize, away.y - oppSize, away.x + oppSize, away.y + oppSize);
+            }
+            for (var i = 0; i < 11; i++)
+            {
+                var slot = MatchEngine.Slot(true, i, formation);
+                slot.y = Mathf.Clamp(slot.y + push, 0.04f, 0.9f);
+                var duty = i < eleven.Count && eleven[i] != null ? eleven[i].Duty : "";
+                var drift = DutyDrift(duty, slot, i == highlight);
+                var ghost = BroadcastUi.Panel(host, "Ghost" + i, new Color(0.55f, 0.9f, 0.82f, i == highlight ? 0.7f : 0.28f), false);
+                var ghostSize = 0.03f;
+                BroadcastUi.Place(ghost.rectTransform, slot.x - ghostSize, slot.y - ghostSize, slot.x + ghostSize, slot.y + ghostSize);
+                var motion = ghost.gameObject.AddComponent<TacticDrift>();
+                motion.Setup(drift, i * 0.45f);
+                var selected = i == highlight;
+                var color = i == 0 ? new Color(0.62f, 0.28f, 0.95f, 1f) : selected ? new Color(0.35f, 0.95f, 0.85f, 1f) : new Color(0.08f, 0.16f, 0.22f, 0.95f);
+                var dot = BroadcastUi.Panel(host, "Dot" + i, color, true);
+                dot.sprite = BroadcastUi.Circle;
+                dot.type = Image.Type.Simple;
+                var size = selected ? 0.045f : 0.034f;
+                BroadcastUi.Place(dot.rectTransform, slot.x - size, slot.y - size, slot.x + size, slot.y + size);
+                var shirt = i < eleven.Count && eleven[i] != null ? eleven[i].SquadNumber.ToString() : (i + 1).ToString();
+                var number = BroadcastUi.Label(dot.transform, "Num", shirt, 12, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+                number.raycastTarget = false;
+                BroadcastUi.Stretch(number.rectTransform);
+                var arrow = BroadcastUi.Label(host, "Arrow" + i, "→", 16, new Color(1f, 1f, 1f, selected ? 0.95f : 0.55f), TextAnchor.MiddleCenter, FontStyle.Bold);
+                arrow.raycastTarget = false;
+                var angle = Mathf.Atan2(drift.y, drift.x == 0f ? 0.01f : drift.x) * Mathf.Rad2Deg;
+                arrow.rectTransform.localRotation = Quaternion.Euler(0f, 0f, angle);
+                BroadcastUi.Place(arrow.rectTransform, slot.x + 0.03f, slot.y - 0.02f, slot.x + 0.09f, slot.y + 0.04f);
+                if (i < eleven.Count && eleven[i] != null)
+                {
+                    var captured = eleven[i];
+                    BroadcastUi.Hit(dot, () =>
+                    {
+                        _tacticSelection = "player:" + captured.Id;
+                        OpenTacticsSheet();
+                    });
+                }
+                if (selected && eleven[i] != null)
+                {
+                    var note = BroadcastUi.Panel(host, "PostIt", new Color(0.98f, 0.92f, 0.55f, 0.96f), false);
+                    BroadcastUi.Place(note.rectTransform, 0.08f, 0.02f, 0.92f, 0.16f);
+                    var sticky = BroadcastUi.Label(note.transform, "Text", eleven[i].SquadNumber + "  " + BroadcastUi.ShortName(eleven[i].FullName) + "\n" + (string.IsNullOrEmpty(eleven[i].Duty) ? "Sem função" : eleven[i].Duty), 12, new Color(0.15f, 0.1f, 0.05f), TextAnchor.MiddleLeft, FontStyle.Bold);
+                    sticky.raycastTarget = false;
+                    sticky.horizontalOverflow = HorizontalWrapMode.Wrap;
+                    BroadcastUi.Place(sticky.rectTransform, 0.06f, 0.08f, 0.94f, 0.92f);
+                }
+            }
+            var ballSlot = MatchEngine.Slot(true, 8, formation);
+            ballSlot.y = Mathf.Clamp(ballSlot.y + push, 0.08f, 0.86f);
+            var ball = BroadcastUi.Panel(host, "Ball", Color.white, false);
+            ball.sprite = BroadcastUi.Circle;
+            ball.type = Image.Type.Simple;
+            BroadcastUi.Place(ball.rectTransform, ballSlot.x + 0.03f, ballSlot.y - 0.045f, ballSlot.x + 0.07f, ballSlot.y - 0.01f);
+        }
+
+        static float TacticPush(TacticalIdentity tactics)
+        {
+            if (tactics == null)
+                return 0f;
+            var push = 0f;
+            var press = tactics.Pressing ?? "";
+            var line = tactics.DefensiveLine ?? "";
+            if (press.IndexOf("muito", StringComparison.OrdinalIgnoreCase) >= 0)
+                push += 0.08f;
+            else if (press.IndexOf("alta", StringComparison.OrdinalIgnoreCase) >= 0)
+                push += 0.05f;
+            else if (press.IndexOf("baixa", StringComparison.OrdinalIgnoreCase) >= 0)
+                push -= 0.04f;
+            if (line.IndexOf("muito", StringComparison.OrdinalIgnoreCase) >= 0)
+                push += 0.05f;
+            else if (line.IndexOf("alta", StringComparison.OrdinalIgnoreCase) >= 0)
+                push += 0.03f;
+            else if (line.IndexOf("baixa", StringComparison.OrdinalIgnoreCase) >= 0)
+                push -= 0.05f;
+            return push;
+        }
+
+        static Vector2 DutyDrift(string duty, Vector2 slot, bool selected)
+        {
+            var scale = selected ? 0.07f : 0.03f;
+            var text = duty ?? "";
+            var x = 0f;
+            var y = slot.y > 0.62f ? 0.4f : 0.15f;
+            if (text.IndexOf("linha", StringComparison.OrdinalIgnoreCase) >= 0 || text.IndexOf("ala", StringComparison.OrdinalIgnoreCase) >= 0)
+                x = slot.x < 0.5f ? -1f : 1f;
+            if (text.IndexOf("área", StringComparison.OrdinalIgnoreCase) >= 0 || text.IndexOf("ataque", StringComparison.OrdinalIgnoreCase) >= 0 || text.IndexOf("chegar", StringComparison.OrdinalIgnoreCase) >= 0)
+                y = 1f;
+            if (text.IndexOf("recu", StringComparison.OrdinalIgnoreCase) >= 0 || text.IndexOf("cobertura", StringComparison.OrdinalIgnoreCase) >= 0)
+                y = -0.8f;
+            return new Vector2(x, y) * scale;
+        }
+
+        void CommitTactic(Action<TacticalIdentity> edit)
+        {
+            if (_career.Club.Tactics == null)
+                _career.Club.Tactics = new TacticalIdentity();
+            edit(_career.Club.Tactics);
+            var t = _career.Club.Tactics;
+            var match = TacticPresets.MatchingPresetIndex(t);
+            t.Preset = match < 0 ? TacticPresets.CustomName : TacticPresets.Names[match];
+            t.Summary = (string.IsNullOrEmpty(t.Formation) ? "4-3-3" : t.Formation) + " · " + t.Preset;
+            OpenTacticsSheet();
+        }
+
+        void ApplyTacticOption(string key, string value)
+        {
+            CommitTactic(t =>
+            {
+                switch (key)
+                {
+                    case "press": t.Pressing = value; break;
+                    case "line": t.DefensiveLine = value; break;
+                    case "mark": t.Marking = value; break;
+                    case "build": t.BuildUp = value; break;
+                    case "backs": t.FullBacks = value; break;
+                    case "width": t.Width = value; break;
+                    case "tempo": t.Tempo = value; break;
+                    case "pass": t.PassingStyle = value; break;
+                    case "idea": t.AttackIdea = value; break;
+                }
+            });
+        }
+
+        static void TacticCategory(string key, TacticalIdentity t, out string title, out string[] options, out string current)
+        {
+            switch (key)
+            {
+                case "press":
+                    title = "Pressão";
+                    options = new[] { "Pressão muito alta", "Pressão alta", "Pressão média", "Pressão baixa" };
+                    current = t.Pressing;
+                    return;
+                case "line":
+                    title = "Linha defensiva";
+                    options = new[] { "Linha muito alta", "Linha defensiva alta", "Linha defensiva média", "Linha defensiva baixa", "Linha muito baixa" };
+                    current = t.DefensiveLine;
+                    return;
+                case "mark":
+                    title = "Marcação";
+                    options = new[] { "Marcação zonal", "Marcação mista", "Marcação ao homem" };
+                    current = string.IsNullOrEmpty(t.Marking) ? "Marcação mista" : t.Marking;
+                    return;
+                case "build":
+                    title = "Construção";
+                    options = new[] { "Construção curta", "Jogo misto", "Construção longa" };
+                    current = t.BuildUp;
+                    return;
+                case "backs":
+                    title = "Laterais";
+                    options = new[] { "Laterais ficam", "Laterais equilibram", "Laterais sobem" };
+                    current = string.IsNullOrEmpty(t.FullBacks) ? "Laterais equilibram" : t.FullBacks;
+                    return;
+                case "width":
+                    title = "Largura";
+                    options = new[] { "Largura estreita", "Largura normal", "Largura larga" };
+                    current = string.IsNullOrEmpty(t.Width) ? "Largura normal" : t.Width;
+                    return;
+                case "tempo":
+                    title = "Ritmo";
+                    options = new[] { "Ritmo lento", "Ritmo normal", "Ritmo rápido" };
+                    current = string.IsNullOrEmpty(t.Tempo) ? "Ritmo normal" : t.Tempo;
+                    return;
+                case "pass":
+                    title = "Passe";
+                    options = new[] { "Passe seguro", "Passe misto", "Passe arriscado" };
+                    current = string.IsNullOrEmpty(t.PassingStyle) ? "Passe misto" : t.PassingStyle;
+                    return;
+                default:
+                    title = "Ideia de jogo";
+                    options = new[] { "Equilibrado", "Tiki-taka", "Posse", "Cruzamentos", "Jogo direto", "Bolas longas", "Remates de longe", "Contra-ataque" };
+                    current = string.IsNullOrEmpty(t.AttackIdea) ? "Equilibrado" : t.AttackIdea;
+                    return;
+            }
+        }
+
+        static string TacticPresetName(TacticalIdentity t)
+        {
+            var match = TacticPresets.MatchingPresetIndex(t);
+            if (match == 2)
+                return "Gegenpressing";
+            if (match < 0)
+                return "Personalizada";
+            return TacticPresets.Names[match];
+        }
+
+        static float TacticHeat(string value)
+        {
+            var text = value ?? "";
+            if (text.Contains("muito") || text.Contains("rápido") || text.Contains("arriscado") || text.Contains("ofensivo") || text.Contains("Tiki") || text.Contains("direto") || text.Contains("longas") || text.Contains("longe"))
+                return 0.92f;
+            if (text.Contains("alta") || text.Contains("sobem") || text.Contains("larga") || text.Contains("Cruz") || text.Contains("curta") || text.Contains("homem"))
+                return 0.74f;
+            if (text.Contains("baixa") || text.Contains("lento") || text.Contains("seguro") || text.Contains("ficam") || text.Contains("estreita") || text.Contains("zonal"))
+                return 0.32f;
+            return 0.52f;
+        }
+
+        static string TacticBlurb(string value)
+        {
+            var text = value ?? "";
+            if (text.Contains("muito alta") && text.Contains("Press"))
+                return "A equipa sai à bola assim que a perde, ainda no meio-campo adversário. É o motor do gegenpressing: recuperar cedo e atacar com o bloco alto.";
+            if (text.Contains("Pressão alta"))
+                return "A pressão começa cedo, mas há uma linha de cobertura. A equipa não persegue cada bola até à última linha.";
+            if (text.Contains("Pressão baixa"))
+                return "O bloco espera. A pressão só chega quando a bola entra na sua metade, para não abrir espaço nas costas.";
+            if (text.Contains("muito alta") || (text.Contains("Linha") && text.Contains("alta") && text.Contains("muito")))
+                return "A linha sobe quase até ao meio-campo. Ganha terreno e encurta o campo, e fica exposta a uma bola nas costas.";
+            if (text.Contains("Linha") && text.Contains("baixa"))
+                return "A linha recua e protege a área. O adversário tem a bola, a equipa tem o espaço compacto.";
+            if (text.Contains("ao homem"))
+                return "Cada jogador segue o seu adversário. Fecha tabelas e desmarcações, e pode ser arrastado para fora da zona.";
+            if (text.Contains("zonal"))
+                return "A equipa defende zonas, não homens. Mantém a forma mesmo quando o adversário troca de posições.";
+            if (text.Contains("curta"))
+                return "A saída é curta, pelo guarda-redes e pelos centrais. Pede frieza e oferece o contra-ataque se a perda for à frente.";
+            if (text.Contains("longa"))
+                return "A primeira bola salta a pressão. Procura o avançado ou a ala e joga o segundo lance lá à frente.";
+            if (text.Contains("sobem"))
+                return "Os laterais entram no ataque e dão linha de fundo. O meio-campo tem de cobrir o corredor que eles deixam.";
+            if (text.Contains("ficam"))
+                return "Os laterais seguram a linha. A equipa ataca com menos largura e com mais gente atrás da bola.";
+            if (text.Contains("larga"))
+                return "Os extremos abrem no limite do campo. O jogo procura o cruzamento e estica a defesa adversária.";
+            if (text.Contains("estreita"))
+                return "A equipa joga por dentro. Os corredores ficam para os laterais e o miolo enche de gente.";
+            if (text.Contains("rápido"))
+                return "A posse anda para a frente depressa. Menos toques, mais profundidade, mais perdas também.";
+            if (text.Contains("lento"))
+                return "A equipa circula até o buraco aparecer. O ritmo baixo cansa o bloco adversário e pede paciência.";
+            if (text.Contains("arriscado"))
+                return "O passe parte linhas. Ganha superioridade quando entra e entrega a bola quando é lido.";
+            if (text.Contains("seguro"))
+                return "O passe fica no pé. A posse conserva-se e a progressão espera uma linha aberta.";
+            if (text.Contains("Contra"))
+                return "Sem bola a equipa espera. Com bola, a primeira opção é o espaço nas costas da defesa.";
+            if (text.Contains("Cruz"))
+                return "A jogada acaba na linha de fundo. Os cruzamentos procuram a área, não o remate de fora.";
+            if (text.Contains("Posse") || text.Contains("Tiki"))
+                return "A bola não se perde de graça. A equipa atrai, troca, e só acelera quando a defesa já saiu do sítio.";
+            if (text.Contains("direto") || text.Contains("longas"))
+                return "Poucos passes até à área. A referência é o avançado e a segunda bola.";
+            return "A equipa fica a meio: nem se esconde, nem persegue cada perda. Serve de base para afinares uma instrução de cada vez.";
+        }
+
+        static string DutyBlurb(string duty)
+        {
+            var text = duty ?? "";
+            if (text.Contains("Cortar para dentro"))
+                return "O extremo larga a linha e recebe por dentro, entre o lateral e o central. Liga o meio-campo ao avançado e chega à conclusão de outra zona.";
+            if (text.Contains("Ficar aberto") || text.Contains("desmarcação"))
+                return "Abre no corredor e pede a bola no espaço. Estica a defesa e serve quem ataca a área.";
+            if (text.Contains("Chegar à área"))
+                return "Chega à área em apoio. Não fica preso ao meio-campo: aparece para finalizar ou para tabelar de frente para a baliza.";
+            if (text.Contains("Ficar na área"))
+                return "Fica na última linha, à espera do cruzamento ou do recuo. É a referência dentro da área.";
+            if (text.Contains("Sair com a bola"))
+                return "O central conduz a primeira fase. Atrai um médio e solta o lateral ou o médio que se mete entre linhas.";
+            if (text.Contains("Sair nos cruzamentos"))
+                return "O guarda-redes avança nos cruzamentos e nas bolas divididas na área. Ganha duelos altos e arrisca o espaço atrás de si.";
+            if (text.Contains("Ficar na linha"))
+                return "O guarda-redes defende a baliza. Sai pouco, e a linha é que trata da profundidade.";
+            if (text.Contains("Subir ofensivo"))
+                return "O lateral é quase um extremo. Cruza, apoia o um-para-um e deixa o corredor para recuperar depois.";
+            if (text.Contains("Ficar atrás") || text.Contains("Defensivo") || text == "Marcar")
+                return "Primeiro fecha o espaço. Ataca só quando a posse está segura e a cobertura já ficou no lugar.";
+            if (string.IsNullOrEmpty(text))
+                return "Ainda não há função. Escolhe uma à esquerda: a equipa passa a usá-la neste jogador.";
+            return "A função equilibra o que o jogador faz com bola e sem bola. Não o tira da posição: muda a forma como a ocupa.";
+        }
+
+        static string[] DutyAttributes(PlayerPosition position)
+        {
+            switch (position)
+            {
+                case PlayerPosition.Goalkeeper:
+                    return new[] { "Reflexos", "Manejo", "Posicionamento", "Frieza" };
+                case PlayerPosition.CentreBack:
+                    return new[] { "Desarme", "Posicionamento", "Força", "Frieza" };
+                case PlayerPosition.RightBack:
+                case PlayerPosition.LeftBack:
+                    return new[] { "Velocidade", "Cruzamento", "Resistência", "Desarme" };
+                case PlayerPosition.DefensiveMidfielder:
+                    return new[] { "Posicionamento", "Passe", "Desarme", "Entrega" };
+                case PlayerPosition.AttackingMidfielder:
+                case PlayerPosition.RightWinger:
+                case PlayerPosition.LeftWinger:
+                    return new[] { "Drible", "Velocidade", "Passe", "Finalização" };
+                case PlayerPosition.Striker:
+                    return new[] { "Finalização", "Posicionamento", "Frieza", "Força" };
+                default:
+                    return new[] { "Passe", "Decisão", "Resistência", "Entrega" };
+            }
+        }
+
+        static void TacticHeading(Transform parent, string title, string subtitle)
+        {
+            var head = BroadcastUi.Label(parent, "Head", title, 22, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+            head.horizontalOverflow = HorizontalWrapMode.Wrap;
+            head.resizeTextForBestFit = true;
+            head.resizeTextMinSize = 14;
+            head.resizeTextMaxSize = 22;
+            BroadcastUi.Place(head.rectTransform, 0.06f, 0.82f, 0.94f, 0.96f);
+            var sub = BroadcastUi.Label(parent, "Sub", subtitle, 13, new Color(0.75f, 0.9f, 0.86f, 1f), TextAnchor.MiddleLeft);
+            BroadcastUi.Place(sub.rectTransform, 0.06f, 0.74f, 0.94f, 0.82f);
+        }
+
+        static void TacticChips(Transform parent, string left, string right)
+        {
+            var a = BroadcastUi.Panel(parent, "ChipA", new Color(1f, 1f, 1f, 0.08f), false);
+            BroadcastUi.Place(a.rectTransform, 0.06f, 0.66f, 0.48f, 0.74f);
+            var aText = BroadcastUi.Label(a.transform, "T", left ?? "", 12, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            aText.resizeTextForBestFit = true;
+            aText.resizeTextMinSize = 9;
+            aText.resizeTextMaxSize = 12;
+            BroadcastUi.Stretch(aText.rectTransform);
+            var b = BroadcastUi.Panel(parent, "ChipB", new Color(1f, 1f, 1f, 0.08f), false);
+            BroadcastUi.Place(b.rectTransform, 0.52f, 0.66f, 0.94f, 0.74f);
+            var bText = BroadcastUi.Label(b.transform, "T", right ?? "", 12, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            bText.resizeTextForBestFit = true;
+            bText.resizeTextMinSize = 9;
+            bText.resizeTextMaxSize = 12;
+            BroadcastUi.Stretch(bText.rectTransform);
+        }
+
+        static void TacticBar(Transform parent, string name, string label, float fill, float y0)
+        {
+            var caption = BroadcastUi.Label(parent, name + "L", label, 13, Color.white, TextAnchor.MiddleLeft);
+            BroadcastUi.Place(caption.rectTransform, 0.06f, y0, 0.4f, y0 + 0.06f);
+            var track = BroadcastUi.Panel(parent, name + "T", new Color(1f, 1f, 1f, 0.1f), false);
+            BroadcastUi.Place(track.rectTransform, 0.42f, y0 + 0.012f, 0.94f, y0 + 0.048f);
+            var bar = BroadcastUi.Panel(track.transform, "Fill", new Color(0.55f, 0.82f, 0.74f, 1f), false);
+            BroadcastUi.Place(bar.rectTransform, 0f, 0.12f, Mathf.Clamp(fill, 0.06f, 1f), 0.88f);
+        }
+
+        static void TacticRow(Transform parent, string name, string label, bool on, Action click, float y0, float y1)
+        {
+            var button = BroadcastUi.Button(parent, name, label, click,
+                on ? new Color(0.08f, 0.4f, 0.34f, 1f) : new Color(1f, 1f, 1f, 0.045f), Color.white, 13);
+            var text = button.GetComponentInChildren<Text>();
+            if (text != null)
+            {
+                text.alignment = TextAnchor.MiddleLeft;
+                text.horizontalOverflow = HorizontalWrapMode.Wrap;
+                text.resizeTextForBestFit = true;
+                text.resizeTextMinSize = 10;
+                text.resizeTextMaxSize = 14;
+                text.rectTransform.offsetMin = new Vector2(36f, 2f);
+            }
+            var radio = BroadcastUi.Panel(button.transform, "Radio", on ? new Color(0.55f, 0.95f, 0.8f, 1f) : new Color(1f, 1f, 1f, 0.28f), false);
+            BroadcastUi.Place(radio.rectTransform, 0.03f, 0.28f, 0.07f, 0.72f);
+            BroadcastUi.Place(button.GetComponent<RectTransform>(), 0.02f, y0, 0.98f, y1);
         }
 
         GameObject BuildTransfers(Transform host)
@@ -3379,8 +4375,8 @@ namespace CoachMaster.UI.Scenes
             BroadcastUi.Stretch(page.rectTransform);
             var title = BroadcastUi.Label(page.transform, "Title", "CLASSIFICAÇÕES", 16, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
             BroadcastUi.Place(title.rectTransform, 0.03f, 0.92f, 0.22f, 0.99f);
-            var legend = BroadcastUi.Label(page.transform, "Legend", "J jogos    V vitórias    E empates    D derrotas    GM golos marcados    GS golos sofridos    Pts pontos", 13, UiTheme.Muted, TextAnchor.MiddleRight);
-            BroadcastUi.Place(legend.rectTransform, 0.22f, 0.92f, 0.98f, 0.99f);
+            var legend = BroadcastUi.Label(page.transform, "Legend", "J jogos   ·   V vitórias   ·   E empates   ·   D derrotas   ·   GM   ·   GS   ·   Pts", 13, UiTheme.Muted, TextAnchor.MiddleRight);
+            BroadcastUi.Place(legend.rectTransform, 0.24f, 0.92f, 0.98f, 0.99f);
             _tableContent = BroadcastUi.Zone(page.transform, "Grid", 0.01f, 0.02f, 0.99f, 0.9f);
             return page.gameObject;
         }
@@ -3396,9 +4392,8 @@ namespace CoachMaster.UI.Scenes
         void BuildModal(Transform root)
         {
             var modal = BroadcastUi.Zone(root, "Modal", 0f, 0f, 1f, 1f);
-            var dim = BroadcastUi.Solid(modal, "Dim", new Color(0.03f, 0.01f, 0.08f, 0.78f), true);
+            var dim = BroadcastUi.Solid(modal, "Dim", new Color(0f, 0f, 0f, 0f), true);
             BroadcastUi.Stretch(dim.rectTransform);
-            BroadcastUi.Hit(dim, CloseModal);
             var card = BroadcastUi.Panel(modal, "Card", new Color(0.12f, 0.05f, 0.24f, 0.98f), true);
             BroadcastUi.Place(card.rectTransform, 0.04f, 0.03f, 0.96f, 0.97f);
             _modalTitle = BroadcastUi.Label(card.transform, "Title", "", 26, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
@@ -3408,7 +4403,7 @@ namespace CoachMaster.UI.Scenes
             var scroll = BroadcastUi.Scroll(card.transform, "Scroll", out _modalBody);
             BroadcastUi.Place(scroll.GetComponent<RectTransform>(), 0.04f, 0.16f, 0.96f, 0.72f);
             _modalAction = BroadcastUi.Button(card.transform, "Action", "", null, UiTheme.Accent, UiTheme.ButtonText, 16);
-            BroadcastUi.Place(_modalAction.GetComponent<RectTransform>(), 0.32f, 0.04f, 0.78f, 0.13f);
+            BroadcastUi.Place(_modalAction.GetComponent<RectTransform>(), 0.16f, 0.035f, 0.84f, 0.12f);
             _modalActionLabel = _modalAction.GetComponentInChildren<Text>();
             _modalClose = EnsureCloseButton(card.transform, "ModalClose", CloseModal);
             _modal = modal.gameObject;
@@ -3447,14 +4442,49 @@ namespace CoachMaster.UI.Scenes
                 FillTactics();
                 return true;
             }
+            var transferSheet = transform.Find("TransferSheet");
+            if (transferSheet != null)
+            {
+                Destroy(transferSheet.gameObject);
+                return true;
+            }
+            var contractSheet = transform.Find("ContractSheet");
+            if (contractSheet != null)
+            {
+                Destroy(contractSheet.gameObject);
+                return true;
+            }
+            var tacticsSheet = transform.Find("TacticsSheet");
+            if (tacticsSheet != null)
+            {
+                var choices = tacticsSheet.Find("Choices");
+                if (choices != null)
+                    Destroy(choices.gameObject);
+                else
+                    Destroy(tacticsSheet.gameObject);
+                return true;
+            }
             return false;
         }
 
         void OnContinue()
         {
+            if (PressDutyOpen() && PressAlreadyOpened())
+            {
+                OpenPressChoice();
+                return;
+            }
+            if (PressDutyOpen() || SquadDutyOpen())
+            {
+                OpenUrgentDuty();
+                return;
+            }
             var moment = _career.Current;
             if (moment != null && moment.Kind == MomentKind.Talk && !moment.Answered)
+            {
+                OpenTalkChoices();
                 return;
+            }
             if (moment != null && moment.Kind == MomentKind.Match && moment.Fixture != null && !moment.Fixture.Played)
             {
                 SeasonSchedule.SimulateOthers(_career, moment.Fixture.Date, moment.Fixture);
@@ -3484,7 +4514,24 @@ namespace CoachMaster.UI.Scenes
         {
             CareerMoments.Answer(_career, choice);
             CareerStore.Save(_career);
+            CloseModal();
             Refresh();
+        }
+
+        void OpenTalkChoices()
+        {
+            var moment = _career == null ? null : _career.Current;
+            if (moment == null || moment.Kind != MomentKind.Talk || moment.Answered || moment.Replies == null)
+                return;
+            var english = LocalizationManager.Current == GameLanguage.English;
+            OpenModal(CareerMomentTitle(moment), CareerMomentText(moment), false, true);
+            SizeModal(0.22f, 0.22f, 0.78f, 0.78f);
+            for (var i = 0; i < moment.Replies.Length && i < 3; i++)
+            {
+                var choice = i;
+                var button = BroadcastUi.Button(_modalBody, "Talk" + i, (i + 1) + "   " + CareerMomentReply(moment, i), () => Answer(choice), new Color(0.1f, 0.05f, 0.2f, 0.95f), Color.white, 15);
+                BroadcastUi.Preferred(button, 48);
+            }
         }
 
         void SkipConversations()
@@ -3567,11 +4614,185 @@ namespace CoachMaster.UI.Scenes
             FillBoard();
         }
 
+        void EnsureInbox(Transform page)
+        {
+            if (page == null)
+                return;
+            var pageImage = page.GetComponent<Image>();
+            if (pageImage != null)
+                pageImage.color = new Color(0f, 0f, 0f, 0f);
+            if (page.Find("InboxMessages") != null && _inboxMessages != null)
+                return;
+            for (var i = page.childCount - 1; i >= 0; i--)
+                Destroy(page.GetChild(i).gameObject);
+            var english = LocalizationManager.Current == GameLanguage.English;
+            _inboxMessages = InboxColumn(page, "InboxMessages", 0.008f, 0.012f, 0.3f, 0.988f, english ? "MESSAGES" : "MENSAGENS");
+            _inboxNews = InboxColumn(page, "InboxNews", 0.308f, 0.012f, 0.64f, 0.988f, english ? "NEWS" : "NOTÍCIAS");
+            _inboxSide = InboxColumn(page, "InboxSide", 0.648f, 0.012f, 0.992f, 0.988f, english ? "TODAY" : "HOJE");
+        }
+
+        RectTransform InboxColumn(Transform page, string name, float x0, float y0, float x1, float y1, string title)
+        {
+            var column = BroadcastUi.Panel(page, name, new Color(0.05f, 0.03f, 0.1f, 0.72f));
+            BroadcastUi.Place(column.rectTransform, x0, y0, x1, y1);
+            var heading = BroadcastUi.Label(column.transform, "Heading", title, 14, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(heading.rectTransform, 0.04f, 0.93f, 0.96f, 0.99f);
+            var scroll = BroadcastUi.Scroll(column.transform, "Scroll", out var content);
+            BroadcastUi.Place(scroll.GetComponent<RectTransform>(), 0.03f, 0.02f, 0.97f, 0.92f);
+            return content;
+        }
+
+        static void SetColumnHeading(Transform page, string column, string title)
+        {
+            var heading = page == null ? null : page.Find(column + "/Heading");
+            var text = heading == null ? null : heading.GetComponent<Text>();
+            if (text != null)
+                text.text = title;
+        }
+
+        void FillInbox()
+        {
+            if (_pages == null || _pages.Length == 0 || _pages[0] == null || _career == null)
+                return;
+            EnsureInbox(_pages[0].transform);
+            if (_inboxMessages == null || _inboxNews == null || _inboxSide == null)
+                return;
+            Clear(_inboxMessages);
+            Clear(_inboxNews);
+            Clear(_inboxSide);
+            var english = LocalizationManager.Current == GameLanguage.English;
+            SetColumnHeading(_pages[0].transform, "InboxMessages", english ? "MESSAGES" : "MENSAGENS");
+            SetColumnHeading(_pages[0].transform, "InboxNews", english ? "NEWS" : "NOTÍCIAS");
+            SetColumnHeading(_pages[0].transform, "InboxSide", english ? "TODAY" : "HOJE");
+            var anyMessage = false;
+            foreach (var note in PhoneNotes())
+            {
+                if (note.Channel == "jogador")
+                    continue;
+                anyMessage = true;
+                var captured = note;
+                var row = BroadcastUi.Panel(_inboxMessages, "Msg", new Color(0.1f, 0.06f, 0.18f, 0.94f));
+                BroadcastUi.Preferred(row, 72);
+                BroadcastUi.Hit(row, () => OpenDeskMessage(captured));
+                var who = BroadcastUi.Label(row.transform, "Who", note.Who, 14, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+                BroadcastUi.Place(who.rectTransform, 0.04f, 0.5f, note.Important ? 0.84f : 0.96f, 0.94f);
+                var text = BroadcastUi.Label(row.transform, "Text", note.Text, 13, Color.white, TextAnchor.MiddleLeft);
+                text.horizontalOverflow = HorizontalWrapMode.Wrap;
+                text.verticalOverflow = VerticalWrapMode.Truncate;
+                BroadcastUi.Place(text.rectTransform, 0.04f, 0.06f, note.Important ? 0.84f : 0.96f, 0.5f);
+                if (note.Important)
+                    AddDutyMark(row.transform);
+                PassClicksTo(row.transform);
+            }
+            if (!anyMessage)
+                BroadcastUi.Preferred(BroadcastUi.Label(_inboxMessages, "Empty", english ? "No messages today." : "Não há mensagens hoje.", 14, UiTheme.Muted), 40);
+
+            var shownStories = 0;
+            foreach (var story in Newsroom.Edition(_career))
+            {
+                if (shownStories >= 6)
+                    break;
+                shownStories++;
+                var captured = story;
+                var card = BroadcastUi.Panel(_inboxNews, "Story", new Color(0.1f, 0.06f, 0.18f, 0.94f), true);
+                BroadcastUi.Preferred(card, 86);
+                BroadcastUi.Hit(card, () => OpenStory(captured));
+                var paper = BroadcastUi.Label(card.transform, "Paper", PaperName(story.Paper), 12, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+                BroadcastUi.Place(paper.rectTransform, 0.04f, 0.62f, 0.96f, 0.94f);
+                var headline = BroadcastUi.Label(card.transform, "Headline", PressHeadline(story), 15, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+                BroadcastUi.Place(headline.rectTransform, 0.04f, 0.08f, 0.96f, 0.62f);
+            }
+            if (shownStories == 0)
+                BroadcastUi.Preferred(BroadcastUi.Label(_inboxNews, "Empty", english ? "The papers are quiet." : "Os jornais ainda não fecharam.", 14, UiTheme.Muted), 40);
+
+            var fixtures = new List<Fixture>();
+            foreach (var fixture in _career.Fixtures)
+            {
+                if (fixture.Played || fixture.Walkover || fixture.HomeClubId == fixture.AwayClubId || !fixture.Involves(_career.Club.Id))
+                    continue;
+                fixtures.Add(fixture);
+            }
+            fixtures.Sort((a, b) => a.Date.CompareTo(b.Date));
+            var fixturesButton = BroadcastUi.Button(_inboxSide, "FixturesHead", english ? "FIXTURES" : "PRÓXIMOS JOGOS", OpenCalendar, new Color(0f, 0f, 0f, 0f), UiTheme.Score, 13);
+            BroadcastUi.Preferred(fixturesButton, 28);
+            var fixtureCount = Mathf.Min(5, fixtures.Count);
+            for (var i = 0; i < fixtureCount; i++)
+            {
+                var fixture = fixtures[i];
+                _career.World.Clubs.TryGetValue(fixture.HomeClubId, out var home);
+                _career.World.Clubs.TryGetValue(fixture.AwayClubId, out var away);
+                var line = BroadcastUi.Panel(_inboxSide, "Fixture" + i, new Color(0.08f, 0.05f, 0.16f, 0.92f), true);
+                BroadcastUi.Preferred(line, 32);
+                BroadcastUi.Hit(line, OpenCalendar);
+                AddInboxCrest(line.transform, home, 0.02f);
+                AddInboxCrest(line.transform, away, 0.84f);
+                var caption = LocalizationManager.FormatDate(fixture.Date, "dd/MM") + "   " + (home == null ? "" : home.ShortName) + "  –  " + (away == null ? "" : away.ShortName);
+                var label = BroadcastUi.Label(line.transform, "Text", caption, 13, Color.white, TextAnchor.MiddleLeft);
+                BroadcastUi.Place(label.rectTransform, 0.14f, 0.05f, 0.82f, 0.95f);
+                PassClicksTo(line.transform);
+            }
+            if (fixtureCount == 0)
+                BroadcastUi.Preferred(BroadcastUi.Label(_inboxSide, "NoFixture", english ? "No match scheduled." : "Não há jogo marcado.", 14, UiTheme.Muted), 26);
+
+            SeasonSchedule.RebuildTable(_career);
+            var leagueId = _career.Club.LeagueId;
+            var rows = new List<LeagueTableRow>();
+            foreach (var row in _career.Table)
+                if (row.LeagueId == leagueId)
+                    rows.Add(row);
+            rows.Sort((a, b) =>
+            {
+                var points = b.Points.CompareTo(a.Points);
+                if (points != 0)
+                    return points;
+                var diff = b.GoalDifference.CompareTo(a.GoalDifference);
+                return diff != 0 ? diff : b.GoalsFor.CompareTo(a.GoalsFor);
+            });
+            var leagueName = _career.League == null ? "" : LocalizationManager.Translate(_career.League.Name);
+            var tableTitle = (english ? "TABLE" : "TABELA") + (string.IsNullOrEmpty(leagueName) ? "" : "  ·  " + leagueName);
+            var tableButton = BroadcastUi.Button(_inboxSide, "TableHead", tableTitle, () => OpenLeagueStats(leagueId), new Color(0f, 0f, 0f, 0f), UiTheme.Score, 13);
+            BroadcastUi.Preferred(tableButton, 28);
+            var tableCount = Mathf.Min(8, rows.Count);
+            for (var i = 0; i < tableCount; i++)
+            {
+                var standing = rows[i];
+                _career.World.Clubs.TryGetValue(standing.ClubId, out var club);
+                var mine = standing.ClubId == _career.Club.Id;
+                var line = BroadcastUi.Panel(_inboxSide, "Table" + i, mine ? new Color(0.16f, 0.1f, 0.28f, 1f) : new Color(0.08f, 0.05f, 0.16f, 0.92f), true);
+                BroadcastUi.Preferred(line, 32);
+                BroadcastUi.Hit(line, () => OpenLeagueStats(leagueId));
+                AddInboxCrest(line.transform, club, 0.1f);
+                var caption = (i + 1) + "    " + (club == null ? standing.ClubId : club.ShortName);
+                var label = BroadcastUi.Label(line.transform, "Text", caption, 13, mine ? UiTheme.Accent : Color.white, TextAnchor.MiddleLeft, mine ? FontStyle.Bold : FontStyle.Normal);
+                BroadcastUi.Place(label.rectTransform, 0.24f, 0.05f, 0.78f, 0.95f);
+                var points = BroadcastUi.Label(line.transform, "Points", standing.Points.ToString(), 13, Color.white, TextAnchor.MiddleRight, FontStyle.Bold);
+                BroadcastUi.Place(points.rectTransform, 0.78f, 0.05f, 0.96f, 0.95f);
+                PassClicksTo(line.transform);
+            }
+
+            var finance = _career.Club.Finance;
+            if (finance != null)
+            {
+                var wages = 0;
+                foreach (var id in _career.Club.PlayerIds)
+                    if (_career.World.Players.TryGetValue(id, out var player))
+                        wages += player.WeeklyWage;
+                var money = BroadcastUi.Panel(_inboxSide, "Money", new Color(0.07f, 0.12f, 0.18f, 0.96f));
+                BroadcastUi.Preferred(money, 118);
+                var transfer = BroadcastUi.Label(money.transform, "Transfer", (english ? "TRANSFER BUDGET" : "ORÇAMENTO DE TRANSFERÊNCIAS") + "\n" + Euro(finance.TransferBudget), 14, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+                BroadcastUi.Place(transfer.rectTransform, 0.06f, 0.5f, 0.94f, 0.96f);
+                var wage = BroadcastUi.Label(money.transform, "Wages", (english ? "WAGE BUDGET" : "ORÇAMENTO SALARIAL") + "  " + Euro(finance.WageBudget) + "\n" + (english ? "Squad wages  " : "Salários do plantel  ") + Euro(wages) + (english ? "/wk" : "/semana"), 13, UiTheme.Muted, TextAnchor.MiddleLeft);
+                BroadcastUi.Place(wage.rectTransform, 0.06f, 0.06f, 0.94f, 0.5f);
+            }
+        }
+
         void Refresh()
         {
             RefreshLocalizedPresentation();
             CompleteScouts();
             FillBoard();
+            FillCareerRecord();
+            FillInbox();
         }
 
         void RefreshLocalizedPresentation()
@@ -3579,58 +4800,37 @@ namespace CoachMaster.UI.Scenes
             var moment = _career.Current;
             var season = _career.League != null ? LocalizationManager.Translate(_career.League.Name) + " " + _career.Calendar.SeasonLabel : _career.Calendar.SeasonLabel;
             _clock.text = _career.Calendar.ClockText;
+            RefreshAlert();
             _dateLine.text = LocalizationManager.FormatDate(_career.Calendar.CurrentDate, "dddd, d 'de' MMMM") + "    ·    " + season + "    ·    " + LocalizationManager.Translate("Mister") + " " + _career.Coach.Name;
-            _homeTitle.text = CareerMomentTitle(moment);
-            Player facePlayer = null;
-            if (moment != null && !string.IsNullOrEmpty(moment.PlayerId))
-                _career.World.Players.TryGetValue(moment.PlayerId, out facePlayer);
-            if (_homeFace != null)
-            {
-                _homeFace.gameObject.SetActive(facePlayer != null);
-                if (facePlayer != null)
-                    _homeFace.sprite = FaceBook.For(facePlayer);
-            }
-            BroadcastUi.Place(_homeTitle.rectTransform, facePlayer == null ? 0.04f : 0.16f, 0.86f, 0.96f, 0.97f);
-            var body = moment == null ? "A época ficou em silêncio." : CareerMomentText(moment);
-            BroadcastUi.SetWrapped(_homeBody, body, 80);
-            _nextChip.text = LocalizationManager.Current == GameLanguage.English
-                ? "Next match    " + EnglishMatchLabel(_career)
-                : LocalizationManager.Translate("Próximo jogo    " + NextMatchText(_career));
             var talking = moment != null && moment.Kind == MomentKind.Talk && !moment.Answered && moment.Replies != null;
-            if (moment != null && moment.Kind == MomentKind.Match)
-                _playLabel.text = LocalizationManager.Current == GameLanguage.English
-                    ? "PLAY    " + EnglishMatchLabel(_career)
-                    : LocalizationManager.Translate("JOGAR    " + MatchLabel(_career, moment.Fixture));
-            else if (talking)
-                _playLabel.text = LocalizationManager.Current == GameLanguage.English ? "CHOOSE A RESPONSE" : LocalizationManager.Translate("ESCOLHE UMA RESPOSTA");
-            else
-                _playLabel.text = LocalizationManager.Current == GameLanguage.English ? "CONTINUE" : LocalizationManager.Translate("CONTINUAR");
             if (_play != null)
-                _play.interactable = !talking;
-
-            _nextChip.gameObject.SetActive(!talking);
-            for (var i = 0; i < _replies.Length; i++)
             {
-                var show = talking && i < moment.Replies.Length;
-                _replies[i].gameObject.SetActive(show);
-                if (show)
+                _play.onClick.RemoveAllListeners();
+                _play.interactable = true;
+                if (PressDutyOpen() && PressAlreadyOpened())
                 {
-                    _replies[i].GetComponentInChildren<Text>().text = (i + 1) + "    " + CareerMomentReply(moment, i);
-                    BroadcastUi.Place(_replies[i].GetComponent<RectTransform>(), 0.04f, 0.24f - i * 0.085f, 0.76f, 0.315f - i * 0.085f);
+                    _play.onClick.AddListener(OpenPressChoice);
+                    _playLabel.text = LocalizationManager.Current == GameLanguage.English ? "PRESS CONFERENCE" : "CONFERÊNCIA";
+                }
+                else if (PressDutyOpen() || SquadDutyOpen())
+                {
+                    _play.onClick.AddListener(OpenUrgentDuty);
+                    _playLabel.text = LocalizationManager.Current == GameLanguage.English ? "DEAL WITH IT" : "TRATAR DO URGENTE";
+                }
+                else if (talking)
+                {
+                    _play.onClick.AddListener(OpenTalkChoices);
+                    _playLabel.text = LocalizationManager.Current == GameLanguage.English ? "ANSWER" : "RESPONDER";
                 }
                 else
-                    BroadcastUi.Place(_replies[i].GetComponent<RectTransform>(), 0.04f, 0.22f - i * 0.09f, 0.96f, 0.30f - i * 0.09f);
-            }
-
-            if (_skipConversations != null)
-            {
-                var canSkipDay = CareerMoments.CanSkipCurrentDay(_career);
-                _skipConversations.gameObject.SetActive(canSkipDay);
-                if (canSkipDay)
                 {
-                    var english = LocalizationManager.Current == GameLanguage.English;
-                    _skipConversations.GetComponentInChildren<Text>().text = english ? "SKIP DAY" : "SALTAR O DIA";
-                    BroadcastUi.Place(_skipConversations.GetComponent<RectTransform>(), 0.78f, 0.06f, 0.96f, 0.315f);
+                    _play.onClick.AddListener(OnContinue);
+                    if (moment != null && moment.Kind == MomentKind.Match)
+                        _playLabel.text = LocalizationManager.Current == GameLanguage.English
+                            ? "PLAY    " + EnglishMatchLabel(_career)
+                            : LocalizationManager.Translate("JOGAR    " + MatchLabel(_career, moment.Fixture));
+                    else
+                        _playLabel.text = LocalizationManager.Current == GameLanguage.English ? "CONTINUE" : LocalizationManager.Translate("CONTINUAR");
                 }
             }
 
@@ -3810,8 +5010,137 @@ namespace CoachMaster.UI.Scenes
             return replies[Mathf.Clamp(index, 0, replies.Length - 1)];
         }
 
+        void ReadPadTabs()
+        {
+            if (AudioSettingsOverlay.IsVisible)
+                return;
+            if (_modal != null && _modal.activeSelf)
+                return;
+            if (transform.Find("TacticsSheet") != null || transform.Find("ContractSheet") != null)
+                return;
+            var pad = Gamepad.current;
+            if (pad == null)
+                return;
+            if (pad.rightShoulder.wasPressedThisFrame)
+                BumpHubTab(1);
+            else if (pad.leftShoulder.wasPressedThisFrame)
+                BumpHubTab(-1);
+            else if (pad.rightTrigger.wasPressedThisFrame)
+                BumpSmallTab(1);
+            else if (pad.leftTrigger.wasPressedThisFrame)
+                BumpSmallTab(-1);
+        }
+
+        void BumpHubTab(int direction)
+        {
+            if (_tabs == null || _tabs.Length == 0)
+                return;
+            GameAudio.Click();
+            Show((_hubPage + direction + _tabs.Length) % _tabs.Length);
+        }
+
+        void BumpSmallTab(int direction)
+        {
+            if (_hubPage == 3)
+            {
+                BumpTeamTab(direction);
+                return;
+            }
+            if (_hubPage == 2)
+            {
+                BumpAcademyStrip(direction);
+                return;
+            }
+            if (_hubPage == 4)
+                return;
+            if (_hubPage == 5 && _transferTabs != null && _transferTabs.Length > 0)
+            {
+                GameAudio.Click();
+                ShowTransfersZone((_transferPage + direction + _transferTabs.Length) % _transferTabs.Length);
+                return;
+            }
+            if (_hubPage == 6 && _officeViews != null && _officeViews.Length > 0)
+            {
+                GameAudio.Click();
+                ShowOfficeTab((_officeTab + direction + _officeViews.Length) % _officeViews.Length);
+            }
+        }
+
+        void BumpAcademyStrip(int direction)
+        {
+            var selected = EventSystem.current == null ? null : EventSystem.current.currentSelectedGameObject;
+            if (selected != null && selected.name.StartsWith("AcademyFormation"))
+            {
+                var forms = new[] { "4-3-3", "4-2-3-1", "4-4-2", "3-4-3", "5-4-1" };
+                var group = AcademyFactory.AgeGroups[Mathf.Clamp(_academyAgeIndex, 0, AcademyFactory.AgeGroups.Length - 1)];
+                var tactics = AcademyTactics(group);
+                var current = Array.IndexOf(forms, tactics == null ? "" : tactics.Formation);
+                if (current < 0)
+                    current = 0;
+                var next = Mathf.Clamp(current + direction, 0, forms.Length - 1);
+                if (next != current && tactics != null)
+                {
+                    tactics.Formation = forms[next];
+                    tactics.Summary = forms[next] + " · " + tactics.Pressing + " · " + tactics.BuildUp;
+                    CareerStore.Save(_career);
+                    FillAcademy();
+                    GameAudio.Click();
+                }
+                return;
+            }
+
+            var ages = AcademyFactory.AgeGroups.Length;
+            var slot = _academyViewFocused ? ages + _academyViewIndex : _academyAgeIndex;
+            var nextSlot = Mathf.Clamp(slot + direction, 0, ages + 2);
+            if (nextSlot == slot)
+                return;
+            if (nextSlot < ages)
+            {
+                _academyViewFocused = false;
+                _academyAgeIndex = nextSlot;
+            }
+            else
+            {
+                _academyViewFocused = true;
+                _academyViewIndex = nextSlot - ages;
+            }
+            FillAcademy();
+            GameAudio.Click();
+        }
+
+        void BumpTeamTab(int direction)
+        {
+            var paneIds = new[] { 1, 3 };
+            GameAudio.Click();
+            var slots = paneIds.Length + 1;
+            var index = _teamZone == 0 ? System.Array.IndexOf(paneIds, _pane) : paneIds.Length;
+            if (index < 0)
+                index = 0;
+            var next = index + direction;
+            if (next < 0 || next >= slots)
+                return;
+            if (next >= paneIds.Length)
+                ShowTeamZone(1);
+            else
+            {
+                if (_teamZone != 0)
+                    ShowTeamZone(0);
+                SelectPane(paneIds[next]);
+            }
+        }
+
         void Show(int index)
         {
+            _hubPage = index;
+            var tacticsSheet = transform.Find("TacticsSheet");
+            if (tacticsSheet != null && index != 3)
+                Destroy(tacticsSheet.gameObject);
+            var contractSheet = transform.Find("ContractSheet");
+            if (contractSheet != null)
+                Destroy(contractSheet.gameObject);
+            var transferSheet = transform.Find("TransferSheet");
+            if (transferSheet != null)
+                Destroy(transferSheet.gameObject);
             if (index == 2)
             {
                 FillAcademy();
@@ -3850,20 +5179,24 @@ namespace CoachMaster.UI.Scenes
         {
             SeasonSchedule.RebuildTable(_career);
             Clear(_tableContent);
-            const int columns = 4;
-            var leagues = _career.World.Leagues;
-            var rows = Mathf.CeilToInt(leagues.Count / (float)columns);
-            var width = 0.99f / columns;
-            var height = 0.96f / rows;
+            var scroll = BroadcastUi.Scroll(_tableContent, "LeagueScroll", out var content);
+            BroadcastUi.Stretch(scroll.GetComponent<RectTransform>());
+            var leagues = new List<League>(_career.World.Leagues);
+            const int columns = 2;
             for (var i = 0; i < leagues.Count; i++)
             {
-                var x = i % columns;
-                var y = i / columns;
-                var x0 = x * width;
-                var y1 = 0.99f - y * height;
-                var y0 = y1 - height + 0.006f;
-                var cell = BroadcastUi.Zone(_tableContent, "LeagueCell" + i, x0, y0, x0 + width - 0.006f, y1);
-                TableCard(cell, leagues[i].Id, 0.02f, 0.98f);
+                var rowIndex = i / columns;
+                var row = content.Find("StandRow" + rowIndex) as RectTransform;
+                if (row == null)
+                {
+                    row = BroadcastUi.Zone(content, "StandRow" + rowIndex, 0f, 0f, 1f, 1f);
+                    BroadcastUi.Preferred(row, 236f);
+                }
+                var col = i % columns;
+                var x0 = col == 0 ? 0.008f : 0.508f;
+                var x1 = col == 0 ? 0.492f : 0.992f;
+                var cell = BroadcastUi.Zone(row, "LeagueCell" + i, x0, 0.03f, x1, 0.97f);
+                TableCard(cell, leagues[i].Id, 0f, 1f);
             }
         }
 
@@ -3878,13 +5211,15 @@ namespace CoachMaster.UI.Scenes
                     title = LocalizationManager.Translate(league.Name);
             }
 
-            var head = BroadcastUi.Label(card.transform, "League", title.ToUpperInvariant(), 13, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
-            BroadcastUi.Place(head.rectTransform, 0.04f, 0.9f, 0.62f, 0.99f);
+            var head = BroadcastUi.Label(card.transform, "League", title.ToUpperInvariant(), 14, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            head.horizontalOverflow = HorizontalWrapMode.Wrap;
+            head.verticalOverflow = VerticalWrapMode.Truncate;
+            BroadcastUi.Place(head.rectTransform, 0.04f, 0.86f, 0.68f, 0.98f);
             var moreId = leagueId;
-            var more = BroadcastUi.Button(card.transform, "More", "DETALHES", () => OpenLeagueStats(moreId), new Color(1f, 1f, 1f, 0.12f), Color.white, 11);
-            BroadcastUi.Place(more.GetComponent<RectTransform>(), 0.64f, 0.9f, 0.97f, 0.99f);
+            var more = BroadcastUi.Button(card.transform, "More", "DETALHES", () => OpenLeagueStats(moreId), new Color(1f, 1f, 1f, 0.12f), Color.white, 12);
+            BroadcastUi.Place(more.GetComponent<RectTransform>(), 0.7f, 0.86f, 0.97f, 0.98f);
             var siglas = BroadcastUi.Label(card.transform, "Siglas", "PONTOS", 11, UiTheme.Accent, TextAnchor.MiddleRight, FontStyle.Bold);
-            BroadcastUi.Place(siglas.rectTransform, 0.4f, 0.82f, 0.98f, 0.91f);
+            BroadcastUi.Place(siglas.rectTransform, 0.7f, 0.78f, 0.96f, 0.85f);
             var rows = new List<LeagueTableRow>();
             foreach (var row in _career.Table)
             {
@@ -3914,41 +5249,47 @@ namespace CoachMaster.UI.Scenes
                 indexes.Add(mineIndex);
             else if (rows.Count > 4)
                 indexes.Add(4);
-            var step = 0.62f / 5f;
+            var step = 0.6f / 5f;
             for (var n = 0; n < indexes.Count; n++)
             {
                 var i = indexes[n];
                 var row = rows[i];
-                var y = 0.78f - (n + 1) * step;
+                var y = 0.74f - (n + 1) * step;
                 var mineRow = row.ClubId == _career.Club.Id;
-                var line = BroadcastUi.Zone(card.transform, "R" + i, 0.03f, y, 0.97f, y + step - 0.008f);
+                var line = BroadcastUi.Zone(card.transform, "R" + i, 0.03f, y, 0.97f, y + step - 0.01f);
                 Club club = null;
                 if (_career.World.Clubs.ContainsKey(row.ClubId))
                     club = _career.World.Clubs[row.ClubId];
-                var crest = CrestImage(line, club, 18f);
-                crest.rectTransform.anchorMin = crest.rectTransform.anchorMax = new Vector2(0.08f, 0.5f);
-                crest.rectTransform.sizeDelta = new Vector2(18, 18);
+                var crest = CrestImage(line, club, 22f);
+                BroadcastUi.Place(crest.rectTransform, 0.01f, 0.12f, 0.1f, 0.88f);
+                crest.preserveAspect = true;
                 var name = club == null ? row.ClubId : club.ShortName;
                 if (club != null)
                 {
                     var selectedClub = club;
-                    var clubButton = BroadcastUi.Button(line, "N", (i + 1) + "  " + name, () => OpenClubDossier(selectedClub), new Color(1f, 1f, 1f, 0.01f), mineRow ? UiTheme.Score : Color.white, 14);
-                    clubButton.GetComponentInChildren<Text>().fontStyle = mineRow ? FontStyle.Bold : FontStyle.Normal;
-                    BroadcastUi.Place(clubButton.GetComponent<RectTransform>(), 0.16f, 0.08f, 0.72f, 0.92f);
+                    var clubButton = BroadcastUi.Button(line, "N", (i + 1) + "   " + name, () => OpenClubDossier(selectedClub), new Color(1f, 1f, 1f, 0.01f), mineRow ? UiTheme.Score : Color.white, 14);
+                    var caption = clubButton.GetComponentInChildren<Text>();
+                    caption.fontStyle = mineRow ? FontStyle.Bold : FontStyle.Normal;
+                    caption.alignment = TextAnchor.MiddleLeft;
+                    caption.horizontalOverflow = HorizontalWrapMode.Wrap;
+                    caption.verticalOverflow = VerticalWrapMode.Truncate;
+                    BroadcastUi.Place(clubButton.GetComponent<RectTransform>(), 0.12f, 0.04f, 0.74f, 0.96f);
                 }
                 else
                 {
-                    var label = BroadcastUi.Label(line, "N", (i + 1) + "  " + name, 14, mineRow ? UiTheme.Score : Color.white, TextAnchor.MiddleLeft, mineRow ? FontStyle.Bold : FontStyle.Normal);
-                    BroadcastUi.Place(label.rectTransform, 0.16f, 0.08f, 0.72f, 0.92f);
+                    var label = BroadcastUi.Label(line, "N", (i + 1) + "   " + name, 14, mineRow ? UiTheme.Score : Color.white, TextAnchor.MiddleLeft, mineRow ? FontStyle.Bold : FontStyle.Normal);
+                    label.horizontalOverflow = HorizontalWrapMode.Wrap;
+                    label.verticalOverflow = VerticalWrapMode.Truncate;
+                    BroadcastUi.Place(label.rectTransform, 0.12f, 0.04f, 0.74f, 0.96f);
                 }
-                var numbers = BroadcastUi.Label(line, "S", row.Points + " pts", 14, mineRow ? UiTheme.Score : UiTheme.Muted, TextAnchor.MiddleRight, FontStyle.Bold);
-                BroadcastUi.Place(numbers.rectTransform, 0.7f, 0.08f, 0.98f, 0.92f);
+                var numbers = BroadcastUi.Label(line, "S", row.Points + " pts", 14, mineRow ? UiTheme.Score : Color.white, TextAnchor.MiddleRight, FontStyle.Bold);
+                BroadcastUi.Place(numbers.rectTransform, 0.74f, 0.04f, 0.98f, 0.96f);
             }
 
             if (rows.Count > indexes.Count)
             {
                 var moreLine = BroadcastUi.Label(card.transform, "Rest", "+" + (rows.Count - indexes.Count) + " clubes em Detalhes", 12, UiTheme.Muted, TextAnchor.MiddleLeft);
-                BroadcastUi.Place(moreLine.rectTransform, 0.06f, 0.02f, 0.94f, 0.12f);
+                BroadcastUi.Place(moreLine.rectTransform, 0.05f, 0.02f, 0.95f, 0.1f);
             }
         }
 
@@ -4169,33 +5510,101 @@ namespace CoachMaster.UI.Scenes
 
         void OpenMemories()
         {
+            EnsureLandmarkMemories();
             var english = LocalizationManager.Current == GameLanguage.English;
-            var memories = new List<FootballMemory>(_career.Memories);
+            var memories = new List<FootballMemory>();
+            foreach (var memory in _career.Memories)
+            {
+                if (memory != null && MemoryOnShelf(memory, _memoryShelf))
+                    memories.Add(memory);
+            }
             memories.Sort((a, b) => b.WhenTicks.CompareTo(a.WhenTicks));
-            OpenModal(english ? "CAREER MEMORIES" : "MEMÓRIAS DA CARREIRA", memories.Count == 0
-                ? (english ? "Important moments are saved here throughout your career." : "Os momentos importantes ficam guardados aqui ao longo da carreira.")
-                : memories.Count + (english ? " moments saved · your story follows your decisions." : " momentos guardados · a história acompanha as tuas decisões."), false);
+            OpenModal(english ? "CAREER MEMORIES" : "MEMÓRIAS DA CARREIRA", memories.Count + (english ? " in this shelf" : " nesta prateleira"), false);
+            var labels = english
+                ? new[] { "ALL", "IMPORTANT", "TITLES", "MATCHES", "TRANSFERS", "SQUAD" }
+                : new[] { "TODAS", "IMPORTANTES", "TÍTULOS", "JOGOS", "TRANSFERÊNCIAS", "PLANTEL" };
+            for (var shelf = 0; shelf < labels.Length; shelf++)
+            {
+                var captured = shelf;
+                AddShelfButton(labels[shelf], captured == _memoryShelf, () =>
+                {
+                    _memoryShelf = captured;
+                    OpenMemories();
+                });
+            }
             if (memories.Count == 0)
             {
                 AddLine(english
-                    ? "No moments have been recorded yet. Debuts, big matches, decisions and important changes will appear here."
-                    : "Ainda não há momentos registados. Estreias, grandes jogos, decisões e mudanças importantes aparecerão aqui.");
+                    ? "Nothing on this shelf yet."
+                    : "Ainda não há nada nesta prateleira.");
                 return;
             }
 
             for (var i = 0; i < memories.Count; i++)
             {
                 var memory = memories[i];
-                if (memory == null)
-                    continue;
                 var date = memory.WhenTicks > 0 && memory.WhenTicks <= DateTime.MaxValue.Ticks
                     ? LocalizationManager.FormatDate(new DateTime(memory.WhenTicks), "d MMM yyyy")
                     : english ? "Date unavailable" : "Data não disponível";
                 var club = _career.World.Clubs.TryGetValue(memory.ClubId ?? "", out var memoryClub) ? memoryClub.ShortName : _career.Club.ShortName;
                 var importance = new string('★', Mathf.Clamp(memory.Importance, 1, 5));
-                AddHead(importance + "   " + memory.Title);
+                AddHead(MemoryShelfName(memory, english) + "   " + importance + "   " + memory.Title);
                 AddLine(date + "  ·  " + club + (string.IsNullOrEmpty(memory.CompetitionId) ? "" : "  ·  " + memory.CompetitionId)
                     + "\n" + (memory.Detail ?? ""));
+            }
+        }
+
+        static bool MemoryOnShelf(FootballMemory memory, int shelf)
+        {
+            if (memory == null)
+                return false;
+            if (shelf <= 1)
+                return MemoryIsLandmark(memory);
+            var group = MemoryGroup(memory);
+            if (shelf == 2)
+                return group == "titulos";
+            if (shelf == 3)
+                return group == "jogos" && MemoryIsLandmark(memory);
+            if (shelf == 4)
+                return group == "transferencias" && memory.Importance >= 5;
+            return group == "plantel" && memory.Importance >= 5;
+        }
+
+        static bool MemoryIsLandmark(FootballMemory memory)
+        {
+            if (memory == null)
+                return false;
+            var kind = (memory.Kind ?? "").ToLowerInvariant();
+            if (kind.Contains("titulo") || kind.Contains("melhor-jogo") || kind.Contains("pior-jogo") || kind.Contains("taca") || kind.Contains("surpresa") || kind.Contains("vitoria-tardia"))
+                return true;
+            if (memory.Importance >= 5)
+                return true;
+            if (memory.Importance >= 4 && MemoryGroup(memory) == "titulos")
+                return true;
+            var title = (memory.Title ?? "").ToLowerInvariant();
+            return title.Contains("campe") || title.Contains("título") || title.Contains("titulo") || title.Contains("taça") || title.Contains("taca");
+        }
+
+        static string MemoryGroup(FootballMemory memory)
+        {
+            var kind = (memory.Kind ?? "").ToLowerInvariant();
+            if (kind.Contains("titulo"))
+                return "titulos";
+            if (kind.Contains("transfer") || kind.Contains("venda") || kind.Contains("contrat") || kind.Contains("mudanca") || kind.Contains("emprest"))
+                return "transferencias";
+            if (kind.Contains("match") || kind.Contains("jogo") || kind.Contains("golo") || kind.Contains("resultado"))
+                return "jogos";
+            return "plantel";
+        }
+
+        static string MemoryShelfName(FootballMemory memory, bool english)
+        {
+            switch (MemoryGroup(memory))
+            {
+                case "titulos": return english ? "TITLE" : "TÍTULO";
+                case "jogos": return english ? "MATCH" : "JOGO";
+                case "transferencias": return english ? "TRANSFER" : "TRANSFERÊNCIA";
+                default: return english ? "SQUAD" : "PLANTEL";
             }
         }
 
@@ -4205,58 +5614,157 @@ namespace CoachMaster.UI.Scenes
             if (_boardContent == null)
                 return;
             var english = LocalizationManager.Current == GameLanguage.English;
+            var today = _career.Calendar.CurrentDate.Date;
+
             var digest = BroadcastUi.Panel(_boardContent, "Digest", new Color(0.1f, 0.28f, 0.34f, 0.92f));
-            BroadcastUi.Preferred(digest, 240);
-            var head = BroadcastUi.Label(digest.transform, "Head", english ? "TODAY'S STATUS" : "ESTADO DO DIA", 14, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
-            BroadcastUi.Place(head.rectTransform, 0.04f, 0.72f, 0.96f, 0.94f);
-            var body = BroadcastUi.Label(digest.transform, "Body", ClubDigest(), 16, Color.white, TextAnchor.UpperLeft);
-            BroadcastUi.Place(body.rectTransform, 0.04f, 0.06f, 0.96f, 0.72f);
+            BroadcastUi.Preferred(digest, 150);
+            var head = BroadcastUi.Label(digest.transform, "Head", english ? "TODAY'S STATUS" : "ESTADO DO DIA", 15, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(head.rectTransform, 0.04f, 0.72f, 0.7f, 0.96f);
+            var dayName = BroadcastUi.Label(digest.transform, "When", LocalizationManager.FormatDate(today, "dddd, d MMMM"), 13, Color.white, TextAnchor.MiddleRight);
+            BroadcastUi.Place(dayName.rectTransform, 0.45f, 0.72f, 0.96f, 0.96f);
+            var body = BroadcastUi.Label(digest.transform, "Body", ClubDigest(), 15, Color.white, TextAnchor.UpperLeft);
+            body.horizontalOverflow = HorizontalWrapMode.Wrap;
+            body.verticalOverflow = VerticalWrapMode.Truncate;
+            BroadcastUi.Place(body.rectTransform, 0.04f, 0.08f, 0.96f, 0.7f);
 
-            var report = BroadcastUi.Panel(_boardContent, "WeekReport", new Color(0.16f, 0.08f, 0.28f, 0.94f));
-            BroadcastUi.Preferred(report, 110);
-            var reportHead = BroadcastUi.Label(report.transform, "Head", english ? "WEEKLY REPORT" : "RELATÓRIO DA SEMANA", 14, UiTheme.Score, TextAnchor.MiddleLeft, FontStyle.Bold);
-            BroadcastUi.Place(reportHead.rectTransform, 0.04f, 0.68f, 0.96f, 0.94f);
-            var reportBody = BroadcastUi.Label(report.transform, "Body", WeekReport(), 16, Color.white, TextAnchor.UpperLeft);
-            BroadcastUi.Place(reportBody.rectTransform, 0.04f, 0.06f, 0.96f, 0.68f);
+            var weekBar = BroadcastUi.Panel(_boardContent, "WeekBar", new Color(0.12f, 0.05f, 0.22f, 0.96f));
+            BroadcastUi.Preferred(weekBar, 56);
+            var weekHead = BroadcastUi.Label(weekBar.transform, "Head", english ? "WEEK STATUS" : "ESTADO DA SEMANA", 15, UiTheme.Score, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(weekHead.rectTransform, 0.04f, 0.12f, 0.62f, 0.88f);
+            var openWeek = BroadcastUi.Button(weekBar.transform, "OpenWeek", english ? "OPEN" : "ABRIR", OpenWeekBoard, UiTheme.Accent, UiTheme.ButtonText, 14);
+            BroadcastUi.Place(openWeek.GetComponent<RectTransform>(), 0.7f, 0.16f, 0.96f, 0.84f);
+        }
 
-            DateTime? week = null;
-            string dayKey = null;
-            foreach (var note in _career.Board)
+        void OpenWeekBoard()
+        {
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var moment = _career.Current;
+            var talking = moment != null && moment.Kind == MomentKind.Talk && !moment.Answered && moment.Replies != null;
+            var today = _career.Calendar.CurrentDate.Date;
+            var monday = today.AddDays(-(((int)today.DayOfWeek + 6) % 7));
+            if (_boardWeekOffset > 0) _boardWeekOffset = 0;
+            if (_boardWeekOffset < -16) _boardWeekOffset = -16;
+            var weekStart = monday.AddDays(_boardWeekOffset * 7);
+            if (_boardWeekDay < 0 || _boardWeekDay > 6)
+                _boardWeekDay = ((int)today.DayOfWeek + 6) % 7;
+            var selected = weekStart.AddDays(_boardWeekDay);
+            OpenModal(english ? "WEEK STATUS" : "ESTADO DA SEMANA", "", false);
+            SizeModal(0.14f, 0.1f, 0.86f, 0.9f);
+            if (_modalTitle != null) _modalTitle.gameObject.SetActive(false);
+            if (_modalLead != null) _modalLead.gameObject.SetActive(false);
+            var scroll = _modal.transform.Find("Card/Scroll");
+            if (scroll != null)
+                scroll.gameObject.SetActive(false);
+            var card = _modal.transform.Find("Card");
+            var report = BroadcastUi.Zone(card, "WeekBody", 0.03f, 0.05f, 0.97f, 0.96f);
+            var reportHead = BroadcastUi.Label(report, "Head", english ? "WEEK" : "ESTADO DA SEMANA", 15, UiTheme.Score, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(reportHead.rectTransform, 0.04f, 0.88f, 0.42f, 0.98f);
+            var prev = BroadcastUi.Button(report.transform, "PrevWeek", "‹", () => { _boardWeekOffset--; OpenWeekBoard(); }, new Color(1f, 1f, 1f, 0.08f), Color.white, 18);
+            BroadcastUi.Place(prev.GetComponent<RectTransform>(), 0.5f, 0.88f, 0.58f, 0.98f);
+            var weekTitle = BroadcastUi.Label(report.transform, "WeekTitle", LocalizationManager.FormatDate(weekStart, "d MMM") + "  –  " + LocalizationManager.FormatDate(weekStart.AddDays(6), "d MMM"), 13, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(weekTitle.rectTransform, 0.58f, 0.88f, 0.86f, 0.98f);
+            var next = BroadcastUi.Button(report.transform, "NextWeek", "›", () => { if (_boardWeekOffset < 0) { _boardWeekOffset++; OpenWeekBoard(); } }, new Color(1f, 1f, 1f, 0.08f), Color.white, 18);
+            next.interactable = _boardWeekOffset < 0;
+            BroadcastUi.Place(next.GetComponent<RectTransform>(), 0.87f, 0.88f, 0.96f, 0.98f);
+            var dayNames = english
+                ? new[] { "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN" }
+                : new[] { "SEG", "TER", "QUA", "QUI", "SEX", "SÁB", "DOM" };
+            for (var i = 0; i < 7; i++)
             {
-                var when = note.When == default ? _career.Calendar.CurrentDate : note.When;
-                var start = when.Date.AddDays(-(((int)when.DayOfWeek + 6) % 7));
-                if (week == null || week.Value != start)
+                var day = i;
+                var on = day == _boardWeekDay;
+                var chip = BroadcastUi.Button(report.transform, "Day" + i, dayNames[i] + "\n" + weekStart.AddDays(i).Day, () =>
                 {
-                    week = start;
-                    dayKey = null;
-                    var weekLabel = BroadcastUi.Label(_boardContent, "Week", (english ? "WEEK OF " : "SEMANA DE ") + LocalizationManager.FormatDate(start, "d MMMM").ToUpperInvariant(), 15, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
-                    BroadcastUi.Preferred(weekLabel, 32);
-                }
-
-                var key = when.ToString("yyyy-MM-dd");
-                if (dayKey != key)
+                    _boardWeekDay = day;
+                    OpenWeekBoard();
+                }, on ? UiTheme.Accent : new Color(1f, 1f, 1f, 0.08f), on ? UiTheme.ButtonText : Color.white, 11);
+                var chipText = chip.GetComponentInChildren<Text>();
+                if (chipText != null)
                 {
-                    dayKey = key;
-                    var dayLabel = BroadcastUi.Label(_boardContent, "DayHead", LocalizationManager.FormatDate(when, "dddd, d MMMM"), 14, UiTheme.Muted, TextAnchor.MiddleLeft, FontStyle.Bold);
-                    BroadcastUi.Preferred(dayLabel, 26);
+                    chipText.alignment = TextAnchor.MiddleCenter;
+                    chipText.horizontalOverflow = HorizontalWrapMode.Wrap;
+                    chipText.resizeTextForBestFit = true;
+                    chipText.resizeTextMinSize = 9;
+                    chipText.resizeTextMaxSize = 12;
                 }
-
-                var card = BroadcastUi.Panel(_boardContent, "Note", new Color(0.14f, 0.06f, 0.28f, 0.92f));
-                BroadcastUi.Preferred(card, 84);
-                var hour = BroadcastUi.Label(card.transform, "Hour", note.Hour, 22, UiTheme.Score, TextAnchor.MiddleLeft, FontStyle.Bold);
-                BroadcastUi.Place(hour.rectTransform, 0.03f, 0.2f, 0.18f, 0.8f);
-                var noteText = BroadcastUi.Label(card.transform, "Text", note.Text, 16, Color.white, TextAnchor.MiddleLeft);
-                BroadcastUi.Place(noteText.rectTransform, 0.2f, 0.1f, 0.97f, 0.9f);
+                var x0 = 0.03f + i * 0.138f;
+                BroadcastUi.Place(chip.GetComponent<RectTransform>(), x0, 0.74f, x0 + 0.128f, 0.86f);
             }
 
+            if (talking && selected == today)
+            {
+                var talkTitle = BroadcastUi.Label(report.transform, "LiveTitle", CareerMomentTitle(moment), 13, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+                BroadcastUi.Place(talkTitle.rectTransform, 0.04f, 0.62f, 0.7f, 0.72f);
+                var talkBody = BroadcastUi.Label(report.transform, "LiveBody", CareerMomentText(moment), 12, Color.white, TextAnchor.UpperLeft);
+                talkBody.horizontalOverflow = HorizontalWrapMode.Wrap;
+                talkBody.verticalOverflow = VerticalWrapMode.Truncate;
+                BroadcastUi.Place(talkBody.rectTransform, 0.04f, 0.28f, 0.96f, 0.62f);
+                var hint = BroadcastUi.Label(report, "TalkHint", english ? "Continue opens the answers." : "Continuar abre as respostas.", 13, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+                BroadcastUi.Place(hint.rectTransform, 0.04f, 0.16f, 0.96f, 0.26f);
+            }
+            var conversations = talking && selected == today ? new List<PhoneNote>() : BoardConversations(selected, selected == today);
+            var room = 0.7f;
+            var shown = talking && selected == today ? 0 : Mathf.Min(4, conversations.Count);
+            if (shown == 0 && !(talking && selected == today))
+            {
+                var empty = BroadcastUi.Label(report.transform, "EmptyTalks", english ? "No conversations on this day." : "Não há conversas neste dia.", 14, UiTheme.Muted, TextAnchor.MiddleCenter);
+                BroadcastUi.Place(empty.rectTransform, 0.06f, 0.28f, 0.94f, 0.62f);
+            }
+            else
+            {
+                var step = room / shown;
+                for (var i = 0; i < shown; i++)
+                {
+                    var y1 = 0.72f - i * step;
+                    var line = BroadcastUi.Panel(report.transform, "Talk" + i, new Color(1f, 1f, 1f, 0.05f));
+                    BroadcastUi.Place(line.rectTransform, 0.03f, y1 - step + 0.012f, 0.97f, y1 - 0.006f);
+                    var who = BroadcastUi.Label(line.transform, "Who", conversations[i].Who, 13, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+                    BroadcastUi.Place(who.rectTransform, 0.03f, 0.5f, 0.97f, 0.95f);
+                    var said = BroadcastUi.Label(line.transform, "Text", conversations[i].Text, 12, Color.white, TextAnchor.MiddleLeft);
+                    said.horizontalOverflow = HorizontalWrapMode.Wrap;
+                    said.verticalOverflow = VerticalWrapMode.Truncate;
+                    BroadcastUi.Place(said.rectTransform, 0.03f, 0.06f, 0.97f, 0.5f);
+                }
+            }
+        }
+
+        List<PhoneNote> BoardConversations(DateTime day, bool includeTodayPlayers)
+        {
+            var lines = new List<PhoneNote>();
+            if (includeTodayPlayers)
+            {
+                foreach (var note in PhoneNotes())
+                    if (note.Channel == "jogador")
+                        lines.Add(note);
+            }
+            foreach (var note in _career.Board)
+            {
+                if (note == null || string.IsNullOrEmpty(note.Text))
+                    continue;
+                var when = note.When == default ? _career.Calendar.CurrentDate : note.When;
+                if (when.Date != day.Date)
+                    continue;
+                var text = note.Text.StartsWith("✉") ? note.Text.Substring(1).Trim() : note.Text;
+                lines.Add(new PhoneNote(string.IsNullOrEmpty(note.Hour) ? "Quadro" : note.Hour, text, "quadro", null, _career.Club.Id));
+                if (lines.Count >= 8)
+                    break;
+            }
+            return lines;
+        }
+
+        void FillCareerRecord()
+        {
+            Clear(_careerRecordContent);
+            if (_careerRecordContent == null || _career == null)
+                return;
             AddCareerRecord();
         }
 
         void AddCareerRecord()
         {
             var english = LocalizationManager.Current == GameLanguage.English;
-            var panel = BroadcastUi.Panel(_boardContent, "CareerRecord", new Color(0.07f, 0.16f, 0.2f, 0.94f));
-            BroadcastUi.Preferred(panel, 116);
+            var panel = BroadcastUi.Panel(_careerRecordContent, "CareerRecord", new Color(0.07f, 0.16f, 0.2f, 0.94f));
+            BroadcastUi.Preferred(panel, 220);
             var heading = BroadcastUi.Label(panel.transform, "Heading", english ? "CAREER RECORD" : "REGISTO DA CARREIRA", 14, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
             BroadcastUi.Place(heading.rectTransform, 0.025f, 0.72f, 0.975f, 0.96f);
             var played = 0;
@@ -4265,7 +5773,7 @@ namespace CoachMaster.UI.Scenes
             var losses = 0;
             foreach (var fixture in _career.Fixtures)
             {
-                if (!fixture.Played || !fixture.Involves(_career.Club.Id)) continue;
+                if (!fixture.Played || fixture.Walkover || fixture.HomeClubId == fixture.AwayClubId || !fixture.Involves(_career.Club.Id)) continue;
                 played++;
                 var forGoals = fixture.IsHome(_career.Club.Id) ? fixture.HomeGoals : fixture.AwayGoals;
                 var againstGoals = fixture.IsHome(_career.Club.Id) ? fixture.AwayGoals : fixture.HomeGoals;
@@ -4274,9 +5782,10 @@ namespace CoachMaster.UI.Scenes
                 else losses++;
             }
             var detail = english
-                ? "Seasons managed  " + _career.CompletedSeasons + "     Current-club record  " + wins + "–" + draws + "–" + losses + "  (" + played + " matches)     Supporter approval  " + _career.SupporterApproval + "%     Career moments  " + _career.Memories.Count
-                : "Épocas como treinador  " + _career.CompletedSeasons + "     Registo no clube atual  " + wins + "–" + draws + "–" + losses + "  (" + played + " jogos)     Aprovação dos adeptos  " + _career.SupporterApproval + "%     Momentos  " + _career.Memories.Count;
-            var body = BroadcastUi.Label(panel.transform, "Body", detail, 14, Color.white, TextAnchor.MiddleLeft);
+                ? "Seasons managed\n" + _career.CompletedSeasons + "\n\nCurrent-club record\n" + wins + "–" + draws + "–" + losses + "  (" + played + " matches)\n\nSupporter approval  " + _career.SupporterApproval + "%\nCareer moments  " + _career.Memories.Count
+                : "Épocas como treinador\n" + _career.CompletedSeasons + "\n\nRegisto no clube atual\n" + wins + "–" + draws + "–" + losses + "  (" + played + " jogos)\n\nAprovação dos adeptos  " + _career.SupporterApproval + "%\nMomentos  " + _career.Memories.Count;
+            var body = BroadcastUi.Label(panel.transform, "Body", detail, 16, Color.white, TextAnchor.UpperLeft);
+            body.horizontalOverflow = HorizontalWrapMode.Wrap;
             BroadcastUi.Place(body.rectTransform, 0.025f, 0.12f, 0.78f, 0.7f);
             var memories = BroadcastUi.Button(panel.transform, "Memories", english ? "CAREER MEMORIES" : "MEMÓRIAS DA CARREIRA", OpenMemories,
                 new Color(1f, 1f, 1f, 0.08f), UiTheme.Score, 12);
@@ -4615,30 +6124,47 @@ namespace CoachMaster.UI.Scenes
             var ringObject = new GameObject("BudgetDonut", typeof(RectTransform), typeof(CanvasRenderer), typeof(FinanceDonutGraphic));
             ringObject.transform.SetParent(panel.transform, false);
             var ringRect = ringObject.GetComponent<RectTransform>();
-            ringRect.anchorMin = ringRect.anchorMax = new Vector2(0.5f, 0.52f);
-            ringRect.sizeDelta = new Vector2(Mathf.Clamp(Screen.height * 0.3f, 190f, 300f), Mathf.Clamp(Screen.height * 0.3f, 190f, 300f));
+            ringRect.anchorMin = ringRect.anchorMax = new Vector2(0.5f, 0.62f);
+            ringRect.sizeDelta = new Vector2(148f, 148f);
             ringObject.GetComponent<FinanceDonutGraphic>().SetValues(
                 new[] { (float)Math.Max(0, finance.TransferBudget), (float)Math.Max(0, finance.TransferSpentThisSeason) },
                 new[] { UiTheme.Fitness, UiTheme.Danger }, new Color(1f, 1f, 1f, 0.14f));
-            var centerTitle = BroadcastUi.Label(panel.transform, "TotalTitle", english ? "TOTAL" : "TOTAL", 13, UiTheme.Muted, TextAnchor.MiddleCenter, FontStyle.Bold);
-            BroadcastUi.Place(centerTitle.rectTransform, 0.4f, 0.57f, 0.6f, 0.67f);
-            var center = BroadcastUi.Label(panel.transform, "Total", Euro((int)Math.Min(int.MaxValue, total)), 24, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
-            BroadcastUi.Place(center.rectTransform, 0.34f, 0.43f, 0.66f, 0.59f);
+            var centerTitle = BroadcastUi.Label(panel.transform, "TotalTitle", english ? "TOTAL" : "TOTAL", 12, UiTheme.Muted, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(centerTitle.rectTransform, 0.4f, 0.68f, 0.6f, 0.76f);
+            var center = BroadcastUi.Label(panel.transform, "Total", Euro((int)Math.Min(int.MaxValue, total)), 20, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(center.rectTransform, 0.36f, 0.56f, 0.64f, 0.68f);
             var week = BroadcastUi.Label(panel.transform, "Week", english ? "TRANSFER ALLOCATION" : "VERBA DE TRANSFERÊNCIAS", 10, UiTheme.Muted, TextAnchor.MiddleCenter);
-            BroadcastUi.Place(week.rectTransform, 0.32f, 0.35f, 0.68f, 0.43f);
-            var currentTitle = BroadcastUi.Label(panel.transform, "CurrentTitle", english ? "AVAILABLE" : "DISPONÍVEL", 15, UiTheme.Fitness, TextAnchor.MiddleCenter, FontStyle.Bold);
-            BroadcastUi.Place(currentTitle.rectTransform, 0.025f, 0.57f, 0.25f, 0.68f);
-            var current = BroadcastUi.Label(panel.transform, "Current", Euro(finance.TransferBudget), 22, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
-            BroadcastUi.Place(current.rectTransform, 0.025f, 0.42f, 0.25f, 0.57f);
-            var spentTitle = BroadcastUi.Label(panel.transform, "SpentTitle", english ? "SPENT THIS SEASON" : "GASTO ESTA ÉPOCA", 15, UiTheme.Danger, TextAnchor.MiddleCenter, FontStyle.Bold);
-            BroadcastUi.Place(spentTitle.rectTransform, 0.75f, 0.57f, 0.975f, 0.68f);
-            var spent = BroadcastUi.Label(panel.transform, "Spent", Euro(finance.TransferSpentThisSeason), 22, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
-            BroadcastUi.Place(spent.rectTransform, 0.75f, 0.42f, 0.975f, 0.57f);
+            BroadcastUi.Place(week.rectTransform, 0.34f, 0.48f, 0.66f, 0.56f);
+            var currentTitle = BroadcastUi.Label(panel.transform, "CurrentTitle", english ? "AVAILABLE" : "DISPONÍVEL", 14, UiTheme.Fitness, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(currentTitle.rectTransform, 0.02f, 0.66f, 0.28f, 0.76f);
+            var current = BroadcastUi.Label(panel.transform, "Current", Euro(finance.TransferBudget), 20, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(current.rectTransform, 0.02f, 0.52f, 0.28f, 0.66f);
+            var spentTitle = BroadcastUi.Label(panel.transform, "SpentTitle", english ? "SPENT THIS SEASON" : "GASTO ESTA ÉPOCA", 14, UiTheme.Danger, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(spentTitle.rectTransform, 0.72f, 0.66f, 0.98f, 0.76f);
+            var spent = BroadcastUi.Label(panel.transform, "Spent", Euro(finance.TransferSpentThisSeason), 20, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(spent.rectTransform, 0.72f, 0.52f, 0.98f, 0.66f);
             var note = BroadcastUi.Label(panel.transform, "BudgetNote", english
                 ? "Weekly wages come from the club balance and do not reduce the transfer budget."
                 : "Os salários saem semanalmente do saldo do clube e não reduzem o orçamento de transferências.",
                 13, UiTheme.Muted, TextAnchor.MiddleCenter);
-            BroadcastUi.Place(note.rectTransform, 0.12f, 0.12f, 0.88f, 0.28f);
+            note.horizontalOverflow = HorizontalWrapMode.Wrap;
+            note.verticalOverflow = VerticalWrapMode.Truncate;
+            note.resizeTextForBestFit = true;
+            note.resizeTextMinSize = 11;
+            note.resizeTextMaxSize = 14;
+            BroadcastUi.Place(note.rectTransform, 0.08f, 0.2f, 0.92f, 0.36f);
+            var pending = DeskDue("budget", out _);
+            var hasWait = DeskDue("budget-wait", out var waitUntil);
+            var waiting = !pending && hasWait && new DateTime(waitUntil).Date > _career.Calendar.CurrentDate.Date;
+            var askLabel = pending
+                ? (english ? "BOARD MEETING BOOKED" : "REUNIÃO MARCADA")
+                : waiting
+                    ? (english ? "NEXT REQUEST " : "PRÓXIMO PEDIDO ") + LocalizationManager.FormatDate(new DateTime(waitUntil), "d MMM")
+                    : (english ? "ASK THE BOARD FOR FUNDS" : "PEDIR MAIS VERBA À DIREÇÃO");
+            var ask = BroadcastUi.Button(panel.transform, "AskFunds", askLabel, AskBoardForFunds,
+                pending || waiting ? new Color(1f, 1f, 1f, 0.08f) : UiTheme.Accent, pending || waiting ? Color.white : UiTheme.ButtonText, 14);
+            ask.interactable = !pending && !waiting;
+            BroadcastUi.Place(ask.GetComponent<RectTransform>(), 0.18f, 0.04f, 0.82f, 0.16f);
         }
 
         string FinanceCategoryLabel(string category, bool english)
@@ -4913,27 +6439,25 @@ namespace CoachMaster.UI.Scenes
                 AcademyBenchCard(panel.transform, groupPlayers[i], group, _academyBenchGroup == 1, x0 + 0.003f, x1 - 0.003f);
             }
 
-            var paneNames = english ? new[] { "FORMATIONS", "ROLES", "INSTRUCTIONS", "TACTICS" }
-                : new[] { "FORMAÇÕES", "FUNÇÕES", "INSTRUÇÕES", "TÁTICAS" };
+            if (_academyPane == 0 || _academyPane == 2)
+                _academyPane = 1;
+            var paneNames = english ? new[] { "ROLES", "TACTICS" } : new[] { "FUNÇÕES", "TÁTICAS" };
+            var academyPanes = new[] { 1, 3 };
             for (var i = 0; i < paneNames.Length; i++)
             {
-                var pane = i;
-                var x0 = 0.44f + i * 0.138f;
-                var tab = BroadcastUi.Button(panel.transform, "AcademyPane" + i, paneNames[i], () =>
+                var pane = academyPanes[i];
+                var x0 = 0.44f + i * 0.26f;
+                var tab = BroadcastUi.Button(panel.transform, "AcademyPane" + pane, paneNames[i], () =>
                 {
                     _academyPane = pane;
                     FillAcademy();
                 }, pane == _academyPane ? UiTheme.Accent : new Color(1f, 1f, 1f, 0.08f),
                     pane == _academyPane ? UiTheme.ButtonText : Color.white, 10);
-                BroadcastUi.Place(tab.GetComponent<RectTransform>(), x0, 0.91f, x0 + 0.132f, 0.975f);
+                BroadcastUi.Place(tab.GetComponent<RectTransform>(), x0, 0.91f, x0 + 0.24f, 0.975f);
             }
             var body = BroadcastUi.Zone(panel.transform, "AcademyTacticSheet", 0.44f, 0.25f, 0.98f, 0.9f);
-            if (_academyPane == 0)
-                FillAcademyFormations(body, tactics, squad, english);
-            else if (_academyPane == 1)
+            if (_academyPane == 1)
                 FillAcademyRoles(body, group, squad, english);
-            else if (_academyPane == 2)
-                FillAcademyInstructions(body, squad, english);
             else
                 FillAcademyTacticOptions(body, group, tactics, english);
         }
@@ -5048,6 +6572,21 @@ namespace CoachMaster.UI.Scenes
 
         void FillAcademyTacticOptions(RectTransform host, string group, TacticalIdentity tactics, bool english)
         {
+            var forms = new[] { "4-3-3", "4-2-3-1", "4-4-2", "3-4-3", "5-4-1" };
+            for (var f = 0; f < forms.Length; f++)
+            {
+                var formation = forms[f];
+                var x0 = 0.02f + f * 0.196f;
+                var formButton = BroadcastUi.Button(host, "AcademyFormation" + f, formation, () =>
+                {
+                    tactics.Formation = formation;
+                    tactics.Summary = formation + " · " + tactics.Pressing + " · " + tactics.BuildUp;
+                    CareerStore.Save(_career);
+                    FillAcademy();
+                }, tactics.Formation == formation ? UiTheme.Accent : new Color(1f, 1f, 1f, 0.08f),
+                    tactics.Formation == formation ? UiTheme.ButtonText : Color.white, 12);
+                BroadcastUi.Place(formButton.GetComponent<RectTransform>(), x0, 0.9f, x0 + 0.18f, 0.99f);
+            }
             var rows = new[]
             {
                 new { Title = english ? "PRESSING" : "PRESSÃO", Values = new[] { "Pressão muito alta", "Pressão alta", "Pressão média", "Pressão baixa" }, Current = tactics.Pressing },
@@ -5067,8 +6606,8 @@ namespace CoachMaster.UI.Scenes
                 var button = BroadcastUi.Button(host, "AcademyTactic" + i, row.Title + "\n" + LocalizationManager.Translate(string.IsNullOrEmpty(row.Current) ? "—" : row.Current),
                     () => ShowAcademyTacticPicker(group, index, row.Title, row.Values, row.Current, english),
                     new Color(1f, 1f, 1f, 0.08f), Color.white, 10);
-                var top = 0.985f - i * 0.108f;
-                BroadcastUi.Place(button.GetComponent<RectTransform>(), 0.02f, top - 0.101f, 0.98f, top);
+                var top = 0.88f - i * 0.095f;
+                BroadcastUi.Place(button.GetComponent<RectTransform>(), 0.02f, top - 0.088f, 0.98f, top);
             }
         }
 
@@ -5111,31 +6650,95 @@ namespace CoachMaster.UI.Scenes
                 if (fixture.ClubId == _career.Club.Id && fixture.AgeGroup == group)
                     fixtures.Add(fixture);
             fixtures.Sort((a, b) => a.Date.CompareTo(b.Date));
-            if (fixtures.Count == 0)
-            {
-                var empty = BroadcastUi.Label(_academyContent, "NoFixtures", english ? "No youth fixtures have been scheduled yet." : "Ainda não há jogos da formação marcados.", 15, UiTheme.Muted, TextAnchor.MiddleCenter);
-                BroadcastUi.Preferred(empty, 60);
-                return;
-            }
-
-            for (var i = 0; i < fixtures.Count; i++)
+            var played = 0;
+            var won = 0;
+            var drawn = 0;
+            var lost = 0;
+            var goalsFor = 0;
+            var goalsAgainst = 0;
+            var form = "";
+            var formCount = 0;
+            for (var i = fixtures.Count - 1; i >= 0; i--)
             {
                 var fixture = fixtures[i];
-                var row = BroadcastUi.Panel(_academyContent, "YouthFixture" + i, new Color(0.12f, 0.05f, 0.24f, 0.92f));
-                BroadcastUi.Preferred(row, 58);
-                var date = BroadcastUi.Label(row.transform, "Date", LocalizationManager.FormatDate(fixture.Date, "dd MMM yyyy"), 13, UiTheme.Muted, TextAnchor.MiddleLeft);
-                BroadcastUi.Place(date.rectTransform, 0.025f, 0.12f, 0.19f, 0.88f);
-                var home = _career.World.Clubs[fixture.HomeClubId];
-                var away = _career.World.Clubs[fixture.AwayClubId];
-                var homeButton = BroadcastUi.Button(row.transform, "Home", home.ShortName, () => OpenAcademyTeam(home, group), new Color(1f, 1f, 1f, 0.04f), Color.white, 13);
-                BroadcastUi.Place(homeButton.GetComponent<RectTransform>(), 0.2f, 0.12f, 0.43f, 0.88f);
-                var score = fixture.Played ? fixture.HomeGoals + "  –  " + fixture.AwayGoals : (english ? "v" : "vs");
-                var result = BroadcastUi.Label(row.transform, "Score", score, 15, fixture.Played ? UiTheme.Score : UiTheme.Accent, TextAnchor.MiddleCenter, FontStyle.Bold);
-                BroadcastUi.Place(result.rectTransform, 0.44f, 0.12f, 0.56f, 0.88f);
-                var awayButton = BroadcastUi.Button(row.transform, "Away", away.ShortName, () => OpenAcademyTeam(away, group), new Color(1f, 1f, 1f, 0.04f), Color.white, 13);
-                BroadcastUi.Place(awayButton.GetComponent<RectTransform>(), 0.57f, 0.12f, 0.8f, 0.88f);
-                var state = BroadcastUi.Label(row.transform, "State", fixture.Played ? (english ? "PLAYED" : "JOGADO") : (english ? "UPCOMING" : "POR JOGAR"), 11, UiTheme.Muted, TextAnchor.MiddleRight);
-                BroadcastUi.Place(state.rectTransform, 0.81f, 0.12f, 0.98f, 0.88f);
+                if (!fixture.Played)
+                    continue;
+                var oursHome = fixture.HomeClubId == _career.Club.Id;
+                var scored = oursHome ? fixture.HomeGoals : fixture.AwayGoals;
+                var conceded = oursHome ? fixture.AwayGoals : fixture.HomeGoals;
+                played++;
+                goalsFor += scored;
+                goalsAgainst += conceded;
+                var mark = scored > conceded ? (english ? "W" : "V") : scored == conceded ? (english ? "D" : "E") : (english ? "L" : "D");
+                if (scored > conceded) won++;
+                else if (scored == conceded) drawn++;
+                else lost++;
+                if (formCount < 5)
+                {
+                    form = mark + (form.Length == 0 ? "" : "  ") + form;
+                    formCount++;
+                }
+            }
+
+            var board = BroadcastUi.Panel(_academyContent, "YouthResults", new Color(0.1f, 0.04f, 0.2f, 0.96f));
+            BroadcastUi.Preferred(board, 420f);
+            var record = BroadcastUi.Label(board.transform, "Record",
+                (english ? "RESULTS" : "RESULTADOS") + "\n" + won + (english ? " wins" : " vitórias") + "   ·   " + drawn + (english ? " draws" : " empates") + "   ·   " + lost + (english ? " losses" : " derrotas")
+                + "\n" + (english ? "Goals " : "Golos ") + goalsFor + "–" + goalsAgainst
+                + "\n" + (english ? "Last games  " : "Últimos jogos  ") + (form.Length == 0 ? "—" : form),
+                16, Color.white, TextAnchor.UpperLeft);
+            record.horizontalOverflow = HorizontalWrapMode.Wrap;
+            BroadcastUi.Place(record.rectTransform, 0.03f, 0.62f, 0.97f, 0.96f);
+
+            var lines = new List<SeasonLine>();
+            var competition = "academy-" + group;
+            foreach (var line in _career.Season)
+                if (line != null && line.CompetitionId == competition && line.Apps > 0)
+                    lines.Add(line);
+            var byRating = new List<SeasonLine>(lines);
+            byRating.Sort((a, b) => RatingOf(b).CompareTo(RatingOf(a)));
+            var byGoals = new List<SeasonLine>(lines);
+            byGoals.Sort((a, b) => b.Goals != a.Goals ? b.Goals.CompareTo(a.Goals) : b.Assists.CompareTo(a.Assists));
+            WriteYouthRank(board.transform, "Ratings", 0.03f, 0.5f, english ? "BEST RATINGS" : "MELHORES NOTAS", byRating, true, english);
+            WriteYouthRank(board.transform, "Goals", 0.52f, 0.97f, english ? "MOST GOALS" : "MAIS GOLOS", byGoals, false, english);
+            if (played == 0)
+            {
+                var wait = BroadcastUi.Label(board.transform, "Waiting", english ? "No academy matches played in this group yet." : "Ainda não há jogos disputados neste escalão.", 14, UiTheme.Muted, TextAnchor.MiddleLeft);
+                BroadcastUi.Place(wait.rectTransform, 0.03f, 0.02f, 0.97f, 0.12f);
+            }
+        }
+
+        static float RatingOf(SeasonLine line)
+        {
+            return line == null || line.Rated <= 0 ? 0f : line.RatingSum / line.Rated;
+        }
+
+        void WriteYouthRank(Transform board, string name, float x0, float x1, string title, List<SeasonLine> lines, bool rating, bool english)
+        {
+            var head = BroadcastUi.Label(board, name + "Head", title, 14, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(head.rectTransform, x0, 0.5f, x1, 0.58f);
+            var shown = 0;
+            for (var i = 0; i < lines.Count && shown < 5; i++)
+            {
+                var line = lines[i];
+                if (!rating && line.Goals <= 0)
+                    continue;
+                if (!_career.World.Players.TryGetValue(line.PlayerId, out var player))
+                    continue;
+                var y1 = 0.48f - shown * 0.08f;
+                var value = rating
+                    ? RatingOf(line).ToString("0.0")
+                    : line.Goals + (english ? " goals" : " golos");
+                var row = BroadcastUi.Label(board, name + shown, (shown + 1) + "   " + BroadcastUi.ShortName(player.FullName) + "    " + value, 14, Color.white, TextAnchor.MiddleLeft);
+                row.horizontalOverflow = HorizontalWrapMode.Wrap;
+                row.verticalOverflow = VerticalWrapMode.Truncate;
+                BroadcastUi.Place(row.rectTransform, x0, y1 - 0.07f, x1, y1);
+                shown++;
+            }
+            if (shown == 0)
+            {
+                var empty = BroadcastUi.Label(board, name + "Empty", "—", 14, UiTheme.Muted, TextAnchor.MiddleLeft);
+                BroadcastUi.Place(empty.rectTransform, x0, 0.36f, x1, 0.44f);
             }
         }
 
@@ -5385,9 +6988,14 @@ namespace CoachMaster.UI.Scenes
             if (_sheet == null)
                 return;
             Clear(_sheet);
-            for (var i = 0; i < _paneTabs.Length; i++)
+            var paneIds = new[] { 1, 3 };
+            if (_pane == 0 || _pane == 2)
+                _pane = 1;
+            for (var i = 0; i < _paneTabs.Length && i < paneIds.Length; i++)
             {
-                var on = i == _pane;
+                if (_paneTabs[i] == null)
+                    continue;
+                var on = paneIds[i] == _pane;
                 _paneTabs[i].GetComponent<Image>().color = on ? UiTheme.Accent : new Color(1f, 1f, 1f, 0.08f);
                 _paneTabs[i].GetComponentInChildren<Text>().color = on ? UiTheme.ButtonText : Color.white;
             }
@@ -5812,6 +7420,7 @@ namespace CoachMaster.UI.Scenes
         {
             Clear(_staffHost);
             EnsureScout(_career.Club);
+            VaryStaff(_career.Club);
             var staff = _career.Club.Staff;
             for (var i = 0; i < staff.Count; i++)
             {
@@ -5833,7 +7442,7 @@ namespace CoachMaster.UI.Scenes
                 BroadcastUi.Place(name.rectTransform, 0.09f, 0.47f, 0.55f, 0.9f);
                 var role = BroadcastUi.Label(card.transform, "Role", LocalizationManager.Translate(PresentationLabels.StaffRole(member.Role)), 12, UiTheme.Accent, TextAnchor.MiddleLeft);
                 BroadcastUi.Place(role.rectTransform, 0.09f, 0.08f, 0.55f, 0.47f);
-                var read = BroadcastUi.Label(card.transform, "Read", LocalizationManager.Translate(StaffReport.Quality(member)) + "  ·  " + LocalizationManager.Translate(StaffReport.Confidence(member)), 12, UiTheme.Muted, TextAnchor.MiddleRight);
+                var read = BroadcastUi.Label(card.transform, "Read", StaffProfile.BestLine(member, LocalizationManager.Current == GameLanguage.English), 12, UiTheme.Muted, TextAnchor.MiddleRight);
                 BroadcastUi.Place(read.rectTransform, 0.56f, 0.12f, 0.98f, 0.88f);
             }
 
@@ -5853,8 +7462,6 @@ namespace CoachMaster.UI.Scenes
             BuildPages(root);
             BuildPlay(root);
             BuildModal(root);
-            var hint = BroadcastUi.Label(root, "SettingsHint", LocalizationManager.Translate("M · DEFINIÇÕES"), 15, UiTheme.Muted, TextAnchor.MiddleRight);
-            BroadcastUi.Place(hint.rectTransform, 0.72f, 0.008f, 0.98f, 0.048f);
         }
 
         void BindDesign(Transform root)
@@ -5864,7 +7471,7 @@ namespace CoachMaster.UI.Scenes
                 BroadcastUi.Place(pagesRect, 0.03f, 0.075f, 0.97f, 0.815f);
             var settingsHint = root.Find("SettingsHint") as RectTransform;
             if (settingsHint != null)
-                BroadcastUi.Place(settingsHint, 0.72f, 0.008f, 0.98f, 0.048f);
+                settingsHint.gameObject.SetActive(false);
             var clubName = SceneBind.Get<Text>(root, "Header/ClubName");
             if (clubName != null)
                 clubName.text = _career.Club.Name.ToUpperInvariant();
@@ -5875,6 +7482,7 @@ namespace CoachMaster.UI.Scenes
 
             _dateLine = SceneBind.Get<Text>(root, "Header/Date");
             _clock = SceneBind.Get<Text>(root, "ClockCard/Clock");
+            EnsureAlert(root);
             _phoneSheet = root.Find("Phone") as RectTransform;
             _phoneApps = root.Find("Phone/Screen/Apps").gameObject;
             _phonePage = root.Find("Phone/Screen/Page").gameObject;
@@ -5937,21 +7545,12 @@ namespace CoachMaster.UI.Scenes
             BuildOfficeContents(_pages[6].transform);
             RefreshCareerTabLabels();
 
-            _homeTitle = SceneBind.Get<Text>(root, "Pages/Home/Title");
-            _homeFace = SceneBind.Get<Image>(root, "Pages/Home/EventFace");
-            _homeBody = SceneBind.Get<Text>(root, "Pages/Home/Scroll/Content/Body");
-            _nextChip = SceneBind.Get<Text>(root, "Pages/Home/Next");
+            _homeTitle = null;
+            _homeFace = null;
+            _homeBody = null;
+            _nextChip = null;
             _replies = new Button[3];
-            for (var i = 0; i < _replies.Length; i++)
-            {
-                var choice = i;
-                _replies[i] = SceneBind.Wire(root.Find("Pages/Home/Reply" + i), () => Answer(choice));
-            }
-            var skipNode = root.Find("Pages/Home/SkipConversations");
-            _skipConversations = skipNode == null
-                ? BroadcastUi.Button(_pages[0].transform, "SkipConversations", "", SkipConversations, new Color(0.3f, 0.18f, 0.44f, 0.98f), Color.white, 13)
-                : SceneBind.Wire(skipNode, SkipConversations);
-            _skipConversations.gameObject.SetActive(false);
+            _skipConversations = null;
 
             _newsContent = root.Find("Pages/News/Scroll/Content") as RectTransform;
             EnsureMemoriesButton(root.Find("Pages/News"));
@@ -5972,16 +7571,33 @@ namespace CoachMaster.UI.Scenes
             _reservesTab = SceneBind.Wire(team.Find("ReservesTab"), () => SelectBenchGroup(true));
             if (_subsTab != null) BroadcastUi.Place(_subsTab.GetComponent<RectTransform>(), 0.03f, 0.235f, 0.222f, 0.295f);
             if (_reservesTab != null) BroadcastUi.Place(_reservesTab.GetComponent<RectTransform>(), 0.228f, 0.235f, 0.42f, 0.295f);
-            _paneTabs = new Button[4];
-            for (var i = 0; i < _paneTabs.Length; i++)
+            var bakedPanes = new[] { 1, 3 };
+            var bakedLabels = LocalizationManager.Current == GameLanguage.English
+                ? new[] { "ROLES", "TACTICS" } : new[] { "FUNÇÕES", "TÁTICAS" };
+            _paneTabs = new Button[bakedPanes.Length];
+            if (_pane == 0 || _pane == 2)
+                _pane = 1;
+            for (var i = 0; i < bakedPanes.Length; i++)
             {
-                var pane = i;
-                _paneTabs[i] = SceneBind.Wire(team.Find("Pane" + i), () => SelectPane(pane));
+                var pane = bakedPanes[i];
+                var node = team.Find("Pane" + pane) ?? team.Find("Pane" + i);
+                _paneTabs[i] = SceneBind.Wire(node, () => SelectPane(pane));
                 if (_paneTabs[i] != null)
                 {
+                    var caption = _paneTabs[i].GetComponentInChildren<Text>();
+                    if (caption != null)
+                        caption.text = bakedLabels[i];
                     var y1 = 0.93f - i * 0.075f;
                     BroadcastUi.Place(_paneTabs[i].GetComponent<RectTransform>(), 0.45f, y1 - 0.068f, 0.98f, y1);
                 }
+            }
+            for (var hidden = 0; hidden < 4; hidden++)
+            {
+                if (hidden == 1 || hidden == 3)
+                    continue;
+                var extra = team.Find("Pane" + hidden);
+                if (extra != null && ( _paneTabs[0] == null || extra != _paneTabs[0].transform) && (_paneTabs[1] == null || extra != _paneTabs[1].transform))
+                    extra.gameObject.SetActive(false);
             }
             if (_sheet != null) BroadcastUi.Place(_sheet, 0.45f, 0.02f, 0.98f, 0.6f);
             if (_tacticsBody != null) BroadcastUi.Place(_tacticsBody, 0.45f, 0.02f, 0.98f, 0.6f);
@@ -6127,8 +7743,8 @@ namespace CoachMaster.UI.Scenes
             }
 
             var officeLabels = english
-                ? new[] { "BUDGET", "MY CAREER", "CALENDAR", "STAFF" }
-                : new[] { "ORÇAMENTO", "A MINHA CARREIRA", "CALENDÁRIO", "EQUIPA TÉCNICA" };
+                ? new[] { "BUDGET", "MY CAREER", "BOARD", "CALENDAR", "STAFF" }
+                : new[] { "ORÇAMENTO", "A MINHA CARREIRA", "QUADRO", "CALENDÁRIO", "EQUIPA TÉCNICA" };
             for (var i = 0; _officeTabs != null && i < _officeTabs.Length && i < officeLabels.Length; i++)
             {
                 var label = _officeTabs[i] == null ? null : _officeTabs[i].GetComponentInChildren<Text>();
@@ -6288,7 +7904,6 @@ namespace CoachMaster.UI.Scenes
 
         void OpenStory(PaperStory story)
         {
-            var edition = Newsroom.Edition(_career);
             OpenModal(PaperName(story.Paper), PressDate(string.IsNullOrEmpty(story.Published) ? story.Deck : story.Published), false);
             Club home = null;
             Club away = null;
@@ -6353,17 +7968,8 @@ namespace CoachMaster.UI.Scenes
 
             var pressBody = PressBody(story);
             var body = BroadcastUi.Label(_modalBody, "Body", pressBody, 17, Color.white, TextAnchor.UpperLeft);
-            BroadcastUi.SetWrapped(body, pressBody, 220);
-            AddHead(LocalizationManager.Translate("Resto da edição"));
-            foreach (var other in edition)
-            {
-                if (other.Headline == story.Headline)
-                    continue;
-                var bar = BroadcastUi.Panel(_modalBody, "Bar", new Color(0.02f, 0.01f, 0.04f, 0.92f));
-                BroadcastUi.Preferred(bar, 42);
-                var line = BroadcastUi.Label(bar.transform, "Hidden", PressHeadline(other), 14, new Color(0.45f, 0.4f, 0.5f), TextAnchor.MiddleLeft);
-                BroadcastUi.Place(line.rectTransform, 0.04f, 0.1f, 0.96f, 0.9f);
-            }
+            BroadcastUi.SetWrapped(body, pressBody, 160);
+            SizeModal(0.24f, 0.2f, 0.76f, 0.8f);
         }
 
         void OpenFixture(Fixture fixture)
@@ -6373,24 +7979,28 @@ namespace CoachMaster.UI.Scenes
             var venue = LocalizationManager.Translate(fixture.IsHome(_career.Coach.ClubId) ? "Casa" : "Fora");
             var scouted = _career.Scouted.Contains(opp.Id);
             OpenModal(opp.Name, venue + "  ·  " + LocalizationManager.FormatDate(fixture.Date, "dd MMMM") + "  ·  " + formation, scouted == false);
+            SizeModal(0.22f, 0.28f, 0.78f, 0.74f);
             var crest = CrestImage(_modal.transform.Find("Card"), opp, 56f);
-            crest.rectTransform.anchorMin = crest.rectTransform.anchorMax = new Vector2(0.07f, 0.9f);
+            crest.rectTransform.anchorMin = crest.rectTransform.anchorMax = new Vector2(0.08f, 0.9f);
             var clubCardButton = BroadcastUi.Button(_modalBody, "ClubProfile", LocalizationManager.Current == GameLanguage.English ? "OPEN CLUB PROFILE" : "ABRIR PERFIL DO CLUBE",
                 () => OpenClubDossier(opp), new Color(0.16f, 0.08f, 0.29f, 1f), Color.white, 13);
-            BroadcastUi.Preferred(clubCardButton.GetComponent<RectTransform>(), 38);
+            BroadcastUi.Preferred(clubCardButton.GetComponent<RectTransform>(), 36);
             AddLine(AssistantNote(opp));
-            AddHead(LocalizationManager.Translate("PLANTEL") + "  ·  " + formation);
-            var pitch = BroadcastUi.Panel(_modalBody, "Shape", new Color(0.1f, 0.04f, 0.2f, 0.72f));
-            BroadcastUi.Preferred(pitch, 520);
-            var verticalPitch = BroadcastUi.Zone(pitch.transform, "VerticalHalfPitch", 0.39f, 0.01f, 0.61f, 0.99f);
-            BroadcastUi.DrawVerticalHalfPitch(verticalPitch, new Color(0.12f, 0.46f, 0.22f));
-            PlaceVerticalShape(verticalPitch, opp, false, 64f, 60f);
-
             if (scouted)
+            {
+                AddLine(LocalizationManager.Current == GameLanguage.English
+                    ? "The scout report is ready. Open the club profile for the full read."
+                    : "O relatório do olheiro já está pronto. A ficha do clube tem a leitura completa.");
                 return;
+            }
+            var days = FreeAnalysisDays();
             _modalAction.onClick.RemoveAllListeners();
-            _modalActionLabel.text = LocalizationManager.Translate("ANALISAR O PLANTEL  ·  3 DIAS");
+            _modalActionLabel.text = days > 0
+                ? LocalizationManager.Translate("ANALISAR O PLANTEL  ·  " + days + " DIAS")
+                : LocalizationManager.Translate("SEM TEMPO ANTES DO PRÓXIMO JOGO");
+            _modalAction.interactable = days > 0;
             _modalAction.onClick.AddListener(() => StartScout(opp, fixture));
+            BroadcastUi.Place(_modalAction.GetComponent<RectTransform>(), 0.14f, 0.06f, 0.86f, 0.2f);
         }
 
         void OpenClubDossier(Club club)
@@ -6412,6 +8022,7 @@ namespace CoachMaster.UI.Scenes
         void OpenClubDossier(Club club, int selectedTab, string youthGroup, Action returnTo)
         {
             if (club == null || _career == null) return;
+            CompleteScouts();
             var english = LocalizationManager.Current == GameLanguage.English;
             var city = LocalizationManager.Translate(club.City);
             var league = "";
@@ -6419,6 +8030,10 @@ namespace CoachMaster.UI.Scenes
                 if (item.Id == club.LeagueId) { league = LocalizationManager.Translate(item.Name); break; }
             var lead = (string.IsNullOrEmpty(league) ? city : league + "  ·  " + city) + "  ·  " + (english ? "Founded " : "Fundado em ") + club.FoundedYear;
             OpenModal(club.Name, lead, false);
+            _dossierClub = club;
+            _dossierTab = selectedTab;
+            _dossierYouth = youthGroup;
+            _dossierBack = returnTo;
             _dossierReturnAction = returnTo;
             var crest = CrestImage(_modal.transform.Find("Card"), club, 48f);
             crest.rectTransform.anchorMin = crest.rectTransform.anchorMax = new Vector2(0.05f, 0.925f);
@@ -6452,6 +8067,7 @@ namespace CoachMaster.UI.Scenes
                 case 4: BuildClubTransfers(club, english); break;
                 case 5: BuildClubHistory(club, city, league, english); break;
             }
+            FitClubSheet();
         }
 
         void BuildClubOverview(Club club, string city, string league, bool english)
@@ -6459,11 +8075,10 @@ namespace CoachMaster.UI.Scenes
             var roster = Squad(club);
             roster.Sort((a, b) => PlayerAttributes.Overall(b).CompareTo(PlayerAttributes.Overall(a)));
             var overview = BroadcastUi.Panel(_modalBody, "ClubOverviewGrid", new Color(0.035f, 0.075f, 0.1f, 0.96f), false);
-            BroadcastUi.Preferred(overview, 460f);
+            BroadcastUi.Preferred(overview, 320f);
             var summary = (english ? "Reputation  " : "Reputação  ") + ReputationStars(club.Reputation)
                 + "   ·   " + (english ? "First-team players  " : "Jogadores seniores  ") + roster.Count
-                + (club.Finance == null ? "" : "\n" + (english ? "Transfer budget  " : "Orçamento de transferências  ") + Euro(club.Finance.TransferBudget)
-                    + "   ·   " + (english ? "Club balance  " : "Saldo do clube  ") + Euro(club.Finance.Balance));
+                + FinanceLine(club, english);
             OverviewBlock(overview.transform, "Summary", english ? "CLUB OVERVIEW" : "VISÃO GERAL DO CLUBE", summary, 0.025f, 0.75f, 0.64f, 0.97f);
 
             SeasonSchedule.RebuildTable(_career);
@@ -6543,16 +8158,63 @@ namespace CoachMaster.UI.Scenes
         {
             var roster = Squad(club);
             roster.Sort((a, b) => PlayerAttributes.Overall(b).CompareTo(PlayerAttributes.Overall(a)));
-            AddHead((english ? "FIRST TEAM  ·  " : "PLANTEL PRINCIPAL  ·  ") + roster.Count);
-            var eleven = new List<Player>();
-            var bench = new List<Player>();
-            StartingShape.Resolve(roster, club, eleven, bench);
-            var formation = club.Tactics == null ? "4-3-3" : club.Tactics.Formation;
-            AddDossierLineup(club, eleven, formation, english, "ClubSquadPitch");
-            var substitutes = bench.GetRange(0, Mathf.Min(7, bench.Count));
-            AddDossierPlayerCards("ClubSubstitutes", english ? "SUBSTITUTES" : "SUPLENTES", substitutes, club, english);
-            if (bench.Count > substitutes.Count)
-                AddDossierPlayerCards("ClubReserves", english ? "RESERVES" : "RESERVAS", bench.GetRange(substitutes.Count, bench.Count - substitutes.Count), club, english);
+            var list = BroadcastUi.Panel(_modalBody, "ClubSquadList", new Color(0.03f, 0.05f, 0.08f, 0.98f), true);
+            BroadcastUi.Preferred(list, 420f);
+            var header = BroadcastUi.Label(list.transform, "Head", english ? "PLAYER" : "JOGADOR", 11, UiTheme.Muted, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(header.rectTransform, 0.065f, 0.94f, 0.38f, 0.995f);
+            var headPos = BroadcastUi.Label(list.transform, "HeadPos", "POS", 11, UiTheme.Muted, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(headPos.rectTransform, 0.38f, 0.94f, 0.46f, 0.995f);
+            var headAge = BroadcastUi.Label(list.transform, "HeadAge", english ? "AGE" : "IDADE", 11, UiTheme.Muted, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(headAge.rectTransform, 0.46f, 0.94f, 0.53f, 0.995f);
+            var headAbility = BroadcastUi.Label(list.transform, "HeadAbility", english ? "ABL" : "HAB", 11, UiTheme.Muted, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(headAbility.rectTransform, 0.53f, 0.94f, 0.61f, 0.995f);
+            var headPotential = BroadcastUi.Label(list.transform, "HeadPotential", "POT", 11, UiTheme.Muted, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(headPotential.rectTransform, 0.61f, 0.94f, 0.69f, 0.995f);
+            var headWage = BroadcastUi.Label(list.transform, "HeadWage", english ? "WAGE" : "SALÁRIO", 11, UiTheme.Muted, TextAnchor.MiddleRight, FontStyle.Bold);
+            BroadcastUi.Place(headWage.rectTransform, 0.69f, 0.94f, 0.84f, 0.995f);
+            var headContract = BroadcastUi.Label(list.transform, "HeadContract", english ? "EXPIRES" : "CONTRATO", 11, UiTheme.Muted, TextAnchor.MiddleRight, FontStyle.Bold);
+            BroadcastUi.Place(headContract.rectTransform, 0.84f, 0.94f, 0.98f, 0.995f);
+            var count = Mathf.Max(1, roster.Count);
+            var top = 0.93f;
+            var step = top / count;
+            for (var i = 0; i < roster.Count; i++)
+            {
+                var player = roster[i];
+                var y1 = top - i * step;
+                var y0 = y1 - step + 0.003f;
+                var tone = i % 2 == 0 ? new Color(1f, 1f, 1f, 0.04f) : new Color(1f, 1f, 1f, 0.015f);
+                var row = BroadcastUi.Panel(list.transform, "Squad" + i, tone, true);
+                BroadcastUi.Place(row.rectTransform, 0.008f, y0, 0.992f, y1);
+                var captured = player;
+                BroadcastUi.Hit(row, () => OpenPlayerReturning(captured, ReopenClubSheet));
+                PassClicksTo(row.transform);
+                var faceGo = new GameObject("Face", typeof(RectTransform), typeof(Image));
+                faceGo.transform.SetParent(row.transform, false);
+                BroadcastUi.Place(faceGo.GetComponent<RectTransform>(), 0.012f, 0.1f, 0.055f, 0.9f);
+                var face = faceGo.GetComponent<Image>();
+                face.sprite = FaceBook.For(player);
+                face.preserveAspect = true;
+                face.raycastTarget = false;
+                var name = BroadcastUi.Label(row.transform, "Name", player.FullName, 13, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+                name.resizeTextForBestFit = true;
+                name.resizeTextMinSize = 9;
+                name.resizeTextMaxSize = 13;
+                BroadcastUi.Place(name.rectTransform, 0.065f, 0.08f, 0.38f, 0.92f);
+                var pos = BroadcastUi.Label(row.transform, "Pos", ProfilePosition(player.Position, english), 12, UiTheme.Accent, TextAnchor.MiddleCenter, FontStyle.Bold);
+                BroadcastUi.Place(pos.rectTransform, 0.38f, 0.08f, 0.46f, 0.92f);
+                var age = BroadcastUi.Label(row.transform, "Age", player.Age.ToString(), 12, Color.white, TextAnchor.MiddleCenter);
+                BroadcastUi.Place(age.rectTransform, 0.46f, 0.08f, 0.53f, 0.92f);
+                var ability = BroadcastUi.Label(row.transform, "Ability", PlayerAttributes.Overall(player).ToString(), 13, UiTheme.Score, TextAnchor.MiddleCenter, FontStyle.Bold);
+                BroadcastUi.Place(ability.rectTransform, 0.53f, 0.08f, 0.61f, 0.92f);
+                var potential = BroadcastUi.Label(row.transform, "Potential", player.Potential.ToString(), 12, Color.white, TextAnchor.MiddleCenter);
+                BroadcastUi.Place(potential.rectTransform, 0.61f, 0.08f, 0.69f, 0.92f);
+                var wage = BroadcastUi.Label(row.transform, "Wage", Euro(player.WeeklyWage), 11, Color.white, TextAnchor.MiddleRight);
+                BroadcastUi.Place(wage.rectTransform, 0.69f, 0.08f, 0.84f, 0.92f);
+                var end = player.ContractEndTicks > 0 && player.ContractEndTicks <= DateTime.MaxValue.Ticks
+                    ? new DateTime(player.ContractEndTicks).ToString("MM/yyyy") : "—";
+                var contract = BroadcastUi.Label(row.transform, "Contract", end, 11, UiTheme.Muted, TextAnchor.MiddleRight);
+                BroadcastUi.Place(contract.rectTransform, 0.84f, 0.08f, 0.98f, 0.92f);
+            }
         }
 
         void BuildYouthClubSquad(Club club, string ageGroup, bool english)
@@ -6573,19 +8235,19 @@ namespace CoachMaster.UI.Scenes
             var substitutes = bench.GetRange(0, Mathf.Min(7, bench.Count));
             AddDossierPlayerCards("YouthClubSubstitutes", english ? "SUBSTITUTES" : "SUPLENTES", substitutes, club, english);
             if (bench.Count > substitutes.Count)
-                AddDossierPlayerCards("YouthClubReserves", english ? "RESERVES" : "RESERVAS", bench.GetRange(substitutes.Count, bench.Count - substitutes.Count), club, english);
+                AddLine((english ? "Reserves  ·  " : "Reservas  ·  ") + (bench.Count - substitutes.Count));
         }
 
         void AddDossierLineup(Club club, List<Player> eleven, string formation, bool english, string objectName)
         {
             var field = BroadcastUi.Panel(_modalBody, objectName, new Color(0.06f, 0.25f, 0.14f, 1f));
-            BroadcastUi.Preferred(field, 450f);
+            BroadcastUi.Preferred(field, 240f);
             var pitch = BroadcastUi.Zone(field.transform, "VerticalHalfPitch", 0.18f, 0.02f, 0.82f, 0.98f);
             BroadcastUi.DrawVerticalHalfPitch(pitch, new Color(0.12f, 0.46f, 0.22f));
             Canvas.ForceUpdateCanvases();
             var size = pitch.rect.size;
-            var cardWidth = Mathf.Clamp(size.x * 0.16f, 82f, 100f);
-            var cardHeight = Mathf.Clamp(size.y * 0.17f, 72f, 84f);
+            var cardWidth = Mathf.Clamp(size.x * 0.14f, 64f, 96f);
+            var cardHeight = Mathf.Clamp(size.y * 0.14f, 56f, 84f);
             var padX = cardWidth * 0.5f / Mathf.Max(1f, size.x) + 0.012f;
             var padY = cardHeight * 0.5f / Mathf.Max(1f, size.y) + 0.018f;
             var positions = StartingShape.SlotPositions(formation);
@@ -6604,7 +8266,7 @@ namespace CoachMaster.UI.Scenes
             if (players == null || players.Count == 0) return;
             AddHead(title + "  ·  " + players.Count);
             var row = BroadcastUi.Panel(_modalBody, objectName, new Color(0.035f, 0.075f, 0.1f, 0.96f));
-            BroadcastUi.Preferred(row, 150f);
+            BroadcastUi.Preferred(row, 88f);
             for (var i = 0; i < players.Count; i++)
             {
                 var x0 = i / (float)players.Count;
@@ -6619,7 +8281,7 @@ namespace CoachMaster.UI.Scenes
             bool english, float x0 = -1f, float x1 = -1f, float y0 = -1f, float y1 = -1f, PlayerPosition? displayPosition = null)
         {
             var card = PersonCard(host, player, club, true, -1, false, width, height,
-                displayPosition ?? player.Position, clickOverride: () => OpenPlayer(player));
+                displayPosition ?? player.Position, clickOverride: () => OpenPlayerReturning(player, ReopenClubSheet));
             if (x0 >= 0f)
             {
                 card.anchorMin = new Vector2(x0, y0);
@@ -6638,19 +8300,26 @@ namespace CoachMaster.UI.Scenes
 
         void BuildClubMatches(Club club, bool english)
         {
-            AddClubRecentMatches(club, english, 12);
+            AddClubRecentMatches(club, english, 6);
             var upcoming = new List<Fixture>();
             foreach (var fixture in _career.Fixtures)
                 if (!fixture.Played && fixture.Involves(club.Id) && fixture.LeagueId == club.LeagueId && !fixture.Walkover)
                     upcoming.Add(fixture);
             upcoming.Sort((a, b) => a.Date.CompareTo(b.Date));
             AddHead(english ? "UPCOMING FIXTURES" : "PRÓXIMOS JOGOS");
-            for (var i = 0; i < Mathf.Min(10, upcoming.Count); i++)
+            for (var i = 0; i < Mathf.Min(4, upcoming.Count); i++)
             {
                 var fixture = upcoming[i];
-                var opponentId = fixture.OpponentId(club.Id);
-                var opponent = _career.World.Clubs.TryGetValue(opponentId, out var other) ? other.ShortName : opponentId;
-                AddLine(LocalizationManager.FormatDate(fixture.Date, "dd MMM") + "  ·  " + (fixture.IsHome(club.Id) ? (english ? "Home" : "Casa") : (english ? "Away" : "Fora")) + "  ·  " + opponent);
+                _career.World.Clubs.TryGetValue(fixture.HomeClubId, out var home);
+                _career.World.Clubs.TryGetValue(fixture.AwayClubId, out var away);
+                var row = BroadcastUi.Panel(_modalBody, "Next" + i, new Color(0.08f, 0.05f, 0.16f, 0.94f), true);
+                BroadcastUi.Preferred(row, 40);
+                AddInboxCrest(row.transform, home, 0.03f);
+                AddInboxCrest(row.transform, away, 0.82f);
+                var caption = LocalizationManager.FormatDate(fixture.Date, "dd MMM") + "   " + (home == null ? "" : home.ShortName) + "  –  " + (away == null ? "" : away.ShortName)
+                    + "   ·   " + (fixture.IsHome(club.Id) ? (english ? "Home" : "Casa") : (english ? "Away" : "Fora"));
+                var label = BroadcastUi.Label(row.transform, "Text", caption, 13, Color.white, TextAnchor.MiddleLeft);
+                BroadcastUi.Place(label.rectTransform, 0.16f, 0.08f, 0.8f, 0.92f);
             }
             if (upcoming.Count == 0)
                 AddLine(english ? "No upcoming league matches." : "Sem próximos jogos da liga.");
@@ -6663,31 +8332,36 @@ namespace CoachMaster.UI.Scenes
                 var nextFixture = _career.NextUserFixture();
                 var freeDays = nextFixture == null ? 7 : (nextFixture.Date.Date - _career.Calendar.CurrentDate.Date).Days;
                 var analysisDays = Mathf.Max(0, Mathf.Min(3, freeDays - 1));
+                var pending = ClubScoutDue(club.Id, out var dueTicks);
+                var daysLeft = pending ? Mathf.Max(0, (new DateTime(dueTicks).Date - _career.Calendar.CurrentDate.Date).Days) : analysisDays;
                 var locked = BroadcastUi.Panel(_modalBody, "ClubAnalysisLocked", new Color(0.045f, 0.07f, 0.095f, 0.98f));
-                BroadcastUi.Preferred(locked, 430f);
+                BroadcastUi.Preferred(locked, 280f);
                 var heading = BroadcastUi.Label(locked.transform, "Heading", english ? "CLUB PERFORMANCE" : "DESEMPENHO DO CLUBE", 22, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
                 BroadcastUi.Place(heading.rectTransform, 0.08f, 0.68f, 0.92f, 0.9f);
                 var iconObject = new GameObject("LockedChart", typeof(RectTransform), typeof(CanvasRenderer), typeof(FinanceDonutGraphic));
                 iconObject.transform.SetParent(locked.transform, false);
                 var iconRect = iconObject.GetComponent<RectTransform>();
-                iconRect.anchorMin = iconRect.anchorMax = new Vector2(0.5f, 0.52f);
-                iconRect.sizeDelta = new Vector2(160f, 160f);
+                iconRect.anchorMin = iconRect.anchorMax = new Vector2(0.5f, 0.68f);
+                iconRect.sizeDelta = new Vector2(108f, 108f);
                 iconObject.GetComponent<FinanceDonutGraphic>().SetValues(new[] { 1f }, new[] { new Color(0.2f, 0.85f, 0.42f) }, new Color(1f, 1f, 1f, 0.1f));
                 var message = BroadcastUi.Label(locked.transform, "Message", english
                     ? "A scout report unlocks the club's results, tactical trends and player fit."
                     : "O relatório do olheiro desbloqueia resultados, tendências táticas e afinidade dos jogadores.",
                     15, UiTheme.Muted, TextAnchor.MiddleCenter);
-                BroadcastUi.Place(message.rectTransform, 0.1f, 0.12f, 0.9f, 0.3f);
+                message.horizontalOverflow = HorizontalWrapMode.Wrap;
+                BroadcastUi.Place(message.rectTransform, 0.1f, 0.3f, 0.9f, 0.44f);
+                var scoutLabel = pending
+                    ? english ? "ANALYSIS IN PROGRESS · " + daysLeft + " DAYS" : "EM ANÁLISE · FALTAM " + daysLeft + " DIAS"
+                    : analysisDays > 0
+                    ? english ? "ANALYZE CLUB · " + analysisDays + " DAYS" : "ANALISAR CLUBE · " + analysisDays + " DIAS"
+                    : english ? "NO TIME BEFORE THE NEXT MATCH" : "SEM TEMPO ANTES DO PRÓXIMO JOGO";
+                var scoutButton = BroadcastUi.Button(locked.transform, "ScoutClub", scoutLabel, () => AnalyzeClub(club),
+                    pending || analysisDays <= 0 ? new Color(1f, 1f, 1f, 0.08f) : UiTheme.Accent,
+                    pending || analysisDays <= 0 ? Color.white : UiTheme.ButtonText, 15);
+                scoutButton.interactable = !pending && analysisDays > 0;
+                BroadcastUi.Place(scoutButton.GetComponent<RectTransform>(), 0.22f, 0.06f, 0.78f, 0.22f);
                 if (_modalAction != null)
-                {
-                    _modalAction.gameObject.SetActive(true);
-                    _modalActionLabel.text = analysisDays > 0
-                        ? english ? "ANALYZE CLUB · " + analysisDays + " DAYS" : "ANALISAR CLUBE · " + analysisDays + " DIAS"
-                        : english ? "NO TIME BEFORE THE NEXT MATCH" : "SEM TEMPO ANTES DO PRÓXIMO JOGO";
-                    _modalAction.onClick.RemoveAllListeners();
-                    _modalAction.onClick.AddListener(() => AnalyzeClub(club));
-                    _modalAction.interactable = analysisDays > 0;
-                }
+                    _modalAction.gameObject.SetActive(false);
                 return;
             }
             if (_modalAction != null) _modalAction.gameObject.SetActive(false);
@@ -6726,7 +8400,7 @@ namespace CoachMaster.UI.Scenes
             leaguePosition = leagueRows.FindIndex(row => row.ClubId == club.Id) + 1;
 
             var panel = BroadcastUi.Panel(_modalBody, "ClubPerformanceDashboard", new Color(0.045f, 0.07f, 0.095f, 0.98f));
-            BroadcastUi.Preferred(panel, 500f);
+            BroadcastUi.Preferred(panel, 320f);
             var title = BroadcastUi.Label(panel.transform, "Title", english ? "SEASON PERFORMANCE" : "DESEMPENHO DA ÉPOCA", 18, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
             BroadcastUi.Place(title.rectTransform, 0.02f, 0.91f, 0.98f, 0.99f);
             var resultCard = BroadcastUi.Panel(panel.transform, "ResultsChart", new Color(0.07f, 0.12f, 0.2f, 0.98f));
@@ -6854,7 +8528,7 @@ namespace CoachMaster.UI.Scenes
                 AddLine(date + "  ·  " + player.FullName + "\n" + from.ShortName + " → " + to.ShortName
                     + "  ·  " + Euro(deal.Fee) + "  ·  " + Euro(deal.WeeklyWage) + (english ? "/wk" : "/sem")
                     + "  ·  " + deal.ContractYears + (english ? " years" : " anos") + "  ·  " + LocalizationManager.Translate(deal.Type));
-                if (++shown >= 24) break;
+                if (++shown >= 8) break;
             }
             if (shown == 0)
                 AddLine(english ? "No recorded transfers for this club yet." : "Ainda não há transferências registadas para este clube.");
@@ -6863,7 +8537,7 @@ namespace CoachMaster.UI.Scenes
         void BuildClubHistory(Club club, string city, string league, bool english)
         {
             var dashboard = BroadcastUi.Panel(_modalBody, "ClubHistoryDashboard", new Color(0.045f, 0.07f, 0.095f, 0.98f));
-            BroadcastUi.Preferred(dashboard, 500f);
+            BroadcastUi.Preferred(dashboard, 320f);
             var title = BroadcastUi.Label(dashboard.transform, "Title", english ? "CLUB HISTORY" : "HISTÓRIA DO CLUBE", 18, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
             BroadcastUi.Place(title.rectTransform, 0.02f, 0.91f, 0.98f, 0.99f);
             var history = string.IsNullOrEmpty(club.History)
@@ -7100,30 +8774,19 @@ namespace CoachMaster.UI.Scenes
 
         void StartScout(Club opponent, Fixture fixture)
         {
-            var next = _career.NextUserFixture();
-            var free = next == null ? 7 : (next.Date.Date - _career.Calendar.CurrentDate.Date).Days;
-            if (free <= 1)
+            var days = FreeAnalysisDays();
+            if (days <= 0)
             {
                 AddLine("Não há dias livres antes do jogo. A análise fica por fazer.");
                 _modalAction.gameObject.SetActive(false);
                 return;
             }
-
-            var days = Mathf.Min(3, free - 1);
-            AdvanceCareerDays(days);
-            _career.Scouted.Add(opponent.Id);
-            _career.Board.Insert(0, new CoachNote
+            if (!QueueClubScout(opponent, days))
             {
-                Day = _career.Calendar.WeekdayName,
-                Hour = _career.Calendar.ClockText,
-                Text = LocalizationManager.Current == GameLanguage.English
-                    ? "Scouting report on " + opponent.ShortName + " completed in " + days + " days. The report is in the calendar."
-                    : "Análise ao " + opponent.ShortName + " fechada. Levou " + days + " dias. O relatório já está no calendário."
-            });
-            if (SettingsPrefs.AutosaveEnabled)
-                CareerStore.AutoSaveIfDue(_career, SettingsPrefs.AutosaveDays, SettingsPrefs.AutosaveSlots);
+                AddLine("A análise a este clube já está a decorrer.");
+                return;
+            }
             CareerStore.Save(_career);
-            FillBoard();
             Refresh();
             OpenFixture(fixture);
         }
@@ -7131,33 +8794,1288 @@ namespace CoachMaster.UI.Scenes
         void AnalyzeClub(Club club)
         {
             if (club == null || _career == null) return;
-            var next = _career.NextUserFixture();
-            var free = next == null ? 7 : (next.Date.Date - _career.Calendar.CurrentDate.Date).Days;
-            if (free <= 1)
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var days = FreeAnalysisDays();
+            if (days <= 0)
             {
                 if (_modalActionLabel != null)
-                    _modalActionLabel.text = LocalizationManager.Current == GameLanguage.English
-                        ? "NO TIME BEFORE THE NEXT MATCH" : "SEM TEMPO ANTES DO PRÓXIMO JOGO";
+                    _modalActionLabel.text = english ? "NO TIME BEFORE THE NEXT MATCH" : "SEM TEMPO ANTES DO PRÓXIMO JOGO";
                 if (_modalAction != null) _modalAction.interactable = false;
                 return;
             }
+            if (!QueueClubScout(club, days))
+            {
+                OpenClubDossier(club, 3);
+                return;
+            }
+            CareerStore.Save(_career);
+            Refresh();
+            OpenClubDossier(club, 3);
+        }
 
-            var days = Mathf.Min(3, free - 1);
-            AdvanceCareerDays(days);
-            _career.Scouted.Add(club.Id);
-            var english = LocalizationManager.Current == GameLanguage.English;
+        int FreeAnalysisDays()
+        {
+            var next = _career.NextUserFixture();
+            var free = next == null ? 7 : (next.Date.Date - _career.Calendar.CurrentDate.Date).Days;
+            return Mathf.Max(0, Mathf.Min(3, free - 1));
+        }
+
+        bool QueueClubScout(Club club, int days)
+        {
+            if (club == null || days <= 0 || ClubScoutDue(club.Id, out _))
+                return false;
+            var due = _career.Calendar.CurrentDate.Date.AddDays(days);
+            _career.Notebook.Add("job|scout|" + club.Id + "|" + due.Ticks);
+            PostDesk("✉ O olheiro começou a análise ao " + club.ShortName + ". O relatório fica pronto a " + LocalizationManager.FormatDate(due, "d MMM") + ".");
+            return true;
+        }
+
+        bool ClubScoutDue(string clubId, out long due)
+        {
+            due = 0;
+            if (string.IsNullOrEmpty(clubId))
+                return false;
+            var prefix = "job|scout|" + clubId + "|";
+            foreach (var line in _career.Notebook)
+            {
+                if (line != null && line.StartsWith(prefix) && long.TryParse(line.Substring(prefix.Length), out due))
+                    return true;
+            }
+            return false;
+        }
+
+        bool DeskDue(string kind, out long due)
+        {
+            due = 0;
+            var found = false;
+            var prefix = "job|" + kind + "|";
+            foreach (var line in _career.Notebook)
+            {
+                if (line == null || !line.StartsWith(prefix))
+                    continue;
+                var tail = line.Substring(prefix.Length);
+                var bits = tail.Split('|');
+                if (long.TryParse(bits[bits.Length - 1], out var ticks) && ticks > due)
+                {
+                    due = ticks;
+                    found = true;
+                }
+            }
+            return found;
+        }
+
+        bool ResolveDeskJobs()
+        {
+            if (_career == null)
+                return false;
+            var now = _career.Calendar.CurrentDate.Date;
+            var changed = false;
+            for (var i = _career.Notebook.Count - 1; i >= 0; i--)
+            {
+                var line = _career.Notebook[i];
+                if (string.IsNullOrEmpty(line) || !line.StartsWith("job|"))
+                    continue;
+                var bits = line.Split('|');
+                if (bits.Length >= 4 && bits[1] == "scout" && long.TryParse(bits[3], out var scoutDue) && new DateTime(scoutDue).Date <= now)
+                {
+                    _career.Notebook.RemoveAt(i);
+                    _career.Scouted.Add(bits[2]);
+                    var name = _career.World.Clubs.TryGetValue(bits[2], out var club) ? club.ShortName : bits[2];
+                    PostDesk("✉ Análise ao " + name + " concluída. O relatório já pode ser aberto na ficha do clube.");
+                    changed = true;
+                }
+                else if (bits.Length >= 3 && bits[1] == "budget" && long.TryParse(bits[2], out var budgetDue) && new DateTime(budgetDue).Date <= now)
+                {
+                    _career.Notebook.RemoveAt(i);
+                    ResolveBudgetMeeting();
+                    changed = true;
+                }
+            }
+            return changed;
+        }
+
+        void ResolveBudgetMeeting()
+        {
+            var finance = _career.Club.Finance;
+            var approval = _career.SupporterApproval;
+            var tension = _career.Club.DressingRoomTension;
+            var approve = finance != null && approval >= 48 && tension < 70;
+            var grant = 0;
+            if (approve)
+            {
+                var share = approval >= 70 && tension < 45 ? 0.12f : 0.06f;
+                grant = Mathf.Clamp(Mathf.RoundToInt(finance.TransferBudget * share), 150000, 4000000);
+                finance.TransferBudget += grant;
+                ClubFinanceLedger.Record(_career.Club, _career.Calendar.CurrentDate, grant, "board", "Verba extra da direção");
+                PostDesk("✉ A direção aprovou o pedido. Entram " + Euro(grant) + " no orçamento de transferências.");
+            }
+            else
+                PostDesk("✉ A direção recusou o pedido de verba. Os resultados e o balneário ainda não justificam mais dinheiro.");
+            _career.Notebook.Add("job|budget-wait|" + _career.Calendar.CurrentDate.Date.AddDays(10).Ticks);
+        }
+
+        void AskBoardForFunds()
+        {
+            if (DeskDue("budget", out _))
+                return;
+            if (DeskDue("budget-wait", out var wait) && new DateTime(wait).Date > _career.Calendar.CurrentDate.Date)
+            {
+                PostDesk("✉ A direção já respondeu a um pedido recente. O próximo pode ser feito a " + LocalizationManager.FormatDate(new DateTime(wait), "d MMM") + ".");
+                CareerStore.Save(_career);
+                Refresh();
+                ShowFinanceDetails(2);
+                return;
+            }
+            var meeting = _career.Calendar.CurrentDate.Date.AddDays(2);
+            _career.Notebook.Add("job|budget|" + meeting.Ticks);
+            PostDesk("✉ Pedido de verba enviado. A direção marca reunião para " + LocalizationManager.FormatDate(meeting, "d MMM") + ".");
+            CareerStore.Save(_career);
+            Refresh();
+            ShowFinanceDetails(2);
+        }
+
+        void PostDesk(string text)
+        {
             _career.Board.Insert(0, new CoachNote
             {
                 Day = _career.Calendar.WeekdayName,
                 Hour = _career.Calendar.ClockText,
                 When = _career.Calendar.CurrentDate,
-                Text = english
-                    ? "Club analysis completed for " + club.ShortName + ". Performance graphs and tactical trends are now available."
-                    : "Análise do " + club.ShortName + " concluída. Os gráficos de desempenho e as tendências táticas estão disponíveis."
+                Text = text
             });
+            while (_career.Board.Count > 40)
+                _career.Board.RemoveAt(_career.Board.Count - 1);
+        }
+
+        void MaybeTrainingReport()
+        {
+            var now = _career.Calendar.CurrentDate;
+            long last = 0;
+            foreach (var line in _career.Notebook)
+            {
+                if (line != null && line.StartsWith("job|train-report|") && long.TryParse(line.Substring("job|train-report|".Length), out var ticks))
+                    last = Math.Max(last, ticks);
+            }
+            if (last > 0 && now.Ticks - last < TimeSpan.FromDays(7).Ticks)
+                return;
+            for (var i = _career.Notebook.Count - 1; i >= 0; i--)
+                if (_career.Notebook[i] != null && _career.Notebook[i].StartsWith("job|train-report|"))
+                    _career.Notebook.RemoveAt(i);
+            _career.Notebook.Add("job|train-report|" + now.Ticks);
+            var eleven = new List<Player>();
+            var bench = new List<Player>();
+            StartingShape.Resolve(Squad(_career.Club), _career.Club, eleven, bench);
+            var coach = StaffReport.Find(_career.Club, StaffRole.FitnessCoach);
+            var coachName = coach == null ? "Preparador físico" : coach.FullName;
+            var text = "✉ " + coachName + "  ·  notas de treino";
+            var injured = 0;
+            for (var i = 0; i < eleven.Count && i < 11; i++)
+            {
+                var player = eleven[i];
+                var mark = WeekMark(player);
+                var hurt = player.Injury != null && player.Injury.IsInjured;
+                if (hurt)
+                    injured++;
+                text += "\n" + BroadcastUi.ShortName(player.FullName) + "   " + mark.ToString("0.0");
+                if (hurt)
+                    text += "   ·   lesão";
+            }
+            text += injured == 0
+                ? "\nObservação: a semana fechou sem lesões novas no onze."
+                : "\nObservação: " + injured + (injured == 1 ? " jogador do onze ficou de fora por lesão." : " jogadores do onze ficaram de fora por lesão.");
+            if (eleven.Count > 0)
+            {
+                var quiet = eleven[0];
+                for (var i = 1; i < eleven.Count && i < 11; i++)
+                    if (eleven[i].Morale < quiet.Morale)
+                        quiet = eleven[i];
+                if (quiet.Morale < 40)
+                    text += "\n" + BroadcastUi.ShortName(quiet.FullName) + " treinou fechado. Vale a pena falar com ele.";
+            }
+            PostDesk(text);
+        }
+
+        int WeekMark(Player player)
+        {
+            if (player == null)
+                return 0;
+            var raw = player.TrainingRating <= 0 ? 6f : player.TrainingRating / 10f;
+            if (player.Fatigue > 75) raw -= 2f;
+            else if (player.Fatigue > 55) raw -= 1f;
+            if (player.Morale >= 70) raw += 0.5f;
+            if (player.Morale < 40) raw -= 1f;
+            if (player.TrainingStreak >= 3) raw += 0.5f;
+            if (player.Injury != null && player.Injury.IsInjured) raw = Mathf.Min(raw, 3f);
+            if (player.TrainingFocus == "rest") raw = Mathf.Min(raw, 6f);
+            return Mathf.Clamp(Mathf.RoundToInt(raw), 0, 10);
+        }
+
+        static string[] FocusKeys(PlayerPosition position)
+        {
+            switch (position)
+            {
+                case PlayerPosition.Goalkeeper:
+                    return new[] { "gk-handling", "gk-quickness", "gk-agility", "gk-reflex", "rest" };
+                case PlayerPosition.CentreBack:
+                case PlayerPosition.RightBack:
+                case PlayerPosition.LeftBack:
+                    return new[] { "def-marking", "def-aerial", "def-build", "def-pace", "rest" };
+                case PlayerPosition.Striker:
+                case PlayerPosition.RightWinger:
+                case PlayerPosition.LeftWinger:
+                    return new[] { "att-finish", "att-movement", "att-pace", "att-link", "rest" };
+                default:
+                    return new[] { "mid-pass", "mid-press", "mid-carry", "mid-arrive", "rest" };
+            }
+        }
+
+        static string FocusName(string key, bool english)
+        {
+            switch (key)
+            {
+                case "gk-handling": return english ? "GK handling" : "Manejo de GR";
+                case "gk-quickness": return english ? "Quickness" : "Rapidez";
+                case "gk-agility": return english ? "Agility and balance" : "Agilidade e equilíbrio";
+                case "gk-reflex": return english ? "Reflexes" : "Reflexos";
+                case "def-marking": return english ? "Marking" : "Marcação";
+                case "def-aerial": return english ? "Aerial duels" : "Jogo aéreo";
+                case "def-build": return english ? "Playing out" : "Saída de bola";
+                case "def-pace": return english ? "Recovery pace" : "Velocidade de recuperação";
+                case "mid-pass": return english ? "Passing" : "Passe";
+                case "mid-press": return english ? "Pressing" : "Pressão";
+                case "mid-carry": return english ? "Carrying" : "Condução";
+                case "mid-arrive": return english ? "Arriving late" : "Chegada à área";
+                case "att-finish": return english ? "Finishing" : "Finalização";
+                case "att-movement": return english ? "Movement" : "Movimentação";
+                case "att-pace": return english ? "Pace" : "Velocidade";
+                case "att-link": return english ? "Link play" : "Ligação";
+                case "rest": return english ? "Rest" : "Descanso";
+                default: return key ?? "";
+            }
+        }
+
+        static string FocusMix(string key, bool english)
+        {
+            switch (key)
+            {
+                case "gk-handling": return english ? "half passing, half defending" : "metade passe, metade defesa";
+                case "gk-quickness": return english ? "pace" : "velocidade";
+                case "gk-agility": return english ? "positioning" : "posicionamento";
+                case "gk-reflex": return english ? "defending" : "defesa";
+                case "def-marking": return english ? "defending" : "defesa";
+                case "def-aerial": return english ? "strength" : "força";
+                case "def-build": return english ? "passing" : "passe";
+                case "def-pace": return english ? "pace" : "velocidade";
+                case "mid-pass": return english ? "passing" : "passe";
+                case "mid-press": return english ? "half defending, half fitness" : "metade defesa, metade condição";
+                case "mid-carry": return english ? "positioning" : "posicionamento";
+                case "mid-arrive": return english ? "finishing" : "finalização";
+                case "att-finish": return english ? "finishing" : "finalização";
+                case "att-movement": return english ? "positioning" : "posicionamento";
+                case "att-pace": return english ? "pace" : "velocidade";
+                case "att-link": return english ? "half passing, half finishing" : "metade passe, metade finalização";
+                case "rest": return english ? "recovery" : "recuperação";
+                default: return "";
+            }
+        }
+
+        void OpenFocusMenu(Player player)
+        {
+            if (player == null)
+                return;
+            if (_focusMenu != null)
+            {
+                var same = _focusMenu.name == "FocusMenu" + player.Id;
+                Destroy(_focusMenu);
+                _focusMenu = null;
+                if (same)
+                    return;
+            }
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var page = _trainingContent == null ? null : _trainingContent.parent;
+            if (page == null)
+                return;
+            var menu = BroadcastUi.Panel(page, "FocusMenu" + player.Id, new Color(0.06f, 0.04f, 0.12f, 0.98f), true);
+            _focusMenu = menu.gameObject;
+            BroadcastUi.Place(menu.rectTransform, 0.22f, 0.28f, 0.62f, 0.78f);
+            var keys = FocusKeys(player.Position);
+            var title = BroadcastUi.Label(menu.transform, "Title", ProfilePosition(player.Position, english) + "   ·   " + player.FullName, 13, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(title.rectTransform, 0.05f, 0.84f, 0.78f, 0.98f);
+            var closeFocus = BroadcastUi.Button(menu.transform, "CloseFocus", "×", () =>
+            {
+                if (_focusMenu != null)
+                    Destroy(_focusMenu);
+                _focusMenu = null;
+            }, new Color(1f, 1f, 1f, 0.12f), Color.white, 16);
+            BroadcastUi.Place(closeFocus.GetComponent<RectTransform>(), 0.8f, 0.84f, 0.96f, 0.98f);
+            for (var i = 0; i < keys.Length; i++)
+            {
+                var key = keys[i];
+                var on = key == player.TrainingFocus;
+                var y1 = 0.8f - i * 0.14f;
+                var button = BroadcastUi.Button(menu.transform, "Focus" + i, FocusName(key, english) + "\n" + FocusMix(key, english), () =>
+                {
+                    player.TrainingFocus = key;
+                    CareerStore.Save(_career);
+                    if (_focusMenu != null)
+                        Destroy(_focusMenu);
+                    FillTraining();
+                }, on ? UiTheme.Accent : new Color(1f, 1f, 1f, 0.08f), on ? UiTheme.ButtonText : Color.white, 12);
+                var caption = button.GetComponentInChildren<Text>();
+                caption.alignment = TextAnchor.MiddleLeft;
+                caption.horizontalOverflow = HorizontalWrapMode.Wrap;
+                caption.resizeTextForBestFit = false;
+                BroadcastUi.Place(button.GetComponent<RectTransform>(), 0.05f, y1 - 0.12f, 0.95f, y1);
+            }
+            menu.transform.SetAsLastSibling();
+        }
+
+        static int ReadTrainingAttribute(Player player)
+        {
+            var attributes = player == null ? null : player.Attributes;
+            if (attributes == null)
+                return 10;
+            switch (player.TrainingFocus)
+            {
+                case "finishing":
+                case "att-finish":
+                case "mid-arrive": return attributes.Finishing;
+                case "passing":
+                case "mid-pass":
+                case "def-build": return attributes.Passing;
+                case "pace":
+                case "att-pace":
+                case "def-pace":
+                case "gk-quickness": return attributes.Pace;
+                case "defending":
+                case "def-marking":
+                case "gk-reflex": return attributes.Tackling;
+                case "strength":
+                case "def-aerial": return attributes.Strength;
+                case "positioning":
+                case "gk-agility":
+                case "mid-carry":
+                case "att-movement": return attributes.Positioning;
+                case "fitness": return attributes.Stamina;
+                case "gk-handling": return (attributes.Passing + attributes.Tackling) / 2;
+                case "mid-press": return (attributes.Tackling + attributes.Stamina) / 2;
+                case "att-link": return (attributes.Passing + attributes.Finishing) / 2;
+                default: return 10;
+            }
+        }
+
+        static void RaiseTrainingAttribute(Player player)
+        {
+            var attributes = player == null ? null : player.Attributes;
+            if (attributes == null)
+                return;
+            var alternate = (player.TrainingStreak & 1) == 0;
+            switch (player.TrainingFocus)
+            {
+                case "finishing":
+                case "att-finish":
+                case "mid-arrive": attributes.Finishing = Mathf.Min(20, attributes.Finishing + 1); break;
+                case "passing":
+                case "mid-pass":
+                case "def-build": attributes.Passing = Mathf.Min(20, attributes.Passing + 1); break;
+                case "pace":
+                case "att-pace":
+                case "def-pace":
+                case "gk-quickness": attributes.Pace = Mathf.Min(20, attributes.Pace + 1); break;
+                case "defending":
+                case "def-marking":
+                case "gk-reflex": attributes.Tackling = Mathf.Min(20, attributes.Tackling + 1); break;
+                case "strength":
+                case "def-aerial": attributes.Strength = Mathf.Min(20, attributes.Strength + 1); break;
+                case "positioning":
+                case "gk-agility":
+                case "mid-carry":
+                case "att-movement": attributes.Positioning = Mathf.Min(20, attributes.Positioning + 1); break;
+                case "fitness": attributes.Stamina = Mathf.Min(20, attributes.Stamina + 1); break;
+                case "gk-handling":
+                    if (alternate) attributes.Passing = Mathf.Min(20, attributes.Passing + 1);
+                    else attributes.Tackling = Mathf.Min(20, attributes.Tackling + 1);
+                    break;
+                case "mid-press":
+                    if (alternate) attributes.Tackling = Mathf.Min(20, attributes.Tackling + 1);
+                    else attributes.Stamina = Mathf.Min(20, attributes.Stamina + 1);
+                    break;
+                case "att-link":
+                    if (alternate) attributes.Passing = Mathf.Min(20, attributes.Passing + 1);
+                    else attributes.Finishing = Mathf.Min(20, attributes.Finishing + 1);
+                    break;
+            }
+        }
+
+        static int TrainingRoll(string id, int day)
+        {
+            unchecked
+            {
+                var hash = 17;
+                if (!string.IsNullOrEmpty(id))
+                    for (var i = 0; i < id.Length; i++)
+                        hash = hash * 31 + id[i];
+                return ((hash ^ (day * 397)) & 0x7fffffff) % 100;
+            }
+        }
+
+        void EnsureAlert(Transform root)
+        {
+            if (root == null)
+                return;
+            var clockCard = root.Find("ClockCard") as RectTransform;
+            if (clockCard == null)
+                clockCard = root.Find("Header/ClockCard") as RectTransform;
+            if (clockCard == null)
+                return;
+            var existing = clockCard.parent.Find("Alert");
+            if (existing == null)
+            {
+                var button = BroadcastUi.Button(clockCard.parent, "Alert", "", OpenSettingsFromClock, new Color(0.16f, 0.1f, 0.28f, 1f), Color.white, 16);
+                var rect = button.GetComponent<RectTransform>();
+                var width = Mathf.Clamp((clockCard.anchorMax.x - clockCard.anchorMin.x) * 0.55f, 0.04f, 0.06f);
+                BroadcastUi.Place(rect, clockCard.anchorMin.x - 0.008f - width, clockCard.anchorMin.y, clockCard.anchorMin.x - 0.008f, clockCard.anchorMax.y);
+                _alertLabel = button.GetComponentInChildren<Text>();
+                PaintGear(button.transform);
+            }
+            else
+            {
+                var button = existing.GetComponent<Button>();
+                if (button != null)
+                {
+                    button.onClick.RemoveAllListeners();
+                    button.onClick.AddListener(OpenSettingsFromClock);
+                }
+                _alertLabel = existing.GetComponentInChildren<Text>();
+                PaintGear(existing);
+            }
+            RefreshAlert();
+        }
+
+        void OpenSettingsFromClock()
+        {
+            if (GameRoot.Instance == null)
+                return;
+            GameRoot.Instance.GetComponent<AudioSettingsOverlay>()?.Toggle();
+        }
+
+        static Sprite _settingsMark;
+
+        static Sprite SettingsMark()
+        {
+            if (_settingsMark != null)
+                return _settingsMark;
+            const int size = 64;
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            texture.filterMode = FilterMode.Bilinear;
+            var center = (size - 1) * 0.5f;
+            for (var y = 0; y < size; y++)
+            {
+                for (var x = 0; x < size; x++)
+                {
+                    var dx = x - center;
+                    var dy = y - center;
+                    var distance = Mathf.Sqrt(dx * dx + dy * dy);
+                    var angle = Mathf.Atan2(dy, dx);
+                    var tooth = ((angle + Mathf.PI) / (Mathf.PI * 2f) * 8f) % 1f;
+                    var outer = tooth < 0.55f ? 30f : 22f;
+                    var filled = distance <= outer && distance >= 10f;
+                    texture.SetPixel(x, y, filled ? Color.white : Color.clear);
+                }
+            }
+            texture.Apply();
+            _settingsMark = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f);
+            return _settingsMark;
+        }
+
+        static void PaintGear(Transform parent)
+        {
+            if (parent == null)
+                return;
+            var previous = parent.Find("Gear");
+            Image image;
+            if (previous == null)
+            {
+                var gear = new GameObject("Gear", typeof(RectTransform), typeof(Image));
+                gear.transform.SetParent(parent, false);
+                image = gear.GetComponent<Image>();
+                var rect = gear.GetComponent<RectTransform>();
+                rect.anchorMin = new Vector2(0.16f, 0.16f);
+                rect.anchorMax = new Vector2(0.84f, 0.84f);
+                rect.offsetMin = Vector2.zero;
+                rect.offsetMax = Vector2.zero;
+            }
+            else
+                image = previous.GetComponent<Image>();
+            if (image == null)
+                return;
+            image.raycastTarget = false;
+            image.preserveAspect = true;
+            image.color = Color.white;
+            image.sprite = SettingsMark();
+        }
+
+        void RefreshAlert()
+        {
+            if (_alertLabel != null)
+                _alertLabel.text = "";
+        }
+
+        void OpenCalendar()
+        {
+            Show(6);
+            ShowOfficeTab(3);
+        }
+
+        bool PressDutyOpen()
+        {
+            var next = _career == null ? null : _career.NextUserFixture();
+            if (next == null)
+                return false;
+            var days = (next.Date.Date - _career.Calendar.CurrentDate.Date).Days;
+            return days >= 0 && days <= 1 && !DutyDone("press", next.Id);
+        }
+
+        bool SquadDutyOpen()
+        {
+            return PendingRegistration() != null;
+        }
+
+        string PendingRegistration()
+        {
+            if (_career == null || _career.Club == null || _career.Calendar == null || _career.Fixtures == null)
+                return null;
+            var today = _career.Calendar.CurrentDate.Date;
+            var season = TransferSeasonStart(today);
+            var seasonStart = new DateTime(season, 7, 1);
+            var seasonEnd = new DateTime(season + 1, 6, 30);
+            string bestId = null;
+            var bestDays = int.MaxValue;
+            var seen = new HashSet<string>();
+            foreach (var fixture in _career.Fixtures)
+            {
+                if (fixture == null || string.IsNullOrEmpty(fixture.LeagueId) || !fixture.Involves(_career.Club.Id))
+                    continue;
+                if (fixture.Date.Date < seasonStart || fixture.Date.Date > seasonEnd)
+                    continue;
+                if (!seen.Add(fixture.LeagueId))
+                    continue;
+                if (DutyDone("squad", fixture.LeagueId + "|" + season))
+                    continue;
+                var first = DateTime.MaxValue;
+                var started = false;
+                foreach (var other in _career.Fixtures)
+                {
+                    if (other == null || other.LeagueId != fixture.LeagueId || !other.Involves(_career.Club.Id))
+                        continue;
+                    if (other.Date.Date < seasonStart || other.Date.Date > seasonEnd)
+                        continue;
+                    if (other.Played)
+                    {
+                        started = true;
+                        break;
+                    }
+                    if (!other.Walkover && other.Date.Date < first)
+                        first = other.Date.Date;
+                }
+                if (started || first == DateTime.MaxValue)
+                    continue;
+                var days = (first - today).Days;
+                if (days < 0 || days > 14 || days >= bestDays)
+                    continue;
+                bestDays = days;
+                bestId = fixture.LeagueId;
+            }
+            return bestId;
+        }
+
+        string CompetitionTitle(string id)
+        {
+            if (string.IsNullOrEmpty(id) || _career == null || _career.World == null)
+                return "Competição";
+            foreach (var league in _career.World.Leagues)
+                if (league != null && league.Id == id)
+                    return LocalizationManager.Translate(league.Name);
+            if (id.EndsWith(":liga", StringComparison.Ordinal))
+                return "Taça da Liga";
+            if (id.StartsWith("cup:", StringComparison.Ordinal))
+                return "Taça";
+            return id;
+        }
+
+        bool PressAlreadyOpened()
+        {
+            var next = _career == null ? null : _career.NextUserFixture();
+            return next != null && _career.Notebook != null && _career.Notebook.Contains("press-opened|" + next.Id);
+        }
+
+        void MarkPressOpened()
+        {
+            var next = _career == null ? null : _career.NextUserFixture();
+            if (next == null || _career.Notebook == null)
+                return;
+            var key = "press-opened|" + next.Id;
+            if (!_career.Notebook.Contains(key))
+                _career.Notebook.Add(key);
+        }
+
+        bool DutyDone(string kind, string id)
+        {
+            return _career.Notebook.Contains("duty-done|" + kind + "|" + id);
+        }
+
+        void FinishDuty(string kind, bool assistant, bool skipped = false)
+        {
+            if (kind == "squad")
+            {
+                var competition = PendingRegistration();
+                var season = TransferSeasonStart(_career.Calendar.CurrentDate);
+                if (!string.IsNullOrEmpty(competition))
+                {
+                    var key = "duty-done|squad|" + competition + "|" + season;
+                    if (!_career.Notebook.Contains(key))
+                        _career.Notebook.Add(key);
+                }
+            }
+            else
+            {
+                var next = _career.NextUserFixture();
+                if (next == null)
+                    return;
+                var key = "duty-done|" + kind + "|" + next.Id;
+                if (!_career.Notebook.Contains(key))
+                    _career.Notebook.Add(key);
+                if (kind == "press" && (assistant || skipped))
+                {
+                    var line = skipped
+                        ? "✉ A conferência de imprensa não se realizou."
+                        : "✉ O adjunto foi à conferência de imprensa.";
+                    PostDesk(line);
+                }
+            }
             CareerStore.Save(_career);
+            CloseModal();
             Refresh();
-            OpenClubDossier(club, 3);
+        }
+
+        List<string> SeedRegistration()
+        {
+            var eleven = new List<Player>();
+            var bench = new List<Player>();
+            StartingShape.Resolve(Squad(_career.Club), _career.Club, eleven, bench);
+            var ids = new List<string>();
+            for (var i = 0; i < eleven.Count && ids.Count < 18; i++)
+                if (eleven[i] != null)
+                    ids.Add(eleven[i].Id);
+            for (var i = 0; i < bench.Count && ids.Count < 18; i++)
+                if (bench[i] != null && !ids.Contains(bench[i].Id))
+                    ids.Add(bench[i].Id);
+            return ids;
+        }
+
+        List<string> CompetitionIds(bool seedIfMissing)
+        {
+            var competition = PendingRegistration();
+            var ids = new List<string>();
+            if (competition == null || _career.Notebook == null)
+                return seedIfMissing ? SeedRegistration() : ids;
+            var prefix = "squad-reg|" + competition + "|" + TransferSeasonStart(_career.Calendar.CurrentDate) + "|";
+            for (var i = 0; i < _career.Notebook.Count; i++)
+            {
+                var line = _career.Notebook[i];
+                if (line == null || !line.StartsWith(prefix))
+                    continue;
+                var body = line.Substring(prefix.Length);
+                if (!string.IsNullOrEmpty(body))
+                {
+                    var parts = body.Split(',');
+                    for (var p = 0; p < parts.Length; p++)
+                        if (!string.IsNullOrEmpty(parts[p]))
+                            ids.Add(parts[p]);
+                }
+                return ids;
+            }
+            return seedIfMissing ? SeedRegistration() : ids;
+        }
+
+        void StoreRegistration(List<string> ids)
+        {
+            var competition = PendingRegistration();
+            if (competition == null || _career.Notebook == null)
+                return;
+            var prefix = "squad-reg|" + competition + "|" + TransferSeasonStart(_career.Calendar.CurrentDate) + "|";
+            for (var i = _career.Notebook.Count - 1; i >= 0; i--)
+                if (_career.Notebook[i] != null && _career.Notebook[i].StartsWith(prefix))
+                    _career.Notebook.RemoveAt(i);
+            _career.Notebook.Add(prefix + string.Join(",", ids ?? new List<string>()));
+        }
+
+        void ToggleRegistration(string id)
+        {
+            var ids = CompetitionIds(true);
+            var squad = Squad(_career.Club);
+            if (ids.Contains(id))
+                ids.Remove(id);
+            else
+            {
+                Player adding = null;
+                for (var i = 0; i < squad.Count; i++)
+                    if (squad[i].Id == id)
+                        adding = squad[i];
+                if (adding != null && !CountsAsUnder21(adding))
+                {
+                    int seniors;
+                    int foreign;
+                    CountRegistration(ids, squad, out seniors, out foreign);
+                    seniors++;
+                    if (!AssociationGrown(adding))
+                        foreign++;
+                    if (seniors > 25 || foreign > 17)
+                        return;
+                }
+                ids.Add(id);
+            }
+            StoreRegistration(ids);
+            OpenUrgentDuty();
+        }
+
+        void CountRegistration(List<string> ids, List<Player> squad, out int seniors, out int foreign)
+        {
+            seniors = 0;
+            foreign = 0;
+            if (ids == null || squad == null)
+                return;
+            for (var i = 0; i < squad.Count; i++)
+            {
+                var player = squad[i];
+                if (player == null || !ids.Contains(player.Id) || CountsAsUnder21(player))
+                    continue;
+                seniors++;
+                if (!AssociationGrown(player))
+                    foreign++;
+            }
+        }
+
+        static bool CountsAsUnder21(Player player)
+        {
+            return player != null && player.Age <= 21;
+        }
+
+        bool AssociationGrown(Player player)
+        {
+            if (player == null || _career == null || _career.Club == null || string.IsNullOrEmpty(player.Nationality))
+                return false;
+            return player.Nationality == LeagueNation(_career.Club.LeagueId);
+        }
+
+        static string LeagueNation(string slug)
+        {
+            if (string.IsNullOrEmpty(slug))
+                return "Portugal";
+            if (slug.StartsWith("inglesa"))
+                return "Inglaterra";
+            if (slug.StartsWith("francesa"))
+                return "França";
+            if (slug.StartsWith("espanhola"))
+                return "Espanha";
+            if (slug == "bundesliga")
+                return "Alemanha";
+            if (slug == "eredivisie")
+                return "Países Baixos";
+            if (slug == "brasileira")
+                return "Brasil";
+            return "Portugal";
+        }
+
+        void OpenRegistrationSheet()
+        {
+            if (_modal == null || !_modal.activeSelf || _registrationOrder == null)
+                return;
+            var selected = EventSystem.current == null ? null : EventSystem.current.currentSelectedGameObject;
+            if (selected == null || !selected.name.StartsWith("Reg"))
+                return;
+            int index;
+            if (!int.TryParse(selected.name.Substring(3), out index) || index < 0 || index >= _registrationOrder.Count)
+                return;
+            OpenPlayerReturning(_registrationOrder[index], OpenUrgentDuty);
+        }
+
+        void OpenPressChoice()
+        {
+            var english = LocalizationManager.Current == GameLanguage.English;
+            OpenModal(english ? "PRESS CONFERENCE" : "CONFERÊNCIA DE IMPRENSA",
+                english ? "You left the room. The assistant can attend, or the club can skip the conference."
+                    : "Saíste da sala. O adjunto pode ir à conferência, ou o clube não comparece.",
+                false);
+            SizeModal(0.26f, 0.3f, 0.74f, 0.72f);
+            var attend = BroadcastUi.Button(_modalBody, "AssistantGoes", english ? "THE ASSISTANT GOES" : "O ADJUNTO VAI", () => FinishDuty("press", true), UiTheme.Accent, UiTheme.ButtonText, 16);
+            BroadcastUi.Preferred(attend, 48);
+            var skip = BroadcastUi.Button(_modalBody, "SkipPress", english ? "NOBODY GOES" : "NÃO IR", () => FinishDuty("press", false, true), new Color(0.3f, 0.18f, 0.44f, 1f), Color.white, 16);
+            BroadcastUi.Preferred(skip, 48);
+            var back = BroadcastUi.Button(_modalBody, "EnterRoom", english ? "BACK INTO THE ROOM" : "VOLTAR À SALA", () =>
+            {
+                _enterPressRoom = true;
+                OpenUrgentDuty();
+            }, new Color(1f, 1f, 1f, 0.08f), Color.white, 16);
+            BroadcastUi.Preferred(back, 48);
+        }
+
+        void OpenUrgentDuty()
+        {
+            var enterRoom = _enterPressRoom;
+            _enterPressRoom = false;
+            if (!enterRoom && PressDutyOpen() && PressAlreadyOpened())
+            {
+                OpenPressChoice();
+                return;
+            }
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var press = PressDutyOpen();
+            var competitionName = CompetitionTitle(PendingRegistration());
+            OpenModal(press ? (english ? "PRESS CONFERENCE" : "CONFERÊNCIA DE IMPRENSA") : (english ? "REGISTER THE SQUAD" : "INSCREVER O PLANTEL"),
+                press
+                    ? (english ? "The press is in the room. Answer, or leave it to the assistant." : "A imprensa está na sala. Responde, ou deixa o adjunto tratar.")
+                    : (english
+                        ? competitionName + " · one list for the whole season, before the competition starts. 25 seniors, at most 17 without association training. Under-21s sit outside that limit."
+                        : competitionName + " · uma lista para a época toda, antes de a competição começar. 25 seniores e no máximo 17 sem formação na associação. Os sub-21 ficam fora desse limite."),
+                false);
+            SizeModal(press ? 0.05f : 0.1f, press ? 0.04f : 0.06f, press ? 0.95f : 0.9f, press ? 0.96f : 0.94f);
+            if (press)
+            {
+                var next = _career.NextUserFixture();
+                Club opponent = null;
+                if (next != null)
+                    _career.World.Clubs.TryGetValue(next.OpponentId(_career.Club.Id), out opponent);
+                var formation = _career.Club.Tactics == null || string.IsNullOrEmpty(_career.Club.Tactics.Formation) ? "4-3-3" : _career.Club.Tactics.Formation;
+                var rival = opponent == null ? (english ? "the next opponent" : "o próximo adversário") : opponent.ShortName;
+                BuildPressConference(english, rival, formation);
+                return;
+            }
+            else
+            {
+                var chosen = CompetitionIds(true);
+                var squad = Squad(_career.Club);
+                squad.Sort((a, b) =>
+                {
+                    var under = (CountsAsUnder21(a) ? 1 : 0).CompareTo(CountsAsUnder21(b) ? 1 : 0);
+                    if (under != 0) return under;
+                    var grown = AssociationGrown(b).CompareTo(AssociationGrown(a));
+                    return grown != 0 ? grown : a.Position.CompareTo(b.Position);
+                });
+                _registrationOrder = squad;
+                int seniors;
+                int foreign;
+                CountRegistration(chosen, squad, out seniors, out foreign);
+                AddLine((english ? "Click a card to include it. Right click or Square opens the file." : "Clica no cartão para incluir. Clique direito ou quadrado abre a ficha.") + "   ·   " + (english ? "Seniors " : "Seniores ") + seniors + "/25    ·    " + (english ? "Without association training " : "Sem formação ") + foreign + "/17");
+                PaintRegistrationGrid(squad, chosen, english);
+                var ready = chosen.Count >= 11 && seniors <= 25 && foreign <= 17;
+                var confirm = BroadcastUi.Button(_modalBody, "ConfirmSquad", (english ? "REGISTER " : "REGISTAR ") + seniors + "/25", () =>
+                {
+                    var ids = CompetitionIds(true);
+                    int seniorCount;
+                    int foreignCount;
+                    CountRegistration(ids, Squad(_career.Club), out seniorCount, out foreignCount);
+                    if (ids.Count < 11 || seniorCount > 25 || foreignCount > 17)
+                        return;
+                    StoreRegistration(ids);
+                    FinishDuty("squad", false);
+                }, ready ? UiTheme.Accent : new Color(1f, 1f, 1f, 0.08f), ready ? UiTheme.ButtonText : Color.white, 14);
+                confirm.interactable = ready;
+                BroadcastUi.Preferred(confirm, 40);
+            }
+            var leave = BroadcastUi.Button(_modalBody, "LeaveAssistant", english ? "LEAVE IT TO THE ASSISTANT" : "DEIXAR AO ADJUNTO", () =>
+            {
+                if (!press)
+                    StoreRegistration(SeedRegistration());
+                FinishDuty(press ? "press" : "squad", true);
+            }, new Color(0.3f, 0.18f, 0.44f, 1f), Color.white, 14);
+            BroadcastUi.Preferred(leave, 40);
+        }
+
+        void BuildPressConference(bool english, string rival, string formation)
+        {
+            MarkPressOpened();
+            var card = _modal.transform.Find("Card");
+            var scroll = card.Find("Scroll");
+            if (scroll != null)
+                scroll.gameObject.SetActive(false);
+            if (_modalLead != null)
+                _modalLead.gameObject.SetActive(false);
+            var room = BroadcastUi.Zone(card, "PressRoom", 0.03f, 0.16f, 0.97f, 0.86f);
+            var reporters = new[] { "Rita Costa", "Nuno Vale", "Inês Melo", "Paulo Reis" };
+            var desks = english
+                ? new[] { "Touchline", "Radio", "Television", "Press" }
+                : new[] { "Bancada", "Rádio", "Televisão", "Imprensa" };
+            var questions = english
+                ? new[]
+                {
+                    "What is the idea of the " + formation + " against " + rival + "?",
+                    "Does the goalkeeper stay as the first choice?",
+                    "Does the last result change anything in the dressing room?",
+                    "Is there a player who has to start this match?"
+                }
+                : new[]
+                {
+                    "Qual é a ideia do " + formation + " frente ao " + rival + "?",
+                    "O guarda-redes mantém-se como primeira escolha?",
+                    "O último resultado muda alguma coisa no balneário?",
+                    "Há algum jogador que tenha de ser titular neste jogo?"
+                };
+            var positive = english
+                ? new[] { "The plan is clear and the group is playing it.", "He has my trust. That is the decision.", "The group is fine. We take the next match.", "The eleven is settled. I am happy with it." }
+                : new[] { "O plano está claro e o grupo está a cumpri-lo.", "Tem a minha confiança. É essa a decisão.", "O grupo está bem. Vamos ao próximo jogo.", "O onze está fechado. Estou satisfeito." };
+            var neutral = english
+                ? new[] { "I will not go into the detail of the plan.", "That is decided on the day, not in here.", "We look at the match, not at one result.", "I look at the week, then I decide." }
+                : new[] { "Não vou ao pormenor do plano.", "Isso decide-se no dia, não aqui.", "Olhamos para o jogo, não para um resultado.", "Vejo a semana e depois decido." };
+            var negative = english
+                ? new[] { "Some of this has to change. I will not pretend otherwise.", "The position is not closed. I am not happy.", "The last game was not good enough.", "There are places still up for grabs." }
+                : new[] { "Há coisas que têm de mudar. Não finjo o contrário.", "O lugar não está fechado. Não estou satisfeito.", "O último jogo não chegou.", "Ainda há lugares em aberto." };
+            var step = 0;
+            var who = BroadcastUi.Label(room, "Who", "", 16, new Color(0.85f, 0.93f, 1f), TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(who.rectTransform, 0.02f, 0.88f, 0.98f, 0.98f);
+            var question = BroadcastUi.Panel(room, "Question", new Color(0.16f, 0.48f, 0.86f, 1f), false);
+            BroadcastUi.Place(question.rectTransform, 0.02f, 0.08f, 0.48f, 0.84f);
+            var ask = BroadcastUi.Label(question.transform, "Ask", "", 18, Color.white, TextAnchor.UpperLeft, FontStyle.Bold);
+            ask.horizontalOverflow = HorizontalWrapMode.Wrap;
+            ask.verticalOverflow = VerticalWrapMode.Truncate;
+            BroadcastUi.Stretch(ask.rectTransform);
+            ask.rectTransform.offsetMin = new Vector2(16f, 16f);
+            ask.rectTransform.offsetMax = new Vector2(-16f, -16f);
+            var tones = english ? new[] { "POSITIVE", "NEUTRAL", "NEGATIVE" } : new[] { "POSITIVO", "NEUTRO", "NEGATIVO" };
+            var toneColors = new[] { new Color(0.2f, 0.72f, 0.38f, 1f), new Color(0.75f, 0.78f, 0.86f, 1f), new Color(0.9f, 0.35f, 0.32f, 1f) };
+            var captions = new Text[3];
+            Action show = null;
+            show = () =>
+            {
+                who.text = reporters[step] + "   ·   " + desks[step] + "      " + (step + 1) + "/4";
+                ask.text = questions[step];
+                captions[0].text = positive[step];
+                captions[1].text = neutral[step];
+                captions[2].text = negative[step];
+            };
+            for (var i = 0; i < 3; i++)
+            {
+                var y1 = 0.84f - i * 0.26f;
+                var tone = BroadcastUi.Label(room, "Tone" + i, tones[i], 12, toneColors[i], TextAnchor.MiddleLeft, FontStyle.Bold);
+                BroadcastUi.Place(tone.rectTransform, 0.52f, y1 - 0.06f, 0.98f, y1);
+                var button = BroadcastUi.Button(room, "Press" + i, "", () =>
+                {
+                    step++;
+                    if (step >= questions.Length)
+                        FinishDuty("press", false);
+                    else
+                        show();
+                }, new Color(1f, 1f, 1f, 0.08f), Color.white, 15);
+                captions[i] = button.GetComponentInChildren<Text>();
+                captions[i].alignment = TextAnchor.MiddleLeft;
+                captions[i].horizontalOverflow = HorizontalWrapMode.Wrap;
+                captions[i].verticalOverflow = VerticalWrapMode.Truncate;
+                BroadcastUi.Place(button.GetComponent<RectTransform>(), 0.52f, y1 - 0.22f, 0.98f, y1 - 0.07f);
+            }
+            show();
+            if (_modalAction == null)
+                return;
+            _modalAction.gameObject.SetActive(true);
+            BroadcastUi.Place(_modalAction.GetComponent<RectTransform>(), 0.16f, 0.03f, 0.84f, 0.13f);
+            _modalActionLabel.text = english ? "LEAVE IT TO THE ASSISTANT" : "DEIXAR AO ADJUNTO";
+            _modalAction.onClick.RemoveAllListeners();
+            _modalAction.onClick.AddListener(() => FinishDuty("press", true));
+        }
+
+        static void AddDutyMark(Transform row)
+        {
+            var mark = new GameObject("DutyMark", typeof(RectTransform), typeof(CanvasRenderer), typeof(DutyAlertMark));
+            mark.transform.SetParent(row, false);
+            var rect = mark.GetComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.9f, 0.62f);
+            rect.anchorMax = new Vector2(0.98f, 0.96f);
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+            mark.GetComponent<DutyAlertMark>().raycastTarget = false;
+            var bang = BroadcastUi.Label(row, "Bang", "!", 13, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            bang.raycastTarget = false;
+            BroadcastUi.Place(bang.rectTransform, 0.9f, 0.64f, 0.98f, 0.94f);
+        }
+
+        static void PassClicksTo(Transform row)
+        {
+            if (row == null)
+                return;
+            var graphics = row.GetComponentsInChildren<Graphic>(true);
+            for (var i = 0; i < graphics.Length; i++)
+                if (graphics[i].transform != row)
+                    graphics[i].raycastTarget = false;
+        }
+
+        static void AddInboxCrest(Transform parent, Club club, float x)
+        {
+            if (parent == null || club == null)
+                return;
+            var badge = new GameObject("Badge", typeof(RectTransform), typeof(Image));
+            badge.transform.SetParent(parent, false);
+            BroadcastUi.Place(badge.GetComponent<RectTransform>(), x, 0.12f, x + 0.12f, 0.88f);
+            var image = badge.GetComponent<Image>();
+            image.sprite = CrestStudio.For(club);
+            image.preserveAspect = true;
+            image.raycastTarget = false;
+        }
+
+        void OpenAssistantLineup(PhoneNote note)
+        {
+            var english = LocalizationManager.Current == GameLanguage.English;
+            OpenModal("Adjunto", note == null ? "" : note.Text, false);
+            var card = _modal.transform.Find("Card");
+            var scroll = card.Find("Scroll");
+            if (scroll != null)
+                scroll.gameObject.SetActive(false);
+            var pitch = BroadcastUi.Zone(card, "SuggestedXi", 0.3f, 0.2f, 0.7f, 0.78f);
+            BroadcastUi.DrawVerticalPitch(pitch, new Color(0.1f, 0.42f, 0.2f));
+            var formation = _career.Club.Tactics == null || string.IsNullOrEmpty(_career.Club.Tactics.Formation) ? "4-3-3" : _career.Club.Tactics.Formation;
+            var ids = note == null || string.IsNullOrEmpty(note.Meta) ? new string[0] : note.Meta.Split(',');
+            var color = BroadcastUi.Parse(_career.Club.JerseyPrimaryHex, Color.white);
+            for (var i = 0; i < ids.Length && i < 11; i++)
+            {
+                var id = ids[i].Trim();
+                if (!_career.World.Players.TryGetValue(id, out var player))
+                    continue;
+                var slot = MatchEngine.Slot(true, i, formation);
+                var dot = BroadcastUi.Solid(pitch, "P" + i, color);
+                dot.sprite = BroadcastUi.Circle;
+                dot.rectTransform.anchorMin = dot.rectTransform.anchorMax = new Vector2(slot.x, slot.y);
+                dot.rectTransform.sizeDelta = new Vector2(28f, 28f);
+                var number = BroadcastUi.Label(dot.rectTransform, "Num", player.SquadNumber.ToString(), 12, Color.black, TextAnchor.MiddleCenter, FontStyle.Bold);
+                BroadcastUi.Stretch(number.rectTransform);
+                var parts = player.FullName.Split(' ');
+                var surname = parts.Length == 0 ? player.FullName : parts[parts.Length - 1];
+                var name = BroadcastUi.Label(pitch, "N" + i, surname, 11, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+                name.rectTransform.anchorMin = new Vector2(slot.x - 0.16f, slot.y + 0.04f);
+                name.rectTransform.anchorMax = new Vector2(slot.x + 0.16f, slot.y + 0.1f);
+                name.rectTransform.offsetMin = Vector2.zero;
+                name.rectTransform.offsetMax = Vector2.zero;
+            }
+            if (_modalLead != null)
+            {
+                _modalLead.text = (english ? "The assistant leaves this eleven. Follow the suggestion to put these players in the squad." : "O adjunto deixa este onze. Seguir a sugestão mete estes jogadores no plantel.") + "\n" + formation;
+                _modalLead.horizontalOverflow = HorizontalWrapMode.Wrap;
+            }
+            if (_modalAction == null)
+                return;
+            _modalAction.gameObject.SetActive(true);
+            _modalActionLabel.text = english ? "FOLLOW THE SUGGESTION" : "SEGUIR SUGESTÃO";
+            _modalAction.onClick.RemoveAllListeners();
+            var meta = note == null ? "" : note.Meta;
+            _modalAction.onClick.AddListener(() =>
+            {
+                ApplySuggestedXi(meta);
+                CloseModal();
+                Show(3);
+            });
+        }
+
+        void ApplySuggestedXi(string meta)
+        {
+            if (_career == null || _career.Club == null || string.IsNullOrEmpty(meta))
+                return;
+            var lineup = new List<string>();
+            var pieces = meta.Split(',');
+            for (var i = 0; i < pieces.Length; i++)
+            {
+                var id = pieces[i].Trim();
+                if (id.Length > 0 && _career.World.Players.ContainsKey(id) && !lineup.Contains(id))
+                    lineup.Add(id);
+            }
+            if (lineup.Count != 11)
+                return;
+            _career.Club.ManualLineup = lineup;
+            var bench = new List<string>();
+            foreach (var player in Squad(_career.Club))
+                if (player != null && !lineup.Contains(player.Id))
+                    bench.Add(player.Id);
+            _career.Club.ManualBenchOrder = bench;
+            CareerStore.Save(_career);
+        }
+
+        void OpenDeskMessage(PhoneNote note)
+        {
+            if (note == null)
+                return;
+            if (note.Channel == "urgente")
+            {
+                var aboutPress = note.Text != null && (note.Text.IndexOf("conferência", StringComparison.OrdinalIgnoreCase) >= 0 || note.Text.IndexOf("press conference", StringComparison.OrdinalIgnoreCase) >= 0);
+                if (aboutPress && PressDutyOpen() && PressAlreadyOpened())
+                    OpenPressChoice();
+                else
+                    OpenUrgentDuty();
+                return;
+            }
+            if (note.Channel == "adjunto-onze")
+            {
+                OpenAssistantLineup(note);
+                return;
+            }
+            OpenModal(note.Who, note.Text, false);
+            FitMessageModal(note.Text);
+            if (_modalLead != null)
+            {
+                _modalLead.horizontalOverflow = HorizontalWrapMode.Wrap;
+                _modalLead.verticalOverflow = VerticalWrapMode.Truncate;
+                _modalLead.resizeTextForBestFit = true;
+                _modalLead.resizeTextMinSize = 13;
+                _modalLead.resizeTextMaxSize = 18;
+                BroadcastUi.Place(_modalLead.rectTransform, 0.08f, 0.2f, 0.92f, 0.8f);
+            }
+            if (_modalAction == null)
+                return;
+            string label = null;
+            Action go = null;
+            if (note.Channel == "calendario")
+            {
+                label = "VER CALENDÁRIO";
+                go = () => { CloseModal(); OpenCalendar(); };
+            }
+            else if (note.Channel == "jornal")
+            {
+                label = "VER NOTÍCIAS";
+                go = () => { CloseModal(); Show(1); };
+            }
+            else if (note.Channel == "clube" && !string.IsNullOrEmpty(note.ClubId) && _career.World.Clubs.TryGetValue(note.ClubId, out var club))
+            {
+                label = "VER CLUBE";
+                go = () => { CloseModal(); OpenClubDossier(club); };
+            }
+            else
+            {
+                label = "FECHAR";
+                go = CloseModal;
+            }
+            _modalAction.gameObject.SetActive(true);
+            _modalActionLabel.text = label;
+            _modalAction.onClick.RemoveAllListeners();
+            _modalAction.onClick.AddListener(() => go());
+        }
+
+        void EnsureLandmarkMemories()
+        {
+            Fixture best = null;
+            Fixture worst = null;
+            var bestMargin = 0;
+            var worstMargin = 0;
+            foreach (var fixture in _career.Fixtures)
+            {
+                if (!fixture.Played || fixture.Walkover || fixture.HomeClubId == fixture.AwayClubId || !fixture.Involves(_career.Club.Id))
+                    continue;
+                var home = fixture.IsHome(_career.Club.Id);
+                var goalsFor = home ? fixture.HomeGoals : fixture.AwayGoals;
+                var goalsAgainst = home ? fixture.AwayGoals : fixture.HomeGoals;
+                if (goalsFor > goalsAgainst && goalsFor - goalsAgainst > bestMargin)
+                {
+                    bestMargin = goalsFor - goalsAgainst;
+                    best = fixture;
+                }
+                if (goalsAgainst > goalsFor && goalsAgainst - goalsFor > worstMargin)
+                {
+                    worstMargin = goalsAgainst - goalsFor;
+                    worst = fixture;
+                }
+            }
+            var changed = RememberLandmark(best, true, bestMargin);
+            if (RememberLandmark(worst, false, worstMargin))
+                changed = true;
+            if (changed)
+                CareerStore.Save(_career);
+        }
+
+        bool RememberLandmark(Fixture fixture, bool win, int margin)
+        {
+            if (fixture == null || margin <= 0)
+                return false;
+            var kind = win ? "melhor-jogo" : "pior-jogo";
+            var home = fixture.IsHome(_career.Club.Id);
+            var goalsFor = home ? fixture.HomeGoals : fixture.AwayGoals;
+            var goalsAgainst = home ? fixture.AwayGoals : fixture.HomeGoals;
+            var opponentId = fixture.OpponentId(_career.Club.Id);
+            var opponent = _career.World.Clubs.TryGetValue(opponentId, out var club) ? club.ShortName : opponentId;
+            var score = goalsFor + "–" + goalsAgainst;
+            var title = (win ? "Melhor jogo: " : "Pior jogo: ") + score + " frente a " + opponent;
+            FootballMemory existing = null;
+            foreach (var memory in _career.Memories)
+                if (memory != null && memory.Kind == kind)
+                    existing = memory;
+            if (existing != null && existing.Title == title)
+                return false;
+            if (existing != null)
+                _career.Memories.Remove(existing);
+            CareerMemories.Record(_career, new FootballMemory
+            {
+                WhenTicks = fixture.Date.Ticks,
+                Importance = 5,
+                Kind = kind,
+                ClubId = _career.Club.Id,
+                CompetitionId = fixture.LeagueId,
+                RelatedClubId = opponentId,
+                Title = title,
+                Detail = LocalizationManager.FormatDate(fixture.Date, "d MMM yyyy") + " · " + (win ? "A maior vantagem da carreira" : "A derrota mais pesada da carreira") + ": " + score + " contra " + opponent + "."
+            });
+            return true;
+        }
+
+        void FitClubSheet()
+        {
+            var scroll = _modal == null ? null : _modal.transform.Find("Card/Scroll") as RectTransform;
+            if (scroll == null || _modalBody == null)
+                return;
+            var scrollRect = scroll.GetComponent<ScrollRect>();
+            if (scrollRect != null)
+            {
+                scrollRect.vertical = true;
+                scrollRect.horizontal = false;
+            }
+            var fitter = _modalBody.GetComponent<ContentSizeFitter>();
+            if (fitter != null)
+                fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            var body = _modalBody as RectTransform;
+            body.anchorMin = new Vector2(0f, 1f);
+            body.anchorMax = new Vector2(1f, 1f);
+            body.pivot = new Vector2(0.5f, 1f);
+            body.offsetMin = Vector2.zero;
+            body.offsetMax = Vector2.zero;
+            var layout = _modalBody.GetComponent<VerticalLayoutGroup>();
+            if (layout != null)
+            {
+                layout.childControlHeight = true;
+                layout.childForceExpandHeight = false;
+            }
+            var names = new[] { "ClubOverviewGrid", "ClubSquadList", "ClubSquadPitch", "YouthClubPitch", "ClubAnalysisLocked", "ClubPerformanceDashboard", "ClubHistoryDashboard" };
+            for (var i = 0; i < names.Length; i++)
+            {
+                var panel = _modalBody.Find(names[i]);
+                if (panel == null)
+                    continue;
+                var element = panel.GetComponent<LayoutElement>() ?? panel.gameObject.AddComponent<LayoutElement>();
+                element.flexibleHeight = 0f;
+                element.minHeight = panel.name == "ClubSquadList" ? 460f : 180f;
+                if (panel.name == "ClubSquadList")
+                    element.preferredHeight = 0f;
+                else if (element.preferredHeight > 360f)
+                    element.preferredHeight = 280f;
+            }
+            Canvas.ForceUpdateCanvases();
+            var pitch = _modalBody.Find("ClubSquadPitch/VerticalHalfPitch") as RectTransform
+                ?? _modalBody.Find("YouthClubPitch/VerticalHalfPitch") as RectTransform;
+            if (pitch == null)
+                return;
+            var size = pitch.rect.size;
+            if (size.x < 40f || size.y < 40f)
+                return;
+            var cardWidth = Mathf.Clamp(size.x * 0.15f, 68f, 112f);
+            var cardHeight = Mathf.Clamp(size.y * 0.15f, 58f, 96f);
+            for (var i = 0; i < pitch.childCount; i++)
+            {
+                var child = pitch.GetChild(i) as RectTransform;
+                if (child == null || child.name.Length < 2 || child.name[0] != 'P' || !char.IsDigit(child.name[1]))
+                    continue;
+                child.sizeDelta = new Vector2(cardWidth, cardHeight);
+            }
         }
 
         void OpenDutyModal(Player player)
@@ -7188,16 +10106,83 @@ namespace CoachMaster.UI.Scenes
             BroadcastUi.Preferred(profile.GetComponent<RectTransform>(), 44);
         }
 
+        void ReopenClubSheet()
+        {
+            if (_dossierClub != null)
+                OpenClubDossier(_dossierClub, _dossierTab, _dossierYouth, _dossierBack);
+        }
+
+        void OpenPlayerReturning(Player player, Action back)
+        {
+            _sheetReturn = back;
+            OpenPlayer(player);
+        }
+
+        void PaintRegistrationGrid(List<Player> squad, List<string> chosen, bool english)
+        {
+            var columns = 6;
+            var rows = Mathf.Max(1, Mathf.CeilToInt(squad.Count / (float)columns));
+            var grid = BroadcastUi.Panel(_modalBody, "RegGrid", new Color(0.012f, 0.025f, 0.04f, 0.96f));
+            BroadcastUi.Preferred(grid, rows * 84f);
+            for (var i = 0; i < squad.Count; i++)
+            {
+                var player = squad[i];
+                var id = player.Id;
+                var captured = player;
+                var on = chosen.Contains(player.Id);
+                var col = i % columns;
+                var rowIndex = i / columns;
+                var x0 = col / (float)columns;
+                var x1 = (col + 1) / (float)columns;
+                var y1 = 1f - rowIndex / (float)rows;
+                var y0 = y1 - 1f / rows;
+                var card = BroadcastUi.Button(grid.transform, "Reg" + i, "", () => ToggleRegistration(id),
+                    on ? new Color(0.05f, 0.28f, 0.34f, 1f) : new Color(0.07f, 0.08f, 0.12f, 1f), Color.white, 11);
+                BroadcastUi.Place(card.GetComponent<RectTransform>(), x0 + 0.008f, y0 + 0.02f, x1 - 0.008f, y1 - 0.02f);
+                var sheetClick = card.gameObject.AddComponent<SquadSheetClick>();
+                sheetClick.Bind(() => OpenPlayerReturning(captured, OpenUrgentDuty));
+                var faceGo = new GameObject("Face", typeof(RectTransform), typeof(Image));
+                faceGo.transform.SetParent(card.transform, false);
+                var face = faceGo.GetComponent<Image>();
+                face.sprite = FaceBook.For(player);
+                face.preserveAspect = true;
+                face.raycastTarget = false;
+                BroadcastUi.Place(face.rectTransform, 0.08f, 0.42f, 0.42f, 0.94f);
+                var mark = BroadcastUi.Label(card.transform, "Mark", on ? "✓" : "", 16, UiTheme.Accent, TextAnchor.MiddleCenter, FontStyle.Bold);
+                mark.raycastTarget = false;
+                BroadcastUi.Place(mark.rectTransform, 0.62f, 0.72f, 0.96f, 0.96f);
+                var bits = string.IsNullOrEmpty(player.FullName) ? new[] { "—" } : player.FullName.Split(' ');
+                var surname = bits[bits.Length - 1];
+                var name = BroadcastUi.Label(card.transform, "Name", surname, 11, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+                name.raycastTarget = false;
+                name.resizeTextForBestFit = true;
+                name.resizeTextMinSize = 8;
+                name.resizeTextMaxSize = 12;
+                BroadcastUi.Place(name.rectTransform, 0.04f, 0.2f, 0.96f, 0.42f);
+                var tag = CountsAsUnder21(player) ? "SUB-21" : AssociationGrown(player) ? (english ? "TRAINED" : "FORMADO") : (english ? "FOREIGN" : "SEM FORM.");
+                var meta = BroadcastUi.Label(card.transform, "Meta", ProfilePosition(player.Position, english) + "  ·  " + tag, 9, on ? Color.white : UiTheme.Muted, TextAnchor.MiddleCenter);
+                meta.raycastTarget = false;
+                meta.resizeTextForBestFit = true;
+                meta.resizeTextMinSize = 7;
+                meta.resizeTextMaxSize = 9;
+                BroadcastUi.Place(meta.rectTransform, 0.04f, 0.04f, 0.96f, 0.22f);
+            }
+        }
+
         void OpenPlayer(Player player, bool orders = false)
         {
             if (player == null)
                 return;
+            var back = _sheetReturn;
+            _sheetReturn = null;
             PlayerPositionProfile.Ensure(player);
             _modalLineSize = 16;
             var keeper = player.Position == PlayerPosition.Goalkeeper;
             var reader = StaffReport.Find(_career.Club, keeper ? StaffRole.GoalkeeperCoach : StaffRole.AssistantCoach);
             var fitness = StaffReport.Find(_career.Club, StaffRole.FitnessCoach);
             OpenModal(player.FullName, "", false);
+            if (!orders && back != null)
+                _dossierReturnAction = back;
             if (!orders)
             {
                 _modalTitle.gameObject.SetActive(false);
@@ -7244,7 +10229,7 @@ namespace CoachMaster.UI.Scenes
             var scrollRect = _modal.transform.Find("Card/Scroll");
             if (scrollRect != null)
             {
-                BroadcastUi.Place(scrollRect as RectTransform, 0.025f, 0.035f, 0.975f, 0.76f);
+                BroadcastUi.Place(scrollRect as RectTransform, 0.02f, 0.02f, 0.98f, 0.88f);
                 var scroll = scrollRect.GetComponent<ScrollRect>();
                 if (scroll != null)
                 {
@@ -7269,8 +10254,8 @@ namespace CoachMaster.UI.Scenes
 
         void BuildPlayerSheet(Player player, bool keeper, StaffMember fitness, StaffMember reader)
         {
-            const float mainBottom = 0.34f;
-            const float mainTop = 0.77f;
+            const float mainBottom = 0.32f;
+            const float mainTop = 0.66f;
             var english = LocalizationManager.Current == GameLanguage.English;
             var own = _career.Club.PlayerIds.Contains(player.Id);
             var academyOwned = player.ClubId == _career.Club.Id && _career.AcademyPlayerIds.Contains(player.Id);
@@ -7280,10 +10265,10 @@ namespace CoachMaster.UI.Scenes
             var delta = rating - baseline;
             _keyboardScoutBack = null;
 
-            var header = ProfilePanel("Identity", 0.005f, 0.79f, 0.995f, 0.995f);
+            var header = ProfilePanel("Identity", 0.005f, scouted ? 0.68f : 0.8f, 0.995f, 0.995f);
             var portrait = new GameObject("Portrait", typeof(RectTransform)).GetComponent<RectTransform>();
             portrait.SetParent(header.transform, false);
-            BroadcastUi.Place(portrait, 0.012f, 0.06f, 0.105f, 0.94f);
+            BroadcastUi.Place(portrait, 0.012f, 0.52f, 0.1f, 0.96f);
             var face = FaceImage(portrait, player, 120f);
             face.preserveAspect = true;
             BroadcastUi.Stretch(face.rectTransform);
@@ -7298,7 +10283,10 @@ namespace CoachMaster.UI.Scenes
             profileName.resizeTextForBestFit = true;
             profileName.resizeTextMinSize = 14;
             profileName.resizeTextMaxSize = 22;
-            var clubLabel = ProfileText(header.transform, "Club", (_career.World.Clubs.TryGetValue(player.ClubId, out var club) ? club.Name : (english ? "Unknown club" : "Clube desconhecido")) + "  ·  " + player.Age + (english ? " years" : " anos"), 13, Color.white, FontStyle.Bold, 0.12f, 0.38f, 0.43f, 0.61f);
+            var clubShown = _career.World.Clubs.TryGetValue(player.ClubId, out var club) ? club.Name : (english ? "Unknown club" : "Clube desconhecido");
+            if (scouted)
+                clubShown += "  ·  " + player.Age + (english ? " years" : " anos");
+            var clubLabel = ProfileText(header.transform, "Club", clubShown, 13, Color.white, FontStyle.Bold, 0.16f, 0.46f, 0.43f, 0.6f);
             var positions = new List<PlayerPosition> { player.Position };
             for (var i = 0; i < player.AlternatePositions.Count; i++)
                 positions.Add(player.AlternatePositions[i]);
@@ -7314,44 +10302,15 @@ namespace CoachMaster.UI.Scenes
             {
                 var positionDetails = (english ? "POSITIONS  " : "POSIÇÕES  ") + string.Join("  ·  ", positionNames)
                     + "\n" + string.Join("   ", positionRatings);
-                ProfileText(header.transform, "AltPositions", positionDetails, 12, UiTheme.Muted, FontStyle.Normal, 0.12f, 0.05f, 0.43f, 0.36f);
+                ProfileText(header.transform, "AltPositions", positionDetails, 12, UiTheme.Muted, FontStyle.Normal, 0.3f, 0.08f, 0.43f, 0.46f);
             }
-
-            var overallCard = ProfilePanelAt(header.transform, "Overall", new Color(0.04f, 0.09f, 0.12f, 1f), 0.445f, 0.08f, 0.555f, 0.92f);
-            ProfileText(overallCard.transform, "Value", rating.ToString(), 38, Color.white, FontStyle.Bold, 0.04f, 0.39f, 0.96f, 0.91f, TextAnchor.MiddleCenter);
-            ProfileText(overallCard.transform, "Label", english ? "CURRENT OVR" : "OVR ATUAL", 9, UiTheme.Accent, FontStyle.Bold, 0.02f, 0.08f, 0.98f, 0.34f, TextAnchor.MiddleCenter);
             if (scouted)
-            {
-                ProfileText(header.transform, "BaseOVR", (english ? "BASE " : "BASE ") + baseline + (english ? "   ·   FORM " : "   ·   FORMA ") + (delta >= 0 ? "+" : "") + delta, 12, UiTheme.Muted, FontStyle.Bold, 0.57f, 0.72f, 0.78f, 0.94f);
-                ProfileText(header.transform, "Potential", LocalizationManager.Translate(PlayerTraits.HiddenPotential(player, true)), 11, UiTheme.AccentSoft, FontStyle.Normal, 0.57f, 0.47f, 0.78f, 0.7f);
-                ProfileText(header.transform, "MarketValue", (english ? "MARKET VALUE\n" : "VALOR DE MERCADO\n") + Euro(MarketValue(player)), 12, Color.white, FontStyle.Bold, 0.57f, 0.27f, 0.78f, 0.46f);
-                ProfileText(header.transform, "ReputationStars", (english ? "REPUTATION  " : "REPUTAÇÃO  ") + ReputationStars(player.Reputation), 14, new Color(1f, 0.78f, 0.15f), FontStyle.Bold, 0.57f, 0.08f, 0.78f, 0.25f);
-            }
-            var contractDate = player.ContractEndTicks > 0 && player.ContractEndTicks <= DateTime.MaxValue.Ticks
-                ? LocalizationManager.FormatDate(new DateTime(player.ContractEndTicks), "dd/MM/yyyy")
-                : "—";
-            var info = !scouted
-                ? new[]
-                {
-                    (english ? "HEIGHT  " : "ALTURA  ") + (player.HeightCm > 0 ? player.HeightCm + " cm" : "—"),
-                    (english ? "WEIGHT  " : "PESO  ") + (player.WeightKg > 0 ? player.WeightKg + " kg" : "—"),
-                    (english ? "AGE  " : "IDADE  ") + player.Age
-                }
-                : new[]
-                {
-                    (english ? "HEIGHT  " : "ALTURA  ") + (player.HeightCm > 0 ? player.HeightCm + " cm" : "—"),
-                    (english ? "WEIGHT  " : "PESO  ") + (player.WeightKg > 0 ? player.WeightKg + " kg" : "—"),
-                    (english ? "FOOT  " : "PÉ  ") + LocalizationManager.Translate(PresentationLabels.Foot(player.PreferredFoot)) + (english ? "  ·  WEAK FOOT  " : "  ·  PÉ FRACO  ") + LocalizationManager.Translate(WeakFootLabel(player.WeakFootQuality)),
-                    (english ? "PERSONALITY  " : "PERSONALIDADE  ") + LocalizationManager.Translate(PresentationLabels.Personality(player.Personality)),
-                    (english ? "WEEKLY WAGE  " : "SALÁRIO SEMANAL  ") + Euro(player.WeeklyWage),
-                    (english ? "CONTRACT UNTIL  " : "CONTRATO ATÉ  ") + contractDate
-                };
-            ProfileText(header.transform, "PhysicalAndInfo", string.Join("\n", info), 11, Color.white, FontStyle.Normal, 0.79f, 0.05f, 0.985f, 0.95f);
+                PaintRolePitch(header.transform, player, 0.115f, 0.05f, 0.28f, 0.48f);
 
             if (!scouted)
             {
                 var locked = BroadcastUi.Panel(_modalBody, "ScoutingRequired", new Color(0.015f, 0.035f, 0.05f, 1f));
-                BroadcastUi.Place(locked.rectTransform, 0.005f, 0.015f, 0.995f, 0.77f);
+                BroadcastUi.Place(locked.rectTransform, 0.005f, 0.015f, 0.995f, 0.78f);
                 ProfileText(locked.transform, "Title", english ? "SCOUTING REPORT REQUIRED" : "É NECESSÁRIO UM RELATÓRIO DO OLHEIRO", 20, UiTheme.Accent, FontStyle.Bold, 0.05f, 0.72f, 0.95f, 0.9f, TextAnchor.MiddleCenter);
                 ProfileText(locked.transform, "Body", english
                     ? "Detailed attributes, traits, personality, market value and contract terms will be revealed when the scout finishes the report."
@@ -7371,12 +10330,67 @@ namespace CoachMaster.UI.Scenes
                 var reportButton = BroadcastUi.Button(locked.transform, "RequestScoutReport", job == null
                     ? (english ? "REQUEST REPORT" : "PEDIR RELATÓRIO")
                     : (english ? "SCOUTING IN PROGRESS" : "RELATÓRIO EM CURSO"),
-                    job == null ? (Action)(() => { AskScout(player); OpenPlayer(player); }) : null,
+                    job == null ? (Action)(() => { var back = _dossierReturnAction; AskScout(player); _sheetReturn = back; OpenPlayer(player); }) : null,
                     UiTheme.Accent, UiTheme.ButtonText, 14);
                 reportButton.interactable = job == null;
                 BroadcastUi.Place(reportButton.GetComponent<RectTransform>(), ControlChrome.UsingKeyboard ? 0.55f : 0.2f, 0.08f, 0.95f, 0.23f);
                 return;
             }
+
+            var overallCard = ProfilePanelAt(header.transform, "Overall", new Color(0.04f, 0.09f, 0.12f, 1f), 0.445f, 0.08f, 0.555f, 0.92f);
+            ProfileText(overallCard.transform, "Value", rating.ToString(), 38, Color.white, FontStyle.Bold, 0.04f, 0.39f, 0.96f, 0.91f, TextAnchor.MiddleCenter);
+            ProfileText(overallCard.transform, "Label", english ? "CURRENT OVR" : "OVR ATUAL", 9, UiTheme.Accent, FontStyle.Bold, 0.02f, 0.08f, 0.98f, 0.34f, TextAnchor.MiddleCenter);
+            if (scouted)
+            {
+                ProfileText(header.transform, "BaseOVR", (english ? "BASE " : "BASE ") + baseline + (english ? "   ·   FORM " : "   ·   FORMA ") + (delta >= 0 ? "+" : "") + delta, 12, UiTheme.Muted, FontStyle.Bold, 0.57f, 0.72f, 0.78f, 0.94f);
+                ProfileText(header.transform, "Potential", LocalizationManager.Translate(PlayerTraits.HiddenPotential(player, true)), 11, UiTheme.AccentSoft, FontStyle.Normal, 0.57f, 0.47f, 0.78f, 0.7f);
+                ProfileText(header.transform, "MarketValue", (english ? "MARKET VALUE\n" : "VALOR DE MERCADO\n") + Euro(MarketValue(player)), 12, Color.white, FontStyle.Bold, 0.57f, 0.27f, 0.78f, 0.46f);
+                ProfileText(header.transform, "ReputationStars", (english ? "REPUTATION  " : "REPUTAÇÃO  ") + ReputationStars(player.Reputation), 14, new Color(1f, 0.78f, 0.15f), FontStyle.Bold, 0.57f, 0.08f, 0.78f, 0.25f);
+            }
+            else
+                ProfileText(header.transform, "MarketValue", (english ? "MARKET VALUE\n" : "VALOR DE MERCADO\n") + Euro(MarketValue(player)), 12, Color.white, FontStyle.Bold, 0.57f, 0.08f, 0.78f, 0.46f, TextAnchor.MiddleCenter);
+            var fitGrade = SystemFit(player);
+            var fit = ProfileText(header.transform, "SystemFit", (english ? "FIT  " : "ENCAIXE  ") + fitGrade, 18, FitGradeColor(fitGrade), FontStyle.Bold, 0.8f, 0.8f, 0.985f, 0.96f, TextAnchor.MiddleLeft);
+            fit.resizeTextForBestFit = true;
+            fit.resizeTextMinSize = 12;
+            fit.resizeTextMaxSize = 18;
+            fit.horizontalOverflow = HorizontalWrapMode.Wrap;
+            var contractDate = player.ContractEndTicks > 0 && player.ContractEndTicks <= DateTime.MaxValue.Ticks
+                ? LocalizationManager.FormatDate(new DateTime(player.ContractEndTicks), "dd/MM/yyyy")
+                : "—";
+            var info = !scouted
+                ? new[]
+                {
+                    (english ? "HEIGHT  " : "ALTURA  ") + (player.HeightCm > 0 ? player.HeightCm + " cm" : "—"),
+                    (english ? "WEIGHT  " : "PESO  ") + (player.WeightKg > 0 ? player.WeightKg + " kg" : "—"),
+                    (english ? "AGE  " : "IDADE  ") + player.Age
+                }
+                : new[]
+                {
+                    (english ? "HEIGHT  " : "ALTURA  ") + (player.HeightCm > 0 ? player.HeightCm + " cm" : "—"),
+                    (english ? "WEIGHT  " : "PESO  ") + (player.WeightKg > 0 ? player.WeightKg + " kg" : "—"),
+                    (english ? "FOOT  " : "PÉ  ") + LocalizationManager.Translate(PresentationLabels.Foot(player.PreferredFoot)) + (english ? "  ·  WEAK FOOT  " : "  ·  PÉ FRACO  ") + LocalizationManager.Translate(WeakFootLabel(player.WeakFootQuality)),
+                    (english ? "PERSONALITY  " : "PERSONALIDADE  ") + LocalizationManager.Translate(PresentationLabels.Personality(player.Personality)),
+                    (english ? "WEEKLY WAGE  " : "SALÁRIO SEMANAL  ") + Euro(player.WeeklyWage),
+                    (english ? "CONTRACT UNTIL  " : "CONTRATO ATÉ  ") + contractDate
+                };
+            var grown = AssociationGrown(player);
+            if (scouted)
+                info = new[]
+                {
+                    (english ? "HEIGHT  " : "ALTURA  ") + (player.HeightCm > 0 ? player.HeightCm + " cm" : "—"),
+                    (english ? "WEIGHT  " : "PESO  ") + (player.WeightKg > 0 ? player.WeightKg + " kg" : "—"),
+                    (english ? "FOOT  " : "PÉ  ") + LocalizationManager.Translate(PresentationLabels.Foot(player.PreferredFoot)),
+                    (english ? "WEAK FOOT  " : "PÉ FRACO  ") + LocalizationManager.Translate(WeakFootLabel(player.WeakFootQuality)),
+                    (english ? "PERSONALITY  " : "PERSONALIDADE  ") + LocalizationManager.Translate(PresentationLabels.Personality(player.Personality)),
+                    (english ? "WAGE  " : "SALÁRIO  ") + Euro(player.WeeklyWage),
+                    (english ? "CONTRACT  " : "CONTRATO  ") + contractDate,
+                    (english ? "ELIGIBILITY  " : "ELEGIBILIDADE  ") + (grown ? (english ? "Homegrown" : "Formado na associação") : (english ? "Not homegrown" : "Sem formação na associação"))
+                };
+            var infoLabel = ProfileText(header.transform, "PhysicalAndInfo", string.Join("\n", info), 12, Color.white, FontStyle.Normal, 0.8f, 0.04f, 0.985f, 0.78f);
+            infoLabel.resizeTextForBestFit = true;
+            infoLabel.resizeTextMinSize = 10;
+            infoLabel.resizeTextMaxSize = 13;
 
             var current = PlayerAttributes.Current(player);
             if (player.Traits == null)
@@ -7524,14 +10538,61 @@ namespace CoachMaster.UI.Scenes
                     ? (english ? "REMOVE FROM LIST" : "RETIRAR DA VENDA")
                     : (english ? "LIST FOR SALE" : "PÔR À VENDA"), () =>
                 {
-                    if (_career.Listed.Contains(captured.Id)) _career.Listed.Remove(captured.Id);
-                    else { _career.Listed.Add(captured.Id); _career.Loans.Remove(captured.Id); }
+                    if (_career.Listed.Contains(captured.Id))
+                    {
+                        _career.Listed.Remove(captured.Id);
+                        captured.Morale = Mathf.Clamp(captured.Morale + 3, 1, 99);
+                        CareerMemories.Record(_career, new FootballMemory
+                        {
+                            WhenTicks = _career.Calendar.CurrentDate.Ticks,
+                            Importance = 2,
+                            Kind = "transferencia",
+                            ClubId = _career.Club.Id,
+                            PlayerId = captured.Id,
+                            Title = english ? "Taken off the list" : "Saiu da lista de transferências",
+                            Detail = captured.FullName + (english ? " is no longer listed for sale." : " deixou de estar à venda.")
+                        });
+                    }
+                    else
+                    {
+                        _career.Listed.Add(captured.Id);
+                        _career.Loans.Remove(captured.Id);
+                        captured.Morale = Mathf.Clamp(captured.Morale - ListingShock(captured), 1, 99);
+                        CareerMemories.Record(_career, new FootballMemory
+                        {
+                            WhenTicks = _career.Calendar.CurrentDate.Ticks,
+                            Importance = 3,
+                            Kind = "transferencia",
+                            ClubId = _career.Club.Id,
+                            PlayerId = captured.Id,
+                            Title = english ? "Transfer listed" : "Na lista de transferências",
+                            Detail = ListingReaction(captured, english)
+                        });
+                    }
                     OpenPlayer(captured);
                 }, 0.03f, 0.55f, 0.49f, 0.96f);
                 ProfileButton(actionPanel.transform, "Loan", forLoan ? (english ? "REMOVE LOAN LISTING" : "RETIRAR DO EMPRÉSTIMO") : (english ? "LIST FOR LOAN" : "LISTA DE EMPRÉSTIMOS"), () =>
                 {
-                    if (_career.Loans.Contains(captured.Id)) _career.Loans.Remove(captured.Id);
-                    else { _career.Loans.Add(captured.Id); _career.Listed.Remove(captured.Id); }
+                    if (_career.Loans.Contains(captured.Id))
+                        _career.Loans.Remove(captured.Id);
+                    else
+                    {
+                        _career.Loans.Add(captured.Id);
+                        _career.Listed.Remove(captured.Id);
+                        captured.Morale = Mathf.Clamp(captured.Morale - 2, 1, 99);
+                        CareerMemories.Record(_career, new FootballMemory
+                        {
+                            WhenTicks = _career.Calendar.CurrentDate.Ticks,
+                            Importance = 2,
+                            Kind = "emprestimo",
+                            ClubId = _career.Club.Id,
+                            PlayerId = captured.Id,
+                            Title = english ? "Loan listed" : "Na lista de empréstimos",
+                            Detail = captured.FullName.Split(' ')[0] + (english
+                                ? " asked where you see them next season."
+                                : " perguntou onde o vês na próxima época.")
+                        });
+                    }
                     OpenPlayer(captured);
                 }, 0.51f, 0.55f, 0.97f, 0.96f);
                 var offerValue = 0;
@@ -7624,35 +10685,365 @@ namespace CoachMaster.UI.Scenes
             }
         }
 
+void OpenContractSheet(Player player, string page)
+        {
+            if (player == null)
+                return;
+            var previous = transform.Find("ContractSheet");
+            if (previous != null)
+                Destroy(previous.gameObject);
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var sheet = BroadcastUi.Panel(transform, "ContractSheet", new Color(0.08f, 0.09f, 0.11f, 0.98f), true);
+            BroadcastUi.Place(sheet.rectTransform, 0.03f, 0.08f, 0.97f, 0.96f);
+            sheet.transform.SetAsLastSibling();
+            var close = BroadcastUi.Button(sheet.transform, "Close", "×", () => Destroy(sheet.gameObject), new Color(1f, 1f, 1f, 0.1f), Color.white, 20);
+            BroadcastUi.Place(close.GetComponent<RectTransform>(), 0.94f, 0.9f, 0.985f, 0.975f);
+
+            var header = BroadcastUi.Panel(sheet.transform, "Header", new Color(0.12f, 0.13f, 0.16f, 1f), false);
+            BroadcastUi.Place(header.rectTransform, 0.015f, 0.86f, 0.92f, 0.98f);
+            var faceSlot = BroadcastUi.Zone(header.transform, "FaceSlot", 0.01f, 0.08f, 0.1f, 0.92f);
+            FaceImage(faceSlot, player, 64f);
+            var name = BroadcastUi.Label(header.transform, "Name", player.FullName, 22, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(name.rectTransform, 0.12f, 0.48f, 0.62f, 0.92f);
+            var meta = BroadcastUi.Label(header.transform, "Meta", player.Age + (english ? " year old  ·  " : " anos  ·  ") + ProfilePosition(player.Position, english), 14, new Color(0.75f, 0.78f, 0.82f, 1f), TextAnchor.MiddleLeft);
+            BroadcastUi.Place(meta.rectTransform, 0.12f, 0.08f, 0.55f, 0.48f);
+            if (_career.World.Clubs.TryGetValue(player.ClubId ?? "", out var club) && club != null)
+            {
+                var crestSlot = BroadcastUi.Zone(header.transform, "CrestSlot", 0.58f, 0.2f, 0.66f, 0.8f);
+                CrestImage(crestSlot, club, 36f);
+                var clubName = BroadcastUi.Label(header.transform, "Club", club.ShortName, 16, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+                BroadcastUi.Place(clubName.rectTransform, 0.67f, 0.2f, 0.98f, 0.8f);
+            }
+
+            var now = _career.Calendar.CurrentDate.Date;
+            var hasEnd = player.ContractEndTicks > 0 && player.ContractEndTicks < DateTime.MaxValue.Ticks;
+            var end = hasEnd ? new DateTime(player.ContractEndTicks).Date : now;
+            var start = hasEnd ? end.AddYears(-3) : now;
+            if (start > now)
+                start = now;
+            var leftSpan = hasEnd ? end - now : TimeSpan.Zero;
+            var yearsLeft = hasEnd ? Math.Max(0, (int)(leftSpan.TotalDays / 365.25)) : 0;
+            var daysLeft = hasEnd ? Math.Max(0, leftSpan.Days - yearsLeft * 365) : 0;
+            var culture = CultureInfo.GetCultureInfo(english ? "en-GB" : "pt-PT");
+            var squad = Squad(_career.Club);
+            var squadWeekly = 0;
+            for (var i = 0; i < squad.Count; i++)
+                squadWeekly += Math.Max(0, squad[i].WeeklyWage);
+            var budget = _career.Club.Finance == null ? 0 : _career.Club.Finance.WageBudget;
+            float share;
+            if (budget > squadWeekly * 8 && budget > 0)
+                share = player.WeeklyWage * 52f / budget;
+            else if (budget > 0)
+                share = player.WeeklyWage / (float)budget;
+            else
+                share = squadWeekly <= 0 ? 0f : player.WeeklyWage / (float)squadWeekly;
+            share = Mathf.Clamp(share, 0f, 1f);
+            var mix = 17;
+            var seed = player.Id ?? "";
+            for (var i = 0; i < seed.Length; i++)
+                mix = mix * 31 + seed[i];
+            mix &= 0x7fffffff;
+            var loyalty = player.WeeklyWage * (4 + mix % 5);
+            var appearance = Math.Max(500, player.WeeklyWage / (8 + mix % 6));
+            var goalBonus = Math.Max(800, player.WeeklyWage / (3 + mix % 4));
+            var assistBonus = Math.Max(600, player.WeeklyWage / (6 + mix % 5));
+            var unusedBonus = Math.Max(200, player.WeeklyWage / (18 + mix % 10));
+            var drop = 25 + (mix % 4) * 10;
+            var extensionYears = 1 + mix % 2;
+
+            var details = BroadcastUi.Panel(sheet.transform, "Details", new Color(0.05f, 0.06f, 0.08f, 1f), false);
+            BroadcastUi.Place(details.rectTransform, 0.015f, 0.16f, 0.4f, 0.84f);
+            SectionTitle(details.transform, english ? "CONTRACT DETAILS" : "DETALHES DO CONTRATO");
+            var wageLabel = BroadcastUi.Label(details.transform, "WageLabel", english ? "Wage" : "Salário", 13, new Color(0.7f, 0.74f, 0.78f, 1f), TextAnchor.MiddleLeft);
+            BroadcastUi.Place(wageLabel.rectTransform, 0.05f, 0.78f, 0.4f, 0.86f);
+            var pill = BroadcastUi.Panel(details.transform, "WagePill", new Color(0.58f, 0.22f, 0.95f, 1f), false);
+            BroadcastUi.Place(pill.rectTransform, 0.38f, 0.78f, 0.78f, 0.88f);
+            var pillText = BroadcastUi.Label(pill.transform, "V", ContractMoney(player.WeeklyWage) + (english ? " p/w" : " /sem"), 16, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Stretch(pillText.rectTransform);
+            var tax = BroadcastUi.Label(details.transform, "Tax", ContractMoney(Mathf.RoundToInt(player.WeeklyWage * 0.54f)) + (english ? " p/w (after tax)" : " /sem (depois de impostos)"), 12, new Color(0.65f, 0.68f, 0.72f, 1f), TextAnchor.MiddleLeft);
+            BroadcastUi.Place(tax.rectTransform, 0.05f, 0.7f, 0.95f, 0.78f);
+            var percentLabel = BroadcastUi.Label(details.transform, "PercentLabel", english ? "Percentage of overall wage budget" : "Percentagem da massa salarial", 12, new Color(0.7f, 0.74f, 0.78f, 1f), TextAnchor.MiddleLeft);
+            BroadcastUi.Place(percentLabel.rectTransform, 0.05f, 0.62f, 0.78f, 0.7f);
+            var percent = BroadcastUi.Label(details.transform, "Percent", (share * 100f).ToString("0.0", culture) + "%", 14, Color.white, TextAnchor.MiddleRight, FontStyle.Bold);
+            BroadcastUi.Place(percent.rectTransform, 0.7f, 0.62f, 0.95f, 0.7f);
+            var track = BroadcastUi.Panel(details.transform, "Track", new Color(1f, 1f, 1f, 0.08f), false);
+            BroadcastUi.Place(track.rectTransform, 0.05f, 0.56f, 0.95f, 0.61f);
+            var fill = BroadcastUi.Panel(track.transform, "Fill", new Color(0.58f, 0.22f, 0.95f, 1f), false);
+            BroadcastUi.Place(fill.rectTransform, 0f, 0.15f, Mathf.Clamp(share <= 0f ? 0.04f : share, 0.04f, 1f), 0.85f);
+            ContractRow(details.transform, "Start", english ? "Start date" : "Início", hasEnd ? start.ToString("dd/MM/yyyy", culture) : "—", 0.46f);
+            ContractRow(details.transform, "Expiry", english ? "Expiry date" : "Fim", hasEnd ? end.ToString("dd/MM/yyyy", culture) : "—", 0.36f);
+            ContractRow(details.transform, "Left", english ? "Time left on contract" : "Tempo restante", hasEnd ? yearsLeft + (english ? " years, " : " anos, ") + daysLeft + (english ? " days" : " dias") : "—", 0.26f);
+            ContractRow(details.transform, "Type", english ? "Contract type" : "Tipo de contrato", english ? "Full time contract" : "Contrato a tempo inteiro", 0.16f);
+
+            var middle = BroadcastUi.Panel(sheet.transform, "Middle", new Color(0.05f, 0.06f, 0.08f, 1f), false);
+            BroadcastUi.Place(middle.rectTransform, 0.41f, 0.16f, 0.67f, 0.84f);
+            SectionTitle(middle.transform, english ? "BONUSES" : "BÓNUS");
+            ContractRow(middle.transform, "Loyalty", english ? "Remaining loyalty bonus" : "Lealdade por pagar", ContractMoney(loyalty), 0.74f);
+            ContractRow(middle.transform, "Appearance", english ? "Appearance fee" : "Prémio de utilização", ContractMoney(appearance), 0.64f);
+            ContractRow(middle.transform, "Goal", english ? "Goal bonus" : "Prémio de golo", ContractMoney(goalBonus), 0.54f);
+            ContractRow(middle.transform, "Assist", english ? "Assist bonus" : "Prémio de assistência", ContractMoney(assistBonus), 0.44f);
+            ContractRow(middle.transform, "Unused", english ? "Unused substitute fee" : "Suplente não utilizado", ContractMoney(unusedBonus), 0.34f);
+            var clauses = BroadcastUi.Label(middle.transform, "Clauses", english ? "CLAUSES" : "CLÁUSULAS", 13, new Color(0.7f, 0.74f, 0.78f, 1f), TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(clauses.rectTransform, 0.05f, 0.22f, 0.95f, 0.3f);
+            ContractRow(middle.transform, "Drop", english ? "Relegation wage drop" : "Corte por despromoção", drop + "%", 0.12f);
+            ContractRow(middle.transform, "Extend", english ? "Optional extension by club" : "Extensão opcional do clube", extensionYears + (english ? " year" : extensionYears == 1 ? " ano" : " anos"), 0.02f);
+
+            var right = BroadcastUi.Panel(sheet.transform, "Right", new Color(0.07f, 0.08f, 0.1f, 1f), false);
+            BroadcastUi.Place(right.rectTransform, 0.68f, 0.16f, 0.985f, 0.84f);
+            var eleven = new List<Player>();
+            var bench = new List<Player>();
+            StartingShape.Resolve(squad, _career.Club, eleven, bench);
+            var inEleven = false;
+            var onBench = false;
+            for (var i = 0; i < eleven.Count; i++)
+                if (eleven[i].Id == player.Id)
+                    inEleven = true;
+            for (var i = 0; i < bench.Count && i < 7; i++)
+                if (bench[i].Id == player.Id)
+                    onBench = true;
+            var playing = inEleven ? (english ? "Regular starter" : "Titular habitual") : onBench ? (english ? "Squad rotation" : "Rotação") : (english ? "Fringe player" : "Suplente");
+            var agreed = inEleven ? 8 : onBench ? 5 : 2;
+            var playCard = BroadcastUi.Panel(right.transform, "Play", new Color(0.1f, 0.11f, 0.14f, 1f), false);
+            BroadcastUi.Place(playCard.rectTransform, 0.04f, 0.78f, 0.96f, 0.97f);
+            var playTitle = BroadcastUi.Label(playCard.transform, "T", english ? "PLAYING TIME" : "TEMPO DE JOGO", 11, new Color(0.95f, 0.78f, 0.25f, 1f), TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(playTitle.rectTransform, 0.06f, 0.68f, 0.94f, 0.96f);
+            var playValue = BroadcastUi.Label(playCard.transform, "V", playing, 16, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(playValue.rectTransform, 0.06f, 0.34f, 0.94f, 0.68f);
+            var playNote = BroadcastUi.Label(playCard.transform, "N", english ? "Matches agreed" : "Jogos acordados", 11, new Color(0.7f, 0.74f, 0.78f, 1f), TextAnchor.MiddleLeft);
+            BroadcastUi.Place(playNote.rectTransform, 0.06f, 0.02f, 0.48f, 0.32f);
+            DiamondRow(playCard.transform, "Agreed", agreed, 10, 0.5f, 0.08f, 0.28f);
+
+            var report = BroadcastUi.Panel(right.transform, "Report", new Color(0.1f, 0.16f, 0.13f, 1f), false);
+            BroadcastUi.Place(report.rectTransform, 0.04f, 0.58f, 0.96f, 0.76f);
+            var overall = PlayerAttributes.Overall(player);
+            var reportText = overall >= 80 ? (english ? "Important player in the side." : "Jogador importante no onze.") : player.Potential >= overall + 8 ? (english ? "Important player who could still improve." : "Jogador importante que ainda pode evoluir.") : (english ? "Squad player with a defined role." : "Jogador de plantel com função definida.");
+            var reportTitle = BroadcastUi.Label(report.transform, "T", english ? "COACH REPORT" : "RELATÓRIO DO TREINADOR", 11, new Color(0.45f, 0.9f, 0.55f, 1f), TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(reportTitle.rectTransform, 0.06f, 0.72f, 0.94f, 0.96f);
+            var reportBody = BroadcastUi.Label(report.transform, "B", reportText, 12, Color.white, TextAnchor.MiddleLeft);
+            reportBody.horizontalOverflow = HorizontalWrapMode.Wrap;
+            BroadcastUi.Place(reportBody.rectTransform, 0.06f, 0.48f, 0.94f, 0.74f);
+            var ca = BroadcastUi.Label(report.transform, "CA", english ? "Current ability" : "Capacidade atual", 12, Color.white, TextAnchor.MiddleLeft);
+            BroadcastUi.Place(ca.rectTransform, 0.06f, 0.24f, 0.55f, 0.48f);
+            DiamondRow(report.transform, "CAStars", AbilityStars(overall), 5, 0.58f, 0.28f, 0.46f);
+            var pa = BroadcastUi.Label(report.transform, "PA", english ? "Potential ability" : "Potencial", 12, Color.white, TextAnchor.MiddleLeft);
+            BroadcastUi.Place(pa.rectTransform, 0.06f, 0.02f, 0.55f, 0.26f);
+            DiamondRow(report.transform, "PAStars", AbilityStars(player.Potential), 5, 0.58f, 0.04f, 0.22f);
+
+            var permit = BroadcastUi.Panel(right.transform, "Permit", new Color(0.1f, 0.11f, 0.14f, 1f), false);
+            BroadcastUi.Place(permit.rectTransform, 0.04f, 0.46f, 0.96f, 0.56f);
+            var permitTitle = BroadcastUi.Label(permit.transform, "T", english ? "WORK PERMIT" : "AUTORIZAÇÃO DE TRABALHO", 11, new Color(0.7f, 0.74f, 0.78f, 1f), TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(permitTitle.rectTransform, 0.06f, 0.55f, 0.94f, 0.95f);
+            var permitState = BroadcastUi.Label(permit.transform, "S", (english ? "Active" : "Ativo") + (hasEnd ? (english ? " until " : " até ") + end.ToString("dd/MM/yyyy", culture) : ""), 13, new Color(0.45f, 0.9f, 0.55f, 1f), TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(permitState.rectTransform, 0.06f, 0.05f, 0.94f, 0.55f);
+
+            var contracts = BroadcastUi.Panel(right.transform, "Contracts", new Color(0.1f, 0.11f, 0.14f, 1f), false);
+            BroadcastUi.Place(contracts.rectTransform, 0.04f, 0.03f, 0.96f, 0.44f);
+            var contractTitle = BroadcastUi.Label(contracts.transform, "T", english ? "CONTRACTS" : "CONTRATOS", 11, new Color(0.7f, 0.74f, 0.78f, 1f), TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(contractTitle.rectTransform, 0.06f, 0.82f, 0.55f, 0.98f);
+            var contractCount = BroadcastUi.Label(contracts.transform, "C", squad.Count + (english ? " contracted players" : " jogadores sob contrato"), 13, Color.white, TextAnchor.MiddleRight, FontStyle.Bold);
+            BroadcastUi.Place(contractCount.rectTransform, 0.4f, 0.82f, 0.94f, 0.98f);
+            var buckets = new[] { 0, 0, 0, 0 };
+            for (var i = 0; i < squad.Count; i++)
+            {
+                var member = squad[i];
+                if (member.ContractEndTicks <= 0)
+                {
+                    buckets[3]++;
+                    continue;
+                }
+                var months = (new DateTime(member.ContractEndTicks).Date - now).TotalDays / 30.0;
+                if (months < 6) buckets[0]++;
+                else if (months < 12) buckets[1]++;
+                else if (months < 24) buckets[2]++;
+                else buckets[3]++;
+            }
+            var maxBucket = 1;
+            for (var i = 0; i < buckets.Length; i++)
+                if (buckets[i] > maxBucket)
+                    maxBucket = buckets[i];
+            var bucketLabels = new[] { "0-6M", "6-12M", "1-2A", "2A+" };
+            for (var i = 0; i < buckets.Length; i++)
+            {
+                var x0 = 0.08f + i * 0.23f;
+                var height = 0.06f + 0.34f * buckets[i] / maxBucket;
+                var column = BroadcastUi.Panel(contracts.transform, "Col" + i, new Color(0.2f, 0.75f, 0.82f, 1f), false);
+                BroadcastUi.Place(column.rectTransform, x0, 0.22f, x0 + 0.14f, 0.22f + height);
+                var countLabel = BroadcastUi.Label(contracts.transform, "N" + i, buckets[i].ToString(), 12, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+                BroadcastUi.Place(countLabel.rectTransform, x0 - 0.02f, 0.22f + height, x0 + 0.16f, 0.22f + height + 0.1f);
+                var bucket = BroadcastUi.Label(contracts.transform, "L" + i, bucketLabels[i], 11, new Color(0.7f, 0.74f, 0.78f, 1f), TextAnchor.MiddleCenter);
+                BroadcastUi.Place(bucket.rectTransform, x0 - 0.02f, 0.08f, x0 + 0.16f, 0.2f);
+            }
+
+            if (page == "ofertas")
+                PaintContractOffers(sheet.transform, player, english);
+            else if (page == "agente")
+                PaintAgentAsk(sheet.transform, player, english, Mathf.Max(250, Mathf.RoundToInt(player.WeeklyWage * 1.18f)));
+            else if (page == "acoes")
+                PaintContractActions(sheet.transform, player, english);
+            else
+            {
+                var discuss = BroadcastUi.Button(sheet.transform, "Discuss", english ? "DISCUSS NEW CONTRACT WITH AGENT" : "FALAR DE UM NOVO CONTRATO COM O AGENTE", () => OpenContractSheet(player, "agente"), new Color(0.85f, 0.15f, 0.55f, 1f), Color.white, 13);
+                BroadcastUi.Place(discuss.GetComponent<RectTransform>(), 0.015f, 0.025f, 0.46f, 0.13f);
+                var enter = BroadcastUi.Button(sheet.transform, "Enter", english ? "ENTER CONTRACT NEGOTIATIONS" : "ENTRAR EM NEGOCIAÇÕES", () => OpenContractSheet(player, "ofertas"), new Color(0.16f, 0.17f, 0.2f, 1f), Color.white, 13);
+                BroadcastUi.Place(enter.GetComponent<RectTransform>(), 0.48f, 0.025f, 0.74f, 0.13f);
+                var actions = BroadcastUi.Button(sheet.transform, "Actions", english ? "ACTIONS" : "AÇÕES", () => OpenContractSheet(player, "acoes"), new Color(0.16f, 0.17f, 0.2f, 1f), Color.white, 13);
+                BroadcastUi.Place(actions.GetComponent<RectTransform>(), 0.76f, 0.025f, 0.985f, 0.13f);
+            }
+        }
+
+        void PaintContractOffers(Transform sheet, Player player, bool english)
+        {
+            var raises = new[] { 5, 12, 20 };
+            var terms = new[] { 2, 3, 4 };
+            var titles = english ? new[] { "Cautious", "The agent's line", "Make him stay" } : new[] { "Prudente", "A linha do agente", "Para ficar" };
+            for (var i = 0; i < raises.Length; i++)
+            {
+                var increase = raises[i];
+                var term = terms[i];
+                var wage = Mathf.Max(250, Mathf.RoundToInt(player.WeeklyWage * (1f + increase / 100f)));
+                var x0 = 0.015f + i * 0.27f;
+                var card = BroadcastUi.Panel(sheet, "Offer" + i, new Color(0.1f, 0.11f, 0.14f, 1f), true);
+                BroadcastUi.Place(card.rectTransform, x0, 0.02f, x0 + 0.25f, 0.145f);
+                var heading = BroadcastUi.Label(card.transform, "H", titles[i], 12, new Color(0.7f, 0.74f, 0.78f, 1f), TextAnchor.MiddleLeft, FontStyle.Bold);
+                BroadcastUi.Place(heading.rectTransform, 0.06f, 0.68f, 0.94f, 0.96f);
+                var pill = BroadcastUi.Panel(card.transform, "Pill", new Color(0.58f, 0.22f, 0.95f, 1f), false);
+                BroadcastUi.Place(pill.rectTransform, 0.06f, 0.32f, 0.62f, 0.64f);
+                var pillText = BroadcastUi.Label(pill.transform, "V", ContractMoney(wage), 14, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+                BroadcastUi.Stretch(pillText.rectTransform);
+                var termLabel = BroadcastUi.Label(card.transform, "Y", term + (english ? " years" : " anos"), 13, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+                BroadcastUi.Place(termLabel.rectTransform, 0.66f, 0.32f, 0.96f, 0.64f);
+                var offer = BroadcastUi.Button(card.transform, "Go", "+" + increase + "%", () => ResolveRenewalOffer(player, wage, term, increase), new Color(0.85f, 0.15f, 0.55f, 1f), Color.white, 13);
+                BroadcastUi.Place(offer.GetComponent<RectTransform>(), 0.06f, 0.06f, 0.94f, 0.28f);
+            }
+            var back = BroadcastUi.Button(sheet, "BackOffers", english ? "BACK" : "VOLTAR", () => OpenContractSheet(player, "ficha"), new Color(0.16f, 0.17f, 0.2f, 1f), Color.white, 13);
+            BroadcastUi.Place(back.GetComponent<RectTransform>(), 0.83f, 0.02f, 0.985f, 0.145f);
+        }
+
+        void PaintAgentAsk(Transform sheet, Player player, bool english, int wage)
+        {
+            var card = BroadcastUi.Panel(sheet, "Agent", new Color(0.12f, 0.08f, 0.16f, 1f), true);
+            BroadcastUi.Place(card.rectTransform, 0.015f, 0.02f, 0.72f, 0.145f);
+            var heading = BroadcastUi.Label(card.transform, "H", english ? "THE AGENT'S OPENING LINE" : "A PEDIDO DO AGENTE", 12, new Color(0.95f, 0.55f, 0.75f, 1f), TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(heading.rectTransform, 0.03f, 0.62f, 0.7f, 0.94f);
+            var pill = BroadcastUi.Panel(card.transform, "Pill", new Color(0.58f, 0.22f, 0.95f, 1f), false);
+            BroadcastUi.Place(pill.rectTransform, 0.62f, 0.55f, 0.96f, 0.9f);
+            var pillText = BroadcastUi.Label(pill.transform, "V", ContractMoney(wage) + (english ? " p/w" : " /sem"), 14, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Stretch(pillText.rectTransform);
+            var note = BroadcastUi.Label(card.transform, "N", english ? "He will sit down if the offer starts here. Three years." : "Senta-se à mesa se a conversa começar aqui. Três anos.", 13, Color.white, TextAnchor.MiddleLeft);
+            BroadcastUi.Place(note.rectTransform, 0.03f, 0.08f, 0.6f, 0.55f);
+            var talk = BroadcastUi.Button(card.transform, "Talk", english ? "OPEN THE TABLE" : "ABRIR A MESA", () => OpenContractSheet(player, "ofertas"), new Color(0.85f, 0.15f, 0.55f, 1f), Color.white, 13);
+            BroadcastUi.Place(talk.GetComponent<RectTransform>(), 0.62f, 0.08f, 0.96f, 0.48f);
+            var back = BroadcastUi.Button(sheet, "BackAgent", english ? "BACK" : "VOLTAR", () => OpenContractSheet(player, "ficha"), new Color(0.16f, 0.17f, 0.2f, 1f), Color.white, 13);
+            BroadcastUi.Place(back.GetComponent<RectTransform>(), 0.74f, 0.02f, 0.985f, 0.145f);
+        }
+
+        void PaintContractActions(Transform sheet, Player player, bool english)
+        {
+            var listed = _career.Listed.Contains(player.Id);
+            var card = BroadcastUi.Panel(sheet, "Menu", new Color(0.1f, 0.11f, 0.14f, 1f), true);
+            BroadcastUi.Place(card.rectTransform, 0.62f, 0.02f, 0.985f, 0.145f);
+            var toggle = BroadcastUi.Button(card.transform, "List", listed ? (english ? "REMOVE FROM THE LIST" : "RETIRAR DA LISTA") : (english ? "LIST FOR SALE" : "COLOCAR À VENDA"), () =>
+            {
+                ToggleContractListing(player);
+                OpenContractSheet(player, "ficha");
+            }, listed ? new Color(0.35f, 0.18f, 0.18f, 1f) : new Color(0.85f, 0.15f, 0.55f, 1f), Color.white, 13);
+            BroadcastUi.Place(toggle.GetComponent<RectTransform>(), 0.04f, 0.52f, 0.96f, 0.92f);
+            var back = BroadcastUi.Button(card.transform, "Back", english ? "CLOSE" : "FECHAR", () => OpenContractSheet(player, "ficha"), new Color(0.16f, 0.17f, 0.2f, 1f), Color.white, 13);
+            BroadcastUi.Place(back.GetComponent<RectTransform>(), 0.04f, 0.08f, 0.96f, 0.44f);
+        }
+
+        void ToggleContractListing(Player player)
+        {
+            if (player == null)
+                return;
+            var english = LocalizationManager.Current == GameLanguage.English;
+            if (_career.Listed.Contains(player.Id))
+            {
+                _career.Listed.Remove(player.Id);
+                player.Morale = Mathf.Clamp(player.Morale + 3, 1, 99);
+            }
+            else
+            {
+                _career.Listed.Add(player.Id);
+                _career.Loans.Remove(player.Id);
+                player.Morale = Mathf.Clamp(player.Morale - ListingShock(player), 1, 99);
+            }
+            CareerMemories.Record(_career, new FootballMemory
+            {
+                WhenTicks = _career.Calendar.CurrentDate.Ticks,
+                Importance = 3,
+                Kind = "transferencia",
+                ClubId = _career.Club.Id,
+                PlayerId = player.Id,
+                Title = _career.Listed.Contains(player.Id) ? (english ? "Listed for sale" : "Colocado à venda") : (english ? "Taken off the list" : "Saiu da lista"),
+                Detail = player.FullName
+            });
+            CareerStore.Save(_career);
+        }
+
+        static void SectionTitle(Transform parent, string text)
+        {
+            var label = BroadcastUi.Label(parent, "Section", text, 13, new Color(0.7f, 0.74f, 0.78f, 1f), TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(label.rectTransform, 0.05f, 0.9f, 0.95f, 0.98f);
+        }
+
+        static void ContractRow(Transform parent, string name, string left, string right, float y)
+        {
+            var row = BroadcastUi.Panel(parent, name, new Color(1f, 1f, 1f, 0.035f), false);
+            BroadcastUi.Place(row.rectTransform, 0.04f, y, 0.96f, y + 0.08f);
+            var a = BroadcastUi.Label(row.transform, "L", left, 13, new Color(0.78f, 0.8f, 0.84f, 1f), TextAnchor.MiddleLeft);
+            BroadcastUi.Place(a.rectTransform, 0.04f, 0.08f, 0.62f, 0.92f);
+            var b = BroadcastUi.Label(row.transform, "R", right, 14, Color.white, TextAnchor.MiddleRight, FontStyle.Bold);
+            b.resizeTextForBestFit = true;
+            b.resizeTextMinSize = 10;
+            b.resizeTextMaxSize = 14;
+            BroadcastUi.Place(b.rectTransform, 0.6f, 0.08f, 0.96f, 0.92f);
+        }
+
+        static void DiamondRow(Transform parent, string name, int filled, int total, float x, float y0, float y1)
+        {
+            var width = 0.94f - x;
+            var step = width / Mathf.Max(1, total);
+            for (var i = 0; i < total; i++)
+            {
+                var diamond = BroadcastUi.Panel(parent, name + i, i < filled ? new Color(0.98f, 0.78f, 0.2f, 1f) : new Color(1f, 1f, 1f, 0.14f), false);
+                var x0 = x + i * step;
+                BroadcastUi.Place(diamond.rectTransform, x0, y0, x0 + step * 0.62f, y1);
+                diamond.rectTransform.localRotation = Quaternion.Euler(0f, 0f, 45f);
+            }
+        }
+
+        static int AbilityStars(int value)
+        {
+            if (value <= 20)
+                return Mathf.Clamp(Mathf.RoundToInt(value / 4f), 1, 5);
+            return Mathf.Clamp(Mathf.RoundToInt(value / 18f), 1, 5);
+        }
+
+        static string ContractMoney(int value)
+        {
+            var amount = Math.Max(0, value);
+            if (amount >= 1000000)
+                return "€" + (amount / 1000000f).ToString("0.0", CultureInfo.InvariantCulture) + "M";
+            if (amount >= 1000)
+                return "€" + Mathf.RoundToInt(amount / 1000f) + "K";
+            return "€" + amount;
+        }
+
         void OpenRenewalNegotiation(Player player)
         {
             if (player == null || player.ClubId != _career.Club.Id)
                 return;
-            var english = LocalizationManager.Current == GameLanguage.English;
-            OpenModal(english ? "Contract negotiation" : "Negociação de contrato", player.FullName, true);
-            AddLine(english
-                ? "Current wage: " + Euro(player.WeeklyWage) + "/week. Choose a wage and term to make an offer."
-                : "Salário atual: " + Euro(player.WeeklyWage) + "/semana. Escolhe o salário e a duração para apresentar uma proposta.");
-            var raises = new[] { 5, 12, 20 };
-            var years = new[] { 2, 3, 4 };
-            for (var i = 0; i < raises.Length; i++)
-            {
-                var increase = raises[i];
-                var term = years[i];
-                var wage = Mathf.Max(250, Mathf.RoundToInt(player.WeeklyWage * (1f + increase / 100f)));
-                var button = BroadcastUi.Button(_modalBody, "Offer" + i,
-                    english ? "+" + increase + "%  ·  " + Euro(wage) + "/week  ·  " + term + " years"
-                        : "+" + increase + "%  ·  " + Euro(wage) + "/semana  ·  " + term + " anos",
-                    () => ResolveRenewalOffer(player, wage, term, increase), new Color(1f, 1f, 1f, 0.08f), Color.white, 14);
-                BroadcastUi.Preferred(button, 48f);
-            }
-            _modalActionLabel.text = english ? "CLOSE" : "FECHAR";
-            _modalAction.onClick.RemoveAllListeners();
-            _modalAction.onClick.AddListener(CloseModal);
+            OpenContractSheet(player, "ficha");
         }
+
+
 
         void ResolveRenewalOffer(Player player, int wage, int years, int increase)
         {
+            var contractSheet = transform.Find("ContractSheet");
+            if (contractSheet != null)
+                Destroy(contractSheet.gameObject);
             if (player == null || player.ClubId != _career.Club.Id) return;
             var english = LocalizationManager.Current == GameLanguage.English;
             var acceptance = Mathf.Clamp(82 - increase * 2 + (player.Morale - 50) / 3 + (player.Age <= 27 ? 5 : 0), 12, 92);
@@ -7698,6 +11089,29 @@ namespace CoachMaster.UI.Scenes
             return panel;
         }
 
+        void PaintRolePitch(Transform parent, Player player, float x0, float y0, float x1, float y1)
+        {
+            if (parent == null || player == null)
+                return;
+            var pitch = BroadcastUi.Zone(parent, "RolePitch", x0, y0, x1, y1);
+            BroadcastUi.DrawVerticalPitch(pitch, new Color(0.08f, 0.32f, 0.16f));
+            var formation = _career != null && _career.Club != null && _career.Club.Tactics != null && !string.IsNullOrEmpty(_career.Club.Tactics.Formation)
+                ? _career.Club.Tactics.Formation
+                : "4-3-3";
+            var slots = StartingShape.SlotPositions(formation);
+            for (var i = 0; i < 11; i++)
+            {
+                var spot = MatchEngine.Slot(true, i, formation);
+                var role = slots != null && i < slots.Length ? slots[i] : PlayerPosition.CentralMidfielder;
+                var here = role == player.Position;
+                var dot = BroadcastUi.Solid(pitch, "Dot" + i, here ? UiTheme.Accent : new Color(0.85f, 0.88f, 0.92f, 0.85f));
+                dot.sprite = BroadcastUi.Circle;
+                dot.raycastTarget = false;
+                dot.rectTransform.anchorMin = dot.rectTransform.anchorMax = new Vector2(spot.x, spot.y);
+                dot.rectTransform.sizeDelta = here ? new Vector2(14f, 14f) : new Vector2(7f, 7f);
+            }
+        }
+
         static Text ProfileText(Transform parent, string name, string value, int size, Color color, FontStyle style, float x0, float y0, float x1, float y1, TextAnchor anchor = TextAnchor.MiddleLeft)
         {
             var label = BroadcastUi.Label(parent, name, value, size, color, anchor, style);
@@ -7720,8 +11134,10 @@ namespace CoachMaster.UI.Scenes
                 var value = stats[i] == "Moral" ? Mathf.RoundToInt(player.Morale / 5f)
                     : stats[i] == "Forma" ? Mathf.RoundToInt(player.Form / 5f)
                     : PlayerAttributes.CurrentValue(player, stats[i]);
-                ProfileText(row, "Name", LocalizationManager.Translate(stats[i]), 9, Color.white, FontStyle.Normal, 0f, 0.52f, 0.6f, 1f);
-                ProfileText(row, "Number", value.ToString(), 10, UiTheme.Score, FontStyle.Bold, 0.6f, 0.52f, 0.78f, 1f, TextAnchor.MiddleRight);
+                ProfileText(row, "Name", LocalizationManager.Translate(stats[i]), 9, Color.white, FontStyle.Normal, 0f, 0.48f, 0.68f, 1f);
+                var number = ProfileText(row, "Number", value.ToString(), 12, Color.white, FontStyle.Bold, 0.68f, 0.42f, 0.99f, 1f, TextAnchor.MiddleRight);
+                number.horizontalOverflow = HorizontalWrapMode.Overflow;
+                number.verticalOverflow = VerticalWrapMode.Overflow;
                 var track = BroadcastUi.Solid(row, "Track", new Color(1f, 1f, 1f, 0.13f));
                 BroadcastUi.Place(track.rectTransform, 0f, 0.05f, 1f, 0.34f);
                 var fill = BroadcastUi.Solid(track.transform, "Fill", value >= 15 ? UiTheme.Fitness : value >= 10 ? UiTheme.Accent : UiTheme.FitnessLow);
@@ -8029,25 +11445,82 @@ namespace CoachMaster.UI.Scenes
 
         void OpenStaff(StaffMember member)
         {
+            if (member == null)
+                return;
             _offer = null;
-            _modalLineSize = 20;
-            OpenModal(member.FullName, PresentationLabels.StaffRole(member.Role), true);
-            var portrait = BroadcastUi.Panel(_modalBody, "StaffPortrait", new Color(0.035f, 0.075f, 0.1f, 0.96f));
-            BroadcastUi.Preferred(portrait, 96f);
-            var portraitImage = BroadcastUi.Solid(portrait.transform, "Face", Color.white);
-            BroadcastUi.Place(portraitImage.rectTransform, 0.43f, 0.03f, 0.57f, 0.97f);
-            portraitImage.sprite = FaceBook.For(member);
-            portraitImage.preserveAspect = true;
-            portraitImage.raycastTarget = false;
-            AddLine(LocalizationManager.Translate(StaffReport.Quality(member)) + " " + LocalizationManager.Translate(StaffReport.Confidence(member)));
-            AddLine(LocalizationManager.Current == GameLanguage.English
-                ? "Requesting a replacement does not dismiss anyone. Only the board can end a contract."
-                : "Pedir a saída não despede ninguém. Quem termina o contrato é a direção.");
-            AddLine(VibeLine());
-            _modalAction.onClick.RemoveAllListeners();
-            _modalActionLabel.text = LocalizationManager.Translate("REUNIÃO COM O PRESIDENTE");
+            if (_staffSheet != null)
+                Destroy(_staffSheet);
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var host = transform.Find("Design") as Transform ?? transform;
+            var sheet = BroadcastUi.Panel(host, "StaffSheet", new Color(0.05f, 0.025f, 0.1f, 0.98f), true);
+            _staffSheet = sheet.gameObject;
+            BroadcastUi.Place(sheet.rectTransform, 0.2f, 0.14f, 0.8f, 0.88f);
+            sheet.transform.SetAsLastSibling();
+
+            var close = BroadcastUi.Button(sheet.transform, "CloseStaff", "×", CloseStaffSheet, new Color(1f, 1f, 1f, 0.12f), Color.white, 22);
+            BroadcastUi.Place(close.GetComponent<RectTransform>(), 0.94f, 0.92f, 0.985f, 0.985f);
+            var name = BroadcastUi.Label(sheet.transform, "Name", member.FullName, 26, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(name.rectTransform, 0.03f, 0.9f, 0.7f, 0.985f);
+            var role = BroadcastUi.Label(sheet.transform, "Role", LocalizationManager.Translate(PresentationLabels.StaffRole(member.Role)), 16, UiTheme.Accent, TextAnchor.MiddleLeft);
+            BroadcastUi.Place(role.rectTransform, 0.03f, 0.845f, 0.7f, 0.91f);
+
+            var portrait = BroadcastUi.Solid(sheet.transform, "Portrait", Color.white);
+            portrait.sprite = FaceBook.For(member);
+            portrait.preserveAspect = true;
+            portrait.raycastTarget = false;
+            BroadcastUi.Place(portrait.rectTransform, 0.04f, 0.58f, 0.2f, 0.82f);
+            StaffFact(sheet.transform, "Age", (english ? "Age" : "Idade") + "   " + StaffProfile.Age(member), 0.03f, 0.44f, 0.28f, 0.51f);
+            StaffFact(sheet.transform, "Nation", StaffProfile.Nation(member, english), 0.03f, 0.37f, 0.28f, 0.44f);
+            StaffFact(sheet.transform, "Personality", (english ? "Personality" : "Personalidade") + "   " + StaffProfile.Personality(member, english), 0.03f, 0.3f, 0.28f, 0.37f);
+            StaffFact(sheet.transform, "Shapes", (english ? "Shapes" : "Formações") + "   " + StaffProfile.Formations(member), 0.03f, 0.2f, 0.28f, 0.3f);
+            StaffFact(sheet.transform, "Style", (english ? "Style" : "Estilo") + "   " + StaffProfile.Style(member, english), 0.03f, 0.1f, 0.28f, 0.2f);
+
+            var coaching = BroadcastUi.Label(sheet.transform, "Coaching", english ? "COACHING" : "TREINO", 14, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(coaching.rectTransform, 0.31f, 0.78f, 0.62f, 0.84f);
+            var mental = BroadcastUi.Label(sheet.transform, "Mental", english ? "MENTAL" : "MENTAL", 14, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(mental.rectTransform, 0.64f, 0.78f, 0.97f, 0.84f);
+            for (var i = 0; i < StaffProfile.Skills.Length; i++)
+            {
+                var column = i < 7 ? 0 : 1;
+                var row = i % 7;
+                var x0 = column == 0 ? 0.31f : 0.64f;
+                var y = 0.7f - row * 0.085f;
+                var skill = StaffProfile.Skills[i];
+                var value = StaffProfile.Skill(member, skill.Key, StaffProfile.Bias(member.Role, skill.Key));
+                var line = BroadcastUi.Zone(sheet.transform, "Skill" + i, x0, y, x0 + 0.3f, y + 0.07f);
+                var skillName = BroadcastUi.Label(line, "Name", english ? skill.English : skill.Portuguese, 14, Color.white, TextAnchor.MiddleLeft);
+                BroadcastUi.Place(skillName.rectTransform, 0f, 0f, 0.62f, 1f);
+                var word = BroadcastUi.Label(line, "Word", StaffProfile.Word(value, english), 14, UiTheme.Score, TextAnchor.MiddleRight, FontStyle.Bold);
+                BroadcastUi.Place(word.rectTransform, 0.62f, 0f, 1f, 1f);
+            }
+
+            var withYou = BroadcastUi.Label(sheet.transform, "WithYou", member.ClubId == _career.Club.Id
+                ? (english ? "On your staff. This profile changes what the assistant asks for in matches." : "Está no teu plantel técnico. Esta ficha muda o que o adjunto pede nos jogos.")
+                : (english ? "No working relationship with you yet." : "Ainda não trabalha contigo."), 14, Color.white, TextAnchor.UpperLeft);
+            BroadcastUi.Place(withYou.rectTransform, 0.31f, 0.08f, 0.68f, 0.16f);
+            var best = BroadcastUi.Label(sheet.transform, "Best", StaffProfile.BestLine(member, english), 14, UiTheme.Muted, TextAnchor.MiddleLeft);
+            BroadcastUi.Place(best.rectTransform, 0.31f, 0.02f, 0.68f, 0.08f);
             var captured = member;
-            _modalAction.onClick.AddListener(() => OpenMeeting(captured));
+            var meet = BroadcastUi.Button(sheet.transform, "Meet", english ? "MEET THE BOARD" : "REUNIÃO COM O PRESIDENTE", () =>
+            {
+                CloseStaffSheet();
+                OpenMeeting(captured);
+            }, UiTheme.Accent, UiTheme.ButtonText, 14);
+            BroadcastUi.Place(meet.GetComponent<RectTransform>(), 0.7f, 0.03f, 0.97f, 0.12f);
+        }
+
+        void CloseStaffSheet()
+        {
+            if (_staffSheet == null)
+                return;
+            Destroy(_staffSheet);
+            _staffSheet = null;
+        }
+
+        static void StaffFact(Transform parent, string name, string text, float x0, float y0, float x1, float y1)
+        {
+            var label = BroadcastUi.Label(parent, name, text, 14, Color.white, TextAnchor.MiddleLeft);
+            BroadcastUi.Place(label.rectTransform, x0, y0, x1, y1);
         }
 
         void OpenMeeting(StaffMember current)
@@ -8322,6 +11795,7 @@ namespace CoachMaster.UI.Scenes
                 ApplyTraining(days);
             else
                 ApplyFocusedTraining(days);
+            MaybeTrainingReport();
         }
 
         void ApplyTraining(int days)
@@ -8350,26 +11824,62 @@ namespace CoachMaster.UI.Scenes
                 if (trainees.Find(player => player.Id == youth.Id) == null)
                     trainees.Add(youth);
             }
+            var today = _career.Calendar.CurrentDate.DayOfYear + _career.Calendar.CurrentDate.Year * 400;
             foreach (var player in trainees)
             {
                 if (player.Injury != null && player.Injury.IsInjured)
                     continue;
-                if (string.IsNullOrEmpty(player.TrainingFocus) || player.TrainingFocus == "rest") continue;
-                player.TrainingProgress += days * (player.Age <= 24 ? 2 : 1);
-                while (player.TrainingProgress >= 100)
+                var intensity = Mathf.Clamp(player.TrainingIntensity, 0, 2);
+                if (player.TrainingFocus == "rest")
                 {
-                    player.TrainingProgress -= 100;
-                    var attributes = player.Attributes;
-                    if (attributes == null) break;
-                    switch (player.TrainingFocus)
+                    player.Fatigue = Mathf.Max(0, player.Fatigue - 4 * days);
+                    continue;
+                }
+                if (string.IsNullOrEmpty(player.TrainingFocus))
+                    continue;
+                var sessions = Mathf.Min(days, 14);
+                for (var session = 0; session < sessions; session++)
+                {
+                    var attr = ReadTrainingAttribute(player);
+                    var gain = player.Age <= 21 ? 28 : player.Age <= 25 ? 20 : 14;
+                    if (attr >= 18) gain = Mathf.RoundToInt(gain * 0.28f);
+                    else if (attr >= 16) gain = Mathf.RoundToInt(gain * 0.45f);
+                    else if (attr >= 14) gain = Mathf.RoundToInt(gain * 0.7f);
+                    if (intensity == 0) gain = Mathf.RoundToInt(gain * 0.6f);
+                    if (intensity == 2) gain = Mathf.RoundToInt(gain * 1.6f);
+                    var tired = player.Fatigue > 80 || player.Morale < 35;
+                    if (tired)
                     {
-                        case "finishing": attributes.Finishing = Mathf.Min(20, attributes.Finishing + 1); break;
-                        case "passing": attributes.Passing = Mathf.Min(20, attributes.Passing + 1); break;
-                        case "pace": attributes.Pace = Mathf.Min(20, attributes.Pace + 1); break;
-                        case "defending": attributes.Tackling = Mathf.Min(20, attributes.Tackling + 1); break;
-                        case "strength": attributes.Strength = Mathf.Min(20, attributes.Strength + 1); break;
-                        case "positioning": attributes.Positioning = Mathf.Min(20, attributes.Positioning + 1); break;
-                        case "fitness": attributes.Stamina = Mathf.Min(20, attributes.Stamina + 1); break;
+                        player.TrainingStreak = 0;
+                        gain = Mathf.Max(1, gain / 3);
+                    }
+                    player.TrainingProgress += Mathf.Max(1, gain);
+                    var load = intensity == 2 ? 5 : intensity == 0 ? 1 : 2;
+                    player.Fatigue = Mathf.Min(100, player.Fatigue + load);
+                    var roll = TrainingRoll(player.Id, today - (sessions - 1 - session));
+                    var chance = intensity == 2 ? (player.Fatigue > 55 ? 6 : 3) : intensity == 1 && player.Fatigue > 75 ? 2 : 0;
+                    if (roll < chance)
+                    {
+                        if (player.Injury == null)
+                            player.Injury = new InjuryState();
+                        player.Injury.IsInjured = true;
+                        player.Injury.DaysRemaining = 5 + (roll % 8);
+                        player.Injury.Description = "Carga de treino";
+                        player.TrainingStreak = 0;
+                        break;
+                    }
+                    while (player.TrainingProgress >= 100)
+                    {
+                        player.TrainingProgress -= 100;
+                        if (tired)
+                            continue;
+                        player.TrainingStreak++;
+                        var need = attr >= 18 ? 8 : attr >= 16 ? 6 : attr >= 14 ? 4 : 3;
+                        if (player.TrainingStreak < need)
+                            continue;
+                        player.TrainingStreak = 0;
+                        RaiseTrainingAttribute(player);
+                        attr = ReadTrainingAttribute(player);
                     }
                 }
             }
@@ -8516,7 +12026,12 @@ namespace CoachMaster.UI.Scenes
                 ? new Color(0.18f, 0.12f, 0.3f, 1f)
                 : new Color(0.1f, 0.04f, 0.2f, 0.94f);
             var row = BroadcastUi.Panel(_modalBody, "Standing" + place + stats.ClubId, tone, true);
-            BroadcastUi.Preferred(row, 44);
+            BroadcastUi.Preferred(row, 36);
+            if (club != null)
+            {
+                var captured = club;
+                BroadcastUi.Hit(row, () => OpenClubDossier(captured));
+            }
             var index = BroadcastUi.Label(row.transform, "Place", place.ToString(), 14, place == 1 ? UiTheme.Score : UiTheme.Muted, TextAnchor.MiddleCenter, FontStyle.Bold);
             BroadcastUi.Place(index.rectTransform, 0.005f, 0.05f, 0.065f, 0.95f);
             if (club != null)
@@ -8547,6 +12062,7 @@ namespace CoachMaster.UI.Scenes
                 var value = BroadcastUi.Label(row.transform, "Stat" + i, values[i], 14, Color.white, TextAnchor.MiddleCenter, i == 0 ? FontStyle.Bold : FontStyle.Normal);
                 BroadcastUi.Place(value.rectTransform, x0, 0.05f, x0 + 0.084f, 0.95f);
             }
+            PassClicksTo(row.transform);
         }
 
         void AddRanks(List<SeasonRank> rows)
@@ -8588,15 +12104,17 @@ namespace CoachMaster.UI.Scenes
             for (var i = 0; i < shown; i++)
             {
                 var row = rows[i];
-                var club = _career.World.Clubs.ContainsKey(row.ClubId) ? _career.World.Clubs[row.ClubId].ShortName : row.ClubId;
+                _career.World.Clubs.TryGetValue(row.ClubId, out var ranked);
+                var club = ranked == null ? row.ClubId : ranked.ShortName;
                 var value = LocalizationManager.Current == GameLanguage.English
                     ? kind == "gm" ? row.GoalsFor + " goals" : kind == "gs" ? row.GoalsAgainst + " conceded" : kind == "v" ? row.Won + " wins" : (row.GoalDifference > 0 ? "+" : "") + row.GoalDifference
                     : kind == "gm" ? row.GoalsFor + " golos" : kind == "gs" ? row.GoalsAgainst + " sofridos" : kind == "v" ? row.Won + " vitórias" : (row.GoalDifference > 0 ? "+" : "") + row.GoalDifference;
-                AddRankRow(i + 1, club, "", value);
+                var captured = ranked;
+                AddRankRow(i + 1, club, "", value, captured == null ? (Action)null : () => OpenClubDossier(captured));
             }
         }
 
-        void AddRankRow(int place, string name, string club, string value)
+        void AddRankRow(int place, string name, string club, string value, Action click = null)
         {
             var tone = place == 1
                 ? new Color(0.42f, 0.28f, 0.08f, 0.96f)
@@ -8622,6 +12140,11 @@ namespace CoachMaster.UI.Scenes
 
             var mark = BroadcastUi.Label(row.transform, "Value", value, 16, UiTheme.Score, TextAnchor.MiddleRight, FontStyle.Bold);
             BroadcastUi.Place(mark.rectTransform, 0.68f, 0.12f, 0.97f, 0.88f);
+            if (click != null)
+            {
+                BroadcastUi.Hit(row, click);
+                PassClicksTo(row.transform);
+            }
         }
 
         void AddBody(string text)
@@ -8640,7 +12163,15 @@ namespace CoachMaster.UI.Scenes
             if (_modalLineSize <= 0)
                 _modalLineSize = 16;
             Clear(_modalBody);
+            var pressRoom = _modal.transform.Find("Card/PressRoom");
+            if (pressRoom != null)
+                Destroy(pressRoom.gameObject);
+            var suggestedXi = _modal.transform.Find("Card/SuggestedXi");
+            if (suggestedXi != null)
+                Destroy(suggestedXi.gameObject);
             var modalScroll = _modal.transform.Find("Card/Scroll");
+            if (modalScroll != null)
+                modalScroll.gameObject.SetActive(true);
             if (modalScroll != null)
             {
                 var modalScrollComponent = modalScroll.GetComponent<ScrollRect>();
@@ -8685,8 +12216,11 @@ namespace CoachMaster.UI.Scenes
                 compact ? 0.58f : 0.78f, compact ? 0.94f : 0.95f, compact ? 0.78f : 0.88f);
             var scroll = _modal.transform.Find("Card/Scroll") as RectTransform;
             if (scroll != null)
+            {
+                scroll.gameObject.SetActive(true);
                 BroadcastUi.Place(scroll, compact ? 0.06f : 0.04f, compact ? 0.26f : 0.14f,
                     compact ? 0.94f : 0.96f, compact ? 0.55f : 0.76f);
+            }
             _modalTitle.text = title;
             _modalLead.text = lead;
             _modalTitle.fontSize = compact ? 22 : 26;
@@ -8695,9 +12229,9 @@ namespace CoachMaster.UI.Scenes
             _modalAction.onClick.RemoveAllListeners();
             _modalActionLabel.fontSize = compact ? 14 : 16;
             if (compact)
-                BroadcastUi.Place(_modalAction.GetComponent<RectTransform>(), 0.2f, 0.05f, 0.8f, 0.22f);
+                BroadcastUi.Place(_modalAction.GetComponent<RectTransform>(), 0.14f, 0.05f, 0.86f, 0.2f);
             else
-                BroadcastUi.Place(_modalAction.GetComponent<RectTransform>(), 0.32f, 0.04f, 0.78f, 0.13f);
+                BroadcastUi.Place(_modalAction.GetComponent<RectTransform>(), 0.16f, 0.035f, 0.84f, 0.12f);
             if (_modalClose != null)
             {
                 _modalClose.gameObject.SetActive(true);
@@ -8706,6 +12240,25 @@ namespace CoachMaster.UI.Scenes
             }
             _modal.SetActive(true);
             _modal.transform.SetAsLastSibling();
+            _focusModalFrame = true;
+        }
+
+        void FitMessageModal(string text)
+        {
+            var length = string.IsNullOrEmpty(text) ? 0 : text.Length;
+            if (length < 160)
+                SizeModal(0.3f, 0.38f, 0.7f, 0.64f);
+            else if (length < 360)
+                SizeModal(0.24f, 0.3f, 0.76f, 0.72f);
+            else
+                SizeModal(0.18f, 0.16f, 0.82f, 0.84f);
+        }
+
+        void SizeModal(float x0, float y0, float x1, float y1)
+        {
+            var card = _modal == null ? null : _modal.transform.Find("Card") as RectTransform;
+            if (card != null)
+                BroadcastUi.Place(card, x0, y0, x1, y1);
         }
 
         void CloseModal()
@@ -8717,6 +12270,7 @@ namespace CoachMaster.UI.Scenes
             _profileModalOrders = false;
             if (_modal != null)
                 _modal.SetActive(false);
+            ControlChrome.FocusWithin(null);
             if (_modalClose != null)
                 _modalClose.gameObject.SetActive(false);
             if (returnTo != null)
@@ -8727,6 +12281,16 @@ namespace CoachMaster.UI.Scenes
         {
             var label = BroadcastUi.Label(_modalBody, "Head", title.ToUpperInvariant(), 15, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
             BroadcastUi.Preferred(label, 28);
+        }
+
+        void AddShelfButton(string label, bool selected, Action action)
+        {
+            var button = BroadcastUi.Button(_modalBody, "Shelf", label, action,
+                selected ? UiTheme.Accent : new Color(1f, 1f, 1f, 0.08f),
+                selected ? new Color(0.08f, 0.08f, 0.1f) : Color.white, 14);
+            var layout = button.gameObject.AddComponent<LayoutElement>();
+            layout.preferredHeight = 34;
+            layout.minHeight = 34;
         }
 
         void AddLine(string value)
@@ -9064,6 +12628,72 @@ namespace CoachMaster.UI.Scenes
                 else
                     DestroyImmediate(child);
             }
+        }
+    }
+
+    sealed class SquadSheetClick : MonoBehaviour, IPointerClickHandler
+    {
+        Action _open;
+
+        public void Bind(Action open) => _open = open;
+
+        public void OnPointerClick(PointerEventData eventData)
+        {
+            if (eventData != null && eventData.button == PointerEventData.InputButton.Right)
+                _open?.Invoke();
+        }
+    }
+
+    sealed class TacticDrift : MonoBehaviour
+    {
+        RectTransform _rect;
+        Vector2 _min;
+        Vector2 _max;
+        Vector2 _delta;
+        float _phase;
+
+        public void Setup(Vector2 delta, float phase)
+        {
+            _rect = transform as RectTransform;
+            if (_rect == null)
+                return;
+            _min = _rect.anchorMin;
+            _max = _rect.anchorMax;
+            _delta = delta;
+            _phase = phase;
+        }
+
+        void Update()
+        {
+            if (_rect == null)
+                return;
+            var wave = Mathf.Sin(Time.unscaledTime * 1.5f + _phase) * 0.5f + 0.5f;
+            var shift = _delta * wave;
+            _rect.anchorMin = _min + shift;
+            _rect.anchorMax = _max + shift;
+        }
+    }
+
+    sealed class DutyAlertMark : MaskableGraphic
+    {
+        protected override void OnPopulateMesh(VertexHelper vh)
+        {
+            vh.Clear();
+            var area = rectTransform.rect;
+            var color = new Color(0.86f, 0.12f, 0.16f, 1f);
+            var tip = UIVertex.simpleVert;
+            tip.color = color;
+            tip.position = new Vector3((area.xMin + area.xMax) * 0.5f, area.yMax, 0f);
+            var left = UIVertex.simpleVert;
+            left.color = color;
+            left.position = new Vector3(area.xMin, area.yMin, 0f);
+            var right = UIVertex.simpleVert;
+            right.color = color;
+            right.position = new Vector3(area.xMax, area.yMin, 0f);
+            vh.AddVert(tip);
+            vh.AddVert(left);
+            vh.AddVert(right);
+            vh.AddTriangle(0, 1, 2);
         }
     }
 }

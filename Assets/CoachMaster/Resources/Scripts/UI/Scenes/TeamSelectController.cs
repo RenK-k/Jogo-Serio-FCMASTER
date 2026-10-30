@@ -196,9 +196,6 @@ namespace CoachMaster.UI.Scenes
 
             if (_clubs.Count > 0)
                 Select(0);
-
-            var hint = BroadcastUi.Label(root, "SettingsHint", LocalizationManager.Translate("M · DEFINIÇÕES"), 15, UiTheme.Muted, TextAnchor.MiddleLeft);
-            BroadcastUi.Place(hint.rectTransform, 0.04f, 0.008f, 0.7f, 0.05f);
         }
 
         void Select(int index)

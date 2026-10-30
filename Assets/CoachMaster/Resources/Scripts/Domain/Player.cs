@@ -29,6 +29,8 @@ namespace CoachMaster.Domain
         public int TrainingRating { get; set; }
         public string TrainingFocus { get; set; }
         public int TrainingProgress { get; set; }
+        public int TrainingIntensity { get; set; } = 1;
+        public int TrainingStreak { get; set; }
         public InjuryState Injury { get; set; } = new InjuryState();
         public PersonalityTrait Personality { get; set; }
         public int Potential { get; set; }

@@ -22,15 +22,15 @@ namespace CoachMaster.UI
 
         static readonly string[] PageNotes =
         {
-            "Imagem, desempenho e escala dos menus.",
+            "Imagem e desempenho. A escala dos menus está em Acessibilidade.",
             "Controlos que alteram a preparação e o ritmo da partida.",
             "Pausas automáticas e informação visível durante o jogo.",
             "Avisos de carreira. Os acontecimentos continuam no histórico.",
             "Volumes separados; usa esquerda/direita no comando para ajustar.",
             "Ajustes da simulação guardados dentro da carreira.",
             "Autosaves rotativos, gravação manual e recuperação.",
-            "Escala do interface, movimento e ajuda de comando.",
-            "Presets que alteram apenas as opções de simulação suportadas."
+            "Escala do interface, movimento e idioma.",
+            "O que a simulação ainda não inclui."
         };
 
         GameObject _root;
@@ -115,13 +115,14 @@ namespace CoachMaster.UI
             canvas.sortingOrder = 400;
             var scaler = canvasGo.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920f / SettingsPrefs.UiScale, 1080f / SettingsPrefs.UiScale);
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Shrink;
             scaler.matchWidthOrHeight = 0.5f;
             _root = canvasGo;
 
-            var dim = BroadcastUi.Solid(canvasGo.transform, "Dim", new Color(0.03f, 0.01f, 0.08f, 0.96f), true);
+            var dim = BroadcastUi.Solid(canvasGo.transform, "Dim", new Color(0f, 0f, 0f, 0f), true);
             BroadcastUi.Stretch(dim.rectTransform);
-            BroadcastUi.Hit(dim, ApplyAndClose);
+            BroadcastUi.Catch(dim, ApplyAndClose);
             var card = BroadcastUi.Panel(canvasGo.transform, "SettingsCard", new Color(0.1f, 0.04f, 0.2f, 1f), true);
             BroadcastUi.Place(card.rectTransform, 0.025f, 0.035f, 0.975f, 0.965f);
             var title = BroadcastUi.Label(card.transform, "Title", "DEFINIÇÕES", 30, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
@@ -159,6 +160,7 @@ namespace CoachMaster.UI
             _defaults = FooterButton(card.transform, "Defaults", "REPOR PADRÃO", RestoreDefaults, 0.205f, 0.025f, 0.4f, 0.09f, new Color(0.22f, 0.12f, 0.38f, 1f), Color.white);
             _saveCareer = FooterButton(card.transform, "SaveCareer", "GUARDAR CARREIRA", SaveCareer, 0.415f, 0.025f, 0.7f, 0.09f, new Color(0.22f, 0.12f, 0.38f, 1f), Color.white);
             _menu = FooterButton(card.transform, "MainMenu", "MENU", LeaveToMenu, 0.82f, 0.025f, 0.975f, 0.09f, new Color(0.22f, 0.12f, 0.38f, 1f), Color.white);
+            GameRoot.ApplyUiScale();
             _root.SetActive(false);
             ApplyCareerButtons();
         }
@@ -171,8 +173,7 @@ namespace CoachMaster.UI
             AddOption(page.transform, "VSync", "Sincronização vertical", "Reduz rasgos de imagem; pode limitar os FPS à frequência do ecrã.", () => DisplayPrefs.VsyncLabel, DisplayPrefs.ToggleVsync, 0.54f);
             AddOption(page.transform, "FPS", "Limite de fotogramas", "30, 60, 120, 144, 165, 240 ou sem limite.", () => DisplayPrefs.FrameRateLabel, DisplayPrefs.CycleFrameRate, 0.43f);
             AddOption(page.transform, "Quality", "Qualidade", "Usa os níveis de qualidade disponíveis neste projeto Unity.", () => DisplayPrefs.QualityLabel, DisplayPrefs.CycleQuality, 0.32f);
-            AddOption(page.transform, "UI", "Escala do interface", "Ajusta todos os ecrãs sem alterar a resolução do jogo.", () => Percent(SettingsPrefs.UiScale), () => { SettingsPrefs.UiScaleIndex = (SettingsPrefs.UiScaleIndex + 1) % 5; GameRoot.ApplyUiScale(); Refresh(); }, 0.21f);
-            AddOption(page.transform, "Background", "Imagem de fundo", "Automático acompanha a liga da carreira.", () => BackgroundPrefs.Label, () => { BackgroundPrefs.Cycle(); Refresh(); }, 0.10f);
+            AddOption(page.transform, "Background", "Imagem de fundo", "Automático acompanha a liga da carreira.", () => BackgroundPrefs.Label, () => { BackgroundPrefs.Cycle(); Refresh(); }, 0.21f);
         }
 
         void BuildGameplayPage(Transform parent)
@@ -238,9 +239,9 @@ namespace CoachMaster.UI
             _musicManager.transform.SetParent(_root.transform, false);
             var root = _musicManager.GetComponent<RectTransform>();
             BroadcastUi.Stretch(root);
-            var dim = BroadcastUi.Solid(root, "Dim", new Color(0.02f, 0.01f, 0.06f, 0.88f), true);
+            var dim = BroadcastUi.Solid(root, "Dim", new Color(0f, 0f, 0f, 0f), true);
             BroadcastUi.Stretch(dim.rectTransform);
-            BroadcastUi.Hit(dim, CloseMusicManager);
+            BroadcastUi.Catch(dim, CloseMusicManager);
             var card = BroadcastUi.Panel(root, "MusicManagerCard", new Color(0.1f, 0.04f, 0.2f, 1f));
             BroadcastUi.Place(card.rectTransform, 0.12f, 0.08f, 0.88f, 0.92f);
             var english = LocalizationManager.Current == GameLanguage.English;
@@ -383,21 +384,19 @@ namespace CoachMaster.UI
         {
             var page = Page(parent, 7, "INTERFACE E ACESSIBILIDADE");
             var english = LocalizationManager.Current == GameLanguage.English;
-            AddOption(page.transform, "Scale", "Escala do interface", "Aumenta ou reduz todos os ecrãs. A resolução permanece igual.", () => Percent(SettingsPrefs.UiScale), () => { SettingsPrefs.UiScaleIndex = (SettingsPrefs.UiScaleIndex + 1) % 5; GameRoot.ApplyUiScale(); Refresh(); }, 0.76f);
+            AddOption(page.transform, "Scale", "Escala do interface", "Aumenta ou reduz todos os ecrãs. As outras definições não mudam o tamanho.", () => Percent(SettingsPrefs.UiScale), () => { SettingsPrefs.UiScaleIndex = (SettingsPrefs.UiScaleIndex + 1) % 5; GameRoot.ApplyUiScale(); }, 0.76f);
             AddOption(page.transform, "Motion", "Reduzir animações", "Encurta os fades das mensagens e transições de carregamento.", () => OnOff(SettingsPrefs.ReduceMotion), () => SettingsPrefs.ReduceMotion = !SettingsPrefs.ReduceMotion, 0.63f);
-            AddOption(page.transform, "ControllerHints", "Ajuda de teclado e comando", "Mostra os controlos de navegação no rodapé dos ecrãs.", () => OnOff(SettingsPrefs.ControllerHints), () => SettingsPrefs.ControllerHints = !SettingsPrefs.ControllerHints, 0.50f);
-            AddOption(page.transform, "Language", "Idioma", "Escolhe o idioma do jogo.", LanguageLabel, CycleLanguage, 0.37f);
+            AddOption(page.transform, "Language", "Idioma", "Escolhe o idioma do jogo.", LanguageLabel, CycleLanguage, 0.50f);
             AddOption(page.transform, "SkipDayConfirmation",
                 english ? "Confirm before skipping a day" : "Confirmar antes de saltar o dia",
                 english ? "Restore the confirmation prompt after choosing not to show it again." : "Volta a mostrar a confirmação se escolheste não a voltar a mostrar.",
-                () => OnOff(SettingsPrefs.SkipDayConfirmation), () => SettingsPrefs.SkipDayConfirmation = !SettingsPrefs.SkipDayConfirmation, 0.24f);
+                () => OnOff(SettingsPrefs.SkipDayConfirmation), () => SettingsPrefs.SkipDayConfirmation = !SettingsPrefs.SkipDayConfirmation, 0.37f);
         }
 
         void BuildAdvancedPage(Transform parent)
         {
             var page = Page(parent, 8, "AVANÇADAS");
-            AddOption(page.transform, "AdvancedPreset", "Preset de realismo", "Atualiza apenas as opções de simulação que já têm efeito no jogo.", CurrentPresetLabel, CycleRealismPreset, 0.76f);
-            AddText(page.transform, "SupportedAdvanced", "O jogo ainda não tem sistemas de transferências automáticas de clubes, despedimentos de treinadores, conferências de imprensa ou mods. Não aparecem aqui controlos que não façam nada.", 15, UiTheme.Muted, 0.12f, 0.56f);
+            AddText(page.transform, "SupportedAdvanced", "Lesões, rigor disciplinar e o preset de realismo estão na página Realismo. O jogo ainda não tem transferências automáticas de clubes, despedimentos de treinadores, conferências de imprensa ou mods, por isso não há aqui controlos sem efeito.", 15, UiTheme.Muted, 0.2f, 0.6f);
         }
 
         GameObject Page(Transform parent, int index, string heading)
@@ -463,7 +462,7 @@ namespace CoachMaster.UI
         void AddVolume(Transform parent, string name, string title, string description, float value, UnityEngine.Events.UnityAction<float> changed, float y)
         {
             var row = BroadcastUi.Panel(parent, "Volume" + name, new Color(1f, 1f, 1f, 0.045f));
-            BroadcastUi.Place(row.rectTransform, 0.035f, y, 0.965f, y + 0.105f);
+            BroadcastUi.Place(row.rectTransform, 0.035f, y, 0.965f, y + 0.078f);
             var heading = BroadcastUi.Label(row.transform, "Title", title, 14, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
             BroadcastUi.Place(heading.rectTransform, 0.025f, 0.58f, 0.55f, 0.97f);
             var hint = BroadcastUi.Label(row.transform, "Description", description, 11, UiTheme.Muted, TextAnchor.MiddleLeft);
@@ -480,7 +479,7 @@ namespace CoachMaster.UI
             trackNavigation.mode = Navigation.Mode.None;
             trackButton.navigation = trackNavigation;
             trackButton.targetGraphic = track;
-            var fill = BroadcastUi.Solid(track.transform, "Fill", UiTheme.Accent);
+            var fill = BroadcastUi.Solid(track.transform, "Fill", new Color(0.93f, 0.95f, 0.98f, 1f));
             fill.sprite = BroadcastUi.Round;
             fill.type = Image.Type.Sliced;
             fill.raycastTarget = false;
@@ -626,7 +625,6 @@ namespace CoachMaster.UI
         void PersistSettings()
         {
             SettingsPrefs.Commit();
-            GameRoot.ApplyUiScale();
             MatchDayController.RefreshSettings();
             var career = CurrentCareer();
             var careerSaved = career == null || CareerStore.TrySave(career);
@@ -721,9 +719,9 @@ namespace CoachMaster.UI
             _saveManager.transform.SetParent(_root.transform, false);
             var root = _saveManager.GetComponent<RectTransform>();
             BroadcastUi.Stretch(root);
-            var dim = BroadcastUi.Solid(root, "Dim", new Color(0f, 0f, 0f, 0.78f), true);
+            var dim = BroadcastUi.Solid(root, "Dim", new Color(0f, 0f, 0f, 0f), true);
             BroadcastUi.Stretch(dim.rectTransform);
-            BroadcastUi.Hit(dim, () => Destroy(_saveManager));
+            BroadcastUi.Catch(dim, () => Destroy(_saveManager));
             var card = BroadcastUi.Panel(root, "Card", new Color(0.1f, 0.04f, 0.2f, 1f), true);
             BroadcastUi.Place(card.rectTransform, 0.22f, 0.12f, 0.78f, 0.88f);
             var title = BroadcastUi.Label(card.transform, "Title", "GESTOR DE GRAVAÇÕES", 21, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
@@ -808,9 +806,9 @@ namespace CoachMaster.UI
             _confirm.transform.SetParent(_root.transform, false);
             var rect = _confirm.GetComponent<RectTransform>();
             BroadcastUi.Stretch(rect);
-            var dim = BroadcastUi.Solid(rect, "Dim", new Color(0f, 0f, 0f, 0.78f), true);
+            var dim = BroadcastUi.Solid(rect, "Dim", new Color(0f, 0f, 0f, 0f), true);
             BroadcastUi.Stretch(dim.rectTransform);
-            BroadcastUi.Hit(dim, () => Destroy(_confirm));
+            BroadcastUi.Catch(dim, () => Destroy(_confirm));
             var card = BroadcastUi.Panel(rect, "Card", new Color(0.1f, 0.04f, 0.2f, 1f), true);
             BroadcastUi.Place(card.rectTransform, 0.29f, 0.34f, 0.71f, 0.68f);
             var confirmMessage = LocalizationManager.Current == GameLanguage.English
@@ -882,9 +880,9 @@ namespace CoachMaster.UI
             _confirm.transform.SetParent(_root.transform, false);
             var rect = _confirm.GetComponent<RectTransform>();
             BroadcastUi.Stretch(rect);
-            var dim = BroadcastUi.Solid(rect, "Dim", new Color(0f, 0f, 0f, 0.78f), true);
+            var dim = BroadcastUi.Solid(rect, "Dim", new Color(0f, 0f, 0f, 0f), true);
             BroadcastUi.Stretch(dim.rectTransform);
-            BroadcastUi.Hit(dim, () => Destroy(_confirm));
+            BroadcastUi.Catch(dim, () => Destroy(_confirm));
             var card = BroadcastUi.Panel(rect, "Card", new Color(0.1f, 0.04f, 0.2f, 1f), true);
             BroadcastUi.Place(card.rectTransform, 0.29f, 0.36f, 0.71f, 0.66f);
             var message = BroadcastUi.Label(card.transform, "Message", "Restaurar a cópia " + _restoreSlot + "? A carreira ativa será substituída pelo ponto guardado.", 18, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);

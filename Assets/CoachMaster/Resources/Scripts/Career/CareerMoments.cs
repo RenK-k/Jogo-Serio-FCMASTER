@@ -373,14 +373,20 @@ namespace CoachMaster.Career
             var player = PickPlayer(career, when);
             if (player == null)
                 return;
-            career.Upcoming.Add(BuildTalk(career, player, when));
+            var moment = BuildTalk(career, player, when);
+            if (moment != null)
+                career.Upcoming.Add(moment);
         }
 
         static CareerMoment BuildTalk(CareerState career, Player player, DateTime when)
         {
             var other = Other(career, player);
-            var seed = player.FullName.Length * 17 + when.DayOfYear + career.Club.DressingRoomTension + career.Board.Count;
-            var scene = seed % 7;
+            var injured = player.Injury != null && player.Injury.IsInjured;
+            var worn = player.Fatigue >= 72;
+            var unhappy = player.Morale < 40;
+            if (!injured && !worn && !unhappy)
+                return null;
+            var scene = injured ? 3 : worn ? 0 : 2;
             string opener;
             string[] replies;
             string[] follow;
@@ -393,13 +399,6 @@ namespace CoachMaster.Career
             int[] secondaryMorale = new int[3];
             bool[] toggleDuty = new bool[3];
             string secondaryPlayerId = null;
-            if (player.Injury != null && player.Injury.IsInjured)
-                scene = 3;
-            else if (player.Fatigue >= 72)
-                scene = 0;
-            else if (player.Morale < 38)
-                scene = 2;
-
             switch (scene)
             {
                 case 0:

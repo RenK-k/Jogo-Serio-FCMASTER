@@ -136,9 +136,6 @@ namespace CoachMaster.UI.Scenes
                 if (Keyboard.current != null && Keyboard.current.enterKey.wasPressedThisFrame)
                     confirm.onClick.Invoke();
             });
-
-            var hint = BroadcastUi.Label(root, "SettingsHint", LocalizationManager.Translate("M · DEFINIÇÕES"), 15, UiTheme.Muted, TextAnchor.MiddleLeft);
-            BroadcastUi.Place(hint.rectTransform, 0.06f, 0.008f, 0.6f, 0.05f);
         }
     }
 }

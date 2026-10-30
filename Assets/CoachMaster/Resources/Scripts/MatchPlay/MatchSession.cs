@@ -39,6 +39,8 @@ namespace CoachMaster.MatchPlay
         public int FlashSerial { get; set; }
         public float AttackBoost { get; set; }
         public float DefenseBoost { get; set; }
+        public float AwayAttackBoost { get; set; }
+        public float AwayDefenseBoost { get; set; }
         public bool Finished { get; set; }
         public bool CareerStatsCredited { get; set; }
         public Dictionary<string, string> Names { get; } = new Dictionary<string, string>();

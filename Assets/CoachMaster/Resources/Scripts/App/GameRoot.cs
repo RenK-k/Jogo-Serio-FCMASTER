@@ -80,13 +80,22 @@ namespace CoachMaster.App
 
         public static void ApplyUiScale()
         {
+            var scale = Mathf.Clamp(SettingsPrefs.UiScale, 0.8f, 1.2f);
+            var target = new Vector2(1920f / scale, 1080f / scale);
             var scalers = FindObjectsByType<CanvasScaler>(FindObjectsSortMode.None);
             for (var i = 0; i < scalers.Length; i++)
             {
-                scalers[i].uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-                var scale = Mathf.Clamp(SettingsPrefs.UiScale, 0.8f, 1.2f);
-                scalers[i].referenceResolution = new Vector2(1920f / scale, 1080f / scale);
-                scalers[i].screenMatchMode = CanvasScaler.ScreenMatchMode.Shrink;
+                var scaler = scalers[i];
+                if (scaler == null)
+                    continue;
+                scaler.transform.localScale = Vector3.one;
+                if (scaler.uiScaleMode == CanvasScaler.ScaleMode.ScaleWithScreenSize
+                    && scaler.screenMatchMode == CanvasScaler.ScreenMatchMode.Shrink
+                    && scaler.referenceResolution == target)
+                    continue;
+                scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+                scaler.referenceResolution = target;
+                scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Shrink;
             }
             UiScaleInvariant.ApplyAll();
         }

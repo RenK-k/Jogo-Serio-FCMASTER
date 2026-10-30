@@ -14,10 +14,16 @@ namespace CoachMaster.UI
         RectTransform _visual;
         Text _summary;
         Button[] _views;
-        Dropdown _teamFilter;
-        Dropdown _periodFilter;
-        Dropdown _playerFilter;
+        Button _teamButton;
+        Text _teamCaption;
+        Button _periodButton;
+        Text _periodCaption;
+        Button _playerButton;
+        Text _playerCaption;
+        RectTransform _playerMenu;
+        RectTransform _filterMenu;
         Button _backToResult;
+        Texture2D _heatTexture;
         Button _closeButton;
         Image _backdrop;
         Text _windowTitle;
@@ -62,6 +68,7 @@ namespace CoachMaster.UI
             _backdrop = BroadcastUi.Solid(parent, "MatchAnalysisBackdrop", new Color(0.015f, 0.01f, 0.045f, 0.88f), true);
             BroadcastUi.Stretch(_backdrop.rectTransform);
             _backdrop.gameObject.SetActive(false);
+            _backdrop.gameObject.AddComponent<MatchAnalysisBackdropHold>();
             _dismissLayer = _backdrop.gameObject.AddComponent<MatchAnalysisDismiss>();
             _dismissLayer.Initialize(() =>
             {
@@ -90,9 +97,19 @@ namespace CoachMaster.UI
                 BroadcastUi.Place(_views[i].GetComponent<RectTransform>(), x0, 0.83f, x0 + 0.184f, 0.91f);
             }
 
-            _teamFilter = CreateDropdown(card.transform, "TeamFilter", 0.025f, 0.745f, 0.33f, 0.82f, TeamOptions(), OnTeamSelected);
-            _periodFilter = CreateDropdown(card.transform, "PeriodFilter", 0.345f, 0.745f, 0.67f, 0.82f, PeriodOptions(), OnPeriodSelected);
-            _playerFilter = CreateDropdown(card.transform, "PlayerFilter", 0.685f, 0.745f, 0.975f, 0.82f, PlayerOptions(), OnPlayerSelected);
+            _teamButton = FilterButton(card.transform, "TeamFilter", 0.025f, 0.745f, 0.33f, 0.82f, () => OpenFilterMenu(0.025f, 0.33f, TeamOptions(), OnTeamSelected));
+            _teamCaption = _teamButton.GetComponentInChildren<Text>();
+            _periodButton = FilterButton(card.transform, "PeriodFilter", 0.345f, 0.745f, 0.67f, 0.82f, () => OpenFilterMenu(0.345f, 0.67f, PeriodOptions(), OnPeriodSelected));
+            _periodCaption = _periodButton.GetComponentInChildren<Text>();
+            _playerButton = BroadcastUi.Button(card.transform, "PlayerFilter", "", BeginPlayerPick, new Color(0.1f, 0.05f, 0.18f, 1f), Color.white, 11);
+            BroadcastUi.Place(_playerButton.GetComponent<RectTransform>(), 0.685f, 0.745f, 0.975f, 0.82f);
+            _playerCaption = _playerButton.GetComponentInChildren<Text>();
+            if (_playerCaption != null)
+            {
+                _playerCaption.alignment = TextAnchor.MiddleLeft;
+                _playerCaption.resizeTextForBestFit = false;
+                _playerCaption.fontSize = 11;
+            }
             _summary = BroadcastUi.Label(card.transform, "Summary", "", 10, UiTheme.Muted, TextAnchor.MiddleCenter);
             BroadcastUi.Place(_summary.rectTransform, 0.025f, 0.67f, 0.975f, 0.735f);
             _backToResult = BroadcastUi.Button(card.transform, "BackToResult", english ? "BACK TO RESULT" : "VOLTAR AO RESULTADO", () => _returnToResult?.Invoke(), new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 10);
@@ -122,6 +139,7 @@ namespace CoachMaster.UI
             AddResizeHandle(card.transform, "ResizeTopLeft", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(28f, 28f), true, false, false, true);
             AddResizeHandle(card.transform, "ResizeTopRight", Vector2.one, Vector2.one, new Vector2(28f, 28f), false, true, false, true);
             _closeButton.transform.SetAsLastSibling();
+            FitChrome();
             SetFinalMode(false);
             SetVisible(false);
             RefreshControls();
@@ -280,12 +298,59 @@ namespace CoachMaster.UI
         {
             _team = Mathf.Clamp(value, 0, 2);
             _playerId = null;
-            _playerFilter.ClearOptions();
-            _playerFilter.AddOptions(PlayerOptions());
-            _playerFilter.SetValueWithoutNotify(0);
-            _playerFilter.RefreshShownValue();
+            if (_playerMenu != null)
+                _playerMenu.gameObject.SetActive(false);
             _dirty = true;
             Refresh();
+        }
+
+        void TogglePlayerMenu()
+        {
+            if (_playerMenu != null && _playerMenu.gameObject.activeSelf)
+            {
+                _playerMenu.gameObject.SetActive(false);
+                return;
+            }
+            if (_playerMenu != null)
+                Destroy(_playerMenu.gameObject);
+            var options = PlayerOptions();
+            var menu = BroadcastUi.Panel(_cardRect, "PlayerMenu", new Color(0.08f, 0.035f, 0.16f, 0.98f), true);
+            _playerMenu = menu.rectTransform;
+            BroadcastUi.Place(_playerMenu, 0.685f, 0.28f, 0.975f, 0.74f);
+            var scroll = BroadcastUi.Scroll(menu.transform, "PlayerScroll", out var content);
+            BroadcastUi.Stretch(scroll.GetComponent<RectTransform>());
+            for (var i = 0; i < options.Count; i++)
+            {
+                var index = i;
+                var row = BroadcastUi.Button(content, "Player" + i, options[i], () =>
+                {
+                    OnPlayerSelected(index);
+                    if (_playerMenu != null)
+                        _playerMenu.gameObject.SetActive(false);
+                }, new Color(1f, 1f, 1f, 0.05f), Color.white, 12);
+                BroadcastUi.Preferred(row.GetComponent<RectTransform>(), 30);
+                var rowText = row.GetComponentInChildren<Text>();
+                if (rowText != null)
+                {
+                    rowText.resizeTextForBestFit = false;
+                    rowText.fontSize = 12;
+                    rowText.alignment = TextAnchor.MiddleLeft;
+                }
+            }
+            _playerMenu.SetAsLastSibling();
+        }
+
+        void RefreshPlayerCaption()
+        {
+            if (_playerCaption == null)
+                return;
+            var english = LocalizationManager.Current == GameLanguage.English;
+            if (PickingPlayer)
+                _playerCaption.text = english ? "PICK A PLAYER" : "ESCOLHE UM JOGADOR";
+            else if (string.IsNullOrEmpty(_playerId) || _match == null || !_match.People.TryGetValue(_playerId, out var player) || player == null)
+                _playerCaption.text = english ? "ALL PLAYERS" : "TODOS OS JOGADORES";
+            else
+                _playerCaption.text = player.FullName;
         }
 
         void OnPeriodSelected(int value)
@@ -302,6 +367,32 @@ namespace CoachMaster.UI
             Refresh();
         }
 
+        public void Refit()
+        {
+            _dirty = true;
+            Refresh();
+        }
+
+        void FitChrome()
+        {
+            if (_cardRect == null)
+                return;
+            var labels = _cardRect.GetComponentsInChildren<Text>(true);
+            for (var i = 0; i < labels.Length; i++)
+            {
+                var label = labels[i];
+                if (label == null || (_visual != null && label.transform.IsChildOf(_visual)))
+                    continue;
+                if (label.GetComponentInParent<Dropdown>() != null || (_playerMenu != null && label.transform.IsChildOf(_playerMenu)) || (_filterMenu != null && label.transform.IsChildOf(_filterMenu)))
+                    continue;
+                label.resizeTextForBestFit = true;
+                label.resizeTextMinSize = 8;
+                label.resizeTextMaxSize = 14;
+                label.horizontalOverflow = HorizontalWrapMode.Wrap;
+                label.verticalOverflow = VerticalWrapMode.Truncate;
+            }
+        }
+
         public void SetVisible(bool visible)
         {
             _visible = visible;
@@ -314,7 +405,7 @@ namespace CoachMaster.UI
                     _cardRect.SetAsLastSibling();
             }
             if (_backdrop != null)
-                _backdrop.color = new Color(0.015f, 0.01f, 0.045f, _finalMode ? 0.88f : 0f);
+                _backdrop.color = new Color(0f, 0f, 0f, 0f);
         }
 
         public void SetDismissAction(System.Action action) => _dismissAction = action;
@@ -340,7 +431,7 @@ namespace CoachMaster.UI
             }
             if (_backdrop != null)
             {
-                _backdrop.color = new Color(0.015f, 0.01f, 0.045f, finalMode ? 0.88f : 0f);
+                _backdrop.color = new Color(0f, 0f, 0f, 0f);
                 _backdrop.gameObject.SetActive(_visible && finalMode);
             }
             if (_dragHandle != null)
@@ -368,6 +459,40 @@ namespace CoachMaster.UI
                     ? englishLabel : portugueseLabel;
                 _backToResult.gameObject.SetActive(visible);
             }
+        }
+
+        public bool PickingPlayer { get; private set; }
+
+        public void BeginPlayerPick()
+        {
+            PickingPlayer = !PickingPlayer;
+            if (_playerMenu != null)
+                _playerMenu.gameObject.SetActive(false);
+            if (_filterMenu != null)
+                _filterMenu.gameObject.SetActive(false);
+            if (PickingPlayer)
+                _playerId = null;
+            _dirty = true;
+            Refresh();
+        }
+
+        public void FocusPlayer(string playerId)
+        {
+            PickingPlayer = false;
+            _playerId = playerId;
+            if (_match != null && !string.IsNullOrEmpty(playerId) && _match.People.TryGetValue(playerId, out var player) && player != null)
+            {
+                if (_match.Home != null && player.ClubId == _match.Home.Id)
+                    _team = 1;
+                else if (_match.Away != null && player.ClubId == _match.Away.Id)
+                    _team = 2;
+            }
+            if (_filterMenu != null)
+                _filterMenu.gameObject.SetActive(false);
+            if (_playerMenu != null)
+                _playerMenu.gameObject.SetActive(false);
+            _dirty = true;
+            Refresh();
         }
 
         public void SetMatch(MatchSession match)
@@ -398,11 +523,62 @@ namespace CoachMaster.UI
             _dataStamp = stamp;
             _dirty = false;
             DrawCurrentView();
+            FitChrome();
+        }
+
+        Button FilterButton(Transform parent, string name, float x0, float y0, float x1, float y1, System.Action click)
+        {
+            var button = BroadcastUi.Button(parent, name, "", click, new Color(0.1f, 0.05f, 0.18f, 1f), Color.white, 11);
+            BroadcastUi.Place(button.GetComponent<RectTransform>(), x0, y0, x1, y1);
+            var caption = button.GetComponentInChildren<Text>();
+            if (caption != null)
+            {
+                caption.alignment = TextAnchor.MiddleLeft;
+                caption.resizeTextForBestFit = false;
+                caption.fontSize = 11;
+            }
+            return button;
+        }
+
+        void OpenFilterMenu(float x0, float x1, List<string> options, System.Action<int> chosen)
+        {
+            if (_filterMenu != null && _filterMenu.gameObject.activeSelf && Mathf.Abs(_filterMenu.anchorMin.x - x0) < 0.01f)
+            {
+                _filterMenu.gameObject.SetActive(false);
+                return;
+            }
+            if (_filterMenu != null)
+                Destroy(_filterMenu.gameObject);
+            var menu = BroadcastUi.Panel(_cardRect, "FilterMenu", new Color(0.08f, 0.035f, 0.16f, 0.98f), true);
+            _filterMenu = menu.rectTransform;
+            var height = Mathf.Min(0.42f, 0.08f + options.Count * 0.07f);
+            BroadcastUi.Place(_filterMenu, x0, 0.74f - height, x1, 0.74f);
+            for (var i = 0; i < options.Count; i++)
+            {
+                var index = i;
+                var row = BroadcastUi.Button(menu.transform, "Opt" + i, options[i], () =>
+                {
+                    if (_filterMenu != null)
+                        _filterMenu.gameObject.SetActive(false);
+                    chosen?.Invoke(index);
+                }, new Color(1f, 1f, 1f, 0.05f), Color.white, 13);
+                var y1 = 1f - i * (1f / Mathf.Max(1, options.Count));
+                var y0 = y1 - 1f / Mathf.Max(1, options.Count);
+                BroadcastUi.Place(row.GetComponent<RectTransform>(), 0.03f, y0 + 0.01f, 0.97f, y1 - 0.01f);
+                var rowText = row.GetComponentInChildren<Text>();
+                if (rowText != null)
+                {
+                    rowText.resizeTextForBestFit = false;
+                    rowText.fontSize = 13;
+                    rowText.alignment = TextAnchor.MiddleLeft;
+                }
+            }
+            _filterMenu.SetAsLastSibling();
         }
 
         void RefreshControls()
         {
-            if (_teamFilter == null)
+            if (_teamButton == null)
                 return;
             var english = LocalizationManager.Current == GameLanguage.English;
             var languageStamp = (int)LocalizationManager.Current;
@@ -410,12 +586,6 @@ namespace CoachMaster.UI
             {
                 _dirty = true;
                 _languageStamp = languageStamp;
-                _teamFilter.ClearOptions();
-                _teamFilter.AddOptions(TeamOptions());
-                _periodFilter.ClearOptions();
-                _periodFilter.AddOptions(PeriodOptions());
-                _playerFilter.ClearOptions();
-                _playerFilter.AddOptions(PlayerOptions());
             }
             if (_windowTitle != null)
                 _windowTitle.text = english
@@ -426,18 +596,13 @@ namespace CoachMaster.UI
                 : new[] { "REMATES", "MOMENTO", "PASSES", "MAPA DE CALOR", "POSIÇÕES MÉDIAS" };
             for (var i = 0; i < _views.Length; i++)
                 _views[i].GetComponentInChildren<Text>().text = labels[i];
-            _teamFilter.SetValueWithoutNotify(Mathf.Clamp(_team, 0, 2));
-            _periodFilter.SetValueWithoutNotify(Mathf.Clamp(_period, 0, 2));
-            var selectedPlayer = string.IsNullOrEmpty(_playerId) ? 0 : _playerOptionIds.IndexOf(_playerId);
-            if (selectedPlayer < 0)
-            {
-                _playerId = null;
-                selectedPlayer = 0;
-            }
-            _playerFilter.SetValueWithoutNotify(selectedPlayer);
-            _teamFilter.RefreshShownValue();
-            _periodFilter.RefreshShownValue();
-            _playerFilter.RefreshShownValue();
+            var teams = TeamOptions();
+            var periods = PeriodOptions();
+            if (_teamCaption != null)
+                _teamCaption.text = teams[Mathf.Clamp(_team, 0, teams.Count - 1)];
+            if (_periodCaption != null)
+                _periodCaption.text = periods[Mathf.Clamp(_period, 0, periods.Count - 1)];
+            RefreshPlayerCaption();
             for (var i = 0; i < _views.Length; i++)
             {
                 var active = i == (int)_mode;
@@ -491,7 +656,8 @@ namespace CoachMaster.UI
                 if (shot.Home) homeXg += shot.ExpectedGoals; else awayXg += shot.ExpectedGoals;
                 var at = PitchPoint(shot.Origin);
                 var color = shot.Home ? UiTheme.Accent : new Color(1f, 0.55f, 0.25f);
-                var size = shot.Outcome == "goal" ? 19f : shot.Outcome == "saved" ? 15f : 12f;
+                var unit = _visual.rect.width <= 1f ? 1f : Mathf.Clamp(_visual.rect.width / 720f, 0.35f, 1.15f);
+                var size = (shot.Outcome == "goal" ? 19f : shot.Outcome == "saved" ? 15f : 12f) * unit;
                 var dot = BroadcastUi.Solid(_visual, "Shot", color);
                 dot.sprite = BroadcastUi.Circle;
                 dot.rectTransform.anchorMin = at;
@@ -505,7 +671,7 @@ namespace CoachMaster.UI
             }
             var english = LocalizationManager.Current == GameLanguage.English;
             _summary.text = (english ? "SHOTS " : "REMATES ") + shown + "   ·   xG  " + homeXg.ToString("0.00") + " – " + awayXg.ToString("0.00")
-                + "   ·   " + (english ? "G goal  S saved  P post  × missed" : "G golo  S defendido  P poste  × falhado");
+                + "\n" + (english ? "G goal   S saved   P post   × missed" : "G golo   S defesa   P poste   × falhado");
         }
 
         void DrawMomentum()
@@ -596,9 +762,12 @@ namespace CoachMaster.UI
                 var number = player == null ? "·" : player.SquadNumber.ToString();
                 DrawPlayerMarker("Player_" + pair.Key, number, at, color, 22f);
             }
+            var completed = 0;
+            foreach (var link in links.Values)
+                completed += link.Count;
             _summary.text = LocalizationManager.Current == GameLanguage.English
-                ? "Completed passes only · use the player list to show passes involving one player."
-                : "Só passes concluídos · usa a lista para ver os passes de um jogador.";
+                ? completed + " completed passes. Each line is one pair; thicker lines mean more passes."
+                : completed + " passes concluídos. Cada linha é um par; a grossura é o número de passes.";
         }
 
         Dictionary<string, Vector2> AveragePositions()
@@ -685,65 +854,109 @@ namespace CoachMaster.UI
             return false;
         }
 
+        void OnDestroy()
+        {
+            if (_heatTexture != null)
+                Destroy(_heatTexture);
+        }
+
         void DrawHeatmap()
         {
             BroadcastUi.DrawPitch(_visual, new Color(0.11f, 0.42f, 0.22f));
-            var home = new int[10, 8];
-            var away = new int[10, 8];
-            foreach (var sample in _match.PositionSamples)
-            {
-                if (!IncludePeriod(sample.Minute))
-                    continue;
-                AccumulateHeat(sample.HomePlayerIds, sample.HomePositions, true, home);
-                AccumulateHeat(sample.AwayPlayerIds, sample.AwayPositions, false, away);
-            }
-            var max = 1;
-            for (var x = 0; x < 10; x++)
-                for (var y = 0; y < 8; y++)
-                    max = Mathf.Max(max, Mathf.Max(home[x, y], away[x, y]));
-            DrawHeatCells(home, true, max);
-            DrawHeatCells(away, false, max);
+            var texture = BuildHeatTexture();
+            var host = new GameObject("HeatField", typeof(RectTransform), typeof(RawImage));
+            host.transform.SetParent(_visual, false);
+            var raw = host.GetComponent<RawImage>();
+            raw.texture = texture;
+            raw.raycastTarget = false;
+            BroadcastUi.Place(raw.rectTransform, 0.015f, 0.04f, 0.985f, 0.96f);
             _summary.text = LocalizationManager.Current == GameLanguage.English
-                ? "Position samples are recorded from the live player movement every 30 seconds of match time."
-                : "As posições vêm do movimento real dos jogadores, registado a cada 30 segundos de jogo.";
+                ? "Heat comes from where the players actually stood, sampled every half minute of the match."
+                : "O calor vem de onde os jogadores estiveram, amostrado a cada meio minuto de jogo.";
         }
 
-        void AccumulateHeat(string[] ids, Vector2[] points, bool home, int[,] grid)
+        Texture2D BuildHeatTexture()
+        {
+            const int width = 96;
+            const int height = 64;
+            const float radius = 7.5f;
+            var home = new float[width * height];
+            var away = new float[width * height];
+            if (_match != null)
+            {
+                foreach (var sample in _match.PositionSamples)
+                {
+                    if (!IncludePeriod(sample.Minute))
+                        continue;
+                    Splat(home, sample.HomePlayerIds, sample.HomePositions, true, width, height, radius);
+                    Splat(away, sample.AwayPlayerIds, sample.AwayPositions, false, width, height, radius);
+                }
+            }
+
+            var max = 0.001f;
+            for (var i = 0; i < home.Length; i++)
+                max = Mathf.Max(max, Mathf.Max(home[i], away[i]));
+            if (_heatTexture != null)
+                Destroy(_heatTexture);
+            _heatTexture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            _heatTexture.wrapMode = TextureWrapMode.Clamp;
+            _heatTexture.filterMode = FilterMode.Bilinear;
+            _heatTexture.hideFlags = HideFlags.HideAndDontSave;
+            var pixels = new Color[width * height];
+            for (var i = 0; i < pixels.Length; i++)
+            {
+                var warm = HeatRamp(home[i] / max, new Color(0.15f, 0.35f, 1f, 1f), new Color(1f, 0.86f, 0.15f, 1f), new Color(0.85f, 0.08f, 0.05f, 1f));
+                var cool = HeatRamp(away[i] / max, new Color(0.2f, 0.75f, 1f, 1f), new Color(1f, 0.45f, 0.1f, 1f), new Color(0.7f, 0.05f, 0.02f, 1f));
+                pixels[i] = warm.a >= cool.a ? warm : cool;
+            }
+
+            _heatTexture.SetPixels(pixels);
+            _heatTexture.Apply(false, false);
+            return _heatTexture;
+        }
+
+        void Splat(float[] field, string[] ids, Vector2[] points, bool home, int width, int height, float radius)
         {
             if (!IncludeTeam(home) || ids == null || points == null)
                 return;
             var length = Mathf.Min(ids.Length, points.Length);
+            var radiusSq = radius * radius;
+            var reach = Mathf.CeilToInt(radius);
             for (var i = 0; i < length; i++)
             {
                 if (!string.IsNullOrEmpty(_playerId) && _playerId != ids[i])
                     continue;
-                var x = Mathf.Clamp((int)(points[i].y * 10f), 0, 9);
-                var y = Mathf.Clamp((int)(points[i].x * 8f), 0, 7);
-                grid[x, y]++;
+                var cx = Mathf.Clamp(Mathf.RoundToInt(points[i].y * (width - 1)), 0, width - 1);
+                var cy = Mathf.Clamp(Mathf.RoundToInt(points[i].x * (height - 1)), 0, height - 1);
+                for (var dy = -reach; dy <= reach; dy++)
+                {
+                    var y = cy + dy;
+                    if (y < 0 || y >= height)
+                        continue;
+                    for (var dx = -reach; dx <= reach; dx++)
+                    {
+                        var x = cx + dx;
+                        if (x < 0 || x >= width)
+                            continue;
+                        var distSq = dx * dx + dy * dy;
+                        if (distSq > radiusSq)
+                            continue;
+                        field[y * width + x] += Mathf.Exp(-distSq / 18f);
+                    }
+                }
             }
         }
 
-        void DrawHeatCells(int[,] grid, bool home, int max)
+        static Color HeatRamp(float amount, Color low, Color mid, Color high)
         {
-            var teamColor = home ? UiTheme.Accent : new Color(1f, 0.55f, 0.25f);
-            for (var x = 0; x < 10; x++)
-            {
-                for (var y = 0; y < 8; y++)
-                {
-                    var value = grid[x, y];
-                    if (value <= 0)
-                        continue;
-                    var spot = new Vector2(0.04f + (x + 0.5f) * 0.092f, 0.04f + (y + 0.5f) * 0.115f);
-                    var marker = BroadcastUi.Solid(_visual, "Heat", teamColor);
-                    marker.sprite = BroadcastUi.Circle;
-                    marker.rectTransform.anchorMin = spot;
-                    marker.rectTransform.anchorMax = spot;
-                    marker.rectTransform.sizeDelta = new Vector2(40f, 40f);
-                    var color = teamColor;
-                    color.a = 0.08f + 0.28f * value / max;
-                    marker.color = color;
-                }
-            }
+            amount = Mathf.Clamp01(amount);
+            if (amount < 0.04f)
+                return new Color(0f, 0f, 0f, 0f);
+            var color = amount < 0.45f
+                ? Color.Lerp(low, mid, amount / 0.45f)
+                : Color.Lerp(mid, high, (amount - 0.45f) / 0.55f);
+            color.a = Mathf.Lerp(0.22f, 0.9f, amount);
+            return color;
         }
 
         void DrawLine(Vector2 from, Vector2 to, Color color, float thickness)
@@ -786,30 +999,44 @@ namespace CoachMaster.UI
         }
     }
 
-    public sealed class MatchAnalysisWindowDrag : MonoBehaviour, IBeginDragHandler, IDragHandler
+    public sealed class MatchAnalysisWindowDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
     {
         RectTransform _window;
         RectTransform _bounds;
-        Canvas _canvas;
+        bool _dragging;
 
         public void Initialize(RectTransform window, RectTransform bounds)
         {
             _window = window;
             _bounds = bounds;
-            _canvas = bounds == null ? null : bounds.GetComponentInParent<Canvas>();
         }
 
-        public void OnBeginDrag(PointerEventData eventData) { }
+        public void OnBeginDrag(PointerEventData eventData)
+        {
+            _dragging = _window != null && _bounds != null;
+        }
 
         public void OnDrag(PointerEventData eventData)
         {
-            if (_window == null || _bounds == null)
+            if (!_dragging || _window == null || _bounds == null)
                 return;
-            var scale = _canvas == null ? 1f : Mathf.Max(0.01f, _canvas.scaleFactor);
-            var position = _window.anchoredPosition + eventData.delta / scale;
+            var parent = _window.parent as RectTransform;
+            if (parent == null)
+                return;
+            var camera = eventData.pressEventCamera;
+            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, eventData.position, camera, out var now))
+                return;
+            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, eventData.position - eventData.delta, camera, out var before))
+                return;
+            var position = _window.anchoredPosition + (now - before);
             var maxX = Mathf.Max(0f, (_bounds.rect.width - _window.rect.width) * 0.5f);
             var maxY = Mathf.Max(0f, (_bounds.rect.height - _window.rect.height) * 0.5f);
             _window.anchoredPosition = new Vector2(Mathf.Clamp(position.x, -maxX, maxX), Mathf.Clamp(position.y, -maxY, maxY));
+        }
+
+        public void OnEndDrag(PointerEventData eventData)
+        {
+            _dragging = false;
         }
     }
 
@@ -872,7 +1099,21 @@ namespace CoachMaster.UI
             position.y = Mathf.Clamp(position.y, -maxY, maxY);
             _window.anchoredPosition = position;
             _window.sizeDelta = new Vector2(width, height);
+            var panel = _window.GetComponentInParent<MatchAnalysisPanel>();
+            if (panel != null)
+                panel.Refit();
         }
+    }
+
+    public sealed class MatchAnalysisBackdropHold : MonoBehaviour, IInitializePotentialDragHandler, IBeginDragHandler, IDragHandler, IEndDragHandler
+    {
+        public void OnInitializePotentialDrag(PointerEventData eventData) { }
+
+        public void OnBeginDrag(PointerEventData eventData) { }
+
+        public void OnDrag(PointerEventData eventData) { }
+
+        public void OnEndDrag(PointerEventData eventData) { }
     }
 
     public sealed class MatchAnalysisDismiss : MonoBehaviour, IPointerClickHandler

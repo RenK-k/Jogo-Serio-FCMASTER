@@ -87,6 +87,8 @@ namespace CoachMaster.Career
                     awayClub = club;
             }
 
+            MaybePressLeak(career, homeClub, headline);
+            MaybePressLeak(career, awayClub, headline);
             if (string.IsNullOrEmpty(motm))
                 motm = BestName(career, career.Club);
             if (string.IsNullOrEmpty(motmMark))
@@ -314,6 +316,25 @@ namespace CoachMaster.Career
             }
 
             return best;
+        }
+
+        static void MaybePressLeak(CareerState career, Club club, string salt)
+        {
+            if (career == null || club == null || career.Club == null || club.Id == career.Club.Id || career.Notebook == null)
+                return;
+            var key = "leak|" + club.Id;
+            if (career.Notebook.Contains(key))
+                return;
+            unchecked
+            {
+                var hash = 17;
+                var text = club.Id + "|" + (salt ?? "");
+                for (var i = 0; i < text.Length; i++)
+                    hash = hash * 31 + text[i];
+                if ((hash & 7) != 0)
+                    return;
+            }
+            career.Notebook.Add(key);
         }
 
         static string BestName(CareerState career, Club club)

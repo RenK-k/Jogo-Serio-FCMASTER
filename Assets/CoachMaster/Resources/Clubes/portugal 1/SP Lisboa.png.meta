@@ -1,0 +1,429 @@
+fileFormatVersion: 2
+guid: 31b10a965dffce244b70804c634086d4
+TextureImporter:
+  internalIDToNameTable:
+  - first:
+      213: -4784997373742852176
+    second: SP Lisboa_0
+  - first:
+      213: -3701386856933556227
+    second: SP Lisboa_1
+  - first:
+      213: -1680971900429625449
+    second: SP Lisboa_2
+  - first:
+      213: 7742031772709535181
+    second: SP Lisboa_3
+  - first:
+      213: -8757186683152109072
+    second: SP Lisboa_4
+  - first:
+      213: 2323860557216403484
+    second: SP Lisboa_5
+  - first:
+      213: 4400117142213065321
+    second: SP Lisboa_6
+  - first:
+      213: 7600954125435626118
+    second: SP Lisboa_7
+  - first:
+      213: -4755941352564627594
+    second: SP Lisboa_8
+  - first:
+      213: -8041614688929739932
+    second: SP Lisboa_9
+  - first:
+      213: 4954999730508733534
+    second: SP Lisboa_10
+  - first:
+      213: 6650269672770507488
+    second: SP Lisboa_11
+  externalObjects: {}
+  serializedVersion: 13
+  mipmaps:
+    mipMapMode: 0
+    enableMipMap: 0
+    sRGBTexture: 1
+    linearTexture: 0
+    fadeOut: 0
+    borderMipMap: 0
+    mipMapsPreserveCoverage: 0
+    alphaTestReferenceValue: 0.5
+    mipMapFadeDistanceStart: 1
+    mipMapFadeDistanceEnd: 3
+  bumpmap:
+    convertToNormalMap: 0
+    externalNormalMap: 0
+    heightScale: 0.25
+    normalMapFilter: 0
+    flipGreenChannel: 0
+  isReadable: 0
+  streamingMipmaps: 0
+  streamingMipmapsPriority: 0
+  vTOnly: 0
+  ignoreMipmapLimit: 0
+  grayScaleToAlpha: 0
+  generateCubemap: 6
+  cubemapConvolution: 0
+  seamlessCubemap: 0
+  textureFormat: 1
+  maxTextureSize: 2048
+  textureSettings:
+    serializedVersion: 2
+    filterMode: 1
+    aniso: 1
+    mipBias: 0
+    wrapU: 1
+    wrapV: 1
+    wrapW: 1
+  nPOTScale: 0
+  lightmap: 0
+  compressionQuality: 50
+  spriteMode: 2
+  spriteExtrude: 1
+  spriteMeshType: 1
+  alignment: 0
+  spritePivot: {x: 0.5, y: 0.5}
+  spritePixelsToUnits: 100
+  spriteBorder: {x: 0, y: 0, z: 0, w: 0}
+  spriteGenerateFallbackPhysicsShape: 1
+  alphaUsage: 1
+  alphaIsTransparency: 1
+  spriteTessellationDetail: -1
+  textureType: 8
+  textureShape: 1
+  singleChannelComponent: 0
+  flipbookRows: 1
+  flipbookColumns: 1
+  maxTextureSizeSet: 0
+  compressionQualitySet: 0
+  textureFormatSet: 0
+  ignorePngGamma: 0
+  applyGammaDecoding: 0
+  swizzle: 50462976
+  cookieLightType: 0
+  platformSettings:
+  - serializedVersion: 4
+    buildTarget: DefaultTexturePlatform
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: Standalone
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  spriteSheet:
+    serializedVersion: 2
+    sprites:
+    - serializedVersion: 2
+      name: SP Lisboa_0
+      rect:
+        serializedVersion: 2
+        x: 821
+        y: 1511
+        width: 96
+        height: 96
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 0b751e69d36489db0800000000000000
+      internalID: -4784997373742852176
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: SP Lisboa_1
+      rect:
+        serializedVersion: 2
+        x: 931
+        y: 1539
+        width: 125
+        height: 118
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: dfffc20b34802acc0800000000000000
+      internalID: -3701386856933556227
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: SP Lisboa_2
+      rect:
+        serializedVersion: 2
+        x: 1069
+        y: 1511
+        width: 97
+        height: 96
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 7979a7576fcfba8e0800000000000000
+      internalID: -1680971900429625449
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: SP Lisboa_3
+      rect:
+        serializedVersion: 2
+        x: 536
+        y: 1264
+        width: 112
+        height: 115
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: dcdb324d0e8317b60800000000000000
+      internalID: 7742031772709535181
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: SP Lisboa_4
+      rect:
+        serializedVersion: 2
+        x: 631
+        y: 1302
+        width: 112
+        height: 127
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 0f1ffe6fb19387680800000000000000
+      internalID: -8757186683152109072
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: SP Lisboa_5
+      rect:
+        serializedVersion: 2
+        x: 817
+        y: 1355
+        width: 109
+        height: 114
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: c10dc6c4dd2004020800000000000000
+      internalID: 2323860557216403484
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: SP Lisboa_6
+      rect:
+        serializedVersion: 2
+        x: 936
+        y: 1369
+        width: 59
+        height: 109
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 96a77bf5a3b501d30800000000000000
+      internalID: 4400117142213065321
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: SP Lisboa_7
+      rect:
+        serializedVersion: 2
+        x: 1014
+        y: 1367
+        width: 94
+        height: 110
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 68261a861830c7960800000000000000
+      internalID: 7600954125435626118
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: SP Lisboa_8
+      rect:
+        serializedVersion: 2
+        x: 1115
+        y: 1347
+        width: 115
+        height: 120
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 6776bc3b9808ffdb0800000000000000
+      internalID: -4755941352564627594
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: SP Lisboa_9
+      rect:
+        serializedVersion: 2
+        x: 1232
+        y: 1316
+        width: 108
+        height: 115
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 46b87c5fb02766090800000000000000
+      internalID: -8041614688929739932
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: SP Lisboa_10
+      rect:
+        serializedVersion: 2
+        x: 1319
+        y: 1253
+        width: 119
+        height: 138
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: e5c112f8002b3c440800000000000000
+      internalID: 4954999730508733534
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: SP Lisboa_11
+      rect:
+        serializedVersion: 2
+        x: 540
+        y: 343
+        width: 928
+        height: 994
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 0e21a0268018a4c50800000000000000
+      internalID: 6650269672770507488
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    outline: []
+    customData: 
+    physicsShape: []
+    bones: []
+    spriteID: 
+    internalID: 0
+    vertices: []
+    indices: 
+    edges: []
+    weights: []
+    secondaryTextures: []
+    spriteCustomMetadata:
+      entries: []
+    nameFileIdTable:
+      SP Lisboa_0: -4784997373742852176
+      SP Lisboa_1: -3701386856933556227
+      SP Lisboa_10: 4954999730508733534
+      SP Lisboa_11: 6650269672770507488
+      SP Lisboa_2: -1680971900429625449
+      SP Lisboa_3: 7742031772709535181
+      SP Lisboa_4: -8757186683152109072
+      SP Lisboa_5: 2323860557216403484
+      SP Lisboa_6: 4400117142213065321
+      SP Lisboa_7: 7600954125435626118
+      SP Lisboa_8: -4755941352564627594
+      SP Lisboa_9: -8041614688929739932
+  mipmapLimitGroupName: 
+  pSDRemoveMatte: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

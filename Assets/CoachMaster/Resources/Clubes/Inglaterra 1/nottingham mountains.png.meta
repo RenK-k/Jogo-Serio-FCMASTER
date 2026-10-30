@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: d66ba89debf12204585af87d901ede88
+guid: fef5dca500848dd469df650a69314031
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: 5442243680590958281
-    second: fcmasterGIF_0
+      213: -962727405284689387
+    second: nottingham mountains_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -100,13 +100,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: fcmasterGIF_0
+      name: nottingham mountains_0
       rect:
         serializedVersion: 2
-        x: 46
-        y: 45
-        width: 421
-        height: 421
+        x: 382
+        y: 382
+        width: 1236
+        height: 1236
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -115,8 +115,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 9ce0db21bcbb68b40800000000000000
-      internalID: 5442243680590958281
+      spriteID: 51af8709684b3a2f0800000000000000
+      internalID: -962727405284689387
       vertices: []
       indices: 
       edges: []
@@ -135,7 +135,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      fcmasterGIF_0: 5442243680590958281
+      nottingham mountains_0: -962727405284689387
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

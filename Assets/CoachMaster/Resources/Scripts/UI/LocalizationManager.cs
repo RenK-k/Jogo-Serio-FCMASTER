@@ -1316,7 +1316,7 @@ namespace CoachMaster.UI
             scaler.referenceResolution = new Vector2(1920f, 1080f);
             scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Shrink;
 
-            var dim = BroadcastUi.Solid(go.transform, "Dim", new Color(0.025f, 0.01f, 0.07f, 0.88f), true);
+            var dim = BroadcastUi.Solid(go.transform, "Dim", new Color(0f, 0f, 0f, 0f), true);
             BroadcastUi.Stretch(dim.rectTransform);
             var card = BroadcastUi.Panel(go.transform, "LanguageCard", new Color(0.1f, 0.04f, 0.2f, 1f), true);
             BroadcastUi.Place(card.rectTransform, 0.31f, 0.34f, 0.69f, 0.66f);

@@ -363,6 +363,8 @@ namespace CoachMaster.UI
 
         public static void StartCrowd()
         {
+            if (!Application.isPlaying)
+                return;
             FillGaps();
             var clip = Library == null ? null : Library.Crowd;
             if (clip == null)
@@ -370,6 +372,8 @@ namespace CoachMaster.UI
             if (clip == null)
                 return;
             Ensure();
+            if (_crowd == null)
+                return;
             _crowd.volume = _crowdVolume;
             ApplyVolumes();
             if (_crowd.clip == clip && _crowd.isPlaying)
@@ -714,15 +718,21 @@ namespace CoachMaster.UI
 
         static void PlayClip(AudioClip assigned, string resourceFallback, float gain = 1f)
         {
+            if (!Application.isPlaying)
+                return;
             var clip = assigned != null ? assigned : LoadResource(resourceFallback);
             if (clip == null)
                 return;
             Ensure();
+            if (_effects == null)
+                return;
             _effects.PlayOneShot(clip, Mathf.Clamp01(_effectVolume * gain));
         }
 
         static void PlayMenuClip(AudioClip assigned, string resourceFallback)
         {
+            if (!Application.isPlaying)
+                return;
             if (_muteAll || (SettingsPrefs.MuteWhenBackground && !Application.isFocused))
                 return;
             var clip = assigned != null ? assigned : LoadResource(resourceFallback);
@@ -734,6 +744,8 @@ namespace CoachMaster.UI
 
         static void React(string key, AudioClip clip)
         {
+            if (!Application.isPlaying)
+                return;
             if (clip == null || string.IsNullOrEmpty(key))
                 return;
             if (_reaction != null && _reaction.isPlaying)
@@ -764,9 +776,11 @@ namespace CoachMaster.UI
 
         static void StartMusic(AudioClip clip)
         {
-            if (clip == null)
+            if (!Application.isPlaying || clip == null)
                 return;
             Ensure();
+            if (_music == null)
+                return;
             _music.volume = EffectiveGain * _musicVolume;
             if (_music.clip == clip && _music.isPlaying)
                 return;
@@ -856,7 +870,7 @@ namespace CoachMaster.UI
 
         static void Ensure()
         {
-            if (_effects != null)
+            if (!Application.isPlaying || _effects != null)
                 return;
             var host = new GameObject("GameAudio");
             UnityEngine.Object.DontDestroyOnLoad(host);

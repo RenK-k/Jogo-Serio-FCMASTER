@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using CoachMaster.Career;
 using CoachMaster.Domain;
 using CoachMaster.UI;
 using UnityEngine;
@@ -124,17 +125,18 @@ namespace CoachMaster.Data
             AddClub(world, leagueId, new ClubDefinition
             {
                 Slug = "norte-maritimo",
-                Name = "FC Norte Marítimo",
-                ShortName = "Norte Marítimo",
-                City = "Porto Branco",
-                Stadium = "Estádio das Marés",
-                FoundedYear = 1921,
-                History = "Clube histórico da costa norte, identificado com o porto e com uma massa adepta exigente. Viveu o auge nos anos 80 e tenta agora recuperar protagonismo.",
-                PublicReputation = "Clube de tradição, ainda visto como candidato a lugares cimeiros.",
-                Reputation = 78,
-                Finance = Fin(4200000, 180000, 900000, "A tesouraria aguenta o presente, mas a direção pede contenção."),
+                Name = "Porto FC",
+                ShortName = "Porto",
+                City = "Porto",
+                Stadium = "Estádio do Dragão Azul",
+                FoundedYear = 1894,
+                History = "O dragão do norte. Clube grande, europeu, com o peso de quem discute o título todos os anos.",
+                PublicReputation = "Gigante do norte. O título é a medida.",
+                Reputation = 90,
+                KitSlug = "marca:Porto FC",
+                Finance = Fin(16000000, 620000, 9000000, "O cofre de um grande. A direção exige noites europeias."),
                 Tactics = Identity("4-3-3", "Pressão alta", "Construção curta", "Laterais ofensivos", "Linha defensiva alta", "Hélder Paiva"),
-                BoardObjectives = Obj("Terminar no primeiro terço da tabela", "Manter a identidade ofensiva do clube", "Integrar dois jogadores da formação"),
+                BoardObjectives = Obj("Lutar pelo título", "Manter o peso europeu", "Integrar dois jogadores da formação"),
                 DressingRoomAtmosphere = "O grupo parece fechado sobre si próprio.",
                 PublicTeamState = "A pré-época arranca com um plantel experiente, mas o ambiente no centro de treinos não é o de um recomeço tranquilo.",
                 HiddenInternalProblems = "O capitão perdeu influência após um conflito com o antigo treinador. Há um grupo de jogadores mais novos que o ignora.",
@@ -157,17 +159,18 @@ namespace CoachMaster.Data
             AddClub(world, leagueId, new ClubDefinition
             {
                 Slug = "sporting-colina",
-                Name = "Sporting da Colina",
-                ShortName = "Colina",
-                City = "Colina Verde",
-                Stadium = "Campo da Quinta",
-                FoundedYear = 1908,
-                History = "Um dos clubes mais antigos do país. A Colina cultiva a imagem de casa de formação e de futebol apoiado no meio-campo.",
-                PublicReputation = "Instituição respeitada, com exigência alta dentro e fora de campo.",
-                Reputation = 82,
-                Finance = Fin(6100000, 210000, 1500000, "Situação estável, com margem para investir com critério."),
+                Name = "SP Lisboa FC",
+                ShortName = "SP Lisboa",
+                City = "Lisboa",
+                Stadium = "Estádio do Leão",
+                FoundedYear = 1942,
+                History = "O leão de Lisboa. Casa de formação, verde e dourado, e um dos três grandes do país.",
+                PublicReputation = "Grande de Lisboa. A formação é a identidade e o título é a exigência.",
+                Reputation = 88,
+                KitSlug = "marca:SP Lisboa FC",
+                Finance = Fin(14000000, 560000, 7500000, "Contas de grande, com a formação como regra da casa."),
                 Tactics = Identity("4-2-3-1", "Pressão média", "Construção curta", "Laterais equilibrados", "Linha média", "Vítor Gama"),
-                BoardObjectives = Obj("Disputar o título", "Manter a formação como prioridade", "Evitar um futebol excessivamente direto"),
+                BoardObjectives = Obj("Disputar o título", "Manter a formação como prioridade", "Não abdicar do meio-campo"),
                 DressingRoomAtmosphere = "Há respeito pelo clube, mas também impaciência.",
                 PublicTeamState = "O plantel é talentoso. A última época ficou aquém das expectativas da direção.",
                 HiddenInternalProblems = "Dois médios disputam o mesmo lugar e deixaram de se falar. O avançado titular quer mais protagonismo.",
@@ -190,15 +193,16 @@ namespace CoachMaster.Data
             AddClub(world, leagueId, new ClubDefinition
             {
                 Slug = "uniao-valverde",
-                Name = "União de Valverde",
-                ShortName = "Valverde",
-                City = "Valverde",
-                Stadium = "Municipal do Vale",
-                FoundedYear = 1946,
-                History = "Clube de uma cidade industrial, conhecido pela intensidade e por um público próximo do relvado. Raramente passa despercebido.",
-                PublicReputation = "Casa difícil, com reputação de grupo competitivo.",
-                Reputation = 64,
-                Finance = Fin(800000, 95000, 150000, "A direção admite um orçamento curto para esta época."),
+                Name = "Vila do Conde FC",
+                ShortName = "V. Conde",
+                City = "Vila do Conde",
+                Stadium = "Estádio da Fénix",
+                FoundedYear = 1995,
+                History = "A fénix de Vila do Conde. Clube da primeira divisão, sem o cofre dos três grandes, mas difícil de ignorar em casa.",
+                PublicReputation = "Clube estabelecido da primeira. A manutenção com ambição chega.",
+                Reputation = 66,
+                KitSlug = "marca:Vila do Conde FC",
+                Finance = Fin(2800000, 130000, 450000, "Orçamento de clube médio. Cada contratação pesa."),
                 Tactics = Identity("4-4-2", "Pressão alta", "Jogo direto", "Laterais ofensivos", "Linha alta", "Manuel Correia"),
                 BoardObjectives = Obj("Garantir a manutenção", "Manter a intensidade que o público exige", "Controlar os custos do plantel"),
                 DressingRoomAtmosphere = "O grupo está inquieto.",
@@ -223,17 +227,18 @@ namespace CoachMaster.Data
             AddClub(world, leagueId, new ClubDefinition
             {
                 Slug = "atletico-ribeira",
-                Name = "Atlético Ribeira",
-                ShortName = "Ribeira",
-                City = "Ribeira Nova",
-                Stadium = "Estádio do Cais",
-                FoundedYear = 1957,
-                History = "Clube ribeirinho com uma base adepta jovem. Nos últimos anos apostou em jogadores técnicos e numa construção mais paciente.",
-                PublicReputation = "Clube em crescimento, ainda a consolidar-se entre os grandes.",
-                Reputation = 70,
-                Finance = Fin(2500000, 140000, 600000, "Há investimento, mas a direção quer retorno desportivo imediato."),
+                Name = "SL Lisboa FC",
+                ShortName = "SL Lisboa",
+                City = "Lisboa",
+                Stadium = "Estádio da Águia",
+                FoundedYear = 1998,
+                History = "A águia de Lisboa. O clube com mais peso do país, vermelho e branco, habituado a medir a época pelo título.",
+                PublicReputation = "O maior clube de Portugal. O título é obrigação.",
+                Reputation = 91,
+                KitSlug = "marca:SL Lisboa FC",
+                Finance = Fin(18000000, 680000, 10000000, "O cofre do maior. A direção não aceita uma época sem título."),
                 Tactics = Identity("3-4-3", "Pressão alta", "Construção curta", "Ala ofensivos", "Linha alta", "Sofia Menezes"),
-                BoardObjectives = Obj("Lutar pela qualificação europeia", "Não abdicar da construção apoiada", "Afirmar a identidade do projeto"),
+                BoardObjectives = Obj("Lutar pelo título", "Manter o plantel de grande", "Afirmar a águia na Europa"),
                 DressingRoomAtmosphere = "Curiosidade misturada com incerteza.",
                 PublicTeamState = "O plantel está habituado a um sistema específico. Qualquer mudança será sentida.",
                 HiddenInternalProblems = "Três jogadores do corredor central sentem-se desvalorizados após a última época.",
@@ -626,9 +631,8 @@ namespace CoachMaster.Data
                 new StaffMember { Id = Ids.Staff(slug, "fisio"), ClubId = clubId, FullName = StaffName(physio, slug, 3), Role = StaffRole.Physiotherapist },
                 new StaffMember { Id = Ids.Staff(slug, "olheiro"), ClubId = clubId, FullName = StaffName(FaceBook.PersonName(StaffNation(slug), Hash(slug + ":olheiro")), slug, 4), Role = StaffRole.Scout }
             };
-            var floor = reputation >= 70 ? 13 : 10;
             foreach (var member in list)
-                member.Judgement = floor + Hash(member.FullName + member.Role) % 5;
+                member.Judgement = StaffProfile.Spread(member.Id, member.Role, reputation);
             return list;
         }
 
@@ -646,7 +650,8 @@ namespace CoachMaster.Data
         static void AddClub(WorldState world, string leagueId, ClubDefinition def)
         {
             var clubId = Ids.Club(def.Slug);
-            var kit = KitSpec(def.Slug);
+            var kitId = string.IsNullOrEmpty(def.KitSlug) ? def.Slug : def.KitSlug;
+            var kit = KitSpec(kitId);
             var club = new Club
             {
                 Id = clubId,
@@ -659,7 +664,7 @@ namespace CoachMaster.Data
                 History = def.History,
                 PublicReputation = def.PublicReputation,
                 Reputation = def.Reputation,
-                KitSlug = def.Slug,
+                KitSlug = kitId,
                 JerseyPrimaryHex = kit.Primary,
                 JerseySecondaryHex = kit.Secondary,
                 JerseyShortsHex = kit.Shorts,
@@ -745,6 +750,8 @@ namespace CoachMaster.Data
 
         static KitLook KitSpec(string slug)
         {
+            if (TryBrandKit(slug, out var branded))
+                return branded;
             switch (slug)
             {
                 case "norte-maritimo": return new KitLook("#1769AA", "#F4F4F0", "#0E3F6A", KitPattern.HorizontalHoops);
@@ -800,7 +807,11 @@ namespace CoachMaster.Data
                 KitPattern.Halves,
                 KitPattern.Pinstripe
             };
-            var shorts = secondary;
+            var shorts = ForeignPrimaries[(slot + 11) % ForeignPrimaries.Length];
+            if (shorts == primary || shorts == secondary)
+                shorts = ForeignPrimaries[(slot + 17) % ForeignPrimaries.Length];
+            if (shorts == primary || shorts == secondary)
+                shorts = luminance < 0.42f ? "#C4A35A" : "#1B3A4B";
             return new KitLook(primary, secondary, shorts, patterns[slot % patterns.Length]);
         }
 
@@ -1063,12 +1074,15 @@ namespace CoachMaster.Data
             for (var i = 0; i < names.Length; i++)
             {
                 var clubSlug = slug + "-" + i;
-                var reputation = first ? 78 - i : tier == LeagueTier.Second ? 58 - i / 2 : tier == LeagueTier.Third ? 49 - i / 2 : 42 - i / 2;
-                var name = UniqueClubName(world, leagueId, names[i]);
+                var brand = FindBrand(names[i]);
+                var reputation = brand != null
+                    ? brand.Reputation
+                    : first ? 78 - i : tier == LeagueTier.Second ? 58 - i / 2 : tier == LeagueTier.Third ? 49 - i / 2 : 42 - i / 2;
+                var name = brand != null ? brand.Name : UniqueClubName(world, leagueId, names[i]);
                 var balance = first ? 2500000 + reputation * 100000 : tier == LeagueTier.Second ? 900000 + reputation * 75000 : tier == LeagueTier.Third ? 400000 + reputation * 42000 : 200000 + reputation * 30000;
                 var wages = first ? 140000 + reputation * 4500 : tier == LeagueTier.Second ? 55000 + reputation * 2100 : tier == LeagueTier.Third ? 30000 + reputation * 1500 : 18000 + reputation * 1000;
                 var transfers = first ? 2500000 + reputation * 250000 : tier == LeagueTier.Second ? 600000 + reputation * 85000 : tier == LeagueTier.Third ? 250000 + reputation * 52000 : 100000 + reputation * 35000;
-                if (slug == "inglesa")
+                if (slug == "inglesa" || (brand != null && brand.Reputation >= 88))
                 {
                     balance = 12000000 + reputation * 300000;
                     wages = 500000 + reputation * 9000;
@@ -1078,16 +1092,21 @@ namespace CoachMaster.Data
                 {
                     Slug = clubSlug,
                     Name = name,
-                    ShortName = name,
-                    City = country,
-                    Stadium = "Estádio de " + name,
-                    FoundedYear = 1898 + i * 7,
-                    History = name + " disputa a " + DivisionLabel(tier).ToLowerInvariant() + " de " + country + ".",
-                    PublicReputation = first ? "Clube da primeira divisão." : "Clube a lutar pela subida.",
+                    ShortName = brand != null ? brand.Short : name,
+                    City = brand != null ? brand.City : country,
+                    Stadium = brand != null ? brand.Stadium : "Estádio de " + name,
+                    FoundedYear = brand != null ? brand.Year : 1898 + i * 7,
+                    History = brand != null ? brand.History : name + " disputa a " + DivisionLabel(tier).ToLowerInvariant() + " de " + country + ".",
+                    PublicReputation = brand != null ? brand.Standing : first ? "Clube da primeira divisão." : "Clube a lutar pela subida.",
                     Reputation = reputation,
+                    KitSlug = brand != null ? brand.KitId : clubSlug,
                     Finance = Fin(balance, wages, transfers, "As contas acompanham o tamanho do clube."),
                     Tactics = Identity(i % 2 == 0 ? "4-3-3" : "4-4-2", "Pressão média", "Construção curta", "Laterais equilibrados", "Linha média", "Treinador anterior"),
-                    BoardObjectives = Obj("Pontuar com regularidade", "Manter o balneário calmo"),
+                    BoardObjectives = brand != null && brand.Reputation >= 90
+                        ? Obj("Lutar pelo título", "Manter o balneário dos grandes")
+                        : brand != null && brand.Reputation >= 80
+                        ? Obj("Lutar pelos lugares europeus", "Manter o balneário estável")
+                        : Obj("Pontuar com regularidade", "Manter o balneário calmo"),
                     DressingRoomAtmosphere = "O grupo espera um plano claro.",
                     PublicTeamState = "A pré-época ainda não mostrou o verdadeiro nível.",
                     HiddenInternalProblems = "Há um ou outro desentendimento, nada que feche o balneário.",
@@ -1132,7 +1151,301 @@ namespace CoachMaster.Data
 
             for (var i = 0; i < count; i++)
                 names[i] = i < baseNames.Length ? baseNames[i] : ExtraName(slug, i - baseNames.Length);
+            if (slug == "inglesa" && names.Length >= 20)
+            {
+                names[0] = "Manchester Sky FC";
+                names[1] = "Mersey Reds FC";
+                names[2] = "Red Devils FC";
+                names[3] = "London Gunners FC";
+                names[4] = "Nlondo FC";
+                names[5] = "White Lily FC";
+                names[6] = "Newcastle FC";
+                names[7] = "Aston Lions FC";
+                names[8] = "Nottingham Mountains FC";
+                names[9] = "Mersey Blues FC";
+                names[10] = "Yorkshire FC";
+                names[11] = "Brigull FC";
+                names[12] = "SL Eagles FC";
+                names[13] = "Fulham Whites FC";
+                names[14] = "Rerrys FC";
+                names[15] = "Wobee FC";
+                names[16] = "Wearside FC";
+                names[17] = "Suffolk Town FC";
+                names[18] = "Coventry Blues FC";
+                names[19] = "Hull Tigers FC";
+            }
+            else if (slug == "bundesliga" && names.Length > 0)
+                names[0] = "Bavaria Munich FC";
+            else if (slug == "espanhola" && names.Length > 1)
+            {
+                names[0] = "Real Football Madrid";
+                names[1] = "Fútbol Barcelona";
+            }
             return names;
+        }
+
+        public static string CrestPath(string clubName)
+        {
+            var brand = FindBrand(clubName);
+            return brand == null ? null : brand.Crest;
+        }
+
+        static bool TryBrandKit(string kitId, out KitLook look)
+        {
+            look = default;
+            if (string.IsNullOrEmpty(kitId))
+                return false;
+            foreach (var brand in Brands())
+            {
+                if (brand.KitId != kitId)
+                    continue;
+                look = new KitLook(brand.Primary, brand.Secondary, brand.Shorts, brand.Pattern);
+                return true;
+            }
+            return false;
+        }
+
+        public static void EnsureThreeColors(Club club)
+        {
+            if (club == null)
+                return;
+            if (!SameColor(club.JerseyPrimaryHex, club.JerseySecondaryHex)
+                && !SameColor(club.JerseyShortsHex, club.JerseyPrimaryHex)
+                && !SameColor(club.JerseyShortsHex, club.JerseySecondaryHex)
+                && !string.IsNullOrEmpty(club.JerseyPrimaryHex)
+                && !string.IsNullOrEmpty(club.JerseySecondaryHex)
+                && !string.IsNullOrEmpty(club.JerseyShortsHex))
+                return;
+            var kit = GeneratedKit(string.IsNullOrEmpty(club.KitSlug) ? "x-0" : club.KitSlug);
+            if (SameColor(club.JerseyPrimaryHex, club.JerseySecondaryHex) || string.IsNullOrEmpty(club.JerseySecondaryHex))
+                club.JerseySecondaryHex = SameColor(kit.Secondary, club.JerseyPrimaryHex) ? "#F4F1E8" : kit.Secondary;
+            if (SameColor(club.JerseyShortsHex, club.JerseyPrimaryHex) || SameColor(club.JerseyShortsHex, club.JerseySecondaryHex) || string.IsNullOrEmpty(club.JerseyShortsHex))
+                club.JerseyShortsHex = SameColor(kit.Shorts, club.JerseyPrimaryHex) || SameColor(kit.Shorts, club.JerseySecondaryHex) ? "#C4A35A" : kit.Shorts;
+        }
+
+        static bool SameColor(string a, string b)
+        {
+            return string.Equals(a ?? "", b ?? "", StringComparison.OrdinalIgnoreCase);
+        }
+
+        public static void RefreshPresentedClub(Club club)
+        {
+            if (club == null)
+                return;
+            var brand = FindBrand(club.Name);
+            if (brand == null)
+                return;
+            club.Name = brand.Name;
+            club.ShortName = brand.Short;
+            club.City = brand.City;
+            club.Stadium = brand.Stadium;
+            club.FoundedYear = brand.Year;
+            club.History = brand.History;
+            club.PublicReputation = brand.Standing;
+            club.Reputation = brand.Reputation;
+            club.KitSlug = brand.KitId;
+            PaintClub(club);
+        }
+
+        static string CanonicalBrand(string name)
+        {
+            switch (name)
+            {
+                case "Manchester Sky Blues": return "Manchester Sky FC";
+                case "Mersey Reds": return "Mersey Reds FC";
+                case "Manchester Red Devils": return "Red Devils FC";
+                case "North London Gunners": return "London Gunners FC";
+                case "Blue London FC": return "Nlondo FC";
+                case "Newcastle": return "Newcastle FC";
+                case "Nottingham Mountains":
+                case "Nottingham mountains": return "Nottingham Mountains FC";
+                case "Mersey Blues": return "Mersey Blues FC";
+                case "Yorkshire Whites": return "Yorkshire FC";
+                case "Seagulls FC": return "Brigull FC";
+                case "South London Eagles": return "SL Eagles FC";
+                case "Fulham Whites": return "Fulham Whites FC";
+                case "South Coast Cherries": return "Rerrys FC";
+                case "West London Bees": return "Wobee FC";
+                case "Wearside Black Cats": return "Wearside FC";
+                case "Coventry Sky Blues": return "Coventry Blues FC";
+                case "Hull Tigers": return "Hull Tigers FC";
+                case "Bavaria Munich": return "Bavaria Munich FC";
+                case "FC Norte Marítimo": return "Porto FC";
+                case "Sporting da Colina": return "SP Lisboa FC";
+                case "Atlético Ribeira": return "SL Lisboa FC";
+                case "União de Valverde": return "Vila do Conde FC";
+                default: return name;
+            }
+        }
+
+        static ClubBrand FindBrand(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+                return null;
+            name = CanonicalBrand(name);
+            foreach (var brand in Brands())
+            {
+                if (brand.Name == name)
+                    return brand;
+            }
+            return null;
+        }
+
+        static ClubBrand[] Brands()
+        {
+            return new[]
+            {
+                Brand("Manchester Sky FC", "Sky FC", "Manchester", "Estádio do Céu", 2009, 96,
+                    "#6CABDD", "#1C2C5B", "#FFFFFF", KitPattern.Solid, "Clubes/Inglaterra 1/MSFC",
+                    "O clube mais rico do país. O céu azul compra plantéis de título.",
+                    "Gigante financeiro. O título é a medida do ano."),
+                Brand("Mersey Reds FC", "Mersey Reds", "Liverpool", "Estádio do Mersey", 1892, 95,
+                    "#C8102E", "#F6EB61", "#FFFFFF", KitPattern.Solid, "Clubes/Inglaterra 1/mersey reds",
+                    "A margem vermelha. Europeu de peso, com uma bancada que não perdoa um jogo morno.",
+                    "Clube de topo europeu. Exige noites grandes."),
+                Brand("Red Devils FC", "Red Devils", "Manchester", "Teatro dos Diabos", 1878, 94,
+                    "#DA291C", "#FBE122", "#111111", KitPattern.Solid, "Clubes/Inglaterra 1/redDevils",
+                    "O outro gigante de Manchester. Histórico, impaciente e sempre à procura do título.",
+                    "Gigante histórico. A direção mede a época pelo título."),
+                Brand("London Gunners FC", "Gunners", "Londres", "Castelo do Norte", 1980, 93,
+                    "#EF0107", "#FFFFFF", "#9C824A", KitPattern.Solid, "Clubes/Inglaterra 1/London gunners",
+                    "O canhão do norte de Londres. Clube grande, organizado e habituado a lutar pelo topo.",
+                    "Clube grande. O topo da tabela é a expectativa."),
+                Brand("Nlondo FC", "Nlondo", "Londres", "Ponte Azul", 1995, 91,
+                    "#034694", "#FFFFFF", "#D1A32A", KitPattern.Solid, "Clubes/Inglaterra 1/NLONDO",
+                    "O leão azul do norte de Londres. Dinheiro, estrelas e a obrigação de ganhar taças.",
+                    "Clube de estrelas. Taças e lugares de topo."),
+                Brand("White Lily FC", "White Lily", "Londres", "Estrada Branca", 1899, 88,
+                    "#FFFFFF", "#132257", "#C8102E", KitPattern.Solid, "Clubes/Inglaterra 1/WhiteLily",
+                    "O lírio branco do norte de Londres. Ataque bonito e a pressão de voltar ao topo.",
+                    "Clube grande. Exige futebol e lugares europeus."),
+                Brand("Newcastle FC", "Newcastle", "Newcastle", "Estádio das Riscas", 1892, 86,
+                    "#241F20", "#FFFFFF", "#1B4F72", KitPattern.VerticalStripes, "Clubes/Inglaterra 1/newcastle",
+                    "A cidade das riscas. Um clube grande do Norte, com bancada cheia e ambição europeia.",
+                    "Clube grande do Norte. A Europa é o mínimo."),
+                Brand("Aston Lions FC", "Aston Lions", "Birmingham", "Parque dos Leões", 2005, 84,
+                    "#670E36", "#95BFE5", "#F5D76E", KitPattern.Solid, "Clubes/Inglaterra 1/aston lions",
+                    "O leão de Birmingham. Clube histórico, de grená e azul, a querer voltar às noites grandes.",
+                    "Clube estabelecido. Quer a Europa."),
+                Brand("Nottingham Mountains FC", "Mountains", "Nottingham", "Cidade da Floresta", 1865, 83,
+                    "#E31B23", "#FFFFFF", "#111111", KitPattern.Solid, "Clubes/Inglaterra 1/nottingham mountains",
+                    "Um dos clubes mais antigos do país. Já foi europeu e ainda se vê como grande.",
+                    "Clube histórico. Não aceita a mediocridade."),
+                Brand("Mersey Blues FC", "Mersey Blues", "Liverpool", "Parque Azul", 1878, 81,
+                    "#003399", "#FFFFFF", "#F6EB61", KitPattern.Solid, "Clubes/Inglaterra 1/mersley blues",
+                    "O azul da outra margem. Clube tradicional, fiel e cansado de viver à sombra do vizinho.",
+                    "Clube tradicional. Quer a metade de cima e uma taça."),
+                Brand("Yorkshire FC", "Yorkshire", "Leeds", "Estádio de Yorkshire", 1954, 79,
+                    "#FFFFFF", "#1D428A", "#FFCD00", KitPattern.Solid, "Clubes/Inglaterra 1/yorkshire",
+                    "O branco de Yorkshire. Clube intenso, de bancada hostil, a querer fixar-se no topo.",
+                    "Clube de primeira. A estabilidade no topo é o plano."),
+                Brand("Brigull FC", "Brigull", "Brighton", "Ninho da Gaivota", 1987, 77,
+                    "#0057B8", "#FFFFFF", "#E8C547", KitPattern.VerticalStripes, "Clubes/Inglaterra 1/brigull",
+                    "A gaivota da costa sul. Clube moderno, bem gerido, sem o peso de um gigante.",
+                    "Clube estável da primeira. Quer crescer sem loucura."),
+                Brand("SL Eagles FC", "SL Eagles", "Londres", "Palácio do Sul", 1989, 76,
+                    "#1B458F", "#C4122E", "#FFFFFF", KitPattern.VerticalStripes, "Clubes/Inglaterra 1/sl eagles",
+                    "A águia do sul de Londres. Clube de bairro que chegou ao topo e quer lá ficar.",
+                    "Clube da primeira. Manter-se e assustar os grandes."),
+                Brand("Fulham Whites FC", "Fulham", "Londres", "Casa Branca", 1894, 75,
+                    "#FFFFFF", "#000000", "#C4A35A", KitPattern.Solid, "Clubes/Inglaterra 1/fulham whites",
+                    "O branco de Fulham. Clube de Londres, mais casa do que império.",
+                    "Clube de Londres. A permanência tranquila chega."),
+                Brand("Rerrys FC", "Rerrys", "Bournemouth", "Costa das Cerejas", 1897, 74,
+                    "#DA291C", "#000000", "#FFFFFF", KitPattern.VerticalStripes, "Clubes/Inglaterra 1/Rerrys",
+                    "As cerejas da costa sul. Clube pequeno no mapa, teimoso na primeira divisão.",
+                    "Clube modesto da primeira. Sobreviver já é época boa."),
+                Brand("Wobee FC", "Wobee", "Londres", "A Colmeia", 1975, 73,
+                    "#0B3D2E", "#C4A35A", "#F4F1E8", KitPattern.Solid, "Clubes/Inglaterra 1/wobee",
+                    "A abelha do oeste de Londres. Orçamento curto, identidade forte.",
+                    "Clube combativo. Cada ponto na primeira conta."),
+                Brand("Wearside FC", "Wearside", "Sunderland", "Estádio do Gato", 1879, 72,
+                    "#111111", "#C5A46E", "#FFFFFF", KitPattern.Solid, "Clubes/Inglaterra 1/wearside",
+                    "O gato preto de Wearside. Clube histórico do Nordeste, de novo entre os grandes.",
+                    "Clube tradicional. Fixar-se na primeira é o mandato."),
+                Brand("Suffolk Town FC", "Suffolk", "Ipswich", "Estádio do Cavalo", 1878, 70,
+                    "#0044AA", "#FFFFFF", "#F2C230", KitPattern.Solid, "Clubes/Inglaterra 1/suffolk town",
+                    "O cavalo de Suffolk. Clube de província, azul e branco, sem dinheiro de gigante.",
+                    "Clube de província. A primeira divisão já é uma conquista."),
+                Brand("Coventry Blues FC", "Coventry", "Coventry", "Estádio do Céu Azul", 2012, 68,
+                    "#64C8F0", "#1B365D", "#FFFFFF", KitPattern.Solid, "Clubes/Inglaterra 1/coventry blues",
+                    "O azul-céu de Coventry. Ainda a aprender o peso da primeira divisão.",
+                    "Recém-chegado ao convívio dos grandes. Permanecer."),
+                Brand("Hull Tigers FC", "Hull", "Hull", "Estádio do Tigre", 2013, 66,
+                    "#F5A623", "#1A1A2E", "#FFFFFF", KitPattern.VerticalStripes, "Clubes/Inglaterra 1/hull tigers",
+                    "O tigre do estuário. O clube mais pequeno desta primeira divisão.",
+                    "O mais pequeno da primeira. Cada época é uma luta."),
+                Brand("Bavaria Munich FC", "Bavaria", "Munique", "Arena da Baviera", 1846, 96,
+                    "#DC052D", "#FFFFFF", "#0066B3", KitPattern.Solid, "Clubes/alemanha 1/bavaria munich",
+                    "O clube da Baviera. Domina o país há anos e mede-se com os maiores da Europa.",
+                    "O grande da Alemanha. O título é obrigação."),
+                Brand("Real Football Madrid", "Madrid", "Madrid", "Estádio Real", 1902, 97,
+                    "#FFFFFF", "#FEBE10", "#0A3D91", KitPattern.Solid, "Clubes/espanha 1/RF Madrid",
+                    "A casa real do futebol. O clube mais pesado do continente, de branco.",
+                    "O maior clube deste campeonato. Só o título serve."),
+                Brand("Porto FC", "Porto", "Porto", "Estádio do Dragão Azul", 1894, 90,
+                    "#0033A0", "#FFFFFF", "#A7C6ED", KitPattern.Solid, "Clubes/portugal 1/Porto",
+                    "O dragão do norte. Clube grande, europeu, com o peso de quem discute o título todos os anos.",
+                    "Gigante do norte. O título é a medida."),
+                Brand("SP Lisboa FC", "SP Lisboa", "Lisboa", "Estádio do Leão", 1942, 88,
+                    "#16804A", "#F6F1D5", "#C6A43A", KitPattern.VerticalStripes, "Clubes/portugal 1/SP Lisboa",
+                    "O leão de Lisboa. Casa de formação, verde e dourado, e um dos três grandes do país.",
+                    "Grande de Lisboa. A formação é a identidade e o título é a exigência."),
+                Brand("SL Lisboa FC", "SL Lisboa", "Lisboa", "Estádio da Águia", 1998, 91,
+                    "#E10600", "#FFFFFF", "#F0B429", KitPattern.Solid, "Clubes/portugal 1/SL lisboa",
+                    "A águia de Lisboa. O clube com mais peso do país, habituado a medir a época pelo título.",
+                    "O maior clube de Portugal. O título é obrigação."),
+                Brand("Vila do Conde FC", "V. Conde", "Vila do Conde", "Estádio da Fénix", 1995, 66,
+                    "#0E3B2E", "#C8102E", "#F5C518", KitPattern.Solid, "Clubes/portugal 1/vila do conde",
+                    "A fénix de Vila do Conde. Primeira divisão, sem o cofre dos três grandes.",
+                    "Clube estabelecido da primeira. A manutenção com ambição chega."),
+                Brand("Fútbol Barcelona", "Barcelona", "Barcelona", "Estádio da Catedral", 1899, 96,
+                    "#A50044", "#004D98", "#FFED00", KitPattern.Halves, "Clubes/espanha 1/Barcelona",
+                    "O clube da cidade. Blaugrana, identidade forte, o único que discute o trono com Madrid.",
+                    "Gigante. O título e a Europa são a conversa."),
+            };
+        }
+
+        static ClubBrand Brand(
+            string name, string shortName, string city, string stadium, int year, int reputation,
+            string primary, string secondary, string shorts, KitPattern pattern, string crest,
+            string history, string standing)
+        {
+            return new ClubBrand
+            {
+                Name = name,
+                Short = shortName,
+                City = city,
+                Stadium = stadium,
+                Year = year,
+                Reputation = reputation,
+                Primary = primary,
+                Secondary = secondary,
+                Shorts = shorts,
+                Pattern = pattern,
+                Crest = crest,
+                KitId = "marca:" + name,
+                History = history,
+                Standing = standing
+            };
+        }
+
+        sealed class ClubBrand
+        {
+            public string Name;
+            public string Short;
+            public string City;
+            public string Stadium;
+            public int Year;
+            public int Reputation;
+            public string Primary;
+            public string Secondary;
+            public string Shorts;
+            public KitPattern Pattern;
+            public string Crest;
+            public string KitId;
+            public string History;
+            public string Standing;
         }
 
         static string[] Squad(string slug)
@@ -1188,6 +1501,7 @@ namespace CoachMaster.Data
             public string History;
             public string PublicReputation;
             public int Reputation;
+            public string KitSlug;
             public ClubFinance Finance;
             public TacticalIdentity Tactics;
             public List<string> BoardObjectives;

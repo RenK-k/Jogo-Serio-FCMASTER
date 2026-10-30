@@ -1,5 +1,7 @@
 using System;
+using CoachMaster.Domain;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace CoachMaster.UI
@@ -10,34 +12,54 @@ namespace CoachMaster.UI
         static Sprite _circle;
         static Sprite _ring;
         static Texture2D _brandTexture;
+        static Material _logoMaterial;
 
         public static Sprite Round => _round != null ? _round : (_round = MakeRound());
         public static Sprite Circle => _circle != null ? _circle : (_circle = MakeDisc(false));
         public static Sprite Ring => _ring != null ? _ring : (_ring = MakeDisc(true));
-        public static Texture2D BrandTexture => _brandTexture != null ? _brandTexture : (_brandTexture = Resources.Load<Texture2D>("fcmasterGIFAnimated") ?? Resources.Load<Texture2D>("fCMASTER"));
-        public static Rect BrandUvRect
-        {
-            get
-            {
-                var texture = BrandTexture;
-                if (texture == null || texture.width < 2048 || texture.height < 2048)
-                    return new Rect(0.25f, 0.41f, 0.5f, 0.35f);
-                const float columns = 8f;
-                const float rows = 8f;
-                var insetX = 0.5f / 2048f;
-                var insetY = 0.5f / 2048f;
-                return new Rect(insetX, 1f - 1f / rows + insetY, 1f / columns - insetX * 2f, 1f / rows - insetY * 2f);
-            }
-        }
+        public static Texture2D BrandTexture => _brandTexture != null ? _brandTexture : (_brandTexture = Resources.Load<Texture2D>("fCMASTER"));
 
         public static void ApplyBrand(RawImage image)
         {
             if (image == null)
                 return;
             image.texture = BrandTexture;
-            image.uvRect = BrandUvRect;
+            image.uvRect = new Rect(0f, 0f, 1f, 1f);
             image.color = Color.white;
             image.raycastTarget = false;
+            var material = LogoMaterial();
+            if (material != null)
+                image.material = material;
+        }
+
+        public static void FitBrand(RawImage image, float maxWidth, float maxHeight)
+        {
+            ApplyBrand(image);
+            if (image == null)
+                return;
+            var texture = image.texture;
+            var aspect = texture != null && texture.height > 0 ? (float)texture.width / texture.height : 1.7f;
+            var height = maxHeight;
+            var width = height * aspect;
+            if (width > maxWidth)
+            {
+                width = maxWidth;
+                height = width / Mathf.Max(0.01f, aspect);
+            }
+
+            image.rectTransform.sizeDelta = new Vector2(width, height);
+        }
+
+        static Material LogoMaterial()
+        {
+            if (_logoMaterial != null)
+                return _logoMaterial;
+            var shader = Resources.Load<Shader>("Logo");
+            if (shader == null)
+                return null;
+            _logoMaterial = new Material(shader);
+            _logoMaterial.hideFlags = HideFlags.HideAndDontSave;
+            return _logoMaterial;
         }
 
         public static RectTransform Mount(Component host)
@@ -64,6 +86,7 @@ namespace CoachMaster.UI
 
             var root = canvas.transform;
             var design = root.Find("Design") as RectTransform;
+            HideSettingsHints(root);
             if (design != null)
             {
                 for (var i = root.childCount - 1; i >= 0; i--)
@@ -93,6 +116,28 @@ namespace CoachMaster.UI
 
             ConsequenceToast.Attach(runtimeRect);
             return runtimeRect;
+        }
+
+        public static void HideSettingsHints(Transform root)
+        {
+            if (root == null)
+                return;
+            var labels = root.GetComponentsInChildren<Text>(true);
+            for (var i = 0; i < labels.Length; i++)
+            {
+                var label = labels[i];
+                if (label == null)
+                    continue;
+                var name = label.gameObject.name;
+                var value = label.text ?? "";
+                var hint = name == "SettingsHint" || name == "ControlHint" || name == "NavigationHelpHint"
+                    || value.StartsWith("M ·")
+                    || value.Contains("Clica para entrar") || value.Contains("Enter  avançar") || value.Contains("Enter  começar")
+                    || value.Contains("ENTER · SELECIONAR") || value.Contains("ENTER · SELECT")
+                    || value.Contains("A · SELECIONAR") || value.Contains("A · SELECT");
+                if (hint)
+                    label.gameObject.SetActive(false);
+            }
         }
 
         public static RectTransform CreateDesign(Transform canvas)
@@ -229,6 +274,8 @@ namespace CoachMaster.UI
             navigation.mode = Navigation.Mode.None;
             button.navigation = navigation;
             button.targetGraphic = image;
+            if (image.GetComponent<UiButtonMotion>() == null)
+                image.gameObject.AddComponent<UiButtonMotion>();
             var colors = button.colors;
             colors.normalColor = Color.white;
             colors.highlightedColor = new Color(1f, 1f, 1f, 0.92f);
@@ -299,6 +346,15 @@ namespace CoachMaster.UI
             return button;
         }
 
+        public static void Catch(Image image, Action onClick)
+        {
+            if (image == null)
+                return;
+            image.raycastTarget = true;
+            var catcher = image.GetComponent<UiClickCatch>() ?? image.gameObject.AddComponent<UiClickCatch>();
+            catcher.Bind(onClick);
+        }
+
         public static ScrollRect Scroll(Transform parent, string name, out RectTransform content)
         {
             var go = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(ScrollRect), typeof(RectMask2D));
@@ -343,11 +399,10 @@ namespace CoachMaster.UI
             var markObject = new GameObject("Mark", typeof(RectTransform), typeof(RawImage));
             markObject.transform.SetParent(block, false);
             var mark = markObject.GetComponent<RawImage>();
-            ApplyBrand(mark);
+            FitBrand(mark, 132f, 58f);
             mark.rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
             mark.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            mark.rectTransform.sizeDelta = new Vector2(48, 48);
-            mark.rectTransform.anchoredPosition = new Vector2(-118, 2);
+            mark.rectTransform.anchoredPosition = new Vector2(-128, 2);
             var title = Label(block, "League", string.IsNullOrEmpty(league) ? "COACH MASTER" : league.ToUpperInvariant(), 18, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
             Place(title.rectTransform, 0.12f, 0.42f, 0.95f, 0.95f);
             var sub = Label(block, "Brand", "COACH MASTER", 11, UiTheme.AccentSoft, TextAnchor.MiddleCenter, FontStyle.Bold);
@@ -393,13 +448,7 @@ namespace CoachMaster.UI
             Net(pitch, 0.97f, 0.4f, 1f, 0.6f, new Color(1f, 1f, 1f, 0.55f));
             Dot(pitch, new Vector2(0.12f, 0.5f), 8f, line);
             Dot(pitch, new Vector2(0.88f, 0.5f), 8f, line);
-            var ring = Solid(pitch, "CenterRing", line);
-            ring.sprite = Ring;
-            ring.type = Image.Type.Simple;
-            ring.preserveAspect = true;
-            ring.rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
-            ring.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            ring.rectTransform.sizeDelta = new Vector2(112, 112);
+            PlaceCenterRing(pitch, false, line);
             Dot(pitch, new Vector2(0.5f, 0.5f), 8f, line);
         }
 
@@ -422,14 +471,21 @@ namespace CoachMaster.UI
             Net(pitch, 0.42f, 0.975f, 0.58f, 1f, new Color(1f, 1f, 1f, 0.55f));
             Dot(pitch, new Vector2(0.5f, 0.17f), 8f, line);
             Dot(pitch, new Vector2(0.5f, 0.83f), 8f, line);
+            PlaceCenterRing(pitch, true, line);
+            Dot(pitch, new Vector2(0.5f, 0.5f), 8f, line);
+        }
+
+        static void PlaceCenterRing(RectTransform pitch, bool vertical, Color line)
+        {
             var ring = Solid(pitch, "CenterRing", line);
             ring.sprite = Ring;
             ring.type = Image.Type.Simple;
             ring.preserveAspect = true;
-            ring.rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
-            ring.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            ring.rectTransform.sizeDelta = new Vector2(112f, 112f);
-            Dot(pitch, new Vector2(0.5f, 0.5f), 8f, line);
+            ring.rectTransform.anchorMin = vertical ? new Vector2(0.34f, 0.41f) : new Vector2(0.41f, 0.34f);
+            ring.rectTransform.anchorMax = vertical ? new Vector2(0.66f, 0.59f) : new Vector2(0.59f, 0.66f);
+            ring.rectTransform.offsetMin = Vector2.zero;
+            ring.rectTransform.offsetMax = Vector2.zero;
+            ring.rectTransform.sizeDelta = Vector2.zero;
         }
 
         public static void DrawHalfPitch(RectTransform pitch, Color? grassColor = null)
@@ -490,9 +546,13 @@ namespace CoachMaster.UI
                     image.sprite = Ring;
                     image.type = Image.Type.Simple;
                     image.preserveAspect = true;
-                    image.rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
-                    image.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-                    image.rectTransform.sizeDelta = new Vector2(112, 112);
+                    var parent = image.rectTransform.parent as RectTransform;
+                    var vertical = parent != null && parent.rect.height > parent.rect.width;
+                    image.rectTransform.anchorMin = vertical ? new Vector2(0.34f, 0.41f) : new Vector2(0.41f, 0.34f);
+                    image.rectTransform.anchorMax = vertical ? new Vector2(0.66f, 0.59f) : new Vector2(0.59f, 0.66f);
+                    image.rectTransform.offsetMin = Vector2.zero;
+                    image.rectTransform.offsetMax = Vector2.zero;
+                    image.rectTransform.sizeDelta = Vector2.zero;
                     continue;
                 }
 
@@ -528,8 +588,7 @@ namespace CoachMaster.UI
                 var raw = brandMark.GetComponent<RawImage>();
                 if (raw != null)
                 {
-                    ApplyBrand(raw);
-                    raw.rectTransform.sizeDelta = new Vector2(48f, 48f);
+                    FitBrand(raw, 132f, 58f);
                 }
                 else
                 {
@@ -632,6 +691,46 @@ namespace CoachMaster.UI
             if (string.IsNullOrEmpty(hex))
                 return fallback;
             return ColorUtility.TryParseHtmlString(hex, out var color) ? color : fallback;
+        }
+
+        public static void PitchMarks(Club home, Club away, out Color homeMark, out Color awayMark)
+        {
+            homeMark = Parse(home == null ? null : home.JerseyPrimaryHex, Color.white);
+            awayMark = FarthestKitColor(away, homeMark);
+        }
+
+        static Color FarthestKitColor(Club club, Color against)
+        {
+            var options = new[]
+            {
+                Parse(club == null ? null : club.JerseyPrimaryHex, new Color(0.85f, 0.2f, 0.2f)),
+                Parse(club == null ? null : club.JerseySecondaryHex, Color.white),
+                Parse(club == null ? null : club.JerseyShortsHex, new Color(0.1f, 0.12f, 0.16f))
+            };
+            var best = options[0];
+            var bestScore = -1f;
+            for (var i = 0; i < options.Length; i++)
+            {
+                var score = KitDistance(options[i], against);
+                if (score <= bestScore)
+                    continue;
+                bestScore = score;
+                best = options[i];
+            }
+            if (bestScore >= 0.38f)
+                return best;
+            return new Color(
+                Mathf.Clamp01(1f - against.r),
+                Mathf.Clamp01(0.15f + (1f - against.g) * 0.7f),
+                Mathf.Clamp01(against.b < 0.5f ? 0.85f : 0.1f));
+        }
+
+        static float KitDistance(Color a, Color b)
+        {
+            var dr = a.r - b.r;
+            var dg = a.g - b.g;
+            var db = a.b - b.b;
+            return Mathf.Sqrt(dr * dr + dg * dg + db * db);
         }
 
         public static string ShortName(string full)
@@ -771,6 +870,22 @@ namespace CoachMaster.UI
             var sprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 512f);
             sprite.hideFlags = HideFlags.HideAndDontSave;
             return sprite;
+        }
+    }
+
+    sealed class UiClickCatch : MonoBehaviour, IPointerClickHandler
+    {
+        Action _click;
+
+        public void Bind(Action click) => _click = click;
+
+        public void OnPointerClick(PointerEventData eventData)
+        {
+            if (eventData != null && eventData.button != PointerEventData.InputButton.Left)
+                return;
+            if (SquadDragCard.Holding || !BroadcastUi.AllowClick())
+                return;
+            _click?.Invoke();
         }
     }
 }

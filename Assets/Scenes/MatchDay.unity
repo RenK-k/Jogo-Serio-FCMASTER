@@ -49304,13 +49304,13 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Texture: {fileID: 2800000, guid: 1980f263d06f0594b8a646e2ce932376, type: 3}
+  m_Texture: {fileID: 2800000, guid: 99113548ebaf42b4cb502af13a7e41a5, type: 3}
   m_UVRect:
     serializedVersion: 2
-    x: 0.00024414062
-    y: 0.87524414
-    width: 0.12451172
-    height: 0.12451172
+    x: 0
+    y: 0
+    width: 1
+    height: 1
 --- !u!222 &1889639222
 CanvasRenderer:
   m_ObjectHideFlags: 0

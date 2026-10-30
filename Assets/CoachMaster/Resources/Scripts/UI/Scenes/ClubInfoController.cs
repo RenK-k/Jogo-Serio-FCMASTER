@@ -117,8 +117,6 @@ namespace CoachMaster.UI.Scenes
 
             var choose = BroadcastUi.Button(root, "Choose", "ASSUMIR O BANCO", () => GameRoot.Instance.Open(SceneNames.CreateCareer), UiTheme.Accent, UiTheme.ButtonText, 20);
             BroadcastUi.Place(choose.GetComponent<RectTransform>(), 0.34f, 0.065f, 0.66f, 0.14f);
-            var hint = BroadcastUi.Label(root, "SettingsHint", LocalizationManager.Translate("M · DEFINIÇÕES"), 15, UiTheme.Muted, TextAnchor.MiddleLeft);
-            BroadcastUi.Place(hint.rectTransform, 0.04f, 0.008f, 0.5f, 0.05f);
         }
 
         static void PlaceFormation(RectTransform host, GameSession session, Club club)

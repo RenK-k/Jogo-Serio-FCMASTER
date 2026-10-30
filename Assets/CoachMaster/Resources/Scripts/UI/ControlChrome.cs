@@ -21,7 +21,6 @@ namespace CoachMaster.UI
         int _index = -1;
         Text _hint;
         Selectable _focusedButton;
-        Vector3 _focusedScale;
         float _nextScan;
         float _nextStickMove;
         Vector2Int _stickDirection;
@@ -108,8 +107,6 @@ namespace CoachMaster.UI
             {
                 _nextScan = Time.unscaledTime + 0.35f;
                 EnsureHint();
-                if (_hint != null && _hint.gameObject.activeSelf != SettingsPrefs.ControllerHints)
-                    _hint.gameObject.SetActive(SettingsPrefs.ControllerHints);
                 RefreshButtons();
             }
 
@@ -192,6 +189,8 @@ namespace CoachMaster.UI
                 }
             }
 
+            if (!UsingKeyboard && Gamepad.current != null)
+                ScrollWithRightStick(Gamepad.current.rightStick.ReadValue().y);
             var volumeAdjusted = direction.x < 0 && AdjustFocusedVolume(-0.05f);
             if (!volumeAdjusted && direction.x > 0)
                 volumeAdjusted = AdjustFocusedVolume(0.05f);
@@ -212,6 +211,36 @@ namespace CoachMaster.UI
                 EventSystem.current.SetSelectedGameObject(null);
         }
 
+        static Transform _focusLimit;
+        static bool _grabFirst;
+
+        public static void FocusWithin(Transform root)
+        {
+            _focusLimit = root;
+            var pad = !UsingKeyboard && Gamepad.current != null;
+            _grabFirst = root != null && pad;
+            var chrome = UnityEngine.Object.FindFirstObjectByType<ControlChrome>();
+            if (chrome == null)
+                return;
+            if (!pad)
+            {
+                chrome._navigationActive = false;
+                chrome.ClearFocus();
+            }
+            chrome._nextScan = 0f;
+            chrome.RefreshButtons();
+        }
+
+        void ScrollWithRightStick(float vertical)
+        {
+            if (Mathf.Abs(vertical) < 0.45f || _index < 0 || _index >= _buttons.Count)
+                return;
+            var scroll = _buttons[_index].GetComponentInParent<ScrollRect>();
+            if (scroll == null || !scroll.vertical)
+                return;
+            scroll.verticalNormalizedPosition = Mathf.Clamp01(scroll.verticalNormalizedPosition + vertical * Time.unscaledDeltaTime * 1.1f);
+        }
+
         public static bool Digit(int number)
         {
             if (!UsingKeyboard || Keyboard.current == null)
@@ -228,7 +257,7 @@ namespace CoachMaster.UI
             var mouse = Mouse.current;
             var mouseInput = mouse != null && (mouse.leftButton.wasPressedThisFrame || mouse.rightButton.wasPressedThisFrame || mouse.delta.ReadValue().sqrMagnitude > 25f);
             var pad = Gamepad.current;
-            var padInput = pad != null && (pad.buttonSouth.wasPressedThisFrame || pad.buttonEast.wasPressedThisFrame || pad.buttonWest.wasPressedThisFrame || pad.buttonNorth.wasPressedThisFrame || pad.startButton.wasPressedThisFrame || pad.leftShoulder.wasPressedThisFrame || pad.rightShoulder.wasPressedThisFrame || pad.dpad.up.wasPressedThisFrame || pad.dpad.down.wasPressedThisFrame || pad.dpad.left.wasPressedThisFrame || pad.dpad.right.wasPressedThisFrame || pad.leftStick.ReadValue().sqrMagnitude > 0.23f || pad.rightStick.ReadValue().sqrMagnitude > 0.5f);
+            var padInput = pad != null && (pad.buttonSouth.wasPressedThisFrame || pad.buttonEast.wasPressedThisFrame || pad.buttonWest.wasPressedThisFrame || pad.buttonNorth.wasPressedThisFrame || pad.startButton.wasPressedThisFrame || pad.leftShoulder.wasPressedThisFrame || pad.rightShoulder.wasPressedThisFrame || pad.leftTrigger.wasPressedThisFrame || pad.rightTrigger.wasPressedThisFrame || pad.dpad.up.wasPressedThisFrame || pad.dpad.down.wasPressedThisFrame || pad.dpad.left.wasPressedThisFrame || pad.dpad.right.wasPressedThisFrame || pad.leftStick.ReadValue().sqrMagnitude > 0.23f || pad.rightStick.ReadValue().sqrMagnitude > 0.5f);
 
             if (padInput)
             {
@@ -258,47 +287,11 @@ namespace CoachMaster.UI
 
         void EnsureHint()
         {
-            Canvas canvas = null;
-            if (AudioSettingsOverlay.IsVisible && GameRoot.Instance != null)
-                canvas = GameRoot.Instance.GetComponent<AudioSettingsOverlay>()?.SettingsCanvas;
-            if (canvas == null)
-                canvas = FindFirstObjectByType<Canvas>();
-            if (canvas == null)
-                return;
-            if (_hint != null && _hint.GetComponentInParent<Canvas>() == canvas)
-                return;
-            _hint = null;
-            foreach (var text in canvas.GetComponentsInChildren<Text>(true))
-            {
-                if (text.gameObject.name == "NavigationHelpHint" && text.gameObject.activeInHierarchy)
-                {
-                    _hint = text;
-                    _hint.color = UiTheme.Accent;
-                    _hint.fontStyle = FontStyle.Bold;
-                    _hint.raycastTarget = false;
-                    return;
-                }
-            }
-
-            var go = new GameObject("NavigationHelpHint", typeof(RectTransform), typeof(Text));
-            var rect = go.GetComponent<RectTransform>();
-            rect.SetParent(canvas.transform, false);
-            rect.anchorMin = new Vector2(0f, 0f);
-            rect.anchorMax = new Vector2(1f, 0f);
-            rect.pivot = new Vector2(0.5f, 0f);
-            rect.sizeDelta = new Vector2(0f, 36f);
-            rect.anchoredPosition = new Vector2(0f, 8f);
-            _hint = go.GetComponent<Text>();
-            _hint.font = UiTheme.Font;
-            _hint.fontSize = 16;
-            _hint.alignment = TextAnchor.MiddleCenter;
-            _hint.color = UiTheme.Accent;
-            _hint.fontStyle = FontStyle.Bold;
-            _hint.raycastTarget = false;
-            var outline = go.AddComponent<Outline>();
-            outline.effectColor = new Color(0f, 0f, 0f, 0.9f);
-            outline.effectDistance = new Vector2(1.5f, -1.5f);
-            outline.useGraphicAlpha = false;
+            if (_hint != null)
+                _hint.gameObject.SetActive(false);
+            var canvases = FindObjectsByType<Canvas>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            for (var i = 0; i < canvases.Length; i++)
+                BroadcastUi.HideSettingsHints(canvases[i].transform);
         }
 
         static string NavigationHintText()
@@ -326,13 +319,31 @@ namespace CoachMaster.UI
             {
                 if (button is InputField || !button.IsActive() || !button.interactable || IsBack(button))
                     continue;
+                if (button.name == "Dim" || button.name == "Backdrop" || button.name == "MatchAnalysisBackdrop")
+                    continue;
+                if (_focusLimit != null && _focusLimit.gameObject.activeInHierarchy && !button.transform.IsChildOf(_focusLimit))
+                    continue;
                 var navigation = button.navigation;
                 if (navigation.mode != Navigation.Mode.None)
                 {
                     navigation.mode = Navigation.Mode.None;
                     button.navigation = navigation;
                 }
+                if (button.GetComponent<UiButtonMotion>() == null)
+                    button.gameObject.AddComponent<UiButtonMotion>();
                 _buttons.Add(button);
+            }
+
+            if (_grabFirst && _buttons.Count > 0)
+            {
+                _grabFirst = false;
+                _navigationActive = true;
+                _index = 0;
+                if (EventSystem.current != null)
+                    EventSystem.current.SetSelectedGameObject(_buttons[0].gameObject);
+                Paint();
+                ScrollFocusedIntoView(_buttons[0]);
+                return;
             }
 
             if (_index >= _buttons.Count)
@@ -462,8 +473,6 @@ namespace CoachMaster.UI
             var origin = currentRect == null ? Vector2.zero : RectTransformUtility.WorldToScreenPoint(null, currentRect.TransformPoint(currentRect.rect.center));
             var best = -1;
             var bestScore = float.MaxValue;
-            var wrap = -1;
-            var wrapScore = float.MaxValue;
             var horizontal = direction.x != 0;
             var sign = horizontal ? direction.x : direction.y;
             for (var i = 0; i < _buttons.Count; i++)
@@ -483,23 +492,11 @@ namespace CoachMaster.UI
                         bestScore = score;
                     }
                 }
-                else if (forward < -2f)
-                {
-                    var score = -forward + cross * 3f;
-                    if (score < wrapScore)
-                    {
-                        wrap = i;
-                        wrapScore = score;
-                    }
-                }
             }
 
-            if (best >= 0)
-                _index = best;
-            else if (wrap >= 0)
-                _index = wrap;
-            else
+            if (best < 0)
                 return;
+            _index = best;
             Paint();
             if (!UsingKeyboard && EventSystem.current != null)
                 EventSystem.current.SetSelectedGameObject(_buttons[_index].gameObject);
@@ -717,13 +714,22 @@ namespace CoachMaster.UI
                 return;
             }
 
+            if (UsingKeyboard || Gamepad.current == null)
+            {
+                ClearFocus();
+                _navigationActive = false;
+                return;
+            }
+
             var next = _buttons[_index];
             if (next == _focusedButton)
                 return;
             ClearFocus();
             _focusedButton = next;
-            _focusedScale = next.transform.localScale;
-            next.transform.localScale = _focusedScale * 1.035f;
+            var motion = next.GetComponent<UiButtonMotion>();
+            if (motion == null)
+                motion = next.gameObject.AddComponent<UiButtonMotion>();
+            motion.SetChosen(true);
 
             var graphic = next.targetGraphic != null ? next.targetGraphic : next.GetComponent<Graphic>();
             if (graphic == null)
@@ -747,7 +753,9 @@ namespace CoachMaster.UI
                 return;
             if (_focusOutlines.TryGetValue(_focusedButton, out var outline) && outline != null)
                 outline.enabled = false;
-            _focusedButton.transform.localScale = _focusedScale;
+            var motion = _focusedButton.GetComponent<UiButtonMotion>();
+            if (motion != null)
+                motion.SetChosen(false);
             _focusedButton = null;
         }
 
@@ -757,6 +765,82 @@ namespace CoachMaster.UI
                 return false;
             var field = EventSystem.current.currentSelectedGameObject.GetComponent<InputField>();
             return field != null && field.isFocused;
+        }
+    }
+
+    public sealed class UiButtonMotion : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerDownHandler, IPointerUpHandler
+    {
+        Vector3 _rest = Vector3.one;
+        bool _over;
+        bool _chosen;
+        bool _held;
+        bool _ready;
+
+        void Awake()
+        {
+            _rest = transform.localScale;
+            _ready = true;
+        }
+
+        public void SetChosen(bool chosen)
+        {
+            _chosen = chosen;
+        }
+
+        public void OnPointerEnter(PointerEventData eventData)
+        {
+            _over = true;
+        }
+
+        public void OnPointerExit(PointerEventData eventData)
+        {
+            _over = false;
+        }
+
+        public void OnPointerDown(PointerEventData eventData)
+        {
+            _held = true;
+        }
+
+        public void OnPointerUp(PointerEventData eventData)
+        {
+            _held = false;
+        }
+
+        void OnDisable()
+        {
+            _over = false;
+            _chosen = false;
+            _held = false;
+            if (_ready)
+                transform.localScale = _rest;
+        }
+
+        void Update()
+        {
+            if (!_ready)
+                return;
+            var pressed = _held;
+            if (!pressed && _chosen)
+            {
+                var pad = Gamepad.current;
+                if (pad != null && pad.buttonSouth.isPressed)
+                    pressed = true;
+            }
+            var factor = pressed ? 0.9f : (_over || _chosen) ? 0.975f : 1f;
+            var target = _rest * factor;
+            if (SettingsPrefs.ReduceMotion)
+            {
+                transform.localScale = target;
+                return;
+            }
+            var scale = transform.localScale;
+            if ((scale - target).sqrMagnitude < 0.00002f)
+            {
+                transform.localScale = target;
+                return;
+            }
+            transform.localScale = Vector3.Lerp(scale, target, 1f - Mathf.Exp(-14f * Time.unscaledDeltaTime));
         }
     }
 }

@@ -1,0 +1,17 @@
+﻿{
+  "seedsPerScenario": 20,
+  "matches": 120,
+  "failures": 119,
+  "tickDt": 0.2,
+  "minutesPerSecond": 0.68,
+  "assumptions": "A distância trata o campo normalizado como 105 por 68 metros. Um salto acima de 40 metros entre ticks de 0,2 s conta como movimento abrupto. O portador perto do destino do passe é uma amostra em que a ação é passe ou cruzamento e o portador está a menos de 0,12 do alvo da bola.",
+  "matchesFile": "C:\\Users\\gabri\\Documents\\GitHub\\Jogo-Serio-FCMASTER\\MatchSimReports\\matches-20261023-171056.jsonl",
+  "scenarios": [
+    { "name": "equilibradas", "played": 20, "finished": 0, "meanGoals": 0, "meanShots": 0, "meanShotsOnTarget": 0, "meanPasses": 0, "passCompletion": 0, "meanFouls": 0, "meanYellows": 0, "meanHomeMetres": 0, "meanAwayMetres": 0, "meanAbruptMoves": 0, "carrierFollowsPass": 0, "meanHomeGoals": 0, "meanAwayGoals": 0 },
+    { "name": "casa-forte", "played": 20, "finished": 0, "meanGoals": 0, "meanShots": 0, "meanShotsOnTarget": 0, "meanPasses": 0, "passCompletion": 0, "meanFouls": 0, "meanYellows": 0, "meanHomeMetres": 0, "meanAwayMetres": 0, "meanAbruptMoves": 0, "carrierFollowsPass": 0, "meanHomeGoals": 0, "meanAwayGoals": 0 },
+    { "name": "formacoes", "played": 20, "finished": 0, "meanGoals": 0, "meanShots": 0, "meanShotsOnTarget": 0, "meanPasses": 0, "passCompletion": 0, "meanFouls": 0, "meanYellows": 0, "meanHomeMetres": 0, "meanAwayMetres": 0, "meanAbruptMoves": 0, "carrierFollowsPass": 0, "meanHomeGoals": 0, "meanAwayGoals": 0 },
+    { "name": "taticas", "played": 20, "finished": 1, "meanGoals": 0, "meanShots": 0, "meanShotsOnTarget": 0, "meanPasses": 5.05, "passCompletion": 0.7426, "meanFouls": 0.05, "meanYellows": 0, "meanHomeMetres": 300.0358, "meanAwayMetres": 111.0621, "meanAbruptMoves": 0, "carrierFollowsPass": 1, "meanHomeGoals": 0, "meanAwayGoals": 0 },
+    { "name": "fadiga-e-substituicao", "played": 20, "finished": 0, "meanGoals": 0, "meanShots": 0, "meanShotsOnTarget": 0, "meanPasses": 0, "passCompletion": 0, "meanFouls": 0, "meanYellows": 0, "meanHomeMetres": 0, "meanAwayMetres": 0, "meanAbruptMoves": 0, "carrierFollowsPass": 0, "meanHomeGoals": 0, "meanAwayGoals": 0 },
+    { "name": "extremos", "played": 20, "finished": 0, "meanGoals": 0, "meanShots": 0, "meanShotsOnTarget": 0, "meanPasses": 0, "passCompletion": 0, "meanFouls": 0, "meanYellows": 0, "meanHomeMetres": 0, "meanAwayMetres": 0, "meanAbruptMoves": 0, "carrierFollowsPass": 0, "meanHomeGoals": 0, "meanAwayGoals": 0 }
+  ]
+}

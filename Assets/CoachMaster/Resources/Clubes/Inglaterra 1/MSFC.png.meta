@@ -1,0 +1,533 @@
+fileFormatVersion: 2
+guid: 91454d29bfba99947ba6b6929b1cae61
+TextureImporter:
+  internalIDToNameTable:
+  - first:
+      213: -6236042155075302452
+    second: MSFC_0
+  - first:
+      213: 4523494885192848028
+    second: MSFC_1
+  - first:
+      213: 8798046847661085626
+    second: MSFC_2
+  - first:
+      213: 4931095994206464786
+    second: MSFC_3
+  - first:
+      213: 3933603101110858135
+    second: MSFC_4
+  - first:
+      213: -7818986541777335710
+    second: MSFC_5
+  - first:
+      213: -5850881682976518029
+    second: MSFC_6
+  - first:
+      213: -6892842922377074040
+    second: MSFC_7
+  - first:
+      213: -3652706789818809684
+    second: MSFC_8
+  - first:
+      213: -3607560666758265140
+    second: MSFC_9
+  - first:
+      213: -2912196455416261768
+    second: MSFC_10
+  - first:
+      213: -7733016834729563677
+    second: MSFC_11
+  - first:
+      213: 2585285091592827780
+    second: MSFC_12
+  - first:
+      213: -4562907512701280703
+    second: MSFC_13
+  - first:
+      213: -8184550118809030640
+    second: MSFC_14
+  - first:
+      213: 8544334378399571677
+    second: MSFC_15
+  externalObjects: {}
+  serializedVersion: 13
+  mipmaps:
+    mipMapMode: 0
+    enableMipMap: 0
+    sRGBTexture: 1
+    linearTexture: 0
+    fadeOut: 0
+    borderMipMap: 0
+    mipMapsPreserveCoverage: 0
+    alphaTestReferenceValue: 0.5
+    mipMapFadeDistanceStart: 1
+    mipMapFadeDistanceEnd: 3
+  bumpmap:
+    convertToNormalMap: 0
+    externalNormalMap: 0
+    heightScale: 0.25
+    normalMapFilter: 0
+    flipGreenChannel: 0
+  isReadable: 0
+  streamingMipmaps: 0
+  streamingMipmapsPriority: 0
+  vTOnly: 0
+  ignoreMipmapLimit: 0
+  grayScaleToAlpha: 0
+  generateCubemap: 6
+  cubemapConvolution: 0
+  seamlessCubemap: 0
+  textureFormat: 1
+  maxTextureSize: 2048
+  textureSettings:
+    serializedVersion: 2
+    filterMode: 1
+    aniso: 1
+    mipBias: 0
+    wrapU: 1
+    wrapV: 1
+    wrapW: 1
+  nPOTScale: 0
+  lightmap: 0
+  compressionQuality: 50
+  spriteMode: 2
+  spriteExtrude: 1
+  spriteMeshType: 1
+  alignment: 0
+  spritePivot: {x: 0.5, y: 0.5}
+  spritePixelsToUnits: 100
+  spriteBorder: {x: 0, y: 0, z: 0, w: 0}
+  spriteGenerateFallbackPhysicsShape: 1
+  alphaUsage: 1
+  alphaIsTransparency: 1
+  spriteTessellationDetail: -1
+  textureType: 8
+  textureShape: 1
+  singleChannelComponent: 0
+  flipbookRows: 1
+  flipbookColumns: 1
+  maxTextureSizeSet: 0
+  compressionQualitySet: 0
+  textureFormatSet: 0
+  ignorePngGamma: 0
+  applyGammaDecoding: 0
+  swizzle: 50462976
+  cookieLightType: 0
+  platformSettings:
+  - serializedVersion: 4
+    buildTarget: DefaultTexturePlatform
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: Standalone
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  spriteSheet:
+    serializedVersion: 2
+    sprites:
+    - serializedVersion: 2
+      name: MSFC_0
+      rect:
+        serializedVersion: 2
+        x: 653
+        y: 670
+        width: 695
+        height: 802
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ccb006e23b02579a0800000000000000
+      internalID: -6236042155075302452
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: MSFC_1
+      rect:
+        serializedVersion: 2
+        x: 607
+        y: 561
+        width: 90
+        height: 79
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: c92573fa1aea6ce30800000000000000
+      internalID: 4523494885192848028
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: MSFC_2
+      rect:
+        serializedVersion: 2
+        x: 703
+        y: 561
+        width: 84
+        height: 79
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ab395107ef0f81a70800000000000000
+      internalID: 8798046847661085626
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: MSFC_3
+      rect:
+        serializedVersion: 2
+        x: 793
+        y: 561
+        width: 72
+        height: 79
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 21b27004ea5ce6440800000000000000
+      internalID: 4931095994206464786
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: MSFC_4
+      rect:
+        serializedVersion: 2
+        x: 874
+        y: 559
+        width: 83
+        height: 83
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 7917619ed27f69630800000000000000
+      internalID: 3933603101110858135
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: MSFC_5
+      rect:
+        serializedVersion: 2
+        x: 966
+        y: 561
+        width: 70
+        height: 79
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 26a4dc1ca216d7390800000000000000
+      internalID: -7818986541777335710
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: MSFC_6
+      rect:
+        serializedVersion: 2
+        x: 1050
+        y: 561
+        width: 56
+        height: 79
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 370585fcb1e7dcea0800000000000000
+      internalID: -5850881682976518029
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: MSFC_7
+      rect:
+        serializedVersion: 2
+        x: 1112
+        y: 559
+        width: 65
+        height: 83
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 88a2627c1e3b750a0800000000000000
+      internalID: -6892842922377074040
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: MSFC_8
+      rect:
+        serializedVersion: 2
+        x: 1181
+        y: 561
+        width: 72
+        height: 79
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ca2413c078afe4dc0800000000000000
+      internalID: -3652706789818809684
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: MSFC_9
+      rect:
+        serializedVersion: 2
+        x: 1261
+        y: 561
+        width: 57
+        height: 79
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: cc6c330ffae5fedc0800000000000000
+      internalID: -3607560666758265140
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: MSFC_10
+      rect:
+        serializedVersion: 2
+        x: 1328
+        y: 561
+        width: 69
+        height: 79
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 87313c6d0ccc597d0800000000000000
+      internalID: -2912196455416261768
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: MSFC_11
+      rect:
+        serializedVersion: 2
+        x: 799
+        y: 407
+        width: 65
+        height: 83
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 3e924dbf82ecea490800000000000000
+      internalID: -7733016834729563677
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: MSFC_12
+      rect:
+        serializedVersion: 2
+        x: 873
+        y: 409
+        width: 75
+        height: 79
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 483f087e717c0e320800000000000000
+      internalID: 2585285091592827780
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: MSFC_13
+      rect:
+        serializedVersion: 2
+        x: 948
+        y: 409
+        width: 81
+        height: 79
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 14e9a72eacb4da0c0800000000000000
+      internalID: -4562907512701280703
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: MSFC_14
+      rect:
+        serializedVersion: 2
+        x: 1060
+        y: 409
+        width: 53
+        height: 79
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 010b102d703aa6e80800000000000000
+      internalID: -8184550118809030640
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: MSFC_15
+      rect:
+        serializedVersion: 2
+        x: 1118
+        y: 407
+        width: 83
+        height: 83
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: dde1aaae8d2939670800000000000000
+      internalID: 8544334378399571677
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    outline: []
+    customData: 
+    physicsShape: []
+    bones: []
+    spriteID: 
+    internalID: 0
+    vertices: []
+    indices: 
+    edges: []
+    weights: []
+    secondaryTextures: []
+    spriteCustomMetadata:
+      entries: []
+    nameFileIdTable:
+      MSFC_0: -6236042155075302452
+      MSFC_1: 4523494885192848028
+      MSFC_10: -2912196455416261768
+      MSFC_11: -7733016834729563677
+      MSFC_12: 2585285091592827780
+      MSFC_13: -4562907512701280703
+      MSFC_14: -8184550118809030640
+      MSFC_15: 8544334378399571677
+      MSFC_2: 8798046847661085626
+      MSFC_3: 4931095994206464786
+      MSFC_4: 3933603101110858135
+      MSFC_5: -7818986541777335710
+      MSFC_6: -5850881682976518029
+      MSFC_7: -6892842922377074040
+      MSFC_8: -3652706789818809684
+      MSFC_9: -3607560666758265140
+  mipmapLimitGroupName: 
+  pSDRemoveMatte: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
