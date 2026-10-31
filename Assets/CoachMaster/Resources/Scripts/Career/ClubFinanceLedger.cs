@@ -8,6 +8,25 @@ namespace CoachMaster.Career
     {
         const int MaxTransactions = 240;
 
+        public static int EnsureWeeklyWageBudget(CareerState career, Club club)
+        {
+            if (career == null || career.World == null || club == null || club.Finance == null)
+                return 0;
+            long payroll = 0;
+            if (club.PlayerIds != null)
+                foreach (var playerId in club.PlayerIds)
+                    if (career.World.Players.TryGetValue(playerId, out var player) && player != null)
+                        payroll += Math.Max(0, player.WeeklyWage);
+
+            var budget = (long)Math.Max(0, club.Finance.WageBudget);
+            if (payroll > 0 && budget > payroll * 8L)
+                budget /= 52L;
+            var minimum = payroll + Math.Max(25000L, payroll / 5L);
+            budget = Math.Max(budget, Math.Max(50000L, minimum));
+            club.Finance.WageBudget = (int)Math.Min(int.MaxValue, budget);
+            return club.Finance.WageBudget;
+        }
+
         public static void SettleWeeklyPayroll(CareerState career, DateTime fromDate, DateTime toDate)
         {
             if (career == null || career.World == null || toDate.Date <= fromDate.Date)

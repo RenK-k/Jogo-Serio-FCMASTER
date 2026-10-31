@@ -33,6 +33,34 @@ namespace CoachMaster.Career
             }
         }
 
+        public static string LocalIPv4Address()
+        {
+            try
+            {
+                var addresses = Dns.GetHostAddresses(Dns.GetHostName());
+                string fallback = null;
+                for (var i = 0; i < addresses.Length; i++)
+                {
+                    var address = addresses[i];
+                    if (address.AddressFamily != AddressFamily.InterNetwork || IPAddress.IsLoopback(address))
+                        continue;
+                    var bytes = address.GetAddressBytes();
+                    if (bytes[0] == 169 && bytes[1] == 254)
+                        continue;
+                    if (bytes[0] == 10 || (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31)
+                        || (bytes[0] == 192 && bytes[1] == 168))
+                        return address.ToString();
+                    if (fallback == null)
+                        fallback = address.ToString();
+                }
+                return fallback ?? "";
+            }
+            catch
+            {
+                return "";
+            }
+        }
+
         public static void StartHost(int port)
         {
             if (IsHost && _listener != null)

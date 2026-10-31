@@ -45,6 +45,7 @@ namespace CoachMaster.MatchPlay
         public bool CareerStatsCredited { get; set; }
         public Dictionary<string, string> Names { get; } = new Dictionary<string, string>();
         public Dictionary<string, Player> People { get; } = new Dictionary<string, Player>();
+        public Dictionary<string, string> OriginalDuties { get; } = new Dictionary<string, string>();
         public Dictionary<string, float> Ratings { get; } = new Dictionary<string, float>();
         public HashSet<string> Appeared { get; } = new HashSet<string>();
         public List<MatchNote> Notes { get; } = new List<MatchNote>();
@@ -172,6 +173,7 @@ namespace CoachMaster.MatchPlay
             {
                 match.Names[player.Id] = player.FullName;
                 match.People[player.Id] = player;
+                match.OriginalDuties[player.Id] = player.Duty;
             }
             match.HomeCaptainId = SelectCaptain(match.HomeOnField, match.People);
             match.AwayCaptainId = SelectCaptain(match.AwayOnField, match.People);

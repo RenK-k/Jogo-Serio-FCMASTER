@@ -335,6 +335,47 @@ namespace CoachMaster.UI
             }
         }
 
+        public static bool HasUserImage
+        {
+            get
+            {
+                var path = PlayerPrefs.GetString(UserPathKey, "");
+                return !string.IsNullOrEmpty(path) && File.Exists(path);
+            }
+        }
+
+        public static bool DeleteUserImage()
+        {
+            var path = PlayerPrefs.GetString(UserPathKey, "");
+            var folder = Path.GetFullPath(Path.Combine(Application.persistentDataPath, "CoachMaster", "Backgrounds"));
+            try
+            {
+                if (!string.IsNullOrEmpty(path) && File.Exists(path))
+                {
+                    var fullPath = Path.GetFullPath(path);
+                    if (string.Equals(Path.GetDirectoryName(fullPath), folder, System.StringComparison.OrdinalIgnoreCase)
+                        && Path.GetFileName(fullPath).StartsWith("user-background", System.StringComparison.OrdinalIgnoreCase))
+                        File.Delete(fullPath);
+                }
+                PlayerPrefs.DeleteKey(UserPathKey);
+                if (SelectedLeagueId == UserMode)
+                    PlayerPrefs.SetInt(PreferenceKey, IndexOf(null));
+                PlayerPrefs.Save();
+                if (UserCached != null)
+                {
+                    if (UserCached.texture != null) Object.Destroy(UserCached.texture);
+                    Object.Destroy(UserCached);
+                }
+                UserCached = null;
+                LeagueBackdrop.RefreshCurrentScene();
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         public static Sprite UserSprite()
         {
             var path = PlayerPrefs.GetString(UserPathKey, "");

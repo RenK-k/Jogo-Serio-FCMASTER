@@ -622,7 +622,7 @@ namespace CoachMaster.UI.Scenes
             BroadcastUi.Place(_flash.rectTransform, 0.3f, 0.58f, 0.7f, 0.7f);
             _flash.gameObject.SetActive(false);
             _eventCard = BroadcastUi.Panel(root, "EventCard", new Color(0.08f, 0.03f, 0.16f, 0.97f), true).gameObject;
-            BroadcastUi.Place(_eventCard.GetComponent<RectTransform>(), 0.22f, 0.32f, 0.78f, 0.68f);
+            BroadcastUi.Place(_eventCard.GetComponent<RectTransform>(), 0.17f, 0.3f, 0.83f, 0.7f);
             var faceGo = new GameObject("EventFace", typeof(RectTransform), typeof(Image));
             var faceRect = faceGo.GetComponent<RectTransform>();
             faceRect.SetParent(_eventCard.transform, false);
@@ -2810,6 +2810,9 @@ namespace CoachMaster.UI.Scenes
             CareerMoments.AfterMatch(career, _match.HomeGoals, _match.AwayGoals, userHome, _match.Home.ShortName, _match.Away.ShortName, motm, best < 0 ? null : best.ToString("0.0"));
             CareerMemories.RecordMatch(career, _match, userHome, motmPlayerId);
             CareerRelationships.ApplySelectionConsequences(career, _match, userHome);
+            foreach (var pair in _match.OriginalDuties)
+                if (_match.People.TryGetValue(pair.Key, out var player) && player != null)
+                    player.Duty = pair.Value;
             SeasonSchedule.RebuildTable(career);
             SeasonBook.CreditLive(career, _match);
             SeasonBook.ReconcileCurrentSeason(career);
@@ -3019,16 +3022,16 @@ namespace CoachMaster.UI.Scenes
         {
             if (_eventCard == null)
                 return;
-            BroadcastUi.Place(_eventCard.GetComponent<RectTransform>(), 0.16f, 0.8f, 0.84f, 0.985f);
+            BroadcastUi.Place(_eventCard.GetComponent<RectTransform>(), 0.17f, 0.3f, 0.83f, 0.7f);
             if (_eventFace != null)
             {
-                _eventFace.rectTransform.anchorMin = _eventFace.rectTransform.anchorMax = new Vector2(0.08f, 0.5f);
+                _eventFace.rectTransform.anchorMin = _eventFace.rectTransform.anchorMax = new Vector2(hasPlayer ? 0.18f : 0.08f, 0.5f);
                 _eventFace.rectTransform.anchoredPosition = Vector2.zero;
-                var faceSize = hasPlayer ? 52f : 0f;
+                var faceSize = hasPlayer ? 88f : 0f;
                 _eventFace.rectTransform.sizeDelta = new Vector2(faceSize, faceSize);
             }
             if (_eventWho != null)
-                BroadcastUi.Place(_eventWho.rectTransform, hasPlayer ? 0.16f : 0.05f, 0.52f, 0.96f, 0.94f);
+                BroadcastUi.Place(_eventWho.rectTransform, hasPlayer ? 0.27f : 0.05f, 0.52f, 0.96f, 0.94f);
             if (_eventStrip != null)
                 BroadcastUi.Place(_eventStrip.rectTransform, 0.06f, 0.18f, 0.08f, 0.82f);
             PlaceEventText(hasPlayer);
@@ -3039,7 +3042,7 @@ namespace CoachMaster.UI.Scenes
             if (_flash == null)
                 return;
             _flash.fontSize = 18;
-            BroadcastUi.Place(_flash.rectTransform, hasPlayer ? 0.16f : 0.06f, 0.08f, 0.96f, 0.5f);
+            BroadcastUi.Place(_flash.rectTransform, hasPlayer ? 0.27f : 0.06f, 0.08f, 0.96f, 0.5f);
         }
 
         void PlaceTokens()

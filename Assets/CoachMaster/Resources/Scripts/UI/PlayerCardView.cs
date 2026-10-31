@@ -23,13 +23,13 @@ namespace CoachMaster.UI
                 card.gameObject.AddComponent<RectMask2D>();
 
             var shirt = club == null ? UiTheme.Accent : BroadcastUi.Parse(club.JerseyPrimaryHex, UiTheme.Accent);
-            var number = BroadcastUi.Label(card.transform, "BackNumber", player.SquadNumber.ToString(), 80,
+            var number = BroadcastUi.Label(card.transform, "BackNumber", player.SquadNumber.ToString(), 46,
                 new Color(shirt.r, shirt.g, shirt.b, 0.22f), TextAnchor.MiddleCenter, FontStyle.Bold);
             number.resizeTextForBestFit = true;
-            number.resizeTextMinSize = 10;
-            number.resizeTextMaxSize = 160;
+            number.resizeTextMinSize = 8;
+            number.resizeTextMaxSize = 60;
             number.horizontalOverflow = HorizontalWrapMode.Overflow;
-            number.verticalOverflow = VerticalWrapMode.Overflow;
+            number.verticalOverflow = VerticalWrapMode.Truncate;
             BroadcastUi.Place(number.rectTransform, 0.02f, 0.02f, 0.98f, 0.98f);
 
             var faceObject = new GameObject("Face", typeof(RectTransform), typeof(Image));

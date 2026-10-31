@@ -28,6 +28,7 @@ namespace CoachMaster.Career
         public List<SeasonLine> CareerTotals { get; } = new List<SeasonLine>();
         public List<string> AcademyPlayerIds { get; } = new List<string>();
         public Dictionary<string, TacticalIdentity> AcademyTactics { get; } = new Dictionary<string, TacticalIdentity>();
+        public List<CareerSavedTactic> SavedTactics { get; } = new List<CareerSavedTactic>();
         public Dictionary<string, List<string>> AcademySquadOrders { get; } = new Dictionary<string, List<string>>();
         public Dictionary<string, string> AcademyRoleAssignments { get; } = new Dictionary<string, string>();
         public HashSet<string> AcademyClubIds { get; } = new HashSet<string>();
@@ -137,5 +138,11 @@ namespace CoachMaster.Career
         public int SeasonStartYear { get; set; }
         public long DateTicks { get; set; }
         public string Title { get; set; }
+    }
+
+    public sealed class CareerSavedTactic
+    {
+        public string Name { get; set; }
+        public TacticalIdentity Tactics { get; set; }
     }
 }

@@ -641,6 +641,12 @@ namespace CoachMaster.Career
                 lines.Add("joboffer|" + offer.ClubId + "|" + offer.ReceivedAtTicks + "|" + (offer.Resolved ? "1" : "0") + "|" + (offer.Accepted ? "1" : "0") + "|" + Esc(offer.Reason));
             var tactics = career.Club.Tactics;
             lines.Add("tactic|" + Esc(tactics.Formation) + "|" + Esc(tactics.Pressing) + "|" + Esc(tactics.BuildUp) + "|" + Esc(tactics.FullBacks) + "|" + Esc(tactics.DefensiveLine) + "|" + Esc(tactics.Width) + "|" + Esc(tactics.Tempo) + "|" + Esc(tactics.PassingStyle) + "|" + Esc(tactics.AttackIdea) + "|" + Esc(tactics.Marking));
+            foreach (var saved in career.SavedTactics)
+            {
+                var savedTactics = saved == null ? null : saved.Tactics;
+                if (savedTactics == null) continue;
+                lines.Add("savedtactic|" + Esc(saved.Name) + "|" + Esc(savedTactics.Formation) + "|" + Esc(savedTactics.Pressing) + "|" + Esc(savedTactics.BuildUp) + "|" + Esc(savedTactics.FullBacks) + "|" + Esc(savedTactics.DefensiveLine) + "|" + Esc(savedTactics.Width) + "|" + Esc(savedTactics.Tempo) + "|" + Esc(savedTactics.PassingStyle) + "|" + Esc(savedTactics.AttackIdea) + "|" + Esc(savedTactics.Marking));
+            }
             lines.Add("roles|" + career.Club.PenaltyTakerId + "|" + career.Club.CornerTakerId + "|" + career.Club.FreeKickTakerId);
             lines.Add("lineup|" + string.Join(",", career.Club.ManualLineup));
             lines.Add("benchorder|" + string.Join(",", career.Club.ManualBenchOrder));
@@ -966,6 +972,22 @@ namespace CoachMaster.Career
                                 FullBacks = Un(bits[5]), DefensiveLine = Un(bits[6]), Width = Un(bits[7]),
                                 Tempo = Un(bits[8]), PassingStyle = Un(bits[9]), AttackIdea = Un(bits[10]), Marking = Un(bits[11])
                             };
+                        }
+                        break;
+                    case "savedtactic":
+                        if (bits.Length > 11)
+                        {
+                            career.SavedTactics.Add(new CareerSavedTactic
+                            {
+                                Name = Un(bits[1]),
+                                Tactics = new TacticalIdentity
+                                {
+                                    Formation = Un(bits[2]), Pressing = Un(bits[3]), BuildUp = Un(bits[4]),
+                                    FullBacks = Un(bits[5]), DefensiveLine = Un(bits[6]), Width = Un(bits[7]),
+                                    Tempo = Un(bits[8]), PassingStyle = Un(bits[9]), AttackIdea = Un(bits[10]), Marking = Un(bits[11]),
+                                    Preset = TacticPresets.CustomName
+                                }
+                            });
                         }
                         break;
                     case "academysquadorder":

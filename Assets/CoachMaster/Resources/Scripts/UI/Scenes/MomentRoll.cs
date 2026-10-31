@@ -66,7 +66,7 @@ namespace CoachMaster.UI.Scenes
             var cardRect = roll.transform.Find("Card") as RectTransform;
             if (cardRect != null)
             {
-                BroadcastUi.Place(cardRect, 0.16f, 0.78f, 0.84f, 0.985f);
+                BroadcastUi.Place(cardRect, 0.17f, 0.3f, 0.83f, 0.7f);
                 var faceRect = cardRect.Find("Face") as RectTransform;
                 if (faceRect != null)
                     BroadcastUi.Place(faceRect, 0.02f, 0.12f, 0.12f, 0.88f);

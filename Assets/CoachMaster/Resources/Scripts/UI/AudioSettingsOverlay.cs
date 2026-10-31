@@ -176,8 +176,12 @@ namespace CoachMaster.UI
             AddOption(page.transform, "FPS", "Limite de fotogramas", "30, 60, 120, 144, 165, 240 ou sem limite.", () => DisplayPrefs.FrameRateLabel, DisplayPrefs.CycleFrameRate, 0.43f);
             AddOption(page.transform, "Quality", "Qualidade", "Usa os níveis de qualidade disponíveis neste projeto Unity.", () => DisplayPrefs.QualityLabel, DisplayPrefs.CycleQuality, 0.32f);
             AddOption(page.transform, "Background", "Imagem de fundo", "Automático, fundo principal, uma liga, ou um ficheiro teu.", () => BackgroundPrefs.Label, () => { BackgroundPrefs.Cycle(); Refresh(); }, 0.21f);
-            var own = BroadcastUi.Button(page.transform, "OwnBackground", LocalizationManager.Current == GameLanguage.English ? "ADD YOUR BACKGROUND" : "ADICIONAR O TEU FUNDO", ChooseUserBackground, UiTheme.Accent, UiTheme.ButtonText, 13);
-            BroadcastUi.Place(own.GetComponent<RectTransform>(), 0.62f, 0.08f, 0.96f, 0.16f);
+            var own = BroadcastUi.Button(page.transform, "OwnBackground", LocalizationManager.Current == GameLanguage.English ? "ADD BACKGROUND" : "ADICIONAR FUNDO", ChooseUserBackground, UiTheme.Accent, UiTheme.ButtonText, 13);
+            BroadcastUi.Place(own.GetComponent<RectTransform>(), 0.52f, 0.08f, 0.75f, 0.16f);
+            var remove = BroadcastUi.Button(page.transform, "RemoveBackground", LocalizationManager.Current == GameLanguage.English ? "DELETE MY BACKGROUND" : "APAGAR O MEU FUNDO", DeleteUserBackground,
+                new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 12);
+            remove.interactable = BackgroundPrefs.HasUserImage;
+            BroadcastUi.Place(remove.GetComponent<RectTransform>(), 0.77f, 0.08f, 0.96f, 0.16f);
         }
 
         void BuildGameplayPage(Transform parent)
@@ -754,6 +758,25 @@ namespace CoachMaster.UI
             Refresh();
             if (_feedback != null)
                 _feedback.text = LocalizationManager.Current == GameLanguage.English ? "Your background is on." : "O teu fundo está ligado.";
+        }
+
+        void DeleteUserBackground()
+        {
+            if (!BackgroundPrefs.HasUserImage)
+                return;
+            if (!BackgroundPrefs.DeleteUserImage())
+            {
+                if (_feedback != null)
+                    _feedback.text = LocalizationManager.Current == GameLanguage.English
+                        ? "Your background could not be deleted."
+                        : "Não foi possível apagar o teu fundo.";
+                return;
+            }
+            Refresh();
+            if (_feedback != null)
+                _feedback.text = LocalizationManager.Current == GameLanguage.English
+                    ? "Your background was deleted."
+                    : "O teu fundo foi apagado.";
         }
 
         string LanguageLabel()

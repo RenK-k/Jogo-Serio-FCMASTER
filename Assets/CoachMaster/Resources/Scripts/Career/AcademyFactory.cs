@@ -21,16 +21,19 @@ namespace CoachMaster.Career
         const int SquadSize = 22;
         const int FixturesPerGroup = 18;
 
-        public static void Ensure(CareerState career, string clubId)
+        public static bool Ensure(CareerState career, string clubId)
         {
             if (career == null || career.World == null || string.IsNullOrEmpty(clubId)
                 || !career.World.Clubs.TryGetValue(clubId, out var club))
-                return;
+                return false;
 
-            career.AcademyClubIds.Add(clubId);
+            var changed = career.AcademyClubIds.Add(clubId);
             for (var i = career.AcademyPlayerIds.Count - 1; i >= 0; i--)
                 if (club.PlayerIds.Contains(career.AcademyPlayerIds[i]))
+                {
                     career.AcademyPlayerIds.RemoveAt(i);
+                    changed = true;
+                }
             var nationality = Nationality(club.LeagueId);
             var clubSeed = StableHash(club.Id);
             for (var groupIndex = 0; groupIndex < AgeGroups.Length; groupIndex++)
@@ -53,18 +56,31 @@ namespace CoachMaster.Career
                     {
                         if (existingPlayer.ClubId == clubId && (club.PlayerIds == null || !club.PlayerIds.Contains(id)))
                         {
-                            existingPlayer.FullName = FaceBook.PersonName(nationality, seed);
+                            var expectedName = FaceBook.PersonName(nationality, seed);
+                            if (existingPlayer.FullName != expectedName || existingPlayer.Nationality != nationality)
+                                changed = true;
+                            existingPlayer.FullName = expectedName;
                             existingPlayer.Nationality = nationality;
                             if (string.IsNullOrEmpty(existingPlayer.TrainingFocus))
+                            {
                                 existingPlayer.TrainingFocus = TrainingFocusFor(existingPlayer.Position);
+                                changed = true;
+                            }
                         }
                         if (!career.AcademyPlayerIds.Contains(id) && existingPlayer.ClubId == clubId
                             && (club.PlayerIds == null || !club.PlayerIds.Contains(id)))
+                        {
                             career.AcademyPlayerIds.Add(id);
+                            changed = true;
+                        }
                         if (existingPlayer.ClubId == clubId && GroupForAge(existingPlayer.Age) == group
                             && (club.PlayerIds == null || !club.PlayerIds.Contains(id)))
                         {
+                            var oldOverall = PlayerAttributes.Overall(existingPlayer);
+                            var oldPotential = existingPlayer.Potential;
                             BringYouthDown(existingPlayer, group, club.Reputation);
+                            if (oldOverall != PlayerAttributes.Overall(existingPlayer) || oldPotential != existingPlayer.Potential)
+                                changed = true;
                             currentCount++;
                         }
                         slot++;
@@ -101,15 +117,25 @@ namespace CoachMaster.Career
                         Attributes = PlayerAttributes.Roll(seed, position, Math.Max(35, club.Reputation - 20)),
                         Traits = new List<PlayerTrait>()
                     };
-                    player.Potential = Math.Min(92, PlayerAttributes.Overall(player) + 8 + Math.Abs((seed >> 4) % 16));
+                    player.Potential = 95;
+                    BringYouthDown(player, group, club.Reputation);
                     PlayerTraits.Normalize(player);
                     career.World.Players[id] = player;
                     if (!career.AcademyPlayerIds.Contains(id))
                         career.AcademyPlayerIds.Add(id);
+                    changed = true;
                     currentCount++;
                     slot++;
                 }
+
+                var groupPlayers = new List<Player>();
+                foreach (var playerId in career.AcademyPlayerIds)
+                    if (career.World.Players.TryGetValue(playerId, out var youth) && youth.ClubId == clubId && GroupForAge(youth.Age) == group)
+                        groupPlayers.Add(youth);
+                if (NormalizeSquadNumbers(groupPlayers))
+                    changed = true;
             }
+            return changed;
         }
 
         public static void EnsureSchedule(CareerState career, string clubId)
@@ -173,31 +199,85 @@ namespace CoachMaster.Career
             var bonus = Math.Max(0, Math.Min(6, (reputation - 60) / 8));
             var cap = (group == "U16" ? 48 : group == "U18" ? 56 : 64) + bonus;
             var overall = PlayerAttributes.Overall(player);
-            if (overall <= cap)
-                return;
-            var currentMean = (overall - 42f) / 52f * 20f;
-            var targetMean = (cap - 42f) / 52f * 20f;
-            if (currentMean < 1f)
-                return;
-            var factor = targetMean / currentMean;
-            var attr = player.Attributes;
-            attr.Pace = ScaleStat(attr.Pace, factor);
-            attr.Stamina = ScaleStat(attr.Stamina, factor);
-            attr.Strength = ScaleStat(attr.Strength, factor);
-            attr.Passing = ScaleStat(attr.Passing, factor);
-            attr.Finishing = ScaleStat(attr.Finishing, factor);
-            attr.Dribbling = ScaleStat(attr.Dribbling, factor);
-            attr.Tackling = ScaleStat(attr.Tackling, factor);
-            attr.Crossing = ScaleStat(attr.Crossing, factor);
-            attr.Positioning = ScaleStat(attr.Positioning, factor);
-            attr.Composure = ScaleStat(attr.Composure, factor);
-            attr.WorkRate = ScaleStat(attr.WorkRate, factor);
-            attr.Decisions = ScaleStat(attr.Decisions, factor);
-            attr.Reflexes = ScaleStat(attr.Reflexes, factor);
-            attr.Handling = ScaleStat(attr.Handling, factor);
+            if (overall > cap)
+            {
+                var currentMean = (overall - 42f) / 52f * 20f;
+                var targetMean = (cap - 42f) / 52f * 20f;
+                if (currentMean > 0.01f)
+                {
+                    var factor = targetMean / currentMean;
+                    var attr = player.Attributes;
+                    attr.Pace = ScaleStat(attr.Pace, factor);
+                    attr.Stamina = ScaleStat(attr.Stamina, factor);
+                    attr.Strength = ScaleStat(attr.Strength, factor);
+                    attr.Passing = ScaleStat(attr.Passing, factor);
+                    attr.Finishing = ScaleStat(attr.Finishing, factor);
+                    attr.Dribbling = ScaleStat(attr.Dribbling, factor);
+                    attr.Tackling = ScaleStat(attr.Tackling, factor);
+                    attr.Crossing = ScaleStat(attr.Crossing, factor);
+                    attr.Positioning = ScaleStat(attr.Positioning, factor);
+                    attr.Composure = ScaleStat(attr.Composure, factor);
+                    attr.WorkRate = ScaleStat(attr.WorkRate, factor);
+                    attr.Decisions = ScaleStat(attr.Decisions, factor);
+                    attr.Reflexes = ScaleStat(attr.Reflexes, factor);
+                    attr.Handling = ScaleStat(attr.Handling, factor);
+                }
+            }
             var now = PlayerAttributes.Overall(player);
+            var seed = StableHash(player.Id);
+            var potentialCeiling = group == "U16" ? 55 + Math.Abs(seed % 30)
+                : group == "U18" ? 62 + Math.Abs(seed % 32)
+                : 68 + Math.Abs(seed % 28);
+            potentialCeiling = Math.Min(group == "U16" ? 84 : group == "U18" ? 92 : 96, potentialCeiling);
             if (player.Potential < now + 4)
-                player.Potential = Math.Min(88, now + 10);
+                player.Potential = now + 4 + Math.Abs((seed >> 5) % 12);
+            player.Potential = Math.Max(now + 4, Math.Min(player.Potential, potentialCeiling));
+        }
+
+        static bool NormalizeSquadNumbers(List<Player> players)
+        {
+            var changed = false;
+            var used = new HashSet<int>();
+            foreach (var player in players)
+            {
+                if (player == null) continue;
+                var preferred = PreferredNumbers(player.Position);
+                var chosen = 0;
+                for (var i = 0; i < preferred.Length; i++)
+                    if (!used.Contains(preferred[i])) { chosen = preferred[i]; break; }
+                if (chosen == 0)
+                {
+                    chosen = 25;
+                    while (used.Contains(chosen)) chosen++;
+                }
+                if (player.SquadNumber != chosen)
+                {
+                    player.SquadNumber = chosen;
+                    changed = true;
+                }
+                used.Add(chosen);
+            }
+            return changed;
+        }
+
+        static int[] PreferredNumbers(PlayerPosition position)
+        {
+            switch (position)
+            {
+                case PlayerPosition.Goalkeeper: return new[] { 1, 13, 22 };
+                case PlayerPosition.RightBack: return new[] { 2, 12, 23 };
+                case PlayerPosition.CentreBack: return new[] { 4, 5, 15, 20 };
+                case PlayerPosition.LeftBack: return new[] { 3, 14, 24 };
+                case PlayerPosition.DefensiveMidfielder: return new[] { 6, 16, 25 };
+                case PlayerPosition.CentralMidfielder: return new[] { 8, 17, 18, 26 };
+                case PlayerPosition.AttackingMidfielder: return new[] { 10, 19, 27 };
+                case PlayerPosition.RightMidfielder:
+                case PlayerPosition.RightWinger: return new[] { 7, 21, 28 };
+                case PlayerPosition.LeftMidfielder:
+                case PlayerPosition.LeftWinger: return new[] { 11, 29, 30 };
+                case PlayerPosition.Striker: return new[] { 9, 31, 32 };
+                default: return new[] { 33, 34, 35 };
+            }
         }
 
         static int ScaleStat(int value, float factor)
