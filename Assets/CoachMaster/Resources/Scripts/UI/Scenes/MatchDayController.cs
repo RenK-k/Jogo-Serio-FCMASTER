@@ -86,6 +86,7 @@ namespace CoachMaster.UI.Scenes
         bool _analysisAtFullTime;
         bool _liveAnalysisDismissed;
         bool _pauseAfterEvent;
+        bool _subsAfterEvent;
         GameObject _tactics;
         GameObject _presetConfirm;
         int _pendingPresetIndex = -1;
@@ -2620,9 +2621,9 @@ namespace CoachMaster.UI.Scenes
             if ((bench && injured) || sentOff)
                 drag.enabled = false;
             BroadcastUi.Hit(card, () => OnSubCardClicked(player, bench, index));
-            if (sentOff)
+            if (sentOff || (injured && !bench))
             {
-                var red = BroadcastUi.Label(card.transform, "SentOff", "×", 22, new Color(1f, 0.18f, 0.2f), TextAnchor.MiddleCenter, FontStyle.Bold);
+                var red = BroadcastUi.Label(card.transform, sentOff ? "SentOff" : "Injured", "×", 22, new Color(1f, 0.18f, 0.2f), TextAnchor.MiddleCenter, FontStyle.Bold);
                 red.rectTransform.anchorMin = red.rectTransform.anchorMax = new Vector2(0.88f, 0.86f);
                 red.rectTransform.sizeDelta = new Vector2(22f, 22f);
             }
@@ -2907,9 +2908,8 @@ namespace CoachMaster.UI.Scenes
                 _watchEvent = important && !isShotResult;
                 _flashLeft = isGoal ? 2.65f : _watchEvent ? 3.4f : 2.4f;
                 GameAudio.ForFlash(_match.Flash);
-                _pauseAfterEvent = (isGoal && SettingsPrefs.PauseOnGoal)
-                    || (isRed && SettingsPrefs.PauseOnRedCard)
-                    || (isInjury && SettingsPrefs.PauseOnInjury);
+                _subsAfterEvent = isInjury;
+                _pauseAfterEvent = !isInjury && ((isGoal && SettingsPrefs.PauseOnGoal) || (isRed && SettingsPrefs.PauseOnRedCard));
                 if (roll && important)
                 {
                     _eventCard.SetActive(false);
@@ -2954,10 +2954,23 @@ namespace CoachMaster.UI.Scenes
                         _eventCard.SetActive(false);
                     if (_eventStrip != null)
                         _eventStrip.gameObject.SetActive(false);
-                    if (_pauseAfterEvent && _match.Phase != MatchPhase.HalfTime && _match.Phase != MatchPhase.FullTime)
+                    if (_match.Phase != MatchPhase.HalfTime && _match.Phase != MatchPhase.FullTime)
                     {
-                        _pauseAfterEvent = false;
-                        OpenPause();
+                        if (_subsAfterEvent)
+                        {
+                            _subsAfterEvent = false;
+                            _pauseAfterEvent = false;
+                            var bench = UserHome() ? _match.HomeBench : _match.AwayBench;
+                            if (bench != null && bench.Count > 0)
+                                OpenSubs(false);
+                            else
+                                OpenPause();
+                        }
+                        else if (_pauseAfterEvent)
+                        {
+                            _pauseAfterEvent = false;
+                            OpenPause();
+                        }
                     }
                 }
             }
@@ -3006,21 +3019,16 @@ namespace CoachMaster.UI.Scenes
         {
             if (_eventCard == null)
                 return;
-            var compact = !string.IsNullOrEmpty(text) && (text.Length <= 38 || (text.Contains("GOLO") && text.Length < 72));
-            var left = compact ? 0.31f : 0.22f;
-            var bottom = compact ? 0.36f : 0.32f;
-            var right = compact ? 0.69f : 0.78f;
-            var top = compact ? 0.64f : 0.68f;
-            BroadcastUi.Place(_eventCard.GetComponent<RectTransform>(), left, bottom, right, top);
+            BroadcastUi.Place(_eventCard.GetComponent<RectTransform>(), 0.16f, 0.8f, 0.84f, 0.985f);
             if (_eventFace != null)
             {
-                _eventFace.rectTransform.anchorMin = _eventFace.rectTransform.anchorMax = new Vector2(0.13f, 0.5f);
+                _eventFace.rectTransform.anchorMin = _eventFace.rectTransform.anchorMax = new Vector2(0.08f, 0.5f);
                 _eventFace.rectTransform.anchoredPosition = Vector2.zero;
-                var faceSize = compact ? 92f : 122f;
-                _eventFace.rectTransform.sizeDelta = new Vector2(hasPlayer ? faceSize : 0f, hasPlayer ? faceSize : 0f);
+                var faceSize = hasPlayer ? 52f : 0f;
+                _eventFace.rectTransform.sizeDelta = new Vector2(faceSize, faceSize);
             }
             if (_eventWho != null)
-                BroadcastUi.Place(_eventWho.rectTransform, hasPlayer ? 0.25f : 0.05f, 0.55f, 0.96f, 0.9f);
+                BroadcastUi.Place(_eventWho.rectTransform, hasPlayer ? 0.16f : 0.05f, 0.52f, 0.96f, 0.94f);
             if (_eventStrip != null)
                 BroadcastUi.Place(_eventStrip.rectTransform, 0.06f, 0.18f, 0.08f, 0.82f);
             PlaceEventText(hasPlayer);
@@ -3030,7 +3038,8 @@ namespace CoachMaster.UI.Scenes
         {
             if (_flash == null)
                 return;
-            BroadcastUi.Place(_flash.rectTransform, hasPlayer ? 0.25f : 0.06f, 0.13f, 0.95f, hasPlayer ? 0.53f : 0.88f);
+            _flash.fontSize = 18;
+            BroadcastUi.Place(_flash.rectTransform, hasPlayer ? 0.16f : 0.06f, 0.08f, 0.96f, 0.5f);
         }
 
         void PlaceTokens()

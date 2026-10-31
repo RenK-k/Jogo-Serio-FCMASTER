@@ -28,7 +28,7 @@ namespace CoachMaster.UI
             "Avisos de carreira. Os acontecimentos continuam no histórico.",
             "Volumes separados; usa esquerda/direita no comando para ajustar.",
             "Ajustes da simulação guardados dentro da carreira.",
-            "Autosaves rotativos, gravação manual e recuperação.",
+            "O jogo guarda cada carreira neste computador. O gestor abre o último save manual ou o automático.",
             "Escala do interface, movimento e idioma.",
             "O que a simulação ainda não inclui."
         };
@@ -54,6 +54,8 @@ namespace CoachMaster.UI
         int _page;
         int _restoreSlot = 1;
         string _pendingNamedSaveId;
+        bool _pendingLoadManual;
+        string _selectedSlot;
         readonly Dictionary<Button, Func<string>> _buttonValues = new Dictionary<Button, Func<string>>();
         readonly List<Action> _refreshValues = new List<Action>();
 
@@ -173,7 +175,9 @@ namespace CoachMaster.UI
             AddOption(page.transform, "VSync", "Sincronização vertical", "Reduz rasgos de imagem; pode limitar os FPS à frequência do ecrã.", () => DisplayPrefs.VsyncLabel, DisplayPrefs.ToggleVsync, 0.54f);
             AddOption(page.transform, "FPS", "Limite de fotogramas", "30, 60, 120, 144, 165, 240 ou sem limite.", () => DisplayPrefs.FrameRateLabel, DisplayPrefs.CycleFrameRate, 0.43f);
             AddOption(page.transform, "Quality", "Qualidade", "Usa os níveis de qualidade disponíveis neste projeto Unity.", () => DisplayPrefs.QualityLabel, DisplayPrefs.CycleQuality, 0.32f);
-            AddOption(page.transform, "Background", "Imagem de fundo", "Automático acompanha a liga da carreira.", () => BackgroundPrefs.Label, () => { BackgroundPrefs.Cycle(); Refresh(); }, 0.21f);
+            AddOption(page.transform, "Background", "Imagem de fundo", "Automático, fundo principal, uma liga, ou um ficheiro teu.", () => BackgroundPrefs.Label, () => { BackgroundPrefs.Cycle(); Refresh(); }, 0.21f);
+            var own = BroadcastUi.Button(page.transform, "OwnBackground", LocalizationManager.Current == GameLanguage.English ? "ADD YOUR BACKGROUND" : "ADICIONAR O TEU FUNDO", ChooseUserBackground, UiTheme.Accent, UiTheme.ButtonText, 13);
+            BroadcastUi.Place(own.GetComponent<RectTransform>(), 0.62f, 0.08f, 0.96f, 0.16f);
         }
 
         void BuildGameplayPage(Transform parent)
@@ -326,14 +330,17 @@ namespace CoachMaster.UI
 
         void ImportMusicFile()
         {
-            var path = _musicPath == null ? "" : _musicPath.text.Trim().Trim('"');
+            var path = WindowsMusicPicker.Open();
             if (string.IsNullOrEmpty(path))
             {
-                ChooseMusicFile();
-                path = _musicPath == null ? "" : _musicPath.text.Trim().Trim('"');
-            }
-            if (string.IsNullOrEmpty(path))
+                if (_musicStatus != null)
+                    _musicStatus.text = LocalizationManager.Current == GameLanguage.English
+                        ? "No file was chosen."
+                        : "Nenhum ficheiro foi escolhido.";
                 return;
+            }
+            if (_musicPath != null)
+                _musicPath.text = path;
             if (_musicStatus != null)
                 _musicStatus.text = LocalizationManager.Current == GameLanguage.English ? "Importing…" : "A importar…";
             GameAudio.ImportUserMusic(this, path, (success, result) =>
@@ -371,13 +378,13 @@ namespace CoachMaster.UI
         void BuildCareerPage(Transform parent)
         {
             var page = Page(parent, 6, "CARREIRA E SAVES");
-            AddOption(page.transform, "Autosave", "Autosave automático", "Cria uma recuperação rotativa quando a carreira avança o número de dias escolhido.", () => OnOff(SettingsPrefs.AutosaveEnabled), () => SettingsPrefs.AutosaveEnabled = !SettingsPrefs.AutosaveEnabled, 0.76f);
-            AddOption(page.transform, "BeforeMatch", "Guardar antes dos jogos", "Cria uma cópia rotativa antes de abrir uma partida, além do autosave por dias.", () => OnOff(SettingsPrefs.AutosaveBeforeMatch), () => SettingsPrefs.AutosaveBeforeMatch = !SettingsPrefs.AutosaveBeforeMatch, 0.63f);
-            AddOption(page.transform, "AutosaveDays", "Frequência", "Intervalo medido em dias da carreira.", () => SettingsPrefs.AutosaveDaysLabel, () => SettingsPrefs.AutosaveDaysIndex = (SettingsPrefs.AutosaveDaysIndex + 1) % 4, 0.50f);
-            AddOption(page.transform, "AutosaveSlots", "Cópias rotativas", "Número de recuperações mantidas à medida que os autosaves avançam.", () => SettingsPrefs.AutosaveSlotsLabel, () => SettingsPrefs.AutosaveSlotsIndex = (SettingsPrefs.AutosaveSlotsIndex + 1) % 3, 0.37f);
-            AddOption(page.transform, "RestoreSlot", "Cópia a restaurar", "Escolhe entre as cópias rotativas disponíveis.", RestoreSlotLabel, CycleRestoreSlot, 0.24f);
-            AddAction(page.transform, "LoadAutoSave", "Restaurar cópia selecionada", "Substitui a carreira ativa pelo ponto de recuperação selecionado.", ConfirmRestoreAutoSave, 0.11f);
-            AddAction(page.transform, "NamedSaves", "Gestor de gravações", "Cria uma cópia com nome e permite abrir gravações anteriores.", OpenSaveManager, 0.005f);
+            var open = BroadcastUi.Button(page.transform, "OpenSaves", "GESTOR DE SAVES", OpenSaveManager, UiTheme.Accent, UiTheme.ButtonText, 16);
+            BroadcastUi.Place(open.GetComponent<RectTransform>(), 0.18f, 0.72f, 0.82f, 0.84f);
+            var online = BroadcastUi.Button(page.transform, "OpenOnline", "ONLINE", OpenOnlineFromSettings, new Color(0.10f, 0.24f, 0.38f, 1f), Color.white, 16);
+            BroadcastUi.Place(online.GetComponent<RectTransform>(), 0.18f, 0.56f, 0.49f, 0.68f);
+            var funds = BroadcastUi.Button(page.transform, "AskBoard", LocalizationManager.Current == GameLanguage.English ? "ASK THE BOARD" : "PEDIR VERBA À DIREÇÃO", AskBoardFromSettings, UiTheme.Accent, UiTheme.ButtonText, 14);
+            BroadcastUi.Place(funds.GetComponent<RectTransform>(), 0.51f, 0.56f, 0.82f, 0.68f);
+            AddText(page.transform, "SaveHelp", "Cada carreira é uma aba. Ao abrir, carregas o último save manual ou o último automático. Também dá para mudar o nome e apagar.", 15, UiTheme.Muted, 0.18f, 0.24f);
         }
 
         void BuildAccessibilityPage(Transform parent)
@@ -699,6 +706,56 @@ namespace CoachMaster.UI
                 _feedback.text = saved ? "Carreira guardada." : "Não foi possível guardar. A gravação anterior foi mantida.";
         }
 
+        void OpenOnlineFromSettings()
+        {
+            var hub = FindFirstObjectByType<CareerHubController>();
+            if (hub == null)
+            {
+                if (_feedback != null)
+                    _feedback.text = LocalizationManager.Current == GameLanguage.English
+                        ? "Open a career first."
+                        : "Abre uma carreira primeiro.";
+                return;
+            }
+            ApplyAndClose();
+            hub.OpenOnlineFromSettings();
+        }
+
+        void AskBoardFromSettings()
+        {
+            var hub = FindFirstObjectByType<CareerHubController>();
+            if (hub == null)
+            {
+                if (_feedback != null)
+                    _feedback.text = LocalizationManager.Current == GameLanguage.English
+                        ? "Open a career first."
+                        : "Abre uma carreira primeiro.";
+                return;
+            }
+            ApplyAndClose();
+            hub.AskBoardFromSettings();
+        }
+
+        void ChooseUserBackground()
+        {
+            var path = WindowsMusicPicker.OpenImage();
+            if (string.IsNullOrEmpty(path))
+            {
+                if (_feedback != null)
+                    _feedback.text = LocalizationManager.Current == GameLanguage.English ? "No image was chosen." : "Nenhuma imagem foi escolhida.";
+                return;
+            }
+            if (!BackgroundPrefs.SetUserImage(path))
+            {
+                if (_feedback != null)
+                    _feedback.text = LocalizationManager.Current == GameLanguage.English ? "That image could not be used." : "Essa imagem não pôde ser usada.";
+                return;
+            }
+            Refresh();
+            if (_feedback != null)
+                _feedback.text = LocalizationManager.Current == GameLanguage.English ? "Your background is on." : "O teu fundo está ligado.";
+        }
+
         string LanguageLabel()
         {
             return LocalizationManager.Current == GameLanguage.English ? "ENGLISH" : "PORTUGUÊS";
@@ -713,6 +770,9 @@ namespace CoachMaster.UI
 
         void OpenSaveManager()
         {
+            var active = CurrentCareer();
+            if (active != null)
+                CareerStore.TrySave(active);
             if (_saveManager != null)
                 Destroy(_saveManager);
             _saveManager = new GameObject("NamedSaveManager", typeof(RectTransform));
@@ -723,85 +783,84 @@ namespace CoachMaster.UI
             BroadcastUi.Stretch(dim.rectTransform);
             BroadcastUi.Catch(dim, () => Destroy(_saveManager));
             var card = BroadcastUi.Panel(root, "Card", new Color(0.1f, 0.04f, 0.2f, 1f), true);
-            BroadcastUi.Place(card.rectTransform, 0.22f, 0.12f, 0.78f, 0.88f);
-            var title = BroadcastUi.Label(card.transform, "Title", "GESTOR DE GRAVAÇÕES", 21, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
-            BroadcastUi.Place(title.rectTransform, 0.06f, 0.9f, 0.8f, 0.98f);
+            BroadcastUi.Place(card.rectTransform, 0.16f, 0.08f, 0.84f, 0.92f);
+            var title = BroadcastUi.Label(card.transform, "Title", "GESTOR DE SAVES", 21, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(title.rectTransform, 0.04f, 0.91f, 0.7f, 0.98f);
+            var close = BroadcastUi.Button(card.transform, "CloseSaves", "FECHAR", () => Destroy(_saveManager), new Color(1f, 1f, 1f, 0.12f), Color.white, 14);
+            BroadcastUi.Place(close.GetComponent<RectTransform>(), 0.78f, 0.91f, 0.96f, 0.98f);
 
-            _saveName = UiFactory.Input(card.transform, "Nome desta gravação");
-            _saveName.characterLimit = 80;
-            BroadcastUi.Place(_saveName.GetComponent<RectTransform>(), 0.06f, 0.79f, 0.71f, 0.88f);
-            var save = BroadcastUi.Button(card.transform, "SaveNamed", "CRIAR CÓPIA", SaveNamedCareer, UiTheme.Accent, UiTheme.ButtonText, 14);
-            BroadcastUi.Place(save.GetComponent<RectTransform>(), 0.74f, 0.79f, 0.94f, 0.88f);
-
-            var section = BroadcastUi.Label(card.transform, "SavedHeading", "GRAVAÇÕES GUARDADAS", 13, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
-            BroadcastUi.Place(section.rectTransform, 0.06f, 0.72f, 0.94f, 0.78f);
-            var scroll = BroadcastUi.Scroll(card.transform, "NamedSaveList", out var content);
-            BroadcastUi.Place(scroll.GetComponent<RectTransform>(), 0.055f, 0.08f, 0.945f, 0.71f);
-
-            var saves = CareerStore.ListNamedSaves();
-            if (saves.Count == 0)
+            var slots = CareerStore.ListSlots();
+            if (!string.IsNullOrEmpty(_selectedSlot))
             {
-                var empty = BroadcastUi.Label(content, "Empty", "Ainda não há cópias nomeadas.", 14, UiTheme.Muted, TextAnchor.MiddleLeft);
-                var emptyLayout = empty.gameObject.AddComponent<LayoutElement>();
-                emptyLayout.preferredHeight = 48f;
+                var still = false;
+                for (var i = 0; i < slots.Count; i++)
+                    if (slots[i].Id == _selectedSlot)
+                        still = true;
+                if (!still)
+                    _selectedSlot = null;
             }
-            else
+            if (string.IsNullOrEmpty(_selectedSlot) && active != null)
+                _selectedSlot = active.FileId;
+            if (string.IsNullOrEmpty(_selectedSlot) && slots.Count > 0)
+                _selectedSlot = slots[0].Id;
+
+            var list = BroadcastUi.Scroll(card.transform, "CareerTabs", out var tabs);
+            BroadcastUi.Place(list.GetComponent<RectTransform>(), 0.04f, 0.42f, 0.96f, 0.89f);
+            if (slots.Count == 0)
             {
-                for (var i = 0; i < saves.Count; i++)
+                var empty = BroadcastUi.Label(tabs, "Empty", "Ainda não há carreiras guardadas.", 15, UiTheme.Muted, TextAnchor.MiddleLeft);
+                empty.gameObject.AddComponent<LayoutElement>().preferredHeight = 48f;
+            }
+            CareerStore.CareerSlotInfo chosen = null;
+            for (var i = 0; i < slots.Count; i++)
+            {
+                var slot = slots[i];
+                var on = slot.Id == _selectedSlot;
+                if (on)
+                    chosen = slot;
+                var id = slot.Id;
+                var button = BroadcastUi.Button(tabs, "Career" + i, slot.Label, () =>
                 {
-                    var saveInfo = saves[i];
-                    var clubName = saveInfo.ClubId;
-                    var current = CurrentCareer();
-                    if (current != null && current.World.Clubs.TryGetValue(saveInfo.ClubId, out var club))
-                        clubName = club.ShortName;
-                    var label = saveInfo.Name + "   ·   " + clubName + "   ·   " + saveInfo.SavedAt.ToString("dd/MM/yyyy HH:mm");
-                    var button = BroadcastUi.Button(content, "NamedSave" + i, label, () => LoadNamedCareer(saveInfo.Id),
-                        new Color(1f, 1f, 1f, 0.09f), Color.white, 13);
-                    button.gameObject.AddComponent<LayoutElement>().preferredHeight = 56f;
-                }
+                    _selectedSlot = id;
+                    OpenSaveManager();
+                }, on ? UiTheme.Accent : new Color(1f, 1f, 1f, 0.08f), on ? UiTheme.ButtonText : Color.white, 15);
+                button.gameObject.AddComponent<LayoutElement>().preferredHeight = 48f;
             }
 
-            var help = BroadcastUi.Label(card.transform, "SaveNote", "As cópias nomeadas ficam separadas dos autosaves e da gravação principal.", 12, UiTheme.Muted, TextAnchor.MiddleLeft);
-            BroadcastUi.Place(help.rectTransform, 0.06f, 0.015f, 0.94f, 0.075f);
+            if (chosen == null)
+                return;
+            _saveName = UiFactory.Input(card.transform, "Nome da carreira");
+            _saveName.text = chosen.Label;
+            _saveName.characterLimit = 80;
+            BroadcastUi.Place(_saveName.GetComponent<RectTransform>(), 0.04f, 0.31f, 0.62f, 0.39f);
+            var renameId = chosen.Id;
+            var rename = BroadcastUi.Button(card.transform, "Rename", "MUDAR NOME", () =>
+            {
+                CareerStore.RenameSlot(renameId, _saveName == null ? "" : _saveName.text, CurrentCareer());
+                OpenSaveManager();
+            }, new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 14);
+            BroadcastUi.Place(rename.GetComponent<RectTransform>(), 0.66f, 0.31f, 0.96f, 0.39f);
+
+            var manualWhen = chosen.HasManual ? chosen.ManualAt.ToString("dd/MM/yyyy HH:mm") : "ainda não existe";
+            var autoWhen = chosen.HasAuto ? chosen.AutoAt.ToString("dd/MM/yyyy HH:mm") : "ainda não existe";
+            var manual = BroadcastUi.Button(card.transform, "LoadManual", "ÚLTIMO SAVE MANUAL  ·  " + manualWhen, () => AskLoadSlot(renameId, true),
+                chosen.HasManual ? UiTheme.Accent : new Color(1f, 1f, 1f, 0.08f), chosen.HasManual ? UiTheme.ButtonText : Color.white, 14);
+            manual.interactable = chosen.HasManual;
+            BroadcastUi.Place(manual.GetComponent<RectTransform>(), 0.04f, 0.18f, 0.96f, 0.28f);
+            var auto = BroadcastUi.Button(card.transform, "LoadAuto", "ÚLTIMO SAVE AUTOMÁTICO  ·  " + autoWhen, () => AskLoadSlot(renameId, false),
+                chosen.HasAuto ? new Color(0.1f, 0.24f, 0.38f, 1f) : new Color(1f, 1f, 1f, 0.08f), Color.white, 14);
+            auto.interactable = chosen.HasAuto;
+            BroadcastUi.Place(auto.GetComponent<RectTransform>(), 0.04f, 0.07f, 0.62f, 0.16f);
+            var remove = BroadcastUi.Button(card.transform, "DeleteCareer", "APAGAR", () => AskDeleteSlot(renameId, chosen.Label), new Color(0.28f, 0.08f, 0.12f, 1f), Color.white, 14);
+            BroadcastUi.Place(remove.GetComponent<RectTransform>(), 0.66f, 0.07f, 0.96f, 0.16f);
         }
 
-        void SaveNamedCareer()
+        void AskLoadSlot(string id, bool manual)
         {
-            var career = CurrentCareer();
-            if (career == null)
-                return;
-            var name = _saveName == null ? "" : _saveName.text;
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                var date = career.Calendar.CurrentDate;
-                var seasonStart = date.Month >= 7 ? date.Year : date.Year - 1;
-                name = career.Club.ShortName + " · " + career.Coach.Name + " · " + seasonStart + "/" + ((seasonStart + 1) % 100).ToString("00");
-            }
-            if (!CareerStore.SaveNamed(career, name, out var info))
-            {
-                if (_feedback != null)
-                    _feedback.text = "Não foi possível criar a cópia nomeada. A gravação principal não foi alterada.";
-                return;
-            }
-            if (_feedback != null)
-                _feedback.text = "Cópia guardada: " + info.Name;
-            OpenSaveManager();
-        }
-
-        void LoadNamedCareer(string id)
-        {
+            _pendingNamedSaveId = id;
+            _pendingLoadManual = manual;
             if (_confirm != null)
                 Destroy(_confirm);
-            _pendingNamedSaveId = id;
-            var name = id;
-            var saves = CareerStore.ListNamedSaves();
-            for (var i = 0; i < saves.Count; i++)
-                if (saves[i].Id == id)
-                {
-                    name = saves[i].Name;
-                    break;
-                }
-
             _confirm = new GameObject("ConfirmLoadNamedCareer", typeof(RectTransform));
             _confirm.transform.SetParent(_root.transform, false);
             var rect = _confirm.GetComponent<RectTransform>();
@@ -811,17 +870,57 @@ namespace CoachMaster.UI
             BroadcastUi.Catch(dim, () => Destroy(_confirm));
             var card = BroadcastUi.Panel(rect, "Card", new Color(0.1f, 0.04f, 0.2f, 1f), true);
             BroadcastUi.Place(card.rectTransform, 0.29f, 0.34f, 0.71f, 0.68f);
-            var confirmMessage = LocalizationManager.Current == GameLanguage.English
-                ? "Open “" + name + "”? The active career will be replaced. The saved copy will remain available."
-                : "Abrir “" + name + "”? A carreira ativa será substituída. A cópia guardada mantém-se.";
-            var message = BroadcastUi.Label(card.transform, "Message", confirmMessage,
+            var which = manual ? "manual" : "automático";
+            var message = BroadcastUi.Label(card.transform, "Message", "Abrir o último save " + which + " desta carreira? A carreira que está aberta passa a ser esta.",
                 17, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
-            message.resizeTextForBestFit = true;
-            message.resizeTextMinSize = 13;
-            message.resizeTextMaxSize = 17;
+            message.horizontalOverflow = HorizontalWrapMode.Wrap;
             BroadcastUi.Place(message.rectTransform, 0.06f, 0.38f, 0.94f, 0.92f);
-            var loadLabel = LocalizationManager.Current == GameLanguage.English ? "OPEN SAVED COPY" : "ABRIR CÓPIA";
-            var yes = BroadcastUi.Button(card.transform, "Load", loadLabel, ConfirmLoadNamedCareer, UiTheme.Accent, UiTheme.ButtonText, 14);
+            var yes = BroadcastUi.Button(card.transform, "Load", "CARREGAR", ConfirmLoadNamedCareer, UiTheme.Accent, UiTheme.ButtonText, 14);
+            BroadcastUi.Place(yes.GetComponent<RectTransform>(), 0.06f, 0.08f, 0.47f, 0.31f);
+            var no = BroadcastUi.Button(card.transform, "Cancel", "CANCELAR", () => Destroy(_confirm), new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 15);
+            BroadcastUi.Place(no.GetComponent<RectTransform>(), 0.53f, 0.08f, 0.94f, 0.31f);
+        }
+
+        void AskDeleteSlot(string id, string label)
+        {
+            if (_confirm != null)
+                Destroy(_confirm);
+            _confirm = new GameObject("ConfirmDeleteCareer", typeof(RectTransform));
+            _confirm.transform.SetParent(_root.transform, false);
+            var rect = _confirm.GetComponent<RectTransform>();
+            BroadcastUi.Stretch(rect);
+            var dim = BroadcastUi.Solid(rect, "Dim", new Color(0f, 0f, 0f, 0f), true);
+            BroadcastUi.Stretch(dim.rectTransform);
+            BroadcastUi.Catch(dim, () => Destroy(_confirm));
+            var card = BroadcastUi.Panel(rect, "Card", new Color(0.1f, 0.04f, 0.2f, 1f), true);
+            BroadcastUi.Place(card.rectTransform, 0.29f, 0.34f, 0.71f, 0.68f);
+            var message = BroadcastUi.Label(card.transform, "Message", "Apagar “" + label + "”? Os saves manual e automático desta carreira deixam de existir.",
+                17, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            message.horizontalOverflow = HorizontalWrapMode.Wrap;
+            BroadcastUi.Place(message.rectTransform, 0.06f, 0.38f, 0.94f, 0.92f);
+            var yes = BroadcastUi.Button(card.transform, "Delete", "APAGAR", () =>
+            {
+                var active = CurrentCareer();
+                var wasActive = active != null && active.FileId == id;
+                CareerStore.DeleteSlot(id);
+                if (wasActive)
+                {
+                    CareerStore.DeleteActiveFile();
+                    if (GameRoot.Instance != null && GameRoot.Instance.Session != null)
+                        GameRoot.Instance.Session.ClearCareer();
+                    if (_saveManager != null)
+                        Destroy(_saveManager);
+                    if (_confirm != null)
+                        Destroy(_confirm);
+                    LeaveToMenu();
+                    return;
+                }
+                if (_selectedSlot == id)
+                    _selectedSlot = null;
+                if (_confirm != null)
+                    Destroy(_confirm);
+                OpenSaveManager();
+            }, new Color(0.28f, 0.08f, 0.12f, 1f), Color.white, 14);
             BroadcastUi.Place(yes.GetComponent<RectTransform>(), 0.06f, 0.08f, 0.47f, 0.31f);
             var no = BroadcastUi.Button(card.transform, "Cancel", "CANCELAR", () => Destroy(_confirm), new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 15);
             BroadcastUi.Place(no.GetComponent<RectTransform>(), 0.53f, 0.08f, 0.94f, 0.31f);
@@ -830,18 +929,21 @@ namespace CoachMaster.UI
         void ConfirmLoadNamedCareer()
         {
             var id = _pendingNamedSaveId;
+            var manual = _pendingLoadManual;
             _pendingNamedSaveId = null;
             var session = GameRoot.Instance == null ? null : GameRoot.Instance.Session;
-            var loaded = session == null ? null : CareerStore.TryLoadNamed(session, id);
+            var loaded = session == null ? null : CareerStore.TryLoadSlot(session, id, manual);
             if (loaded == null)
             {
                 if (_feedback != null)
-                    _feedback.text = "Não foi possível abrir essa cópia. A carreira atual continua ativa.";
+                    _feedback.text = "Não foi possível abrir esse save. A carreira atual continua ativa.";
                 if (_confirm != null)
                     Destroy(_confirm);
                 return;
             }
             var saved = CareerStore.TrySave(loaded);
+            if (GameRoot.Instance.Session != null)
+                GameRoot.Instance.Session.Restore(loaded);
             GameRoot.Instance.LiveMatch = null;
             if (_saveManager != null)
                 Destroy(_saveManager);
@@ -852,7 +954,7 @@ namespace CoachMaster.UI
             ControlChrome.SettingsClosed();
             GameRoot.Instance.Open(SceneNames.CareerHub);
             if (!saved)
-                Debug.LogWarning("A cópia foi carregada, mas não foi possível atualizar a gravação principal. O backup anterior foi mantido.");
+                Debug.LogWarning("O save foi carregado, mas não foi possível atualizar a gravação principal.");
         }
 
         void LeaveToMenu()
@@ -949,55 +1051,79 @@ namespace CoachMaster.UI
     {
         public static string Open()
         {
+            return OpenFiltered("Ficheiros de música\0*.mp3;*.wav;*.ogg;*.aiff;*.aif\0Todos os ficheiros\0*.*\0\0", "Escolher música", "mp3");
+        }
+
+        public static string OpenImage()
+        {
+            return OpenFiltered("Imagens\0*.png;*.jpg;*.jpeg;*.webp\0Todos os ficheiros\0*.*\0\0", "Escolher fundo", "png");
+        }
+
+        static string OpenFiltered(string filter, string title, string extension)
+        {
 #if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
-            var path = new StringBuilder(2048);
-            var dialog = new OpenFileName
+            var dialog = new OpenFileName();
+            dialog.filter = Marshal.StringToHGlobalUni(filter);
+            try
             {
-                StructSize = (uint)Marshal.SizeOf(typeof(OpenFileName)),
-                Filter = "Music files\0*.mp3;*.wav;*.ogg;*.aiff;*.aif\0All files\0*.*\0\0",
-                File = path,
-                MaxFile = (uint)path.Capacity,
-                Title = "Choose music for Coach Master",
-                Flags = 0x00000008 | 0x00001000 | 0x00000800 | 0x00080000
-            };
-            return GetOpenFileName(ref dialog) ? path.ToString() : null;
+                dialog.structSize = Marshal.SizeOf(dialog);
+                dialog.dlgOwner = GetActiveWindow();
+                dialog.file = new string(new char[1024]);
+                dialog.maxFile = dialog.file.Length;
+                dialog.fileTitle = new string(new char[256]);
+                dialog.maxFileTitle = dialog.fileTitle.Length;
+                dialog.title = title;
+                dialog.defExt = extension;
+                dialog.flags = 0x00080000 | 0x00001000 | 0x00000800 | 0x00000008;
+                if (!GetOpenFileName(dialog))
+                    return null;
+                var chosen = dialog.file == null ? "" : dialog.file.Trim('\0', ' ');
+                return string.IsNullOrEmpty(chosen) ? null : chosen;
+            }
+            finally
+            {
+                if (dialog.filter != IntPtr.Zero)
+                    Marshal.FreeHGlobal(dialog.filter);
+            }
 #else
             return null;
 #endif
         }
 
 #if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
-        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-        struct OpenFileName
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+        class OpenFileName
         {
-            public uint StructSize;
-            public IntPtr Owner;
-            public IntPtr Instance;
-            [MarshalAs(UnmanagedType.LPWStr)] public string Filter;
-            [MarshalAs(UnmanagedType.LPWStr)] public string CustomFilter;
-            public uint MaxCustFilter;
-            public uint FilterIndex;
-            public StringBuilder File;
-            public uint MaxFile;
-            [MarshalAs(UnmanagedType.LPWStr)] public string FileTitle;
-            public uint MaxFileTitle;
-            [MarshalAs(UnmanagedType.LPWStr)] public string InitialDirectory;
-            [MarshalAs(UnmanagedType.LPWStr)] public string Title;
-            public uint Flags;
-            public ushort FileOffset;
-            public ushort FileExtension;
-            [MarshalAs(UnmanagedType.LPWStr)] public string DefaultExtension;
-            public IntPtr CustomData;
-            public IntPtr Hook;
-            [MarshalAs(UnmanagedType.LPWStr)] public string TemplateName;
-            public IntPtr Reserved;
-            public uint Reserved2;
-            public uint FlagsEx;
+            public int structSize;
+            public IntPtr dlgOwner;
+            public IntPtr instance;
+            public IntPtr filter;
+            public string customFilter;
+            public int maxCustFilter;
+            public int filterIndex;
+            public string file;
+            public int maxFile;
+            public string fileTitle;
+            public int maxFileTitle;
+            public string initialDir;
+            public string title;
+            public int flags;
+            public short fileOffset;
+            public short fileExtension;
+            public string defExt;
+            public IntPtr custData;
+            public IntPtr hook;
+            public string templateName;
+            public IntPtr reservedPtr;
+            public int reservedInt;
+            public int flagsEx;
         }
 
-        [DllImport("comdlg32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        static extern bool GetOpenFileName(ref OpenFileName fileName);
+        [DllImport("Comdlg32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        static extern bool GetOpenFileName([In, Out] OpenFileName ofn);
+
+        [DllImport("user32.dll")]
+        static extern IntPtr GetActiveWindow();
 #endif
     }
 

@@ -184,7 +184,7 @@ namespace CoachMaster.UI
                 result.Add(new MusicTrackInfo
                 {
                     Id = entry.Id,
-                    Name = Clean(entry.Clip.name),
+                    Name = DisplayName(entry),
                     Enabled = IsTrackEnabled(entry.Id),
                     IsUserTrack = entry.IsUserTrack
                 });
@@ -702,18 +702,20 @@ namespace CoachMaster.UI
             public bool IsUserTrack;
         }
 
+        static string DisplayName(UserTrack entry)
+        {
+            if (entry == null)
+                return "Faixa";
+            if (entry.IsUserTrack && !string.IsNullOrEmpty(entry.Path))
+                return Path.GetFileNameWithoutExtension(entry.Path);
+            return Clean(entry.Clip == null ? "" : entry.Clip.name);
+        }
+
         static string Clean(string name)
         {
             if (string.IsNullOrEmpty(name))
                 return "Faixa";
-            var cut = name;
-            var dash = cut.LastIndexOf('-');
-            if (dash > 8 && dash < cut.Length - 1 && cut.Length > 40)
-                cut = cut.Substring(0, dash);
-            cut = cut.Replace('_', ' ').Replace('-', ' ');
-            if (cut.Length > 42)
-                cut = cut.Substring(0, 42);
-            return cut;
+            return name.Trim();
         }
 
         static void PlayClip(AudioClip assigned, string resourceFallback, float gain = 1f)

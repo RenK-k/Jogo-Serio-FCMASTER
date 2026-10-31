@@ -46,7 +46,7 @@ namespace CoachMaster.Career
                     return member;
             }
 
-            return club.Staff.Count > 0 ? club.Staff[0] : null;
+            return null;
         }
 
         public static StaffMember Offer(Club club, StaffRole role)

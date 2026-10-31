@@ -66,7 +66,11 @@ namespace CoachMaster.Career
         {
             try
             {
-                return SaveTo(career, PathFile);
+                EnsureIdentity(career);
+                if (!SaveTo(career, PathFile))
+                    return false;
+                MirrorSlot(career, true);
+                return true;
             }
             catch (System.Exception error)
             {
@@ -156,6 +160,348 @@ namespace CoachMaster.Career
 
         static string NamedSavePath(string id) => Path.Combine(Application.persistentDataPath, NamedSavePrefix + id + ".txt");
 
+        public sealed class CareerSlotInfo
+        {
+            public string Id;
+            public string Label;
+            public bool HasManual;
+            public bool HasAuto;
+            public DateTime ManualAt;
+            public DateTime AutoAt;
+            public bool NamedOnly;
+        }
+
+        public static void EnsureIdentity(CareerState career)
+        {
+            if (career == null)
+                return;
+            if (string.IsNullOrEmpty(career.FileId) || !Guid.TryParseExact(career.FileId, "N", out _))
+                career.FileId = Guid.NewGuid().ToString("N");
+            if (string.IsNullOrWhiteSpace(career.SaveLabel))
+            {
+                var club = "Carreira";
+                if (career.World != null && career.Coach != null && career.World.Clubs.TryGetValue(career.Coach.ClubId ?? "", out var found) && found != null)
+                    club = found.ShortName;
+                var coach = career.Coach == null ? "" : career.Coach.Name;
+                career.SaveLabel = string.IsNullOrEmpty(coach) ? club : club + " · " + coach;
+            }
+        }
+
+        static string SlotPath(string id, bool manual) => Path.Combine(Application.persistentDataPath, "coach-master-slot-" + id + (manual ? "-manual" : "-auto") + ".txt");
+
+        static string SlotLabelPath(string id) => Path.Combine(Application.persistentDataPath, "coach-master-slot-" + id + ".label");
+
+        static void MirrorSlot(CareerState career, bool manual)
+        {
+            if (career == null || string.IsNullOrEmpty(career.FileId))
+                return;
+            var source = manual ? PathFile : AutoSavePath(1);
+            if (!File.Exists(source))
+                return;
+            try
+            {
+                File.Copy(source, SlotPath(career.FileId, manual), true);
+                File.WriteAllText(SlotLabelPath(career.FileId), career.SaveLabel ?? "", Encoding.UTF8);
+            }
+            catch (Exception error)
+            {
+                Debug.LogWarning("Não foi possível atualizar a carreira guardada: " + error.Message);
+            }
+        }
+
+        public static List<CareerSlotInfo> ListSlots()
+        {
+            var map = new Dictionary<string, CareerSlotInfo>();
+            try
+            {
+                var root = Application.persistentDataPath;
+                if (Directory.Exists(root))
+                {
+                    foreach (var path in Directory.GetFiles(root, "coach-master-slot-*-manual.txt", SearchOption.TopDirectoryOnly))
+                        TouchSlot(map, path, true);
+                    foreach (var path in Directory.GetFiles(root, "coach-master-slot-*-auto.txt", SearchOption.TopDirectoryOnly))
+                        TouchSlot(map, path, false);
+                }
+            }
+            catch (Exception error)
+            {
+                Debug.LogWarning("Não foi possível ler as carreiras: " + error.Message);
+            }
+            foreach (var named in ListNamedSaves())
+            {
+                if (map.ContainsKey(named.Id))
+                    continue;
+                map[named.Id] = new CareerSlotInfo
+                {
+                    Id = named.Id,
+                    Label = named.Name,
+                    HasManual = true,
+                    ManualAt = named.SavedAt,
+                    NamedOnly = true
+                };
+            }
+            AttachRotatingAutosaves(map);
+            var list = new List<CareerSlotInfo>(map.Values);
+            list.Sort((a, b) =>
+            {
+                var left = a.ManualAt > a.AutoAt ? a.ManualAt : a.AutoAt;
+                var right = b.ManualAt > b.AutoAt ? b.ManualAt : b.AutoAt;
+                return right.CompareTo(left);
+            });
+            return list;
+        }
+
+        static void TouchSlot(Dictionary<string, CareerSlotInfo> map, string path, bool manual)
+        {
+            var file = Path.GetFileNameWithoutExtension(path);
+            const string prefix = "coach-master-slot-";
+            if (!file.StartsWith(prefix, StringComparison.Ordinal))
+                return;
+            var body = file.Substring(prefix.Length);
+            var suffix = manual ? "-manual" : "-auto";
+            if (!body.EndsWith(suffix, StringComparison.Ordinal))
+                return;
+            var id = body.Substring(0, body.Length - suffix.Length);
+            if (!Guid.TryParseExact(id, "N", out _))
+                return;
+            if (!map.TryGetValue(id, out var info))
+            {
+                info = new CareerSlotInfo { Id = id, Label = "Carreira" };
+                map[id] = info;
+                var labelPath = SlotLabelPath(id);
+                if (File.Exists(labelPath))
+                {
+                    var label = File.ReadAllText(labelPath, Encoding.UTF8).Trim();
+                    if (!string.IsNullOrEmpty(label))
+                        info.Label = label;
+                }
+            }
+            var when = File.GetLastWriteTime(path);
+            if (manual)
+            {
+                info.HasManual = true;
+                info.ManualAt = when;
+            }
+            else
+            {
+                info.HasAuto = true;
+                info.AutoAt = when;
+            }
+        }
+
+        public static bool RenameSlot(string id, string label, CareerState active)
+        {
+            label = (label ?? "").Trim();
+            if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(label))
+                return false;
+            if (label.Length > 80)
+                label = label.Substring(0, 80).Trim();
+            if (active != null && active.FileId == id)
+            {
+                active.SaveLabel = label;
+                TrySave(active);
+            }
+            try
+            {
+                if (File.Exists(SlotLabelPath(id)) || File.Exists(SlotPath(id, true)) || File.Exists(SlotPath(id, false)))
+                    File.WriteAllText(SlotLabelPath(id), label, Encoding.UTF8);
+                var metaPath = NamedSavePath(id) + ".meta";
+                if (File.Exists(metaPath))
+                {
+                    var bits = File.ReadAllText(metaPath, Encoding.UTF8).Split('|');
+                    if (bits.Length >= 4)
+                    {
+                        bits[0] = Encode(label);
+                        File.WriteAllText(metaPath, string.Join("|", bits), Encoding.UTF8);
+                    }
+                }
+                return true;
+            }
+            catch (Exception error)
+            {
+                Debug.LogWarning("Não foi possível mudar o nome da carreira: " + error.Message);
+                return false;
+            }
+        }
+
+        public static void DeleteSlot(string id)
+        {
+            if (string.IsNullOrEmpty(id))
+                return;
+            try
+            {
+                var paths = new[]
+                {
+                    SlotPath(id, true), SlotPath(id, false), SlotLabelPath(id),
+                    NamedSavePath(id), NamedSavePath(id) + ".meta"
+                };
+                for (var i = 0; i < paths.Length; i++)
+                    if (File.Exists(paths[i]))
+                        File.Delete(paths[i]);
+            }
+            catch (Exception error)
+            {
+                Debug.LogWarning("Não foi possível apagar a carreira: " + error.Message);
+            }
+        }
+
+        public static CareerState TryLoadSlot(GameSession session, string id, bool manual)
+        {
+            if (string.IsNullOrEmpty(id))
+                return null;
+            if (!File.Exists(SlotPath(id, manual)))
+            {
+                if (manual)
+                    return TryLoadNamed(session, id);
+                var rotating = NewestAutoSaveFor(id);
+                return string.IsNullOrEmpty(rotating) ? null : TryLoadFrom(session, rotating);
+            }
+            if (!manual)
+            {
+                var rotating = NewestAutoSaveFor(id);
+                var slotFile = SlotPath(id, false);
+                if (!string.IsNullOrEmpty(rotating) && File.Exists(rotating)
+                    && File.GetLastWriteTime(rotating) > File.GetLastWriteTime(slotFile))
+                    return TryLoadFrom(session, rotating);
+            }
+            return TryLoadFrom(session, SlotPath(id, manual));
+        }
+
+        static void AttachRotatingAutosaves(Dictionary<string, CareerSlotInfo> map)
+        {
+            string orphanId = null;
+            DateTime orphanAt = DateTime.MinValue;
+            for (var slot = 1; slot <= 5; slot++)
+            {
+                var path = AutoSavePath(slot);
+                if (!File.Exists(path))
+                    continue;
+                var when = File.GetLastWriteTime(path);
+                var id = ReadCareerFileId(path);
+                if (string.IsNullOrEmpty(id))
+                {
+                    if (when > orphanAt)
+                    {
+                        orphanAt = when;
+                        orphanId = path;
+                    }
+                    continue;
+                }
+                NoteAuto(map, id, when, ReadCareerLabel(path));
+            }
+            if (orphanAt == DateTime.MinValue)
+                return;
+            var fallback = ReadCareerFileId(PathFile);
+            if (string.IsNullOrEmpty(fallback))
+            {
+                CareerSlotInfo newest = null;
+                foreach (var info in map.Values)
+                    if (info.HasManual && (newest == null || info.ManualAt > newest.ManualAt))
+                        newest = info;
+                if (newest != null)
+                    fallback = newest.Id;
+            }
+            if (!string.IsNullOrEmpty(fallback))
+                NoteAuto(map, fallback, orphanAt, ReadCareerLabel(orphanId));
+        }
+
+        static void NoteAuto(Dictionary<string, CareerSlotInfo> map, string id, DateTime when, string label)
+        {
+            if (string.IsNullOrEmpty(id) || !Guid.TryParseExact(id, "N", out _))
+                return;
+            if (!map.TryGetValue(id, out var info))
+            {
+                info = new CareerSlotInfo { Id = id, Label = string.IsNullOrEmpty(label) ? "Carreira" : label };
+                map[id] = info;
+            }
+            if (!info.HasAuto || when > info.AutoAt)
+            {
+                info.HasAuto = true;
+                info.AutoAt = when;
+            }
+        }
+
+        static string NewestAutoSaveFor(string id)
+        {
+            string best = null;
+            var bestAt = DateTime.MinValue;
+            var mainId = ReadCareerFileId(PathFile);
+            for (var slot = 1; slot <= 5; slot++)
+            {
+                var path = AutoSavePath(slot);
+                if (!File.Exists(path))
+                    continue;
+                var fileId = ReadCareerFileId(path);
+                var matches = fileId == id || (string.IsNullOrEmpty(fileId) && (mainId == id || string.IsNullOrEmpty(mainId)));
+                if (!matches)
+                    continue;
+                var when = File.GetLastWriteTime(path);
+                if (best == null || when > bestAt)
+                {
+                    best = path;
+                    bestAt = when;
+                }
+            }
+            return best;
+        }
+
+        static string ReadCareerFileId(string path)
+        {
+            if (string.IsNullOrEmpty(path) || !File.Exists(path))
+                return null;
+            try
+            {
+                foreach (var line in File.ReadLines(path, Encoding.UTF8))
+                {
+                    if (string.IsNullOrEmpty(line) || !line.StartsWith("careerfile|", StringComparison.Ordinal))
+                        continue;
+                    var bits = Split(line);
+                    if (bits.Length > 1 && Guid.TryParseExact(bits[1], "N", out _))
+                        return bits[1];
+                }
+            }
+            catch (Exception error)
+            {
+                Debug.LogWarning("Não foi possível ler a carreira do autosave: " + error.Message);
+            }
+            return null;
+        }
+
+        static string ReadCareerLabel(string path)
+        {
+            if (string.IsNullOrEmpty(path) || !File.Exists(path))
+                return null;
+            try
+            {
+                foreach (var line in File.ReadLines(path, Encoding.UTF8))
+                {
+                    if (string.IsNullOrEmpty(line) || !line.StartsWith("careerfile|", StringComparison.Ordinal))
+                        continue;
+                    var bits = Split(line);
+                    if (bits.Length > 2 && !string.IsNullOrEmpty(bits[2]))
+                        return bits[2];
+                }
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+            return null;
+        }
+
+        public static void DeleteActiveFile()
+        {
+            try
+            {
+                if (File.Exists(PathFile))
+                    File.Delete(PathFile);
+            }
+            catch (Exception error)
+            {
+                Debug.LogWarning("Não foi possível apagar a gravação ativa: " + error.Message);
+            }
+        }
+
         static string Encode(string value) => Convert.ToBase64String(Encoding.UTF8.GetBytes(value ?? ""));
 
         static string Decode(string value)
@@ -168,6 +514,7 @@ namespace CoachMaster.Career
         {
             if (career == null || career.Coach == null)
                 return;
+            EnsureIdentity(career);
             slots = Mathf.Clamp(slots, 1, 5);
             var first = AutoSavePath(1);
             var staging = first + ".new";
@@ -214,6 +561,7 @@ namespace CoachMaster.Career
                 }
                 else
                     File.Move(staging, first);
+                MirrorSlot(career, false);
                 for (var i = slots + 1; i <= 5; i++)
                 {
                     var unused = AutoSavePath(i);
@@ -258,6 +606,7 @@ namespace CoachMaster.Career
                 "fanmood|" + career.SupporterApproval,
                 "simulation|" + Mathf.Clamp(career.InjuryFrequency, 0, 2) + "|" + Mathf.Clamp(career.RefereeStrictness, 0, 2) + "|" + Mathf.Clamp(career.RealismPreset, 0, 4),
                 "autosave|" + career.LastAutoSaveDateTicks,
+                "careerfile|" + (career.FileId ?? "") + "|" + Esc(career.SaveLabel),
                 "financeledger|2"
             };
             lines.Add("academy|" + string.Join(",", career.AcademyPlayerIds));
@@ -542,6 +891,12 @@ namespace CoachMaster.Career
                     case "autosave":
                         if (bits.Length > 1 && long.TryParse(bits[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var autosaveTicks))
                             career.LastAutoSaveDateTicks = autosaveTicks;
+                        break;
+                    case "careerfile":
+                        if (bits.Length > 1 && Guid.TryParseExact(bits[1], "N", out _))
+                            career.FileId = bits[1];
+                        if (bits.Length > 2)
+                            career.SaveLabel = Un(bits[2]);
                         break;
                     case "financeledger":
                         hasFinanceLedger = true;

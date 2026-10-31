@@ -122,11 +122,12 @@ namespace CoachMaster.Career
                 return;
 
             moment.Answered = true;
-            var morale = At(moment.MoraleDelta, choice);
-            var fatigue = At(moment.FatigueDelta, choice);
-            var form = At(moment.FormDelta, choice);
-            var squadMorale = At(moment.SquadMoraleDelta, choice);
-            var tension = At(moment.DressingRoomTensionDelta, choice);
+            var effect = SpokenEffect(player, choice, moment.Replies.Length);
+            var morale = At(moment.MoraleDelta, effect);
+            var fatigue = At(moment.FatigueDelta, effect);
+            var form = At(moment.FormDelta, effect);
+            var squadMorale = At(moment.SquadMoraleDelta, effect);
+            var tension = At(moment.DressingRoomTensionDelta, effect);
             player.Morale = Clamp(player.Morale + morale);
             player.Fatigue = Clamp(player.Fatigue + fatigue);
             player.Form = Clamp(player.Form + form);
@@ -147,11 +148,11 @@ namespace CoachMaster.Career
 
             if (!string.IsNullOrEmpty(moment.SecondaryPlayerId) && career.World.Players.TryGetValue(moment.SecondaryPlayerId, out var secondary))
             {
-                var secondaryMorale = At(moment.SecondaryMoraleDelta, choice);
+                var secondaryMorale = At(moment.SecondaryMoraleDelta, effect);
                 secondary.Morale = Clamp(secondary.Morale + secondaryMorale);
             }
 
-            var injuryDays = At(moment.InjuryDays, choice);
+            var injuryDays = At(moment.InjuryDays, effect);
             if (injuryDays > 0)
             {
                 if (player.Injury == null)
@@ -161,7 +162,7 @@ namespace CoachMaster.Career
                 player.Injury.DaysRemaining = injuryDays;
             }
 
-            var dutyChanged = At(moment.ToggleDuty, choice);
+            var dutyChanged = At(moment.ToggleDuty, effect);
             if (dutyChanged)
             {
                 var options = IndividualOrders.ForPosition(player.Position);
@@ -176,6 +177,10 @@ namespace CoachMaster.Career
             }
 
             var followUp = moment.FollowUps != null && choice < moment.FollowUps.Length ? moment.FollowUps[choice] : "";
+            if (effect != choice)
+                followUp += effect < choice
+                    ? " Com este jogador, a frase mais dura foi a que fez sentido."
+                    : " Com este jogador, essa frase não colou.";
             var impact = new List<string>();
             AddImpact(impact, "moral", morale);
             AddImpact(impact, "forma", form);
@@ -194,6 +199,25 @@ namespace CoachMaster.Career
             var trustDelta = CareerRelationships.ApplyConversation(career, player, morale, form, tension, injuryDays);
             CareerMemories.RecordConversation(career, moment, player, choice, morale, form, tension, trustDelta, injuryDays);
             CareerNotificationQueue.Enqueue("A TUA ESCOLHA FICA", "Confiança de " + player.FullName + ": " + CareerRelationships.TrustOf(career, player.Id) + "/100.");
+        }
+
+        static int SpokenEffect(Player player, int choice, int count)
+        {
+            if (player == null || count < 3 || choice < 0 || choice >= count)
+                return choice;
+            var blunt = choice == count - 1;
+            var soft = choice == 0;
+            var leads = player.HasTrait(PlayerTrait.Lideranca) || (player.Attributes != null && player.Attributes.Decisions >= 15);
+            var sensitive = player.Age <= 21 || player.HasTrait(PlayerTrait.JogadorDeEquipa);
+            if (blunt && leads && player.Morale <= 62)
+                return 0;
+            if (blunt && sensitive && (player.Attributes == null || player.Attributes.Composure <= 12))
+                return count - 1;
+            if (soft && leads && player.Morale >= 48)
+                return 1;
+            if (soft && sensitive)
+                return 0;
+            return choice;
         }
 
         static int At(int[] values, int index)

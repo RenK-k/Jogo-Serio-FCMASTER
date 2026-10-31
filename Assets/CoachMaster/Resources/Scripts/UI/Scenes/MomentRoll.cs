@@ -57,6 +57,29 @@ namespace CoachMaster.UI.Scenes
             else
                 roll = host.GetComponent<MomentRoll>();
 
+            var dim = roll.transform.Find("Shade")?.GetComponent<Image>();
+            if (dim != null)
+            {
+                dim.color = new Color(0f, 0f, 0f, 0f);
+                dim.raycastTarget = false;
+            }
+            var cardRect = roll.transform.Find("Card") as RectTransform;
+            if (cardRect != null)
+            {
+                BroadcastUi.Place(cardRect, 0.16f, 0.78f, 0.84f, 0.985f);
+                var faceRect = cardRect.Find("Face") as RectTransform;
+                if (faceRect != null)
+                    BroadcastUi.Place(faceRect, 0.02f, 0.12f, 0.12f, 0.88f);
+                var whoRect = cardRect.Find("Who") as RectTransform;
+                if (whoRect != null)
+                    BroadcastUi.Place(whoRect, 0.14f, 0.5f, 0.96f, 0.94f);
+                var lineRect = cardRect.Find("Line") as RectTransform;
+                if (lineRect != null)
+                    BroadcastUi.Place(lineRect, 0.14f, 0.06f, 0.96f, 0.5f);
+                var crestRect = cardRect.Find("Crest") as RectTransform;
+                if (crestRect != null)
+                    BroadcastUi.Place(crestRect, 0.84f, 0.55f, 0.97f, 0.96f);
+            }
             roll._to = player;
             roll._toFace = player == null ? null : FaceBook.For(player);
             roll._fromFace = roll._toFace;

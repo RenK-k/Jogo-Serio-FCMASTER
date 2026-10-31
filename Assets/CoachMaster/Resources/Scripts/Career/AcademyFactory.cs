@@ -63,7 +63,10 @@ namespace CoachMaster.Career
                             career.AcademyPlayerIds.Add(id);
                         if (existingPlayer.ClubId == clubId && GroupForAge(existingPlayer.Age) == group
                             && (club.PlayerIds == null || !club.PlayerIds.Contains(id)))
+                        {
+                            BringYouthDown(existingPlayer, group, club.Reputation);
                             currentCount++;
+                        }
                         slot++;
                         continue;
                     }
@@ -162,6 +165,45 @@ namespace CoachMaster.Career
         }
 
         public static string GroupForAge(int age) => age >= 19 ? "U20" : age >= 17 ? "U18" : "U16";
+
+        static void BringYouthDown(Player player, string group, int reputation)
+        {
+            if (player == null || player.Attributes == null)
+                return;
+            var bonus = Math.Max(0, Math.Min(6, (reputation - 60) / 8));
+            var cap = (group == "U16" ? 48 : group == "U18" ? 56 : 64) + bonus;
+            var overall = PlayerAttributes.Overall(player);
+            if (overall <= cap)
+                return;
+            var currentMean = (overall - 42f) / 52f * 20f;
+            var targetMean = (cap - 42f) / 52f * 20f;
+            if (currentMean < 1f)
+                return;
+            var factor = targetMean / currentMean;
+            var attr = player.Attributes;
+            attr.Pace = ScaleStat(attr.Pace, factor);
+            attr.Stamina = ScaleStat(attr.Stamina, factor);
+            attr.Strength = ScaleStat(attr.Strength, factor);
+            attr.Passing = ScaleStat(attr.Passing, factor);
+            attr.Finishing = ScaleStat(attr.Finishing, factor);
+            attr.Dribbling = ScaleStat(attr.Dribbling, factor);
+            attr.Tackling = ScaleStat(attr.Tackling, factor);
+            attr.Crossing = ScaleStat(attr.Crossing, factor);
+            attr.Positioning = ScaleStat(attr.Positioning, factor);
+            attr.Composure = ScaleStat(attr.Composure, factor);
+            attr.WorkRate = ScaleStat(attr.WorkRate, factor);
+            attr.Decisions = ScaleStat(attr.Decisions, factor);
+            attr.Reflexes = ScaleStat(attr.Reflexes, factor);
+            attr.Handling = ScaleStat(attr.Handling, factor);
+            var now = PlayerAttributes.Overall(player);
+            if (player.Potential < now + 4)
+                player.Potential = Math.Min(88, now + 10);
+        }
+
+        static int ScaleStat(int value, float factor)
+        {
+            return Math.Max(1, Math.Min(20, (int)Math.Round(value * factor)));
+        }
 
         static int AgeForGroup(string group, int slot)
         {

@@ -86,14 +86,96 @@ namespace CoachMaster.Career
                 var fee = Mathf.Max(80000, Mathf.RoundToInt(MarketValue(player) * (1f + Math.Min(0.16f, buyers.Count * 0.04f))));
                 if (buyer.Finance == null || seller.Finance == null || buyer.Finance.TransferBudget < fee || seller.PlayerIds.Count <= 14)
                     continue;
-                var record = CompleteDeal(career, player, seller, buyer, fee, 3, "AI");
-                if (record != null)
-                {
-                    Newsroom.PublishTransferDeal(career, record);
+                if (ScheduleMove(career, player, buyer, fee, 3, 0, "ai", 3 + random.Next(6)))
                     completed++;
-                }
             }
             return true;
+        }
+
+        public static bool MovePending(CareerState career, string playerId)
+        {
+            if (career == null || string.IsNullOrEmpty(playerId))
+                return false;
+            var prefix = "job|move|" + playerId + "|";
+            foreach (var line in career.Notebook)
+                if (line != null && line.StartsWith(prefix, StringComparison.Ordinal))
+                    return true;
+            return false;
+        }
+
+        public static bool ScheduleMove(CareerState career, Player player, Club buyer, int fee, int years, int wage, string type, int days)
+        {
+            if (career == null || player == null || buyer == null || career.Calendar == null || career.World == null)
+                return false;
+            if (MovePending(career, player.Id) || player.ClubId == buyer.Id)
+                return false;
+            if (!career.World.Clubs.TryGetValue(player.ClubId ?? "", out var seller) || seller == null)
+                return false;
+            if (!seller.PlayerIds.Contains(player.Id) || seller.PlayerIds.Count <= 11)
+                return false;
+            if (buyer.Finance == null || buyer.Finance.TransferBudget < fee)
+                return false;
+            days = Mathf.Clamp(days, 2, 21);
+            var due = career.Calendar.CurrentDate.Date.AddDays(days);
+            career.Notebook.Add("job|move|" + player.Id + "|" + buyer.Id + "|" + fee + "|" + Mathf.Clamp(years, 1, 5) + "|" + Math.Max(0, wage) + "|" + (string.IsNullOrEmpty(type) ? "ai" : type) + "|" + due.Ticks);
+            return true;
+        }
+
+        public static bool SettleMoves(CareerState career)
+        {
+            if (career == null || career.Calendar == null || career.World == null)
+                return false;
+            var now = career.Calendar.CurrentDate.Date;
+            var changed = false;
+            for (var i = career.Notebook.Count - 1; i >= 0; i--)
+            {
+                var line = career.Notebook[i];
+                if (line == null || !line.StartsWith("job|move|", StringComparison.Ordinal))
+                    continue;
+                var bits = line.Split('|');
+                if (bits.Length < 9 || !long.TryParse(bits[8], out var due) || new DateTime(due).Date > now)
+                    continue;
+                career.Notebook.RemoveAt(i);
+                changed = true;
+                if (!career.World.Players.TryGetValue(bits[2], out var player)
+                    || !career.World.Clubs.TryGetValue(player.ClubId ?? "", out var seller)
+                    || !career.World.Clubs.TryGetValue(bits[3], out var buyer))
+                {
+                    Desk(career, "✉ Uma transferência marcada não se concretizou.");
+                    continue;
+                }
+                int.TryParse(bits[4], out var fee);
+                int.TryParse(bits[5], out var years);
+                int.TryParse(bits[6], out var wage);
+                var record = CompleteDeal(career, player, seller, buyer, fee, years, bits[7]);
+                if (record == null)
+                {
+                    Desk(career, "✉ A transferência de " + player.FullName + " caiu. O plantel e o orçamento mantêm-se.");
+                    continue;
+                }
+                if (wage > 0)
+                {
+                    player.WeeklyWage = wage;
+                    record.WeeklyWage = wage;
+                }
+                Newsroom.PublishTransferDeal(career, record);
+                if (career.Coach != null && (seller.Id == career.Coach.ClubId || buyer.Id == career.Coach.ClubId))
+                    Desk(career, "✉ " + player.FullName + " oficializou a mudança para o " + buyer.Name + ".");
+            }
+            return changed;
+        }
+
+        static void Desk(CareerState career, string text)
+        {
+            career.Board.Insert(0, new CoachNote
+            {
+                Day = career.Calendar.WeekdayName,
+                Hour = career.Calendar.ClockText,
+                When = career.Calendar.CurrentDate,
+                Text = text
+            });
+            while (career.Board.Count > 40)
+                career.Board.RemoveAt(career.Board.Count - 1);
         }
 
         public static TransferRecord CompleteDeal(CareerState career, Player player, Club seller, Club buyer, int fee, int contractYears, string type)

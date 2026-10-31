@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine.SceneManagement;
 
 namespace CoachMaster.UI
@@ -155,7 +156,33 @@ namespace CoachMaster.UI
             if (image == null)
                 return;
             FallbackIds.TryGetValue(image, out var fallbackId);
-            var effectiveId = BackgroundPrefs.SelectedLeagueId ?? fallbackId;
+            var chosen = BackgroundPrefs.SelectedLeagueId;
+            if (chosen == BackgroundPrefs.UserMode)
+            {
+                var user = BackgroundPrefs.UserSprite();
+                if (user != null)
+                {
+                    image.sprite = user;
+                    image.color = Color.white;
+                    image.preserveAspect = false;
+                    image.type = Image.Type.Simple;
+                    return;
+                }
+                chosen = BackgroundPrefs.DefaultMode;
+            }
+            if (chosen == BackgroundPrefs.DefaultMode)
+            {
+                var principal = Principal();
+                if (principal != null)
+                {
+                    image.sprite = principal;
+                    image.color = Color.white;
+                    image.preserveAspect = false;
+                    image.type = Image.Type.Simple;
+                    return;
+                }
+            }
+            var effectiveId = chosen ?? fallbackId;
             if (string.IsNullOrEmpty(effectiveId))
                 return;
             var sprite = First(effectiveId);
@@ -237,9 +264,13 @@ namespace CoachMaster.UI
     public static class BackgroundPrefs
     {
         const string PreferenceKey = "cm_background_index";
+        const string UserPathKey = "cm_background_user";
+        static Sprite UserCached;
         static readonly string[] LeagueIds =
         {
             null,
+            DefaultMode,
+            UserMode,
             "league:atlas",
             "league:espanhola",
             "league:espanhola-2",
@@ -250,6 +281,8 @@ namespace CoachMaster.UI
         static readonly string[] Labels =
         {
             "FUNDO  ·  AUTOMÁTICO",
+            "FUNDO  ·  PRINCIPAL",
+            "FUNDO  ·  O TEU",
             "FUNDO  ·  PORTUGAL",
             "FUNDO  ·  ESPANHA",
             "FUNDO  ·  ESPANHA II",
@@ -274,6 +307,63 @@ namespace CoachMaster.UI
                 var index = Mathf.Clamp(PlayerPrefs.GetInt(PreferenceKey, 0), 0, Labels.Length - 1);
                 return Labels[index];
             }
+        }
+
+        public const string UserMode = "user";
+        public const string DefaultMode = "default";
+
+        public static bool SetUserImage(string path)
+        {
+            if (string.IsNullOrEmpty(path) || !File.Exists(path))
+                return false;
+            try
+            {
+                var folder = Path.Combine(Application.persistentDataPath, "CoachMaster", "Backgrounds");
+                Directory.CreateDirectory(folder);
+                var dest = Path.Combine(folder, "user-background" + Path.GetExtension(path));
+                File.Copy(path, dest, true);
+                PlayerPrefs.SetString(UserPathKey, dest);
+                PlayerPrefs.SetInt(PreferenceKey, IndexOf(UserMode));
+                PlayerPrefs.Save();
+                UserCached = null;
+                LeagueBackdrop.RefreshCurrentScene();
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public static Sprite UserSprite()
+        {
+            var path = PlayerPrefs.GetString(UserPathKey, "");
+            if (string.IsNullOrEmpty(path) || !File.Exists(path))
+                return null;
+            if (UserCached != null)
+                return UserCached;
+            try
+            {
+                var data = File.ReadAllBytes(path);
+                var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                if (!texture.LoadImage(data))
+                    return null;
+                texture.filterMode = FilterMode.Bilinear;
+                UserCached = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f);
+                return UserCached;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        static int IndexOf(string id)
+        {
+            for (var i = 0; i < LeagueIds.Length; i++)
+                if (LeagueIds[i] == id)
+                    return i;
+            return 0;
         }
 
         public static void Cycle()
