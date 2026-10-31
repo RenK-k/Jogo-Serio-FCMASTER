@@ -750,6 +750,12 @@ namespace CoachMaster.Data
 
         static KitLook KitSpec(string slug)
         {
+            if (!string.IsNullOrEmpty(slug) && slug.StartsWith("mod:"))
+            {
+                var parts = slug.Split(':');
+                if (parts.Length >= 4)
+                    return new KitLook(parts[1], parts[2], parts[3], KitPattern.Solid);
+            }
             if (TryBrandKit(slug, out var branded))
                 return branded;
             switch (slug)

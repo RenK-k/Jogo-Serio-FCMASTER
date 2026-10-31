@@ -1,0 +1,24 @@
+﻿PASS solo nao bloqueia
+PASS um so lugar nao bloqueia
+PASS dia sem jogo pede o outro continuar
+PASS os dois prontos deixam avancar
+PASS quem joga mais tarde espera
+PASS quem tem o jogo mais cedo pode comecar
+PASS depois desse jogo o outro pode comecar
+PASS hora marcada ainda nao chegou
+PASS hora marcada ja passou
+PASS sala gravada e lida
+PASS jogo do outro humano nao e simulado como teu
+PASS convidado fica no clube dele
+PASS sem sala o outro clube nao fica protegido
+PASS convite chegou ao anfitriao: JOIN|1|Teste
+PASS anfitriao respondeu com o lugar e a cor
+PASS continuar do convidado chegou
+BOLA metros=1755.2 jogadores=8554.8 minuto=76.3 golos=0-2 remates=8 passes=304 portador-no-alvo=254 invalidos=0
+PASS bola e jogadores com coordenadas validas
+PASS a bola andou no campo
+PASS os jogadores andaram
+PASS mods vazios nao mudam o clube nem inventam cara
+LOTE C:\Users\gabri\Documents\GitHub\Jogo-Serio-FCMASTER\MatchSimReports\summary-20261030-215909.json
+LOTE falhas=0
+TOTAL falhas=0

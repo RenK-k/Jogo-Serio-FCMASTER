@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Text;
 using CoachMaster.App;
 using CoachMaster.Career;
 using CoachMaster.Domain;
@@ -166,6 +167,7 @@ namespace CoachMaster.UI.Scenes
         GameObject _focusMenu;
         int _renewalAttempt;
         bool _enterPressRoom;
+        readonly Dictionary<int, string> _joinNames = new Dictionary<int, string>();
 
         void Start()
         {
@@ -177,6 +179,18 @@ namespace CoachMaster.UI.Scenes
                 GameRoot.Instance.Open(SceneNames.MainMenu);
                 return;
             }
+
+            if (LanRoom.PendingShare)
+            {
+                LanRoom.PendingShare = false;
+                LanRoom.HoldShare = false;
+                string ignored;
+                while (LanRoom.TryTake(out ignored)) { }
+                if (LanRoom.Connected && _career.Online != null && _career.Online.Active)
+                    LanRoom.Share(CareerStore.ReadText());
+            }
+            else if (LanRoom.HoldShare)
+                LanRoom.HoldShare = false;
 
             if (_career.Current == null && _career.Upcoming.Count == 0)
                 CareerMoments.Begin(_career);
@@ -254,6 +268,9 @@ namespace CoachMaster.UI.Scenes
 
         void Update()
         {
+            if (PollOnline())
+                return;
+
             if (_keyboardScoutBack != null && _keyboardScoutBack.gameObject.activeSelf != ControlChrome.UsingKeyboard)
                 _keyboardScoutBack.gameObject.SetActive(ControlChrome.UsingKeyboard);
 
@@ -4385,8 +4402,10 @@ namespace CoachMaster.UI.Scenes
         {
             var play = BroadcastUi.Button(root, "PlayMatch", "CONTINUAR", OnContinue, UiTheme.Accent, UiTheme.ButtonText, 20);
             _play = play;
-            BroadcastUi.Place(play.GetComponent<RectTransform>(), 0.3f, 0.01f, 0.7f, 0.07f);
+            BroadcastUi.Place(play.GetComponent<RectTransform>(), 0.16f, 0.01f, 0.68f, 0.07f);
             _playLabel = play.GetComponentInChildren<Text>();
+            var online = BroadcastUi.Button(root, "Online", "ONLINE", OpenOnline, new Color(0.10f, 0.24f, 0.38f, 1f), Color.white, 16);
+            BroadcastUi.Place(online.GetComponent<RectTransform>(), 0.70f, 0.01f, 0.98f, 0.07f);
         }
 
         void BuildModal(Transform root)
@@ -4485,7 +4504,16 @@ namespace CoachMaster.UI.Scenes
                 OpenTalkChoices();
                 return;
             }
-            if (moment != null && moment.Kind == MomentKind.Match && moment.Fixture != null && !moment.Fixture.Played)
+            var startingMatch = moment != null && moment.Kind == MomentKind.Match && moment.Fixture != null && !moment.Fixture.Played;
+            var gate = CareerOnline.Check(_career, startingMatch);
+            if (HoldGuest(startingMatch, gate))
+                return;
+            if (gate.Stop)
+            {
+                OpenModal("ONLINE", gate.Message, false, true);
+                return;
+            }
+            if (startingMatch)
             {
                 SeasonSchedule.SimulateOthers(_career, moment.Fixture.Date, moment.Fixture);
                 if (SettingsPrefs.AutosaveBeforeMatch)
@@ -4495,6 +4523,11 @@ namespace CoachMaster.UI.Scenes
                 return;
             }
 
+            AdvanceShared();
+        }
+
+        void AdvanceShared()
+        {
             var previousDay = _career.Calendar.CurrentDate.Date;
             CareerMoments.Continue(_career);
             var elapsedDays = (_career.Calendar.CurrentDate.Date - previousDay).Days;
@@ -4506,6 +4539,8 @@ namespace CoachMaster.UI.Scenes
             if (SettingsPrefs.AutosaveEnabled)
                 CareerStore.AutoSaveIfDue(_career, SettingsPrefs.AutosaveDays, SettingsPrefs.AutosaveSlots);
             CareerStore.Save(_career);
+            if (_career.Online != null && _career.Online.Active && LanRoom.Connected)
+                LanRoom.Share(CareerStore.ReadText());
             Refresh();
             FillNews();
         }
@@ -4753,19 +4788,30 @@ namespace CoachMaster.UI.Scenes
             var tableButton = BroadcastUi.Button(_inboxSide, "TableHead", tableTitle, () => OpenLeagueStats(leagueId), new Color(0f, 0f, 0f, 0f), UiTheme.Score, 13);
             BroadcastUi.Preferred(tableButton, 28);
             var tableCount = Mathf.Min(8, rows.Count);
+            var shownRows = new List<int>();
             for (var i = 0; i < tableCount; i++)
+                shownRows.Add(i);
+            for (var i = tableCount; i < rows.Count; i++)
             {
+                if (OtherHumanSeat(rows[i].ClubId) != null)
+                    shownRows.Add(i);
+            }
+            for (var n = 0; n < shownRows.Count; n++)
+            {
+                var i = shownRows[n];
                 var standing = rows[i];
                 _career.World.Clubs.TryGetValue(standing.ClubId, out var club);
                 var mine = standing.ClubId == _career.Club.Id;
-                var line = BroadcastUi.Panel(_inboxSide, "Table" + i, mine ? new Color(0.16f, 0.1f, 0.28f, 1f) : new Color(0.08f, 0.05f, 0.16f, 0.92f), true);
+                var guest = OtherHumanSeat(standing.ClubId);
+                var guestColor = guest == null ? Color.white : BroadcastUi.Parse(guest.Color, new Color(0.88f, 0.48f, 0.24f, 1f));
+                var line = BroadcastUi.Panel(_inboxSide, "Table" + i, mine ? new Color(0.16f, 0.1f, 0.28f, 1f) : guest != null ? new Color(guestColor.r * 0.35f, guestColor.g * 0.35f, guestColor.b * 0.35f, 0.96f) : new Color(0.08f, 0.05f, 0.16f, 0.92f), true);
                 BroadcastUi.Preferred(line, 32);
                 BroadcastUi.Hit(line, () => OpenLeagueStats(leagueId));
                 AddInboxCrest(line.transform, club, 0.1f);
                 var caption = (i + 1) + "    " + (club == null ? standing.ClubId : club.ShortName);
-                var label = BroadcastUi.Label(line.transform, "Text", caption, 13, mine ? UiTheme.Accent : Color.white, TextAnchor.MiddleLeft, mine ? FontStyle.Bold : FontStyle.Normal);
+                var label = BroadcastUi.Label(line.transform, "Text", caption, 13, mine ? UiTheme.Accent : guest != null ? guestColor : Color.white, TextAnchor.MiddleLeft, mine || guest != null ? FontStyle.Bold : FontStyle.Normal);
                 BroadcastUi.Place(label.rectTransform, 0.24f, 0.05f, 0.78f, 0.95f);
-                var points = BroadcastUi.Label(line.transform, "Points", standing.Points.ToString(), 13, Color.white, TextAnchor.MiddleRight, FontStyle.Bold);
+                var points = BroadcastUi.Label(line.transform, "Points", standing.Points.ToString(), 13, mine || guest != null ? label.color : Color.white, TextAnchor.MiddleRight, FontStyle.Bold);
                 BroadcastUi.Place(points.rectTransform, 0.78f, 0.05f, 0.96f, 0.95f);
                 PassClicksTo(line.transform);
             }
@@ -5236,26 +5282,25 @@ namespace CoachMaster.UI.Scenes
                 return diff != 0 ? diff : b.GoalsFor.CompareTo(a.GoalsFor);
             });
             var indexes = new List<int>();
-            var mineIndex = -1;
+            for (var i = 0; i < rows.Count && indexes.Count < 4; i++)
+                indexes.Add(i);
             for (var i = 0; i < rows.Count; i++)
             {
-                if (rows[i].ClubId == _career.Club.Id)
-                    mineIndex = i;
-                if (i < 4)
+                if ((rows[i].ClubId == _career.Club.Id || OtherHumanSeat(rows[i].ClubId) != null) && !indexes.Contains(i))
                     indexes.Add(i);
             }
-
-            if (mineIndex >= 4)
-                indexes.Add(mineIndex);
-            else if (rows.Count > 4)
+            if (indexes.Count == 4 && rows.Count > 4)
                 indexes.Add(4);
-            var step = 0.6f / 5f;
+            var step = 0.62f / Mathf.Max(5, indexes.Count);
             for (var n = 0; n < indexes.Count; n++)
             {
                 var i = indexes[n];
                 var row = rows[i];
                 var y = 0.74f - (n + 1) * step;
                 var mineRow = row.ClubId == _career.Club.Id;
+                var guest = OtherHumanSeat(row.ClubId);
+                var marked = mineRow || guest != null;
+                var tone = mineRow ? UiTheme.Score : guest != null ? BroadcastUi.Parse(guest.Color, new Color(0.88f, 0.48f, 0.24f, 1f)) : Color.white;
                 var line = BroadcastUi.Zone(card.transform, "R" + i, 0.03f, y, 0.97f, y + step - 0.01f);
                 Club club = null;
                 if (_career.World.Clubs.ContainsKey(row.ClubId))
@@ -5267,9 +5312,9 @@ namespace CoachMaster.UI.Scenes
                 if (club != null)
                 {
                     var selectedClub = club;
-                    var clubButton = BroadcastUi.Button(line, "N", (i + 1) + "   " + name, () => OpenClubDossier(selectedClub), new Color(1f, 1f, 1f, 0.01f), mineRow ? UiTheme.Score : Color.white, 14);
+                    var clubButton = BroadcastUi.Button(line, "N", (i + 1) + "   " + name, () => OpenClubDossier(selectedClub), new Color(1f, 1f, 1f, 0.01f), tone, 14);
                     var caption = clubButton.GetComponentInChildren<Text>();
-                    caption.fontStyle = mineRow ? FontStyle.Bold : FontStyle.Normal;
+                    caption.fontStyle = marked ? FontStyle.Bold : FontStyle.Normal;
                     caption.alignment = TextAnchor.MiddleLeft;
                     caption.horizontalOverflow = HorizontalWrapMode.Wrap;
                     caption.verticalOverflow = VerticalWrapMode.Truncate;
@@ -5277,12 +5322,12 @@ namespace CoachMaster.UI.Scenes
                 }
                 else
                 {
-                    var label = BroadcastUi.Label(line, "N", (i + 1) + "   " + name, 14, mineRow ? UiTheme.Score : Color.white, TextAnchor.MiddleLeft, mineRow ? FontStyle.Bold : FontStyle.Normal);
+                    var label = BroadcastUi.Label(line, "N", (i + 1) + "   " + name, 14, tone, TextAnchor.MiddleLeft, marked ? FontStyle.Bold : FontStyle.Normal);
                     label.horizontalOverflow = HorizontalWrapMode.Wrap;
                     label.verticalOverflow = VerticalWrapMode.Truncate;
                     BroadcastUi.Place(label.rectTransform, 0.12f, 0.04f, 0.74f, 0.96f);
                 }
-                var numbers = BroadcastUi.Label(line, "S", row.Points + " pts", 14, mineRow ? UiTheme.Score : Color.white, TextAnchor.MiddleRight, FontStyle.Bold);
+                var numbers = BroadcastUi.Label(line, "S", row.Points + " pts", 14, tone, TextAnchor.MiddleRight, FontStyle.Bold);
                 BroadcastUi.Place(numbers.rectTransform, 0.74f, 0.04f, 0.98f, 0.96f);
             }
 
@@ -7648,8 +7693,19 @@ namespace CoachMaster.UI.Scenes
             _vibe = null;
             _tableContent = root.Find("Pages/Standings/Grid") as RectTransform;
             _play = SceneBind.Wire(root.Find("PlayMatch"), OnContinue);
-            BroadcastUi.Place(_play.GetComponent<RectTransform>(), 0.3f, 0.01f, 0.7f, 0.07f);
+            BroadcastUi.Place(_play.GetComponent<RectTransform>(), 0.16f, 0.01f, 0.68f, 0.07f);
             _playLabel = _play.GetComponentInChildren<Text>();
+            var onlineButton = root.Find("Online");
+            if (onlineButton == null)
+            {
+                var created = BroadcastUi.Button(root, "Online", "ONLINE", OpenOnline, new Color(0.10f, 0.24f, 0.38f, 1f), Color.white, 16);
+                BroadcastUi.Place(created.GetComponent<RectTransform>(), 0.70f, 0.01f, 0.98f, 0.07f);
+            }
+            else
+            {
+                SceneBind.Wire(onlineButton, OpenOnline);
+                BroadcastUi.Place(onlineButton as RectTransform, 0.70f, 0.01f, 0.98f, 0.07f);
+            }
             _modal = root.Find("Modal").gameObject;
             _modalTitle = SceneBind.Get<Text>(root, "Modal/Card/Title");
             _modalLead = SceneBind.Get<Text>(root, "Modal/Card/Lead");
@@ -8029,6 +8085,9 @@ namespace CoachMaster.UI.Scenes
             foreach (var item in _career.World.Leagues)
                 if (item.Id == club.LeagueId) { league = LocalizationManager.Translate(item.Name); break; }
             var lead = (string.IsNullOrEmpty(league) ? city : league + "  ·  " + city) + "  ·  " + (english ? "Founded " : "Fundado em ") + club.FoundedYear;
+            var manager = ManagerOf(club);
+            if (!string.IsNullOrEmpty(manager))
+                lead += (english ? "  ·  Manager " : "  ·  Treinador ") + manager;
             OpenModal(club.Name, lead, false);
             _dossierClub = club;
             _dossierTab = selectedTab;
@@ -8038,6 +8097,15 @@ namespace CoachMaster.UI.Scenes
             var crest = CrestImage(_modal.transform.Find("Card"), club, 48f);
             crest.rectTransform.anchorMin = crest.rectTransform.anchorMax = new Vector2(0.05f, 0.925f);
             BroadcastUi.Place(_modalTitle.rectTransform, 0.09f, 0.88f, 0.91f, 0.97f);
+            if (!string.IsNullOrEmpty(manager))
+            {
+                _modalLead.horizontalOverflow = HorizontalWrapMode.Wrap;
+                _modalLead.verticalOverflow = VerticalWrapMode.Overflow;
+                BroadcastUi.Place(_modalLead.rectTransform, 0.05f, 0.74f, 0.95f, 0.88f);
+                var sheetScroll = _modal.transform.Find("Card/Scroll") as RectTransform;
+                if (sheetScroll != null)
+                    BroadcastUi.Place(sheetScroll, 0.04f, 0.08f, 0.96f, 0.73f);
+            }
 
             var labels = english
                 ? new[] { "OVERVIEW", "SQUAD", "MATCHES", "PERFORMANCE", "TRANSFERS", "HISTORY" }
@@ -8076,10 +8144,12 @@ namespace CoachMaster.UI.Scenes
             roster.Sort((a, b) => PlayerAttributes.Overall(b).CompareTo(PlayerAttributes.Overall(a)));
             var overview = BroadcastUi.Panel(_modalBody, "ClubOverviewGrid", new Color(0.035f, 0.075f, 0.1f, 0.96f), false);
             BroadcastUi.Preferred(overview, 320f);
-            var summary = (english ? "Reputation  " : "Reputação  ") + ReputationStars(club.Reputation)
+            var manager = ManagerOf(club);
+            var summary = (string.IsNullOrEmpty(manager) ? "" : (english ? "Manager  " : "Treinador  ") + manager + "\n")
+                + (english ? "Reputation  " : "Reputação  ") + ReputationStars(club.Reputation)
                 + "   ·   " + (english ? "First-team players  " : "Jogadores seniores  ") + roster.Count
                 + FinanceLine(club, english);
-            OverviewBlock(overview.transform, "Summary", english ? "CLUB OVERVIEW" : "VISÃO GERAL DO CLUBE", summary, 0.025f, 0.75f, 0.64f, 0.97f);
+            OverviewBlock(overview.transform, "Summary", english ? "CLUB OVERVIEW" : "VISÃO GERAL DO CLUBE", summary, 0.025f, 0.71f, 0.64f, 0.97f);
 
             SeasonSchedule.RebuildTable(_career);
             var leagueRows = new List<LeagueTableRow>();
@@ -8105,7 +8175,7 @@ namespace CoachMaster.UI.Scenes
                 leagueText += "\n" + LocalizationManager.FormatDate(fixture.Date, "dd MMM") + "  ·  " + opponent + "  ·  "
                     + (fixture.IsHome(club.Id) ? fixture.HomeGoals + "–" + fixture.AwayGoals : fixture.AwayGoals + "–" + fixture.HomeGoals);
             }
-            OverviewBlock(overview.transform, "League", english ? "LEAGUE POSITION  ·  RECENT RESULTS" : "POSIÇÃO NA LIGA  ·  RESULTADOS RECENTES", leagueText, 0.025f, 0.48f, 0.64f, 0.72f);
+            OverviewBlock(overview.transform, "League", english ? "LEAGUE POSITION  ·  RECENT RESULTS" : "POSIÇÃO NA LIGA  ·  RESULTADOS RECENTES", leagueText, 0.025f, 0.48f, 0.64f, 0.68f);
 
             if (roster.Count > 0)
             {
@@ -12022,9 +12092,14 @@ void OpenContractSheet(Player player, string page)
 
         void AddStandingsRow(int place, LeagueTableRow stats, Club club)
         {
-            var tone = stats.ClubId == _career.Club.Id
+            var guest = OtherHumanSeat(stats.ClubId);
+            var guestColor = guest == null ? Color.white : BroadcastUi.Parse(guest.Color, new Color(0.88f, 0.48f, 0.24f, 1f));
+            var mine = stats.ClubId == _career.Club.Id;
+            var tone = mine
                 ? new Color(0.18f, 0.12f, 0.3f, 1f)
-                : new Color(0.1f, 0.04f, 0.2f, 0.94f);
+                : guest != null
+                    ? new Color(guestColor.r * 0.45f, guestColor.g * 0.45f, guestColor.b * 0.45f, 1f)
+                    : new Color(0.1f, 0.04f, 0.2f, 0.94f);
             var row = BroadcastUi.Panel(_modalBody, "Standing" + place + stats.ClubId, tone, true);
             BroadcastUi.Preferred(row, 36);
             if (club != null)
@@ -12046,7 +12121,7 @@ void OpenContractSheet(Player player, string page)
                 image.raycastTarget = false;
             }
 
-            var name = BroadcastUi.Label(row.transform, "Club", club == null ? stats.ClubId : club.ShortName, 14, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+            var name = BroadcastUi.Label(row.transform, "Club", club == null ? stats.ClubId : club.ShortName, 14, mine ? UiTheme.Score : guest != null ? guestColor : Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
             name.resizeTextForBestFit = true;
             name.resizeTextMinSize = 9;
             name.resizeTextMaxSize = 14;
@@ -12628,6 +12703,474 @@ void OpenContractSheet(Player player, string page)
                 else
                     DestroyImmediate(child);
             }
+        }
+
+        bool PollOnline()
+        {
+            if (_career == null)
+                return false;
+            while (LanRoom.TryTake(out var line))
+            {
+                if (string.IsNullOrEmpty(line))
+                    continue;
+                if (line.StartsWith("JOIN|"))
+                {
+                    var bits = line.Split(new[] { '|' }, 3);
+                    int id;
+                    if (bits.Length > 1 && int.TryParse(bits[1], out id))
+                        NoteJoin(id, bits.Length > 2 ? bits[2] : "");
+                }
+                else if (line.StartsWith("PICK|"))
+                {
+                    var bits = line.Split(new[] { '|' }, 3);
+                    int id;
+                    if (bits.Length > 2 && int.TryParse(bits[1], out id))
+                        NotePick(id, bits[2]);
+                }
+                else if (line.StartsWith("LIST|"))
+                    ShowClubPick(line);
+                else if (line.StartsWith("READY|"))
+                {
+                    int id;
+                    if (int.TryParse(line.Substring(6), out id))
+                        NoteReady(id);
+                }
+                else if (line.StartsWith("SEAT|"))
+                {
+                    var bits = line.Split('|');
+                    if (bits.Length > 1)
+                        CareerOnline.PendingClub = bits[1];
+                }
+                else if (line.StartsWith("FILE|"))
+                {
+                    try
+                    {
+                        var text = Encoding.UTF8.GetString(Convert.FromBase64String(line.Substring(5)));
+                        var club = CareerOnline.PendingClub;
+                        if (string.IsNullOrEmpty(club) && _career.Coach != null)
+                            club = _career.Coach.ClubId;
+                        CareerStore.AdoptShared(GameRoot.Require().Session, text, club);
+                        LanRoom.HoldShare = true;
+                        GameRoot.Instance.Open(SceneNames.CareerHub);
+                        return true;
+                    }
+                    catch (Exception error)
+                    {
+                        Debug.LogWarning("Carreira online inválida: " + error.Message);
+                    }
+                }
+                else if (line.StartsWith("ERRO|"))
+                    OpenModal("ONLINE", line.Substring(5), false, true);
+            }
+            return false;
+        }
+
+        OnlineSeat OtherHumanSeat(string clubId)
+        {
+            if (_career?.Online == null || _career.Coach == null || string.IsNullOrEmpty(clubId) || clubId == _career.Coach.ClubId)
+                return null;
+            for (var i = 0; i < _career.Online.Seats.Count; i++)
+            {
+                var seat = _career.Online.Seats[i];
+                if (seat != null && seat.ClubId == clubId)
+                    return seat;
+            }
+            return null;
+        }
+
+        string ManagerOf(Club club)
+        {
+            if (club == null || _career == null)
+                return "";
+            if (_career.Online != null)
+            {
+                for (var i = 0; i < _career.Online.Seats.Count; i++)
+                {
+                    var seat = _career.Online.Seats[i];
+                    if (seat != null && seat.ClubId == club.Id && !string.IsNullOrEmpty(seat.Name))
+                        return seat.Name;
+                }
+            }
+            if (_career.Coach != null && _career.Coach.ClubId == club.Id)
+                return _career.Coach.Name ?? "";
+            return "";
+        }
+
+        bool SeatHolds(string clubId)
+        {
+            if (_career?.Online == null || string.IsNullOrEmpty(clubId))
+                return false;
+            for (var i = 0; i < _career.Online.Seats.Count; i++)
+            {
+                var seat = _career.Online.Seats[i];
+                if (seat != null && seat.ClubId == clubId && (seat.Local || LanRoom.ClubTaken(seat.ClubId)))
+                    return true;
+            }
+            return false;
+        }
+
+        void NoteJoin(int id, string name)
+        {
+            if (_career.Online == null || _career.Online.Seats.Count == 0)
+            {
+                LanRoom.Reply(id, "ERRO|Ainda ninguém deu host nesta carreira.");
+                return;
+            }
+            var clean = CareerOnline.Clean(name);
+            _joinNames[id] = string.IsNullOrEmpty(clean) ? "Convidado" : clean;
+            LanRoom.Reply(id, ClubList());
+        }
+
+        string ClubList()
+        {
+            var hostClub = _career.Coach == null ? "" : _career.Coach.ClubId;
+            var clubs = new List<Club>();
+            if (_career.World != null)
+            {
+                foreach (var club in _career.World.Clubs.Values)
+                {
+                    if (club == null || club.Id == hostClub || SeatHolds(club.Id))
+                        continue;
+                    clubs.Add(club);
+                }
+            }
+            clubs.Sort((a, b) =>
+            {
+                var league = string.CompareOrdinal(a.LeagueId, b.LeagueId);
+                return league != 0 ? league : string.CompareOrdinal(a.Name, b.Name);
+            });
+            var line = "LIST";
+            for (var i = 0; i < clubs.Count; i++)
+            {
+                var club = clubs[i];
+                line += "|" + club.Id + "," + CareerOnline.Clean(club.Name) + "," + CareerOnline.Clean(club.LeagueId);
+            }
+            return line;
+        }
+
+        void ShowClubPick(string line)
+        {
+            var bits = (line ?? "").Split('|');
+            OpenModal("ESCOLHE O TEU CLUBE", "O anfitrião abriu a carreira. Escolhe o clube que vais treinar. O teu clube fica marcado com a tua cor nas tabelas.", false);
+            var shown = 0;
+            var league = "";
+            for (var i = 1; i < bits.Length; i++)
+            {
+                var parts = bits[i].Split(',');
+                if (parts.Length < 2 || string.IsNullOrEmpty(parts[0]))
+                    continue;
+                var group = parts.Length > 2 ? parts[2] : "";
+                if (group != league)
+                {
+                    league = group;
+                    var caption = LeagueCaption(group);
+                    var heading = BroadcastUi.Label(_modalBody, "League" + shown, caption, 14, UiTheme.Score, TextAnchor.MiddleLeft, FontStyle.Bold);
+                    BroadcastUi.Preferred(heading, 28);
+                }
+                shown++;
+                var clubId = parts[0];
+                var clubName = parts[1];
+                var pick = BroadcastUi.Button(_modalBody, "Pick" + shown, clubName, () =>
+                {
+                    LanRoom.Send("PICK|" + clubId);
+                    OpenModal("ONLINE", "Escolheste " + clubName + ". A carreira do anfitrião está a abrir neste clube.", false, true);
+                }, new Color(0.08f, 0.20f, 0.32f, 0.95f), Color.white, 15);
+                BroadcastUi.Preferred(pick, 40);
+            }
+            if (shown == 0)
+                BroadcastUi.Preferred(BroadcastUi.Label(_modalBody, "NoClub", "Não há clubes livres nesta carreira.", 16, UiTheme.Muted), 40);
+        }
+
+        string LeagueCaption(string leagueId)
+        {
+            if (_career?.World?.Leagues != null)
+            {
+                foreach (var league in _career.World.Leagues)
+                {
+                    if (league != null && league.Id == leagueId)
+                        return LocalizationManager.Translate(league.Name);
+                }
+            }
+            return string.IsNullOrEmpty(leagueId) ? "Liga" : leagueId;
+        }
+
+        void NotePick(int id, string clubId)
+        {
+            clubId = (clubId ?? "").Trim();
+            if (_career?.Online == null || _career.World == null || !_career.World.Clubs.ContainsKey(clubId) || SeatHolds(clubId))
+            {
+                LanRoom.Reply(id, "ERRO|Esse clube já tem treinador ou não está nesta carreira.");
+                return;
+            }
+            var online = _career.Online;
+            OnlineSeat seat = null;
+            for (var i = 0; i < online.Seats.Count; i++)
+            {
+                var candidate = online.Seats[i];
+                if (candidate != null && !candidate.Local && candidate.ClubId == clubId && !LanRoom.ClubTaken(candidate.ClubId))
+                {
+                    seat = candidate;
+                    break;
+                }
+            }
+            if (seat == null)
+            {
+                if (online.Seats.Count >= CareerOnline.SeatColors.Length)
+                {
+                    LanRoom.Reply(id, "ERRO|A sala já está cheia.");
+                    return;
+                }
+                seat = new OnlineSeat
+                {
+                    ClubId = clubId,
+                    Color = CareerOnline.SeatColors[online.Seats.Count],
+                    Local = false
+                };
+                online.Seats.Add(seat);
+            }
+            var joined = "";
+            _joinNames.TryGetValue(id, out joined);
+            seat.Name = string.IsNullOrEmpty(joined) ? "Convidado" : joined;
+            seat.ClubId = clubId;
+            seat.Connected = true;
+            LanRoom.Remember(id, clubId);
+            CareerStore.Save(_career);
+            LanRoom.Reply(id, "SEAT|" + seat.ClubId + "|" + seat.Color + "|" + (online.RoomCode ?? ""));
+            var text = CareerStore.ReadText();
+            if (!string.IsNullOrEmpty(text))
+                LanRoom.Reply(id, "FILE|" + Convert.ToBase64String(Encoding.UTF8.GetBytes(text)));
+            Refresh();
+            OpenOnline();
+        }
+
+        void NoteReady(int id)
+        {
+            if (_career?.Online == null)
+                return;
+            var clubId = LanRoom.ClubFor(id);
+            for (var i = 0; i < _career.Online.Seats.Count; i++)
+            {
+                var seat = _career.Online.Seats[i];
+                if (seat != null && seat.ClubId == clubId)
+                    seat.ContinueReady = true;
+            }
+            var earliest = CareerOnline.Earliest(_career);
+            if (earliest != null && _career.Calendar != null && earliest.Date.Date <= _career.Calendar.CurrentDate.Date)
+                return;
+            if (!CareerOnline.EveryoneReady(_career))
+                return;
+            if (PressDutyOpen() || SquadDutyOpen())
+                return;
+            var moment = _career.Current;
+            if (moment != null && moment.Kind == MomentKind.Talk && !moment.Answered)
+                return;
+            if (moment != null && moment.Kind == MomentKind.Match && moment.Fixture != null && !moment.Fixture.Played)
+                return;
+            CareerOnline.ClearReady(_career);
+            AdvanceShared();
+        }
+
+        bool HoldGuest(bool startingMatch, OnlineGate gate)
+        {
+            if (!LanRoom.IsGuest || _career.Online == null || !_career.Online.Active)
+                return false;
+            if (!gate.Stop && (startingMatch || CareerOnline.OwnsUpcoming(_career)))
+                return false;
+            if (gate.Wait == OnlineWait.None || gate.Wait == OnlineWait.Partner)
+                LanRoom.Send("READY");
+            OpenModal("ONLINE", string.IsNullOrEmpty(gate.Message) ? "Continuar enviado ao anfitrião." : gate.Message, false, true);
+            return true;
+        }
+
+        void OpenOnline()
+        {
+            if (_career == null || _modalBody == null)
+                return;
+            var online = _career.Online;
+            var lead = "Dás host desta carreira e o servidor abre neste computador. Quem entrar escolhe o próprio clube. Os dois carregam em Continuar para passar o dia. No dia de jogo, joga primeiro quem tem o encontro mais cedo e o outro espera. Podes marcar uma hora real ou jogar em tempo real. Sozinho, a carreira continua na mesma.";
+            if (online != null && online.Seats.Count > 0)
+                lead += "\nSala " + online.RoomCode + "  ·  porta " + online.Port + (online.Mode == "hora" ? "  ·  jogos às " + online.KickoffHour.ToString("00") + ":" + online.KickoffMinute.ToString("00") : "  ·  tempo real");
+            if (!string.IsNullOrEmpty(LanRoom.Status))
+                lead += "\n" + LanRoom.Status;
+            OpenModal("ONLINE", lead, false);
+            if (!LanRoom.IsGuest && (online == null || online.Seats.Count == 0))
+            {
+                var host = BroadcastUi.Button(_modalBody, "Host", "DAR HOST DESTA CARREIRA", BeginHosting, new Color(0.10f, 0.24f, 0.38f, 0.95f), Color.white, 16);
+                BroadcastUi.Preferred(host, 48);
+            }
+            if (online != null)
+            {
+                for (var i = 0; i < online.Seats.Count; i++)
+                {
+                    var seat = online.Seats[i];
+                    if (seat == null)
+                        continue;
+                    var clubName = seat.ClubId;
+                    if (_career.World != null && _career.World.Clubs.TryGetValue(seat.ClubId, out var club) && club != null)
+                        clubName = club.Name;
+                    var caption = (string.IsNullOrEmpty(seat.Name) ? "Treinador" : seat.Name) + "  ·  " + clubName + (seat.Local ? "  ·  tu" : "");
+                    var tint = BroadcastUi.Parse(seat.Color, new Color(0.88f, 0.48f, 0.24f, 1f));
+                    if (i > 0 && !LanRoom.IsGuest)
+                    {
+                        var clubId = seat.ClubId;
+                        var remove = BroadcastUi.Button(_modalBody, "Seat" + i, caption + "   ·   tirar", () => RemoveSeat(clubId), tint, Color.black, 15);
+                        BroadcastUi.Preferred(remove, 44);
+                    }
+                    else
+                    {
+                        var row = BroadcastUi.Label(_modalBody, "Seat" + i, caption, 16, tint, TextAnchor.MiddleLeft, FontStyle.Bold);
+                        BroadcastUi.Preferred(row, 36);
+                    }
+                }
+                if (!LanRoom.IsGuest && online.Seats.Count >= 1)
+                {
+                    var live = BroadcastUi.Button(_modalBody, "Realtime", "TEMPO REAL", () => SetOnlineMode("tempo-real", 20, 0), new Color(0.12f, 0.08f, 0.22f, 0.95f), Color.white, 15);
+                    BroadcastUi.Preferred(live, 42);
+                    var evening = BroadcastUi.Button(_modalBody, "Clock20", "JOGOS ÀS 20:00", () => SetOnlineMode("hora", 20, 0), new Color(0.12f, 0.08f, 0.22f, 0.95f), Color.white, 15);
+                    BroadcastUi.Preferred(evening, 42);
+                    var late = BroadcastUi.Button(_modalBody, "Clock21", "JOGOS ÀS 21:30", () => SetOnlineMode("hora", 21, 30), new Color(0.12f, 0.08f, 0.22f, 0.95f), Color.white, 15);
+                    BroadcastUi.Preferred(late, 42);
+                    if (!LanRoom.IsHost)
+                    {
+                        var reopen = BroadcastUi.Button(_modalBody, "Reopen", "ABRIR O SERVIDOR DESTA CARREIRA", BeginHosting, new Color(0.10f, 0.24f, 0.38f, 0.95f), Color.white, 16);
+                        BroadcastUi.Preferred(reopen, 48);
+                    }
+                    if (online.Seats.Count >= 2)
+                    {
+                        var swap = BroadcastUi.Button(_modalBody, "Swap", "MUDAR DE LUGAR NESTE COMPUTADOR", SwitchSeat, new Color(0.16f, 0.10f, 0.28f, 0.95f), Color.white, 15);
+                        BroadcastUi.Preferred(swap, 44);
+                    }
+                    var stop = BroadcastUi.Button(_modalBody, "StopOnline", "FECHAR SALA", StopOnline, new Color(0.28f, 0.08f, 0.12f, 0.95f), Color.white, 15);
+                    BroadcastUi.Preferred(stop, 44);
+                    if (online.Seats.Count < 2)
+                    {
+                        var waiting = BroadcastUi.Label(_modalBody, "Waiting", "À espera que o convidado entre e escolha o clube.", 15, UiTheme.Muted, TextAnchor.MiddleLeft);
+                        BroadcastUi.Preferred(waiting, 32);
+                    }
+                }
+            }
+            if (!LanRoom.IsHost)
+            {
+                var field = UiFactory.Input(_modalBody, "IP do anfitrião, por exemplo 192.168.1.20");
+                field.characterLimit = 64;
+                BroadcastUi.Preferred(field, 48);
+                var join = BroadcastUi.Button(_modalBody, "Join", "ENTRAR NA CARREIRA DO ANFITRIÃO", () => JoinHost(field), new Color(0.10f, 0.24f, 0.38f, 0.95f), Color.white, 16);
+                BroadcastUi.Preferred(join, 48);
+            }
+        }
+
+        void EnsureHost()
+        {
+            if (_career.Online == null)
+                _career.Online = new CareerOnline();
+            var online = _career.Online;
+            if (online.Port <= 0)
+                online.Port = CareerOnline.DefaultPort;
+            if (string.IsNullOrEmpty(online.RoomCode))
+                online.RoomCode = CareerOnline.MakeCode();
+            if (online.Seats.Count == 0)
+            {
+                online.Seats.Add(new OnlineSeat
+                {
+                    Name = _career.Coach == null ? "Anfitrião" : _career.Coach.Name,
+                    ClubId = _career.Coach == null ? "" : _career.Coach.ClubId,
+                    Color = CareerOnline.SeatColors[0],
+                    Local = true
+                });
+                CareerOnline.PendingClub = online.Seats[0].ClubId;
+            }
+        }
+
+        void BeginHosting()
+        {
+            EnsureHost();
+            for (var i = _career.Online.Seats.Count - 1; i >= 1; i--)
+            {
+                var seat = _career.Online.Seats[i];
+                if (seat == null || seat.Local || LanRoom.ClubTaken(seat.ClubId))
+                    continue;
+                _career.Online.Seats.RemoveAt(i);
+            }
+            LanRoom.StartHost(_career.Online.Port);
+            CareerStore.Save(_career);
+            OpenOnline();
+        }
+
+        void SetOnlineMode(string mode, int hour, int minute)
+        {
+            EnsureHost();
+            _career.Online.Mode = mode == "hora" ? "hora" : "tempo-real";
+            _career.Online.KickoffHour = Mathf.Clamp(hour, 0, 23);
+            _career.Online.KickoffMinute = Mathf.Clamp(minute, 0, 59);
+            CareerStore.Save(_career);
+            OpenOnline();
+        }
+
+        void SwitchSeat()
+        {
+            var online = _career.Online;
+            if (online == null || online.Seats.Count < 2 || LanRoom.IsGuest)
+                return;
+            var index = 0;
+            for (var i = 0; i < online.Seats.Count; i++)
+            {
+                if (online.Seats[i] != null && online.Seats[i].Local)
+                    index = i;
+            }
+            var nextIndex = index;
+            for (var step = 0; step < online.Seats.Count; step++)
+            {
+                nextIndex = (nextIndex + 1) % online.Seats.Count;
+                var candidate = online.Seats[nextIndex];
+                if (candidate != null && !candidate.Connected && _career.World.Clubs.ContainsKey(candidate.ClubId))
+                    break;
+            }
+            var next = online.Seats[nextIndex];
+            if (next == null || next.Connected || next.Local)
+                return;
+            for (var i = 0; i < online.Seats.Count; i++)
+            {
+                if (online.Seats[i] != null)
+                    online.Seats[i].Local = false;
+            }
+            next.Local = true;
+            CareerOnline.PendingClub = next.ClubId;
+            _career.Coach.ClubId = next.ClubId;
+            CareerMoments.Begin(_career);
+            CareerStore.Save(_career);
+            CloseModal();
+            Refresh();
+        }
+
+        void RemoveSeat(string clubId)
+        {
+            var online = _career.Online;
+            if (online == null)
+                return;
+            for (var i = online.Seats.Count - 1; i >= 1; i--)
+            {
+                if (online.Seats[i] != null && online.Seats[i].ClubId == clubId)
+                    online.Seats.RemoveAt(i);
+            }
+            CareerStore.Save(_career);
+            OpenOnline();
+        }
+
+        void StopOnline()
+        {
+            _career.Online = null;
+            CareerOnline.PendingClub = null;
+            LanRoom.Stop();
+            CareerStore.Save(_career);
+            OpenOnline();
+        }
+
+        void JoinHost(InputField field)
+        {
+            var ip = field == null ? "" : field.text;
+            var port = _career.Online != null && _career.Online.Port > 0 ? _career.Online.Port : CareerOnline.DefaultPort;
+            LanRoom.Join(ip, port, _career.Coach == null ? "Convidado" : _career.Coach.Name);
+            OpenModal("ONLINE", "A ligar. Quando a sala responder, escolhes o teu clube. A carreira aberta neste computador passa a ser a do anfitrião. A gravação que tinhas fica ao lado, no ficheiro coach-master-career.txt.antes-online.", false, true);
         }
     }
 

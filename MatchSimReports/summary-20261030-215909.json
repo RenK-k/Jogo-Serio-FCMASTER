@@ -1,0 +1,17 @@
+﻿{
+  "seedsPerScenario": 20,
+  "matches": 120,
+  "failures": 0,
+  "tickDt": 0.2,
+  "minutesPerSecond": 0.68,
+  "assumptions": "A distância trata o campo normalizado como 105 por 68 metros. Um salto acima de 40 metros entre ticks de 0,2 s conta como movimento abrupto. O portador perto do destino do passe é uma amostra em que a ação é passe ou cruzamento e o portador está a menos de 0,12 do alvo da bola. substitutionApplied é só a substituição pedida pelo teste ao minuto 60. substitutions conta todas as notas de substituição, incluindo lesões.",
+  "matchesFile": "C:\\Users\\gabri\\Documents\\GitHub\\Jogo-Serio-FCMASTER\\MatchSimReports\\matches-20261030-215909.jsonl",
+  "scenarios": [
+    { "name": "equilibradas", "played": 20, "finished": 20, "meanGoals": 3.3, "meanShots": 12.35, "meanShotsOnTarget": 7, "meanPasses": 84.05, "passCompletion": 0.4027, "meanFouls": 2.8, "meanYellows": 0.5, "meanHomeMetres": 9437.0986, "meanAwayMetres": 9919.1344, "meanAbruptMoves": 0, "carrierFollowsPass": 0.8724, "meanHomeGoals": 1.7, "meanAwayGoals": 1.6, "meanSubstitutions": 0, "scriptedSubstitutions": 0 },
+    { "name": "casa-forte", "played": 20, "finished": 20, "meanGoals": 2.75, "meanShots": 11.25, "meanShotsOnTarget": 6.6, "meanPasses": 86, "passCompletion": 0.3413, "meanFouls": 3.65, "meanYellows": 0.8, "meanHomeMetres": 9821.9399, "meanAwayMetres": 9731.5431, "meanAbruptMoves": 0, "carrierFollowsPass": 0.8711, "meanHomeGoals": 2.45, "meanAwayGoals": 0.3, "meanSubstitutions": 0.3, "scriptedSubstitutions": 0 },
+    { "name": "formacoes", "played": 20, "finished": 20, "meanGoals": 3.3, "meanShots": 12.05, "meanShotsOnTarget": 6.7, "meanPasses": 85.55, "passCompletion": 0.4372, "meanFouls": 2.45, "meanYellows": 0.65, "meanHomeMetres": 9414.6653, "meanAwayMetres": 9491.4566, "meanAbruptMoves": 0, "carrierFollowsPass": 0.8877, "meanHomeGoals": 1.75, "meanAwayGoals": 1.55, "meanSubstitutions": 0, "scriptedSubstitutions": 0 },
+    { "name": "taticas", "played": 20, "finished": 20, "meanGoals": 2.65, "meanShots": 12.15, "meanShotsOnTarget": 6.4, "meanPasses": 70.9, "passCompletion": 0.3124, "meanFouls": 2.2, "meanYellows": 0.5, "meanHomeMetres": 13268.8511, "meanAwayMetres": 12769.6893, "meanAbruptMoves": 0, "carrierFollowsPass": 0.8891, "meanHomeGoals": 2.2, "meanAwayGoals": 0.45, "meanSubstitutions": 0, "scriptedSubstitutions": 0 },
+    { "name": "fadiga-e-substituicao", "played": 20, "finished": 20, "meanGoals": 2.5, "meanShots": 12.15, "meanShotsOnTarget": 6.95, "meanPasses": 75.4, "passCompletion": 0.4105, "meanFouls": 2.5, "meanYellows": 0.45, "meanHomeMetres": 7027.5861, "meanAwayMetres": 8926.0313, "meanAbruptMoves": 0, "carrierFollowsPass": 0.8597, "meanHomeGoals": 1.2, "meanAwayGoals": 1.3, "meanSubstitutions": 3.9, "scriptedSubstitutions": 6 },
+    { "name": "extremos", "played": 20, "finished": 20, "meanGoals": 5.55, "meanShots": 11.75, "meanShotsOnTarget": 9.95, "meanPasses": 81.65, "passCompletion": 0.4758, "meanFouls": 6, "meanYellows": 1.25, "meanHomeMetres": 9743.7378, "meanAwayMetres": 9227.4195, "meanAbruptMoves": 0, "carrierFollowsPass": 0.9096, "meanHomeGoals": 5.55, "meanAwayGoals": 0, "meanSubstitutions": 0, "scriptedSubstitutions": 0 }
+  ]
+}

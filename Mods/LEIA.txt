@@ -1,0 +1,17 @@
+Mods do Coach Master. Linhas que começam com # são ignoradas.
+
+equipas.txt
+Alvo|Nome|Sigla|Cidade|Estadio|Ano|Reputacao|Cor1|Cor2|Cor3
+O Alvo é o nome actual do clube no jogo. As cores são #RRGGBB. Deixa um campo vazio para não o mudar.
+
+jogadores.txt
+Nome|Posicao|Idade|Nacionalidade|Velocidade|Resistencia|Forca|Passe|Finalizacao|Drible|Desarme|Cruzamento|Posicionamento|Frieza|Entrega|Decisao
+A posição pode ser GR DD DC DE MDF MC MO ED EE PL. Os números vão de 1 a 20. O nome tem de ser igual ao do jogo.
+
+caras
+Um PNG ou JPG com o nome completo do jogador. Exemplo: caras/João Silva.png
+
+emblemas
+Um PNG ou JPG com o nome do clube, já depois do texto em equipas.txt. Exemplo: emblemas/Porto FC.png
+
+A pasta usada é esta, ao lado de Assets. Se ela não existir, o jogo procura Mods dentro da pasta de gravações.

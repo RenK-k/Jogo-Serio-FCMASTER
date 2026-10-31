@@ -326,6 +326,21 @@ namespace CoachMaster.Career
                 lines.Add("board|" + Esc(note.Day) + "|" + Esc(note.Hour) + "|" + note.When.Ticks + "|" + Esc(note.Text));
             foreach (var line in career.Notebook)
                 lines.Add("note|" + Esc(line));
+            if (career.Online != null && career.Online.Seats.Count > 0)
+            {
+                lines.Add("online|" + career.Online.Pack());
+                foreach (var seat in career.Online.Seats)
+                {
+                    if (seat == null || career.World == null || !career.World.Clubs.TryGetValue(seat.ClubId, out var seatClub) || seatClub == null)
+                        continue;
+                    var seatTactics = seatClub.Tactics;
+                    if (seatTactics != null)
+                        lines.Add("seattactic|" + seat.ClubId + "|" + Esc(seatTactics.Formation) + "|" + Esc(seatTactics.Pressing) + "|" + Esc(seatTactics.BuildUp) + "|" + Esc(seatTactics.FullBacks) + "|" + Esc(seatTactics.DefensiveLine) + "|" + Esc(seatTactics.Width) + "|" + Esc(seatTactics.Tempo) + "|" + Esc(seatTactics.PassingStyle) + "|" + Esc(seatTactics.AttackIdea) + "|" + Esc(seatTactics.Marking));
+                    lines.Add("seatlineup|" + seat.ClubId + "|" + string.Join(",", seatClub.ManualLineup));
+                    lines.Add("seatbench|" + seat.ClubId + "|" + string.Join(",", seatClub.ManualBenchOrder));
+                    lines.Add("seatroles|" + seat.ClubId + "|" + seatClub.PenaltyTakerId + "|" + seatClub.CornerTakerId + "|" + seatClub.FreeKickTakerId);
+                }
+            }
             lines.Add("listed|" + string.Join(",", career.Listed));
             lines.Add("targets|" + string.Join(",", career.Targets));
             lines.Add("loans|" + string.Join(",", career.Loans));
@@ -362,6 +377,42 @@ namespace CoachMaster.Career
                 return false;
             }
             return true;
+        }
+
+        public static string ReadText()
+        {
+            try
+            {
+                return File.Exists(PathFile) ? File.ReadAllText(PathFile, Encoding.UTF8) : "";
+            }
+            catch (Exception error)
+            {
+                Debug.LogWarning("Não foi possível ler a carreira para a rede: " + error.Message);
+                return "";
+            }
+        }
+
+        public static void AdoptShared(GameSession session, string text, string clubId)
+        {
+            if (session == null || string.IsNullOrEmpty(text))
+                return;
+            try
+            {
+                var folder = Path.GetDirectoryName(PathFile);
+                if (!string.IsNullOrEmpty(folder))
+                    Directory.CreateDirectory(folder);
+                var backup = PathFile + ".antes-online";
+                if (!File.Exists(backup) && File.Exists(PathFile))
+                    File.Copy(PathFile, backup);
+                File.WriteAllText(PathFile, text, Encoding.UTF8);
+            }
+            catch (Exception error)
+            {
+                Debug.LogWarning("Não foi possível receber a carreira online: " + error.Message);
+                return;
+            }
+            CareerOnline.PendingClub = clubId;
+            TryLoad(session);
         }
 
         public static CareerState TryLoad(GameSession session)
@@ -764,6 +815,53 @@ namespace CoachMaster.Career
                         if (bits.Length > 1)
                             career.Notebook.Add(Un(bits[1]));
                         break;
+                    case "online":
+                        if (raw.Length > 7)
+                            career.Online = CareerOnline.Parse(raw.Substring(7));
+                        break;
+                    case "seattactic":
+                        if (bits.Length > 9 && career.World != null && career.World.Clubs.TryGetValue(bits[1], out var seatTacticClub) && seatTacticClub.Tactics != null)
+                        {
+                            var seatTactics = seatTacticClub.Tactics;
+                            seatTactics.Formation = Un(bits[2]);
+                            seatTactics.Pressing = Un(bits[3]);
+                            seatTactics.BuildUp = Un(bits[4]);
+                            seatTactics.FullBacks = Un(bits[5]);
+                            seatTactics.DefensiveLine = Un(bits[6]);
+                            seatTactics.Width = Un(bits[7]);
+                            seatTactics.Tempo = Un(bits[8]);
+                            seatTactics.PassingStyle = Un(bits[9]);
+                            if (bits.Length > 10)
+                                seatTactics.AttackIdea = Un(bits[10]);
+                            if (bits.Length > 11)
+                                seatTactics.Marking = Un(bits[11]);
+                            seatTactics.Summary = seatTactics.Formation + " · " + seatTactics.Pressing + " · " + seatTactics.BuildUp;
+                        }
+                        break;
+                    case "seatlineup":
+                        if (bits.Length > 1 && career.World != null && career.World.Clubs.TryGetValue(bits[1], out var seatLineupClub))
+                        {
+                            seatLineupClub.ManualLineup.Clear();
+                            if (bits.Length > 2 && !string.IsNullOrEmpty(bits[2]))
+                                seatLineupClub.ManualLineup.AddRange(bits[2].Split(','));
+                        }
+                        break;
+                    case "seatbench":
+                        if (bits.Length > 1 && career.World != null && career.World.Clubs.TryGetValue(bits[1], out var seatBenchClub))
+                        {
+                            seatBenchClub.ManualBenchOrder.Clear();
+                            if (bits.Length > 2 && !string.IsNullOrEmpty(bits[2]))
+                                seatBenchClub.ManualBenchOrder.AddRange(bits[2].Split(','));
+                        }
+                        break;
+                    case "seatroles":
+                        if (bits.Length > 4 && career.World != null && career.World.Clubs.TryGetValue(bits[1], out var seatRoleClub))
+                        {
+                            seatRoleClub.PenaltyTakerId = bits[2];
+                            seatRoleClub.CornerTakerId = bits[3];
+                            seatRoleClub.FreeKickTakerId = bits[4];
+                        }
+                        break;
                     case "listed":
                         career.Listed.Clear();
                         AddIds(career.Listed, bits);
@@ -845,6 +943,8 @@ namespace CoachMaster.Career
                     WorldCatalog.EnsureThreeColors(club);
                 }
             }
+            ModFolder.Apply(career);
+            CareerOnline.BindMachine(career);
             if (career.LastAutoSaveDateTicks <= 0)
                 career.LastAutoSaveDateTicks = career.Calendar.CurrentDate.Ticks;
             if (!hasCareerProgress && ticks > 0)

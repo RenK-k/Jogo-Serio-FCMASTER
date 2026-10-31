@@ -129,6 +129,8 @@ namespace CoachMaster.Career
                     continue;
                 if (fixture.Involves(career.Coach.ClubId) && fixture.Date.Date == upTo.Date)
                     continue;
+                if (CareerOnline.OtherHuman(career, fixture))
+                    continue;
 
                 if (fixture.Walkover || !career.World.Clubs.ContainsKey(fixture.HomeClubId) || !career.World.Clubs.ContainsKey(fixture.AwayClubId))
                     continue;
@@ -300,7 +302,7 @@ namespace CoachMaster.Career
         {
             foreach (var fixture in career.Fixtures)
             {
-                if (!fixture.Played && !fixture.Walkover && fixture.Involves(career.Coach.ClubId))
+                if (!fixture.Played && !fixture.Walkover && (fixture.Involves(career.Coach.ClubId) || CareerOnline.OtherHuman(career, fixture)))
                     return true;
             }
 

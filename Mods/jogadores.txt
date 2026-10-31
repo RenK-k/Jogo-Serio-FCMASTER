@@ -1,0 +1,1 @@
+# Nome|Posicao|Idade|Nacionalidade|Velocidade|Resistencia|Forca|Passe|Finalizacao|Drible|Desarme|Cruzamento|Posicionamento|Frieza|Entrega|Decisao

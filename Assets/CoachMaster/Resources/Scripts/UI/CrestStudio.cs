@@ -19,6 +19,9 @@ namespace CoachMaster.UI
                 return Fallback;
             }
             WorldCatalog.PaintClub(club);
+            var modCrest = ModFolder.Crest(club.Name);
+            if (modCrest != null)
+                return modCrest;
             var crestPath = WorldCatalog.CrestPath(club.Name);
             if (!string.IsNullOrEmpty(crestPath))
             {

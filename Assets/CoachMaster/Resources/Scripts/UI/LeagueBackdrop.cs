@@ -56,6 +56,61 @@ namespace CoachMaster.UI
             return string.IsNullOrEmpty(clubLeagueId) ? "league:atlas" : clubLeagueId;
         }
 
+        public static void PaintPrincipal(Transform root)
+        {
+            if (root == null)
+                return;
+            var sprite = Principal();
+            if (sprite == null)
+                return;
+            var imageTransform = root.Find("PrincipalArt");
+            var image = imageTransform == null ? null : imageTransform.GetComponent<Image>();
+            if (image == null)
+            {
+                image = BroadcastUi.Solid(root, "PrincipalArt", Color.white, false);
+                BroadcastUi.Stretch(image.rectTransform);
+                image.transform.SetSiblingIndex(BackgroundLayerIndex(root));
+            }
+            image.sprite = sprite;
+            image.color = Color.white;
+            image.preserveAspect = false;
+            image.type = Image.Type.Simple;
+            image.raycastTarget = false;
+            if (sprite.texture != null)
+                sprite.texture.filterMode = FilterMode.Bilinear;
+
+            var shadeTransform = root.Find("PrincipalShade");
+            var shade = shadeTransform == null ? null : shadeTransform.GetComponent<Image>();
+            if (shade == null)
+            {
+                shade = BroadcastUi.Solid(root, "PrincipalShade", new Color(0.01f, 0.08f, 0.16f, 0.18f), false);
+                BroadcastUi.Stretch(shade.rectTransform);
+            }
+            shade.color = new Color(0.01f, 0.08f, 0.16f, 0.18f);
+            shade.raycastTarget = false;
+            shade.transform.SetSiblingIndex(image.transform.GetSiblingIndex() + 1);
+        }
+
+        static Sprite Principal()
+        {
+            if (Cache.TryGetValue("principal", out var cached))
+                return cached;
+            var all = Resources.LoadAll<Sprite>("Ligas/fundo principal");
+            Sprite best = null;
+            if (all != null)
+            {
+                for (var i = 0; i < all.Length; i++)
+                {
+                    if (all[i] != null && (best == null || all[i].rect.width * all[i].rect.height > best.rect.width * best.rect.height))
+                        best = all[i];
+                }
+            }
+            if (best == null)
+                best = Resources.Load<Sprite>("Ligas/fundo principal");
+            Cache["principal"] = best;
+            return best;
+        }
+
         public static void Paint(Transform root, string leagueId)
         {
             if (root == null)

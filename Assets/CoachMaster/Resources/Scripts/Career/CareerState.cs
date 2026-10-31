@@ -7,6 +7,7 @@ namespace CoachMaster.Career
     {
         public WorldState World { get; set; }
         public Coach Coach { get; set; }
+        public CareerOnline Online { get; set; }
         public GameCalendar Calendar { get; set; }
         public CoachKnowledge Knowledge { get; set; }
         public List<Fixture> Fixtures { get; } = new List<Fixture>();

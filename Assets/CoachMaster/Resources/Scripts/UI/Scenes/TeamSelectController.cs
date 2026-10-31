@@ -48,6 +48,7 @@ namespace CoachMaster.UI.Scenes
 
         void BindClubs(Transform root, GameSession session)
         {
+            LeagueBackdrop.PaintPrincipal(root);
             SceneBind.Wire(root.Find("Header/Back"), () => GameRoot.Instance.Open(SceneNames.LeagueSelect));
             var wordmark = root.Find("Wordmark/League")?.GetComponent<Text>();
             if (wordmark != null)
@@ -116,6 +117,7 @@ namespace CoachMaster.UI.Scenes
         {
             var root = bake ? BroadcastUi.CreateDesign(transform) : BroadcastUi.Mount(this);
             BroadcastUi.Backdrop(root);
+            LeagueBackdrop.PaintPrincipal(root);
             var league = LeagueName(session);
             BroadcastUi.Wordmark(root, league);
             var subtitle = LocalizationManager.Current == GameLanguage.English

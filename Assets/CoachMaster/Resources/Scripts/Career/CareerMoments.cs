@@ -92,7 +92,7 @@ namespace CoachMaster.Career
             }
             foreach (var fixture in career.Fixtures)
                 if (fixture != null && !fixture.Played && !fixture.Walkover
-                    && fixture.Involves(career.Coach.ClubId) && fixture.Date.Date == day)
+                    && (fixture.Involves(career.Coach.ClubId) || CareerOnline.OtherHuman(career, fixture)) && fixture.Date.Date == day)
                     return false;
             return true;
         }

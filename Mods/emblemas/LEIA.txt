@@ -1,0 +1,1 @@
+Põe aqui o emblema do clube. O ficheiro chama-se exatamente como o nome do clube no jogo, em PNG ou JPG.

@@ -29,6 +29,7 @@ namespace CoachMaster.UI.Scenes
 
         void BindLeagues(Transform root, GameSession session)
         {
+            LeagueBackdrop.PaintPrincipal(root);
             SceneBind.Wire(root.Find("Header/Back"), () => GameRoot.Instance.Open(SceneNames.MainMenu));
             var content = root.Find("Leagues/Content");
             if (content == null)
@@ -77,6 +78,7 @@ namespace CoachMaster.UI.Scenes
         {
             var root = bake ? BroadcastUi.CreateDesign(transform) : BroadcastUi.Mount(this);
             BroadcastUi.Backdrop(root);
+            LeagueBackdrop.PaintPrincipal(root);
             BroadcastUi.Wordmark(root, LocalizationManager.Translate("Escolha a liga"));
             Header(root, "LIGAS", LocalizationManager.Current == GameLanguage.English
                 ? "12 competitions · 7 countries · 244 clubs"

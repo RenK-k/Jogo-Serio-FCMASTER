@@ -2813,6 +2813,8 @@ namespace CoachMaster.UI.Scenes
             SeasonBook.CreditLive(career, _match);
             SeasonBook.ReconcileCurrentSeason(career);
             CareerStore.Save(career);
+            if (career.Online != null && career.Online.Active && LanRoom.Connected)
+                LanRoom.PendingShare = true;
             GameRoot.Instance.LiveMatch = null;
             GameRoot.Instance.Open(SceneNames.CareerHub);
         }

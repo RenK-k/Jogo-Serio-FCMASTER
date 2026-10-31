@@ -1,0 +1,2 @@
+# Alvo|Nome|Sigla|Cidade|Estadio|Ano|Reputacao|Cor1|Cor2|Cor3
+# Porto FC|Porto FC|PFC|Porto|Estádio do Dragão Azul|1894|90|#0033A0|#FFFFFF|#A7C6ED

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using CoachMaster.Data;
 using CoachMaster.Domain;
 using UnityEngine;
 
@@ -365,6 +366,9 @@ namespace CoachMaster.UI
         {
             if (player == null)
                 return null;
+            var custom = ModFolder.Portrait(player.FullName);
+            if (custom != null)
+                return custom;
             if (ByPlayer.TryGetValue(player.Id, out var cached) && cached != null)
                 return cached;
 

@@ -49,6 +49,7 @@ namespace CoachMaster.UI.Scenes
 
         void BindName(Transform root, GameSession session, Club club)
         {
+            LeagueBackdrop.PaintPrincipal(root);
             SceneBind.Wire(root.Find("Header/Back"), () => GameRoot.Instance.Open(SceneNames.ClubInfo));
             var title = SceneBind.Get<Text>(root, "Card/Club");
             if (title != null)
@@ -89,6 +90,7 @@ namespace CoachMaster.UI.Scenes
         {
             var root = bake ? BroadcastUi.CreateDesign(transform) : BroadcastUi.Mount(this);
             BroadcastUi.Backdrop(root);
+            LeagueBackdrop.PaintPrincipal(root);
             BroadcastUi.Wordmark(root, "Novo treinador");
             LeagueSelectController.Header(root, "O TEU NOME", "Vais assumir o " + club.Name + ".", () => GameRoot.Instance.Open(SceneNames.ClubInfo));
 

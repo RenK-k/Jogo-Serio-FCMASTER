@@ -344,6 +344,7 @@ namespace CoachMaster.App
             Career.RefereeStrictness = SettingsPrefs.DefaultRefereeStrictness;
             Career.RealismPreset = SettingsPrefs.DefaultRealismPreset;
             Career.LastAutoSaveDateTicks = Career.Calendar.CurrentDate.Ticks;
+            Data.ModFolder.Apply(Career);
         }
 
         public void Restore(CareerState career)
