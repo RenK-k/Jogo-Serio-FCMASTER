@@ -11,12 +11,14 @@ namespace CoachMaster.UI
         static Sprite _round;
         static Sprite _circle;
         static Sprite _ring;
+        static Texture2D _sandGrain;
         static Texture2D _brandTexture;
         static Material _logoMaterial;
 
         public static Sprite Round => _round != null ? _round : (_round = MakeRound());
         public static Sprite Circle => _circle != null ? _circle : (_circle = MakeDisc(false));
         public static Sprite Ring => _ring != null ? _ring : (_ring = MakeDisc(true));
+        public static Texture2D SandGrain => _sandGrain != null ? _sandGrain : (_sandGrain = MakeSandGrain());
         public static Texture2D BrandTexture => _brandTexture != null ? _brandTexture : (_brandTexture = Resources.Load<Texture2D>("fCMASTER"));
 
         public static void ApplyBrand(RawImage image)
@@ -48,6 +50,66 @@ namespace CoachMaster.UI
             }
 
             image.rectTransform.sizeDelta = new Vector2(width, height);
+        }
+
+        public static void ApplySandPaper(Image surface, float grainAmount = 0.12f)
+        {
+            if (surface == null)
+                return;
+            var baseColor = surface.color;
+            baseColor.a = 1f;
+            surface.color = baseColor;
+
+            var mask = surface.GetComponent<Mask>();
+            if (mask == null)
+                mask = surface.gameObject.AddComponent<Mask>();
+            mask.showMaskGraphic = true;
+
+            var existing = surface.transform.Find("SandPaperGrain");
+            RawImage grain;
+            if (existing == null)
+            {
+                var go = new GameObject("SandPaperGrain", typeof(RectTransform), typeof(RawImage));
+                go.transform.SetParent(surface.transform, false);
+                grain = go.GetComponent<RawImage>();
+            }
+            else
+                grain = existing.GetComponent<RawImage>();
+            if (grain == null)
+                return;
+
+            Stretch(grain.rectTransform);
+            grain.texture = SandGrain;
+            grain.texture.wrapMode = TextureWrapMode.Repeat;
+            var rect = surface.rectTransform.rect;
+            var width = Mathf.Max(640f, rect.width);
+            var height = Mathf.Max(360f, rect.height);
+            grain.uvRect = new Rect(0f, 0f, width / 96f, height / 96f);
+            // Keep the paper grain in the same cool, dark palette as the surface.
+            // The former cream overlay made every textured card look dusty and high contrast.
+            grain.color = new Color(0.16f, 0.22f, 0.34f, Mathf.Clamp(grainAmount, 0f, 0.16f));
+            grain.raycastTarget = false;
+            grain.transform.SetAsFirstSibling();
+        }
+
+        static Texture2D MakeSandGrain()
+        {
+            const int size = 96;
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            texture.name = "CoachMaster Sand Grain";
+            texture.wrapMode = TextureWrapMode.Repeat;
+            texture.filterMode = FilterMode.Point;
+            texture.hideFlags = HideFlags.HideAndDontSave;
+            var pixels = new Color[size * size];
+            var random = new System.Random(74291);
+            for (var i = 0; i < pixels.Length; i++)
+            {
+                var fine = 0.72f + (float)random.NextDouble() * 0.28f;
+                pixels[i] = new Color(fine, fine, fine, 1f);
+            }
+            texture.SetPixels(pixels);
+            texture.Apply(false, false);
+            return texture;
         }
 
         static Material LogoMaterial()

@@ -17,7 +17,7 @@ namespace CoachMaster.UI
     {
         static readonly string[] Categories =
         {
-            "Ecrã e gráficos", "Jogabilidade", "Dia de jogo", "Notificações", "Som", "Realismo", "Carreira e saves", "Acessibilidade", "Avançadas"
+            "Ecrã e gráficos", "Jogabilidade", "Dia de jogo", "Notificações", "Som", "Realismo", "Carreira e saves", "Acessibilidade"
         };
 
         static readonly string[] PageNotes =
@@ -29,8 +29,7 @@ namespace CoachMaster.UI
             "Volumes separados; usa esquerda/direita no comando para ajustar.",
             "Ajustes da simulação guardados dentro da carreira.",
             "O jogo guarda cada carreira neste computador. O gestor abre o último save manual ou o automático.",
-            "Escala do interface, movimento e idioma.",
-            "O que a simulação ainda não inclui."
+            "Escala do interface, movimento e idioma."
         };
 
         GameObject _root;
@@ -154,7 +153,6 @@ namespace CoachMaster.UI
             BuildRealismPage(content.transform);
             BuildCareerPage(content.transform);
             BuildAccessibilityPage(content.transform);
-            BuildAdvancedPage(content.transform);
 
             _feedback = BroadcastUi.Label(card.transform, "SettingsFeedback", "", 12, UiTheme.Muted, TextAnchor.MiddleLeft);
             BroadcastUi.Place(_feedback.rectTransform, 0.27f, 0.105f, 0.95f, 0.145f);
@@ -402,12 +400,6 @@ namespace CoachMaster.UI
                 english ? "Confirm before skipping a day" : "Confirmar antes de saltar o dia",
                 english ? "Restore the confirmation prompt after choosing not to show it again." : "Volta a mostrar a confirmação se escolheste não a voltar a mostrar.",
                 () => OnOff(SettingsPrefs.SkipDayConfirmation), () => SettingsPrefs.SkipDayConfirmation = !SettingsPrefs.SkipDayConfirmation, 0.37f);
-        }
-
-        void BuildAdvancedPage(Transform parent)
-        {
-            var page = Page(parent, 8, "AVANÇADAS");
-            AddText(page.transform, "SupportedAdvanced", "Lesões, rigor disciplinar e o preset de realismo estão na página Realismo. O jogo ainda não tem transferências automáticas de clubes, despedimentos de treinadores, conferências de imprensa ou mods, por isso não há aqui controlos sem efeito.", 15, UiTheme.Muted, 0.2f, 0.6f);
         }
 
         GameObject Page(Transform parent, int index, string heading)

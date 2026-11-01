@@ -33,6 +33,40 @@ namespace CoachMaster.UI
             { "Notificações", "Notifications" }, { "Som", "Sound" }, { "Som e música", "Sound & music" },
             { "Realismo", "Realism" }, { "Simulação e realismo", "Simulation & realism" }, { "Carreira e saves", "Career & saves" },
             { "Acessibilidade", "Accessibility" }, { "Avançadas", "Advanced" },
+            { "O dragão do norte. Clube grande, europeu, com o peso de quem discute o título todos os anos.", "The northern dragon. A major European club expected to challenge for the title every year." },
+            { "Gigante do norte. O título é a medida.", "A northern giant. The title is the benchmark." },
+            { "O leão de Lisboa. Casa de formação, verde e dourado, e um dos três grandes do país.", "The Lisbon lion. A green and gold home for youth development, and one of the country's big three." },
+            { "Grande de Lisboa. A formação é a identidade e o título é a exigência.", "A Lisbon giant. Youth development is its identity; winning the title is the expectation." },
+            { "A fénix de Vila do Conde. Clube da primeira divisão, sem o cofre dos três grandes, mas difícil de ignorar em casa.", "The Vila do Conde phoenix. A top-flight club without the big three's resources, but a force at home." },
+            { "Clube estabelecido da primeira. A manutenção com ambição chega.", "An established top-flight club. Staying up while showing ambition is enough." },
+            { "A águia de Lisboa. O clube com mais peso do país, vermelho e branco, habituado a medir a época pelo título.", "The Lisbon eagle. One of the country's biggest clubs, in red and white, measuring each season by the title." },
+            { "O maior clube de Portugal. O título é obrigação.", "Portugal's biggest club. Winning the title is a requirement." },
+            { "Clube de interior com uma identidade defensiva muito marcada. Ganha poucos jogos por goleada e sofre ainda menos.", "An inland club with a strong defensive identity. It rarely wins by a large margin and concedes even less." },
+            { "Organizado, difícil de bater, por vezes acusado de ser demasiado conservador.", "Organised and hard to beat, sometimes accused of being too cautious." },
+            { "Clube ligado à universidade da cidade. Vive da formação e de um estilo associado à inteligência tática.", "A club linked to the city's university. It relies on youth development and tactical intelligence." },
+            { "Respeitado pela formação, com menos peso mediático do que os rivais da costa.", "Respected for its academy, with less media attention than its coastal rivals." },
+            { "Clube urbano, de bairro, com um público barulhento. Oscila entre épocas ambiciosas e crises internas.", "A neighbourhood club with a loud following. It swings between ambitious seasons and internal crises." },
+            { "Imprevisível. Capaz do melhor e do pior na mesma época.", "Unpredictable. Capable of its best and worst in the same season." },
+            { "Fundado por trabalhadores da linha férrea. Mantém uma identidade operária e um estilo baseado no coletivo.", "Founded by railway workers. It keeps its working-class identity and team-first style." },
+            { "Clube sólido, pouco mediático, difícil de quebrar.", "A solid, low-profile club that is difficult to break down." },
+            { "Clube de montanha, recém-chegado ao primeiro plano da segunda liga. Cresceu com uma direção ambiciosa e um público fiel.", "A mountain club newly arrived in the second tier, built by an ambitious board and loyal supporters." },
+            { "Promovido com mérito, ainda a adaptar-se ao rigor da Liga Portugal 2.", "Deservedly promoted and still adapting to the demands of Liga Portugal 2." },
+            { "Clube portuário, físico e orgulhoso. Costuma ser candidato à subida e raramente aceita épocas cinzentas.", "A proud, physical port club. Usually a promotion contender, it rarely accepts a quiet season." },
+            { "Candidato natural à Liga Portugal, com pressão alta da massa adepta.", "A natural Liga Portugal contender under intense supporter pressure." },
+            { "Clube relativamente novo, com uma identidade ofensiva e uma direção que gosta de ser vista. Vive de picos de entusiasmo.", "A relatively new club with an attacking identity and a board that enjoys the spotlight. It thrives on bursts of enthusiasm." },
+            { "Atraente para ver, irregular para confiar.", "Exciting to watch, hard to rely on." },
+            { "Clube de uma vila ribeirinha, conhecido por formar laterais e médios. A subida não é obsessão, mas a dignidade é.", "A riverside club known for developing full-backs and midfielders. Promotion is not an obsession, but pride matters." },
+            { "Sério, paciente, pouco dado a protagonismos.", "Serious, patient and rarely interested in the spotlight." },
+            { "Clube de altitude, habituado ao frio e a jogos rijos. A casa vale por muitos pontos.", "A high-altitude club used to cold weather and tough matches. Home advantage is worth plenty." },
+            { "Difícil em casa, limitado fora. Respeitado pelo caráter.", "Hard to beat at home, limited away, and respected for its character." },
+            { "Clube independente, fundado por sócios que se recusaram a fundir com o vizinho. Vive dessa memória e de um orgulho teimoso.", "An independent club founded by members who refused to merge with a neighbour. Its history and stubborn pride still define it." },
+            { "Pequeno, orgulhoso, difícil de convencer a mudar.", "Small, proud and difficult to persuade." },
+            { "A direção procura treinador depois de uma sequência de resultados abaixo das expectativas.", "The board is looking for a manager after a run of results below expectations." },
+            { "O treinador foi despedido após a equipa ficar abaixo dos objetivos definidos para a época.", "The manager was dismissed after the team fell short of its season targets." },
+            { "Treinador despedido após maus resultados", "Manager dismissed after poor results" },
+            { "A direção decidiu mudar de treinador depois de a equipa ficar abaixo das metas da época. O clube prepara agora a sucessão.", "The board changed managers after the team fell short of its season targets. The club is now preparing a successor." },
+            { "Novo treinador assume o cargo", "New manager takes charge" },
+            { "O clube confirmou a contratação de um novo treinador depois de concluir o processo de escolha.", "The club confirmed its new manager after completing the selection process." },
             { "SOM E MÚSICA", "SOUND & MUSIC" }, { "SIMULAÇÃO E REALISMO", "SIMULATION & REALISM" },
             { "Imagem, desempenho e escala dos menus.", "Image, performance and menu scaling." },
             { "Controlos que alteram a preparação e o ritmo da partida.", "Controls for match preparation and pace." },
@@ -944,6 +978,63 @@ namespace CoachMaster.UI
 
         static string TranslateGenerated(string source)
         {
+            const string oneTwoPrefix = "Tabela entre ";
+            if (source.StartsWith(oneTwoPrefix, StringComparison.Ordinal) && source.EndsWith(".", StringComparison.Ordinal))
+            {
+                var pair = source.Substring(oneTwoPrefix.Length, source.Length - oneTwoPrefix.Length - 1);
+                var separator = pair.LastIndexOf(" e ", StringComparison.Ordinal);
+                if (separator > 0)
+                    return "One-two between " + pair.Substring(0, separator) + " and " + pair.Substring(separator + 3) + ".";
+            }
+            const string wingRunSuffix = " acelera pela ala.";
+            if (source.EndsWith(wingRunSuffix, StringComparison.Ordinal))
+                return source.Substring(0, source.Length - wingRunSuffix.Length) + " bursts down the wing.";
+            const string wingSpaceSuffix = " arranca pela ala com espaço.";
+            if (source.EndsWith(wingSpaceSuffix, StringComparison.Ordinal))
+                return source.Substring(0, source.Length - wingSpaceSuffix.Length) + " sprints into space down the wing.";
+            const string crossRunSuffix = " corre para a linha de cruzamento.";
+            if (source.EndsWith(crossRunSuffix, StringComparison.Ordinal))
+                return source.Substring(0, source.Length - crossRunSuffix.Length) + " runs to the byline to cross.";
+            const string crossLineSuffix = " corre a linha.";
+            if (source.EndsWith(crossLineSuffix, StringComparison.Ordinal))
+                return source.Substring(0, source.Length - crossLineSuffix.Length) + " runs down the line.";
+            if (source == "Troca de posições em campo.") return "The players have swapped positions on the pitch.";
+            if (source == "Já não há substituições.") return "No substitutions remain.";
+            if (source == "Substituição pronta. Entra na próxima paragem.") return "Substitution queued for the next stoppage.";
+            if (source == "O jogador expulso não pode ser substituído.") return "The sent-off player cannot be replaced.";
+            if (source == "Intervalo. O plantel espera a tua conversa.") return "Half-time. The squad is waiting for your team talk.";
+
+            const string injuryPrefix = " está lesionado e não pode entrar.";
+            if (source.EndsWith(injuryPrefix, StringComparison.Ordinal))
+                return source.Substring(0, source.Length - injuryPrefix.Length) + " is injured and cannot come on.";
+            const string keeperCrossSuffix = " sai da baliza e agarra o cruzamento.";
+            if (source.EndsWith(keeperCrossSuffix, StringComparison.Ordinal))
+                return source.Substring(0, source.Length - keeperCrossSuffix.Length) + " comes off the line and claims the cross.";
+            const string injuryNoteSuffix = " fica no chão após o choque. Lesão muscular.";
+            if (source.EndsWith(injuryNoteSuffix, StringComparison.Ordinal))
+                return source.Substring(0, source.Length - injuryNoteSuffix.Length) + " stays down after the collision. Muscle injury.";
+            const string soloGoalSuffix = " tenta o golo em solitário.";
+            if (source.EndsWith(soloGoalSuffix, StringComparison.Ordinal))
+                return source.Substring(0, source.Length - soloGoalSuffix.Length) + " tries to go through on goal alone.";
+            const string carriesNoteSuffix = " conduz.";
+            if (source.EndsWith(carriesNoteSuffix, StringComparison.Ordinal))
+                return source.Substring(0, source.Length - carriesNoteSuffix.Length) + " carries the ball.";
+            const string runsForCrossSuffix = " ataca a linha para cruzar.";
+            if (source.EndsWith(runsForCrossSuffix, StringComparison.Ordinal))
+                return source.Substring(0, source.Length - runsForCrossSuffix.Length) + " attacks the byline to cross.";
+            const string crossingOutSuffix = " sai pela linha.";
+            if (source.EndsWith(crossingOutSuffix, StringComparison.Ordinal)
+                && (source.StartsWith("Canto de ", StringComparison.Ordinal) || source.StartsWith("Cruzamento de ", StringComparison.Ordinal)))
+                return source.StartsWith("Canto de ", StringComparison.Ordinal) ? TranslateCrossing(source, "Canto de ", "Corner by ") : TranslateCrossing(source, "Cruzamento de ", "Cross by ");
+            const string crossingEmptySuffix = " não encontra ninguém.";
+            if (source.EndsWith(crossingEmptySuffix, StringComparison.Ordinal)
+                && (source.StartsWith("Canto de ", StringComparison.Ordinal) || source.StartsWith("Cruzamento de ", StringComparison.Ordinal)))
+                return source.StartsWith("Canto de ", StringComparison.Ordinal) ? TranslateCrossing(source, "Canto de ", "Corner by ") : TranslateCrossing(source, "Cruzamento de ", "Cross by ");
+            const string crossingClearSuffix = " é afastado.";
+            if (source.EndsWith(crossingClearSuffix, StringComparison.Ordinal)
+                && (source.StartsWith("Canto de ", StringComparison.Ordinal) || source.StartsWith("Cruzamento de ", StringComparison.Ordinal)))
+                return source.StartsWith("Canto de ", StringComparison.Ordinal) ? TranslateCrossing(source, "Canto de ", "Corner by ") : TranslateCrossing(source, "Cruzamento de ", "Cross by ");
+
             var stadiumPrefix = source.StartsWith("Estádio das ", StringComparison.Ordinal) ? "Estádio das "
                 : source.StartsWith("Estádio dos ", StringComparison.Ordinal) ? "Estádio dos "
                 : source.StartsWith("Estádio de ", StringComparison.Ordinal) ? "Estádio de "

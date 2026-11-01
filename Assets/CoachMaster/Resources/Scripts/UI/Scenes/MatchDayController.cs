@@ -70,6 +70,8 @@ namespace CoachMaster.UI.Scenes
         GameObject _footer;
             Text _pauseBody;
             Text _fullResult;
+        Image _fullHomeCrest;
+        Image _fullAwayCrest;
         Text _flash;
         Image _eventFace;
         Image _eventCrest;
@@ -145,8 +147,6 @@ namespace CoachMaster.UI.Scenes
             }
 
             _career = GameRoot.Instance.Session.Career;
-            SettingsPrefs.MatchSpeedIndex = 2;
-            SettingsPrefs.Commit();
             _speed = SettingsPrefs.MatchSpeed;
             _engine = new MatchEngine(_match,
                 _career != null && _career.Coach != null ? _career.Coach.ClubId : null,
@@ -248,7 +248,7 @@ namespace CoachMaster.UI.Scenes
                     RefreshHud();
                     return;
                 }
-                _fullResult.text = _match.Home.ShortName + "   " + _match.HomeGoals + "  -  " + _match.AwayGoals + "   " + _match.Away.ShortName;
+                RefreshFullTimeResult();
                 RefreshHud();
                 return;
             }
@@ -420,6 +420,7 @@ namespace CoachMaster.UI.Scenes
             if (_speedLabel != null)
                 _speedLabel.text = MatchSpeedText();
             _pause = root.Find("PausePanel").gameObject;
+            ApplyPopupTexture(root.Find("PausePanel/Card"));
             _pauseBody = SceneBind.Get<Text>(root, "PausePanel/Card/Tactics");
             TidyPause();
             SceneBind.Wire(root.Find("PausePanel/Dim"), ResumeMatch);
@@ -429,6 +430,7 @@ namespace CoachMaster.UI.Scenes
             EnsurePopupClose(root.Find("PausePanel/Card"), "ClosePause", ResumeMatch);
             EnsureSkipMatchButton(root);
             _tactics = root.Find("TacticsPanel").gameObject;
+            ApplyPopupTexture(root.Find("TacticsPanel/Card"));
             _tacticNote = SceneBind.Get<Text>(root, "TacticsPanel/Card/Note");
             _roleHost = root.Find("TacticsPanel/Card/RoleList") as RectTransform;
             EnsureLiveTactics();
@@ -448,6 +450,7 @@ namespace CoachMaster.UI.Scenes
             }
 
             _shape = root.Find("Shape").gameObject;
+            ApplyPopupTexture(root.Find("Shape/Card"));
             _shapeHost = root.Find("Shape/Card/Players") as RectTransform;
             EnsurePopupClose(root.Find("Shape/Card"), "CloseShape", () =>
             {
@@ -469,21 +472,35 @@ namespace CoachMaster.UI.Scenes
             }
 
             _halfTime = root.Find("HalfTime").gameObject;
+            ApplyPopupTexture(root.Find("HalfTime/Card"));
             _locker = root.Find("HalfTime/Card/Voices") as RectTransform;
             SceneBind.Wire(root.Find("HalfTime/Card/LeaveAssistant"), LeaveToAssistant);
             SceneBind.Wire(root.Find("HalfTime/Card/HalfSubs"), () => OpenSubs(true));
             EnsureHalfTalkUi(root.Find("HalfTime/Card"));
             EnsureHalfTimeAnalysisAction(root.Find("HalfTime/Card"));
             _fullTime = root.Find("FullTime").gameObject;
+            var fullCard = root.Find("FullTime/Card");
+            ApplyPopupTexture(fullCard);
             _fullResult = SceneBind.Get<Text>(root, "FullTime/Card/Result");
+            EnsureFullTimeCrests(fullCard);
+            RefreshFullTimeResult();
+            var fullTitleNode = fullCard == null ? null : fullCard.Find("Title");
+            var fullTitle = fullTitleNode == null ? null : fullTitleNode.GetComponent<Text>();
+            if (fullTitle != null)
+                fullTitle.text = LocalizationManager.Current == GameLanguage.English ? "FULL-TIME" : "FIM DE JOGO";
             EnsurePopupClose(root.Find("FullTime/Card"), "CloseFullTime", FinishMatch);
             SceneBind.Wire(root.Find("FullTime/Card/Continue"), FinishMatch);
             EnsureFullTimeAnalysisAction(root.Find("FullTime/Card"));
+            var continueNode = root.Find("FullTime/Card/Continue");
+            var continueLabel = continueNode == null ? null : continueNode.GetComponentInChildren<Text>();
+            if (continueLabel != null)
+                continueLabel.text = LocalizationManager.Current == GameLanguage.English ? "CONTINUE" : "CONTINUAR";
             _subsMenu = root.Find("SubsMenu").gameObject;
             _subStatus = SceneBind.Get<Text>(root, "SubsMenu/Card/Status");
             _subPitch = root.Find("SubsMenu/Card/Pitch") as RectTransform;
             _subBench = root.Find("SubsMenu/Card/Bench") as RectTransform;
             var subCard = root.Find("SubsMenu/Card");
+            ApplyPopupTexture(subCard);
             var pitchBg = subCard == null ? null : subCard.Find("PitchBg") as RectTransform;
             if (pitchBg != null)
             {
@@ -699,7 +716,7 @@ namespace CoachMaster.UI.Scenes
             {
                 _fullTime.SetActive(true);
                 _footer.SetActive(false);
-                _fullResult.text = _match.Home.ShortName + "   " + _match.HomeGoals + "  -  " + _match.AwayGoals + "   " + _match.Away.ShortName;
+                RefreshFullTimeResult();
             }
             RefreshHud();
         }
@@ -1902,6 +1919,53 @@ namespace CoachMaster.UI.Scenes
                 BroadcastUi.Place(next as RectTransform, 0.28f, 0.08f, 0.72f, 0.2f);
         }
 
+        void EnsureFullTimeCrests(Transform card)
+        {
+            if (card == null)
+                return;
+            _fullHomeCrest = FullTimeCrest(card, "HomeCrest", 0.08f, 0.43f, 0.2f, 0.67f);
+            _fullAwayCrest = FullTimeCrest(card, "AwayCrest", 0.8f, 0.43f, 0.92f, 0.67f);
+            _fullHomeCrest.sprite = CrestStudio.For(_match.Home);
+            _fullAwayCrest.sprite = CrestStudio.For(_match.Away);
+            if (_fullResult != null)
+                BroadcastUi.Place(_fullResult.rectTransform, 0.2f, 0.4f, 0.8f, 0.7f);
+            RefreshFullTimeResult();
+        }
+
+        static Image FullTimeCrest(Transform card, string name, float x0, float y0, float x1, float y1)
+        {
+            var existing = card.Find(name);
+            Image image;
+            if (existing == null)
+                image = BroadcastUi.Solid(card, name, Color.white, false);
+            else
+            {
+                image = existing.GetComponent<Image>();
+                if (image == null)
+                    image = existing.gameObject.AddComponent<Image>();
+            }
+            BroadcastUi.Place(image.rectTransform, x0, y0, x1, y1);
+            image.preserveAspect = true;
+            image.raycastTarget = false;
+            image.color = Color.white;
+            return image;
+        }
+
+        void RefreshFullTimeResult()
+        {
+            if (_match == null)
+                return;
+            if (_fullResult != null)
+            {
+                _fullResult.text = _match.Home.ShortName + "   " + _match.HomeGoals + "  -  " + _match.AwayGoals + "   " + _match.Away.ShortName;
+                _fullResult.alignment = TextAnchor.MiddleCenter;
+                _fullResult.resizeTextForBestFit = true;
+                _fullResult.resizeTextMinSize = 24;
+                _fullResult.resizeTextMaxSize = 38;
+                _fullResult.horizontalOverflow = HorizontalWrapMode.Wrap;
+            }
+        }
+
         void FillLocker()
         {
             if (_locker == null || _match == null)
@@ -2344,13 +2408,15 @@ namespace CoachMaster.UI.Scenes
         void BuildFull(Transform root)
         {
             _fullTime = Modal(root, "FullTime", out var card);
-            var title = BroadcastUi.Label(card, "Title", "FIM DE JOGO", 28, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var title = BroadcastUi.Label(card, "Title", english ? "FULL-TIME" : "FIM DE JOGO", 28, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
             BroadcastUi.Place(title.rectTransform, 0.08f, 0.72f, 0.92f, 0.9f);
             _fullResult = BroadcastUi.Label(card, "Result", "", 32, UiTheme.Score, TextAnchor.MiddleCenter, FontStyle.Bold);
             BroadcastUi.Place(_fullResult.rectTransform, 0.08f, 0.4f, 0.92f, 0.7f);
+            EnsureFullTimeCrests(card);
             var analysis = BroadcastUi.Button(card, "Analysis", LocalizationManager.Current == GameLanguage.English ? "MATCH ANALYSIS" : "ANÁLISE DO JOGO", OpenFullTimeAnalysis, new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 14);
             BroadcastUi.Place(analysis.GetComponent<RectTransform>(), 0.28f, 0.22f, 0.72f, 0.34f);
-            var next = BroadcastUi.Button(card, "Continue", "CONTINUAR", FinishMatch, UiTheme.Accent, UiTheme.ButtonText, 20);
+            var next = BroadcastUi.Button(card, "Continue", english ? "CONTINUE" : "CONTINUAR", FinishMatch, UiTheme.Accent, UiTheme.ButtonText, 20);
             BroadcastUi.Place(next.GetComponent<RectTransform>(), 0.28f, 0.08f, 0.72f, 0.2f);
             EnsurePopupClose(card, "CloseFullTime", FinishMatch);
             _fullTime.SetActive(false);
@@ -2427,6 +2493,7 @@ namespace CoachMaster.UI.Scenes
             BroadcastUi.Stretch(dim.rectTransform);
             var panel = BroadcastUi.Panel(modal, "Card", new Color(0.16f, 0.06f, 0.32f, 0.96f), true);
             BroadcastUi.Place(panel.rectTransform, x0, y0, x1, y1);
+            ApplyPopupTexture(panel.transform);
             card = panel.transform;
             return modal.gameObject;
         }
@@ -2438,8 +2505,16 @@ namespace CoachMaster.UI.Scenes
             BroadcastUi.Stretch(dim.rectTransform);
             var panel = BroadcastUi.Panel(modal, "Card", new Color(0.16f, 0.06f, 0.32f, 0.96f), true);
             BroadcastUi.Place(panel.rectTransform, 0.27f, 0.24f, 0.73f, 0.76f);
+            ApplyPopupTexture(panel.transform);
             card = panel.transform;
             return modal.gameObject;
+        }
+
+        static void ApplyPopupTexture(Transform popup)
+        {
+            if (popup == null)
+                return;
+            BroadcastUi.ApplySandPaper(popup.GetComponent<Image>(), 0.1f);
         }
 
         void Show(BoardTab tab)
@@ -2805,7 +2880,15 @@ namespace CoachMaster.UI.Scenes
             foreach (var note in _match.Notes)
             {
                 if (note.Kind == "red" || note.Kind == "goal" || note.Kind == "injury")
-                    Newsroom.Publish(career, "A Gazeta do Relvado", note.Minute + "'  " + note.Text, "Aconteceu aos " + note.Minute + " minutos.\n\n" + note.Text);
+                {
+                    var english = LocalizationManager.Current == GameLanguage.English;
+                    var eventText = LocalizationManager.Translate(note.Text);
+                    var headline = english ? note.Minute + "'  " + eventText : note.Minute + "'  " + note.Text;
+                    var story = english
+                        ? "Match event at " + note.Minute + " minutes.\n\n" + eventText
+                        : "Aconteceu aos " + note.Minute + " minutos.\n\n" + note.Text;
+                    Newsroom.Publish(career, english ? "The Touchline Gazette" : "A Gazeta do Relvado", headline, story);
+                }
             }
             CareerMoments.AfterMatch(career, _match.HomeGoals, _match.AwayGoals, userHome, _match.Home.ShortName, _match.Away.ShortName, motm, best < 0 ? null : best.ToString("0.0"));
             CareerMemories.RecordMatch(career, _match, userHome, motmPlayerId);
@@ -2883,8 +2966,9 @@ namespace CoachMaster.UI.Scenes
                 _clock.text = Clock(_match.Minute);
             }
 
-            if (_ticker.text != _match.LastEvent)
-                _ticker.text = _match.LastEvent;
+            var translatedEvent = LocalizationManager.Translate(_match.LastEvent);
+            if (_ticker.text != translatedEvent)
+                _ticker.text = translatedEvent;
             if (_heard != _match.LastEvent)
             {
                 _heard = _match.LastEvent;
@@ -2917,7 +3001,10 @@ namespace CoachMaster.UI.Scenes
                 {
                     _eventCard.SetActive(false);
                     _flash.gameObject.SetActive(false);
-                    MomentRoll.Play(transform, person, text, BuildUp(text), EventCrest(person));
+                    var buildUp = BuildUp(text);
+                    for (var line = 0; line < buildUp.Length; line++)
+                        buildUp[line] = LocalizationManager.Translate(buildUp[line]);
+                    MomentRoll.Play(transform, person, LocalizationManager.Translate(text), buildUp, EventCrest(person));
                 }
                 else
                 {
@@ -2939,7 +3026,7 @@ namespace CoachMaster.UI.Scenes
                         var card = text.Contains("VERMELHO") || text.Contains("AMARELO");
                         _eventStrip.gameObject.SetActive(card);
                         _eventStrip.color = text.Contains("VERMELHO") ? new Color(0.82f, 0.1f, 0.12f) : new Color(0.95f, 0.82f, 0.12f);
-                        _flash.text = text;
+                        _flash.text = LocalizationManager.Translate(text);
                         _flash.gameObject.SetActive(true);
                         PlaceEventText(person != null);
                     }
@@ -3061,7 +3148,7 @@ namespace CoachMaster.UI.Scenes
                 {
                     var playerId = _match.HomeOnField[i];
                     var slot = _engine.ShownMotionOf(true, i);
-                    Move(homeToken, ToPitch(slot), _match.HomeHasBall && i == _match.BallHolder, Jumping(true, i));
+                    Move(homeToken, ToPitch(slot), _match.HomeHasBall && i == _match.BallHolder, Jumping(true, i), _engine.LookTarget(true, i));
                     KeepBallOffBody(homeToken, slot, _match.HomeHasBall && i == _match.BallHolder);
                     if (homeToken.PlayerId != playerId)
                     {
@@ -3078,7 +3165,7 @@ namespace CoachMaster.UI.Scenes
                 {
                     var playerId = _match.AwayOnField[i];
                     var slot = _engine.ShownMotionOf(false, i);
-                    Move(awayToken, ToPitch(slot), !_match.HomeHasBall && i == _match.BallHolder, Jumping(false, i));
+                    Move(awayToken, ToPitch(slot), !_match.HomeHasBall && i == _match.BallHolder, Jumping(false, i), _engine.LookTarget(false, i));
                     KeepBallOffBody(awayToken, slot, !_match.HomeHasBall && i == _match.BallHolder);
                     if (awayToken.PlayerId != playerId)
                     {
@@ -3232,7 +3319,7 @@ namespace CoachMaster.UI.Scenes
             token.Rect.anchoredPosition += dir * (18f - gap);
         }
 
-        void Move(Token token, Vector2 anchor, bool hasBall, bool jumping)
+        void Move(Token token, Vector2 anchor, bool hasBall, bool jumping, Vector2 logicalLookTarget)
         {
             if (_snap || token.Rect.anchorMin == Vector2.zero && token.Rect.anchorMax == Vector2.zero)
             {
@@ -3253,7 +3340,9 @@ namespace CoachMaster.UI.Scenes
             token.Rect.localScale = Vector3.one * (scale * (1f + swell * 0.5f));
             if (token.Nose == null)
                 return;
-            var step = token.Rect.anchorMin - token.FacingFrom;
+            var step = ToPitch(logicalLookTarget) - anchor;
+            if (step.sqrMagnitude < 0.000002f)
+                step = token.Rect.anchorMin - token.FacingFrom;
             if (step.sqrMagnitude > 0.000002f)
             {
                 var angle = Mathf.Atan2(step.y, step.x) * Mathf.Rad2Deg - 90f;
@@ -3423,7 +3512,7 @@ namespace CoachMaster.UI.Scenes
                 TimelineLine("SEM EVENTOS", true);
             else
                 foreach (var note in first)
-                    TimelineLine(note.Minute + "'    " + note.Text, note.Kind == "goal");
+                    TimelineLine(note.Minute + "'    " + LocalizationManager.Translate(note.Text), note.Kind == "goal");
             if (_match.Phase != MatchPhase.FirstHalf)
             {
                 TimelineLine("45:00", false);
@@ -3432,7 +3521,7 @@ namespace CoachMaster.UI.Scenes
                     TimelineLine("SEM EVENTOS", true);
                 else
                     foreach (var note in second)
-                        TimelineLine(note.Minute + "'    " + note.Text, note.Kind == "goal");
+                        TimelineLine(note.Minute + "'    " + LocalizationManager.Translate(note.Text), note.Kind == "goal");
             }
         }
 

@@ -662,7 +662,13 @@ namespace CoachMaster.Career
             {
                 lines.Add("club|" + club.Id + "|" + club.LeagueId);
                 lines.Add("clubstate|" + club.Id + "|" + club.DressingRoomTension);
+                lines.Add("clubmanager|" + club.Id + "|" + Esc(club.PublicCoachVacancyNote) + "|" + Esc(club.HiddenDismissalTruth));
                 lines.Add("squad|" + club.Id + "|" + string.Join(",", club.PlayerIds));
+                lines.Add("stafflist|" + club.Id);
+                if (club.Staff != null)
+                    foreach (var member in club.Staff)
+                        if (member != null)
+                            lines.Add("staff|" + club.Id + "|" + Esc(member.Id) + "|" + Esc(member.FullName) + "|" + (int)member.Role + "|" + member.Judgement + "|" + member.WeeklyWage + "|" + member.ContractEndTicks + "|" + Esc(member.PortraitPath));
                 if (club.Finance != null)
                 {
                     lines.Add("clubfinance|" + club.Id + "|" + club.Finance.Balance + "|" + club.Finance.WageBudget + "|" + club.Finance.TransferBudget + "|" + club.Finance.TransferSpentThisSeason + "|" + club.Finance.TicketIncomeThisSeason + "|" + club.Finance.ShirtIncomeThisSeason + "|" + club.Finance.PlayerSalesThisSeason);
@@ -848,6 +854,7 @@ namespace CoachMaster.Career
             var generatedFixtures = new List<Fixture>(career.Fixtures);
             var generatedTable = new List<LeagueTableRow>(career.Table);
             var savedClubIds = new HashSet<string>();
+            var savedStaffClubIds = new HashSet<string>();
             foreach (var raw in lines)
             {
                 var bits = Split(raw);
@@ -1039,6 +1046,46 @@ namespace CoachMaster.Career
                     case "clubstate":
                         if (bits.Length > 2 && career.World.Clubs.TryGetValue(bits[1], out var stateClub) && int.TryParse(bits[2], out var tension))
                             stateClub.DressingRoomTension = Math.Max(0, Math.Min(100, tension));
+                        break;
+                    case "clubmanager":
+                        if (bits.Length > 3 && career.World.Clubs.TryGetValue(bits[1], out var managerClub))
+                        {
+                            managerClub.PublicCoachVacancyNote = Un(bits[2]);
+                            managerClub.HiddenDismissalTruth = Un(bits[3]);
+                        }
+                        break;
+                    case "staff":
+                        if (bits.Length > 8 && career.World.Clubs.TryGetValue(bits[1], out var staffClub))
+                        {
+                            if (staffClub.Staff == null)
+                                staffClub.Staff = new List<StaffMember>();
+                            if (savedStaffClubIds.Add(bits[1]))
+                                staffClub.Staff.Clear();
+                            int.TryParse(bits[4], out var staffRole);
+                            int.TryParse(bits[5], out var staffJudgement);
+                            int.TryParse(bits[6], out var staffWage);
+                            long.TryParse(bits[7], out var staffContractEnd);
+                            staffClub.Staff.Add(new StaffMember
+                            {
+                                Id = Un(bits[2]),
+                                ClubId = bits[1],
+                                FullName = Un(bits[3]),
+                                Role = (StaffRole)staffRole,
+                                Judgement = staffJudgement,
+                                WeeklyWage = Math.Max(0, staffWage),
+                                ContractEndTicks = staffContractEnd,
+                                PortraitPath = Un(bits[8])
+                            });
+                        }
+                        break;
+                    case "stafflist":
+                        if (bits.Length > 1 && career.World.Clubs.TryGetValue(bits[1], out var savedStaffClub))
+                        {
+                            if (savedStaffClub.Staff == null)
+                                savedStaffClub.Staff = new List<StaffMember>();
+                            savedStaffClub.Staff.Clear();
+                            savedStaffClubIds.Add(bits[1]);
+                        }
                         break;
                     case "squad":
                         if (bits.Length > 1 && career.World.Clubs.TryGetValue(bits[1], out var squadClub))

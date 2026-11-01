@@ -97,10 +97,30 @@ namespace CoachMaster.Career
             if (career == null || string.IsNullOrEmpty(playerId))
                 return false;
             var prefix = "job|move|" + playerId + "|";
+            var loanPrefix = "job|loanmove|" + playerId + "|";
+            var activeLoanPrefix = "job|active-loan|" + playerId + "|";
             foreach (var line in career.Notebook)
-                if (line != null && line.StartsWith(prefix, StringComparison.Ordinal))
+                if (line != null && (line.StartsWith(prefix, StringComparison.Ordinal)
+                    || line.StartsWith(loanPrefix, StringComparison.Ordinal)
+                    || line.StartsWith(activeLoanPrefix, StringComparison.Ordinal)))
                     return true;
             return false;
+        }
+
+        public static bool ScheduleLoan(CareerState career, Player player, Club borrower, int fee, int daysUntilArrival, int durationDays)
+        {
+            if (career == null || player == null || borrower == null || career.Calendar == null || career.World == null
+                || MovePending(career, player.Id) || player.ClubId == borrower.Id)
+                return false;
+            if (!career.World.Clubs.TryGetValue(player.ClubId ?? "", out var lender) || lender == null
+                || lender.Finance == null || lender.PlayerIds.Count <= 11 || borrower.Finance == null || borrower.Finance.TransferBudget < fee
+                || borrower.PlayerIds.Count >= 30)
+                return false;
+            var arrival = career.Calendar.CurrentDate.Date.AddDays(Math.Max(2, Math.Min(21, daysUntilArrival)));
+            var returned = arrival.AddDays(Math.Max(30, Math.Min(365, durationDays)));
+            career.Notebook.Add("job|loanmove|" + player.Id + "|" + borrower.Id + "|" + Math.Max(0, fee) + "|"
+                + arrival.Ticks + "|" + returned.Ticks + "|" + Math.Max(0, player.WeeklyWage));
+            return true;
         }
 
         public static bool ScheduleMove(CareerState career, Player player, Club buyer, int fee, int years, int wage, string type, int days)
@@ -130,6 +150,87 @@ namespace CoachMaster.Career
             for (var i = career.Notebook.Count - 1; i >= 0; i--)
             {
                 var line = career.Notebook[i];
+                if (line == null || !line.StartsWith("job|active-loan|", StringComparison.Ordinal))
+                    continue;
+                var bits = line.Split('|');
+                if (bits.Length < 8 || !long.TryParse(bits[6], out var returnTicks) || new DateTime(returnTicks).Date > now)
+                    continue;
+                career.Notebook.RemoveAt(i);
+                changed = true;
+                if (!career.World.Players.TryGetValue(bits[2], out var loanPlayer)
+                    || !career.World.Clubs.TryGetValue(bits[3], out var lender)
+                    || !career.World.Clubs.TryGetValue(bits[4], out var borrower))
+                    continue;
+                borrower.PlayerIds.Remove(loanPlayer.Id);
+                borrower.ManualLineup.Remove(loanPlayer.Id);
+                borrower.ManualBenchOrder.Remove(loanPlayer.Id);
+                if (!lender.PlayerIds.Contains(loanPlayer.Id)) lender.PlayerIds.Add(loanPlayer.Id);
+                loanPlayer.ClubId = lender.Id;
+                if (int.TryParse(bits[7], out var originalWage)) loanPlayer.WeeklyWage = Math.Max(0, originalWage);
+                if (career.Coach != null && (lender.Id == career.Coach.ClubId || borrower.Id == career.Coach.ClubId))
+                    Desk(career, "✉ " + loanPlayer.FullName + " regressou ao " + lender.Name + " no fim do empréstimo.");
+                Newsroom.Publish(career, "Mercado de Transferências", "Fim de empréstimo · " + loanPlayer.FullName,
+                    loanPlayer.FullName + " regressou ao " + lender.Name + " depois de terminar o empréstimo ao " + borrower.Name + ".");
+            }
+
+            for (var i = career.Notebook.Count - 1; i >= 0; i--)
+            {
+                var line = career.Notebook[i];
+                if (line != null && line.StartsWith("job|loanmove|", StringComparison.Ordinal))
+                {
+                    var loan = line.Split('|');
+                    if (loan.Length < 8 || !long.TryParse(loan[5], out var loanArrival) || new DateTime(loanArrival).Date > now)
+                        continue;
+                    career.Notebook.RemoveAt(i);
+                    changed = true;
+                    if (!career.World.Players.TryGetValue(loan[2], out var loanPlayer)
+                        || !career.World.Clubs.TryGetValue(loanPlayer.ClubId ?? "", out var lender)
+                    || !career.World.Clubs.TryGetValue(loan[3], out var borrower)
+                    || lender.Finance == null || lender.PlayerIds.Count <= 11 || borrower.Finance == null)
+                    {
+                        Desk(career, "✉ Um empréstimo marcado não se concretizou.");
+                        continue;
+                    }
+                    int.TryParse(loan[4], out var loanFee);
+                    if (borrower.Finance.TransferBudget < loanFee)
+                    {
+                        Desk(career, "✉ O empréstimo de " + loanPlayer.FullName + " caiu por falta de verba.");
+                        continue;
+                    }
+                    lender.PlayerIds.Remove(loanPlayer.Id);
+                    lender.ManualLineup.Remove(loanPlayer.Id);
+                    lender.ManualBenchOrder.Remove(loanPlayer.Id);
+                    borrower.PlayerIds.Add(loanPlayer.Id);
+                    loanPlayer.ClubId = borrower.Id;
+                    borrower.Finance.Balance -= loanFee;
+                    borrower.Finance.TransferBudget -= loanFee;
+                    lender.Finance.Balance += loanFee;
+                    lender.Finance.TransferBudget += loanFee;
+                    ClubFinanceLedger.Record(borrower, now, -loanFee, "loan-fee", loanPlayer.FullName, loanPlayer.Id);
+                    ClubFinanceLedger.Record(lender, now, loanFee, "loan-income", loanPlayer.FullName, loanPlayer.Id);
+                    int.TryParse(loan[7], out var originalWage);
+                    career.Notebook.Add("job|active-loan|" + loanPlayer.Id + "|" + lender.Id + "|" + borrower.Id + "|" + loanFee + "|" + loan[6] + "|" + originalWage);
+                    var loanRecord = new TransferRecord
+                    {
+                        DateTicks = now.Ticks,
+                        PlayerId = loanPlayer.Id,
+                        FromClubId = lender.Id,
+                        ToClubId = borrower.Id,
+                        Fee = loanFee,
+                        WeeklyWage = loanPlayer.WeeklyWage,
+                        ContractYears = 0,
+                        AgeAtTransfer = loanPlayer.Age,
+                        OverallAtTransfer = PlayerAttributes.Overall(loanPlayer),
+                        Type = "Loan"
+                    };
+                    career.TransferHistory.Insert(0, loanRecord);
+                    if (career.TransferHistory.Count > 300) career.TransferHistory.RemoveAt(career.TransferHistory.Count - 1);
+                    Newsroom.Publish(career, "Mercado de Transferências", "Empréstimo · " + loanPlayer.FullName,
+                        loanPlayer.FullName + " foi emprestado pelo " + lender.Name + " ao " + borrower.Name + ".");
+                    if (career.Coach != null && (lender.Id == career.Coach.ClubId || borrower.Id == career.Coach.ClubId))
+                        Desk(career, "✉ " + loanPlayer.FullName + " saiu por empréstimo para o " + borrower.Name + ".");
+                    continue;
+                }
                 if (line == null || !line.StartsWith("job|move|", StringComparison.Ordinal))
                     continue;
                 var bits = line.Split('|');

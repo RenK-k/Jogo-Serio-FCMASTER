@@ -8,5 +8,7 @@ namespace CoachMaster.Domain
         public string PortraitPath { get; set; }
         public StaffRole Role { get; set; }
         public int Judgement { get; set; } = 10;
+        public int WeeklyWage { get; set; }
+        public long ContractEndTicks { get; set; }
     }
 }

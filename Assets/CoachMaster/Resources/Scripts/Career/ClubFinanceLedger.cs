@@ -17,6 +17,10 @@ namespace CoachMaster.Career
                 foreach (var playerId in club.PlayerIds)
                     if (career.World.Players.TryGetValue(playerId, out var player) && player != null)
                         payroll += Math.Max(0, player.WeeklyWage);
+            if (club.Staff != null)
+                foreach (var member in club.Staff)
+                    if (member != null)
+                        payroll += Math.Max(0, member.WeeklyWage);
 
             var budget = (long)Math.Max(0, club.Finance.WageBudget);
             if (payroll > 0 && budget > payroll * 8L)
@@ -46,6 +50,21 @@ namespace CoachMaster.Career
                     foreach (var playerId in club.PlayerIds)
                         if (career.World.Players.TryGetValue(playerId, out var player) && player != null)
                             payroll += Math.Max(0, player.WeeklyWage);
+                    if (club.Staff != null)
+                    {
+                        for (var i = club.Staff.Count - 1; i >= 0; i--)
+                        {
+                            var member = club.Staff[i];
+                            if (member == null)
+                                continue;
+                            if (member.ContractEndTicks > 0 && member.ContractEndTicks <= payday.Ticks)
+                            {
+                                club.Staff.RemoveAt(i);
+                                continue;
+                            }
+                            payroll += Math.Max(0, member.WeeklyWage);
+                        }
+                    }
                     if (payroll <= 0)
                         continue;
 

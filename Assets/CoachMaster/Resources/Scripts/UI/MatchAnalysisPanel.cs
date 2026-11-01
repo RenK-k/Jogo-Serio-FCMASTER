@@ -76,6 +76,7 @@ namespace CoachMaster.UI
                 else SetVisible(false);
             });
             var card = BroadcastUi.Panel(parent, "MatchAnalysis", new Color(0.07f, 0.035f, 0.15f, 0.96f));
+            BroadcastUi.ApplySandPaper(card, 0.1f);
             _cardRect = card.rectTransform;
             _cardRect.anchorMin = _cardRect.anchorMax = new Vector2(0.5f, 0.5f);
             _cardRect.pivot = new Vector2(0.5f, 0.5f);

@@ -12,7 +12,7 @@ namespace CoachMaster.MatchPlay
     {
         const float FixedStep = 1f / 60f;
         const float MaxFrameDelta = 0.2f;
-        const float ReferenceMatchSpeed = 0.68f;
+        const float ReferenceMatchSpeed = 1f / 60f;
         const int MaxStepsPerTick = 12;
         readonly MatchSession _match;
         readonly System.Random _rng;
@@ -83,6 +83,8 @@ namespace CoachMaster.MatchPlay
         int _awayRunner = -1;
         bool _motionReady;
         bool _lastPasserHome;
+        string _shotActorId;
+        bool _shotActorHome;
         string _pieceKind = "";
         float _flightApex;
         Vector2 _flightFrom;
@@ -242,6 +244,14 @@ namespace CoachMaster.MatchPlay
                 return;
             }
 
+            if (ActionKind == "kickoff")
+            {
+                var kickoffHome = _match.HomeHasBall;
+                _intended = KickoffReceiver(kickoffHome);
+                Pass(kickoffHome, true);
+                return;
+            }
+
             if (_settle > 0f)
             {
                 var feet = Feet(_match.HomeHasBall, _match.BallHolder);
@@ -323,7 +333,11 @@ namespace CoachMaster.MatchPlay
                     if (Vector2.Distance(Ball, ahead) > 0.004f)
                     {
                         BallTarget = new Vector2(Mathf.Clamp(ahead.x, 0.04f, 0.96f), Mathf.Clamp(ahead.y, 0.04f, 0.96f));
-                        _settle = Mathf.Lerp(0.28f, 0.08f, control);
+                        var receiver = Person(side, near);
+                        var decisions = receiver == null ? 10 : PlayerAttributes.CurrentValue(receiver, "Decisão");
+                        var composure = receiver == null ? 10 : PlayerAttributes.CurrentValue(receiver, "Frieza");
+                        var controlTime = Mathf.Clamp01((control + decisions / 20f + composure / 20f) / 3f);
+                        _settle = Mathf.Lerp(0.4f, 0.14f, controlTime);
                         ActionKind = "touch";
                         return;
                     }
@@ -391,8 +405,8 @@ namespace CoachMaster.MatchPlay
 
         public Vector2 PlayerSpot(bool home, int index)
         {
-            if (ActionKind == "kickoff" && home == _match.HomeHasBall && index == _match.BallHolder)
-                return new Vector2(0.5f, home ? 0.46f : 0.54f);
+            if (ActionKind == "kickoff")
+                return KickoffSpot(home, index);
             if (_pieceLive && home == _pieceHome && index == _pieceTaker)
             {
                 var taker = Person(home, index);
@@ -770,6 +784,27 @@ namespace CoachMaster.MatchPlay
             return Vector2.Lerp(previous, current, Mathf.Clamp01(_stepAccumulator / FixedStep));
         }
 
+        public Vector2 LookTarget(bool home, int index)
+        {
+            var squad = home ? _match.HomeOnField : _match.AwayOnField;
+            if (index < 0 || index >= squad.Count)
+                return Ball;
+
+            if ((ActionKind == "pass" || ActionKind == "cross")
+                && _lastPasserHome == home && squad[index] == _lastPasser)
+                return BallTarget;
+
+            if ((ActionKind == "shot" || ActionKind == "goal")
+                && _shotActorHome == home && squad[index] == _shotActorId)
+                return BallTarget;
+
+            if (home == _match.HomeHasBall && index == _match.BallHolder
+                && (ActionKind == "solo" || ActionKind == "touch" || _settle > 0f))
+                return BallTarget;
+
+            return Ball;
+        }
+
         public Vector2 ShownBall()
         {
             return _drawnReady ? _drawn : Ball;
@@ -925,6 +960,27 @@ namespace CoachMaster.MatchPlay
                     speed += 0.02f;
                 if (carrying)
                     speed += 0.01f;
+                if (carrying && i < squad.Count)
+                {
+                    var carrierSpot = MotionOf(home, i);
+                    var depth = home ? carrierSpot.y : 1f - carrierSpot.y;
+                    var wide = carrierSpot.x < 0.34f || carrierSpot.x > 0.66f;
+                    var space = MarkerGap(home, i);
+                    var role = _match.People.TryGetValue(squad[i], out var carrier) ? carrier.Duty ?? "" : "";
+                    var defensiveRole = role.IndexOf("defensivo", StringComparison.OrdinalIgnoreCase) >= 0 || role.Contains("Ficar atrás");
+                    var wideRole = !defensiveRole && (role.Contains("Ficar aberto") || role.Contains("Subir")
+                        || carrier != null && (carrier.Position == PlayerPosition.LeftWinger || carrier.Position == PlayerPosition.RightWinger
+                            || carrier.Position == PlayerPosition.LeftMidfielder || carrier.Position == PlayerPosition.RightMidfielder));
+                    if (wide && wideRole && depth > 0.28f && depth < 0.82f && space > 0.12f && !tired)
+                    {
+                        var sprint = 1.12f + Mathf.Clamp01((pace - 10f) / 10f) * 0.18f;
+                        if ((role.Contains("Ficar aberto") || role.Contains("Subir"))
+                            && !role.Contains("equilibrado")
+                            && !role.Contains("defensivo") && !role.Contains("Defensivo"))
+                            sprint += 0.08f;
+                        speed *= sprint;
+                    }
+                }
                 if (tired)
                     speed *= 0.8f;
                 if (chasingLooseBall)
@@ -1150,6 +1206,59 @@ namespace CoachMaster.MatchPlay
             Hold = 1.15f;
             ActionTime = 0.8f;
             ActionKind = "kickoff";
+            if (_motionReady)
+            {
+                for (var i = 0; i < 11; i++)
+                {
+                    _homeMotion[i] = _homePreviousMotion[i] = KickoffSpot(true, i);
+                    _awayMotion[i] = _awayPreviousMotion[i] = KickoffSpot(false, i);
+                    _homeStride[i] = Vector2.zero;
+                    _awayStride[i] = Vector2.zero;
+                }
+            }
+        }
+
+        int KickoffReceiver(bool home)
+        {
+            var squad = home ? _match.HomeOnField : _match.AwayOnField;
+            var selected = -1;
+            var bestScore = float.MaxValue;
+            for (var i = 1; i < squad.Count && i < 11; i++)
+            {
+                if (i == _match.BallHolder || IsPlayerInjured(squad[i]))
+                    continue;
+                var player = Person(home, i);
+                var score = Vector2.Distance(KickoffSpot(home, i), new Vector2(0.5f, 0.5f));
+                if (player != null && (player.Position == PlayerPosition.CentreBack || player.Position == PlayerPosition.DefensiveMidfielder || player.Position == PlayerPosition.CentralMidfielder))
+                    score -= 0.045f;
+                if (score < bestScore)
+                {
+                    selected = i;
+                    bestScore = score;
+                }
+            }
+            return selected;
+        }
+
+        Vector2 KickoffSpot(bool home, int index)
+        {
+            if (home == _match.HomeHasBall && index == _match.BallHolder)
+                return new Vector2(0.5f, 0.5f);
+
+            var spot = FormationSpot(home, index);
+            const float halfLineOffset = 0.005f;
+            spot.y = home ? Mathf.Min(spot.y, 0.5f - halfLineOffset) : Mathf.Max(spot.y, 0.5f + halfLineOffset);
+
+            if (home != _match.HomeHasBall)
+            {
+                const float opponentClearance = 9.15f / 105f;
+                const float pitchWidthToLength = 68f / 105f;
+                var xOffset = spot.x - 0.5f;
+                var normalizedWidthOffset = xOffset * pitchWidthToLength;
+                var neededY = Mathf.Sqrt(Mathf.Max(0f, opponentClearance * opponentClearance - normalizedWidthOffset * normalizedWidthOffset));
+                spot.y = home ? Mathf.Min(spot.y, 0.5f - neededY) : Mathf.Max(spot.y, 0.5f + neededY);
+            }
+            return spot;
         }
 
         int CentreTaker(bool home)
@@ -1487,6 +1596,49 @@ namespace CoachMaster.MatchPlay
                 pass -= 0.18f;
             }
 
+            if (carrier != null)
+            {
+                var duty = carrier.Duty ?? "";
+                if (wide && duty.Contains("Cortar para dentro"))
+                {
+                    dribble += 0.18f;
+                    carry += 0.1f;
+                    wing -= 0.12f;
+                }
+                if (wide && (duty.Contains("Ficar aberto") || duty.Contains("Subir")))
+                {
+                    var defensiveDuty = duty.Contains("defensivo") || duty.Contains("Defensivo");
+                    var balancedDuty = duty.Contains("equilibrado");
+                    wing += defensiveDuty ? 0.04f : balancedDuty ? 0.1f : 0.16f;
+                    if (room > 0.12f)
+                        carry += defensiveDuty ? 0.12f : balancedDuty ? 0.28f : 0.42f;
+                }
+                if (duty.Contains("desmarca"))
+                    through += 0.18f;
+                if (duty.Contains("Chegar à área") || duty.Contains("Ficar na área"))
+                {
+                    through += 0.08f;
+                    if (depth > 0.68f)
+                        shoot += 0.12f;
+                }
+                if (duty.Contains("Defensivo") || duty.Contains("Ficar atrás"))
+                {
+                    pass += 0.12f;
+                    dribble -= 0.08f;
+                }
+            }
+
+            var carrierDuty = carrier == null ? "" : carrier.Duty ?? "";
+            var defensiveRole = carrierDuty.IndexOf("defensivo", StringComparison.OrdinalIgnoreCase) >= 0 || carrierDuty.Contains("Ficar atrás");
+            var openWingCarry = wide && depth > 0.28f && depth < 0.8f && room > 0.12f;
+            if (openWingCarry)
+            {
+                var pace = attr == null ? 10f : attr.Pace;
+                carry += (defensiveRole ? 0.06f : 0.22f) + Mathf.Clamp01((pace - 10f) / 10f) * (defensiveRole ? 0.04f : 0.16f);
+                if (!defensiveRole && room < 0.2f && attr != null && attr.Dribbling >= 12)
+                    dribble += 0.16f;
+            }
+
             if (press > 0.28f && depth < 0.45f)
                 pass += 0.08f;
             if (room > 0.16f && depth < 0.75f)
@@ -1630,6 +1782,13 @@ namespace CoachMaster.MatchPlay
             if (_match.BallHolder <= 0)
                 return false;
             var attr = PlayerAttributes.Current(carrier);
+            var spot = PlayerSpot(home, _match.BallHolder);
+            var wide = spot.x < 0.34f || spot.x > 0.66f;
+            var room = MarkerGap(home, _match.BallHolder);
+            var oneVsOne = wide && depth >= 0.28f && depth < 0.82f && room >= 0.045f && room < 0.17f;
+            var openWing = wide && depth >= 0.28f && depth < 0.82f && room >= 0.17f;
+            var duty = carrier.Duty ?? "";
+            var defensiveDuty = duty.IndexOf("defensivo", StringComparison.OrdinalIgnoreCase) >= 0 || duty.Contains("Ficar atrás");
             var appetite = 0.02f + attr.Dribbling / 20f * 0.07f + attr.Pace / 20f * 0.04f + attr.Finishing / 20f * 0.04f;
             var overall = CurrentRoleOverall(carrier);
             if (overall >= 84)
@@ -1654,11 +1813,15 @@ namespace CoachMaster.MatchPlay
                 appetite += 0.04f;
             if (carrier.HasTrait(PlayerTrait.RemateEmJeito))
                 appetite += 0.03f;
+            if (oneVsOne && !defensiveDuty && attr.Dribbling >= 11)
+                appetite += 0.12f + Mathf.Clamp01((attr.Dribbling - 11f) / 9f) * 0.12f;
+            if (openWing && !defensiveDuty && (duty.Contains("Ficar aberto") || duty.Contains("Cortar para dentro")))
+                appetite += 0.08f;
             if (attr.Dribbling < 11 && !carrier.HasTrait(PlayerTrait.Driblador))
                 appetite *= 0.22f;
-            if (depth < 0.42f)
+            if (depth < 0.42f && !oneVsOne && !openWing)
                 return false;
-            if (depth < 0.7f && attr.Dribbling < 14 && !carrier.HasTrait(PlayerTrait.Driblador))
+            if (depth < 0.7f && attr.Dribbling < 14 && !carrier.HasTrait(PlayerTrait.Driblador) && !oneVsOne)
                 return false;
             if (depth > 0.82f)
                 appetite *= 1.15f;
@@ -1766,13 +1929,44 @@ namespace CoachMaster.MatchPlay
 
         void Pass(bool home, bool allowOffsideExemption = false)
         {
+            var kickoffPass = ActionKind == "kickoff";
             var squad = home ? _match.HomeOnField : _match.AwayOnField;
             var from = Mathf.Clamp(_match.BallHolder, 0, squad.Count - 1);
             var passOrigin = Ball;
             var fromName = Name(squad[from]);
+            var previousPasser = _lastPasser;
+            var previousPasserHome = _lastPasserHome;
             var runner = _throughBall ? FindRunner(home, from) : -1;
             _throughBall = false;
             var next = runner >= 0 ? runner : _intended >= 0 && _intended < squad.Count && _intended != from ? _intended : PickPassTarget(home, squad, from);
+            var oneTwo = false;
+            if (runner < 0 && _intended < 0 && previousPasserHome == home && !string.IsNullOrEmpty(previousPasser) && previousPasser != squad[from])
+            {
+                var returnTo = squad.IndexOf(previousPasser);
+                if (returnTo > 0 && returnTo < 11 && returnTo != from && !IsPlayerInjured(squad[returnTo]))
+                {
+                    var returnSpot = MotionOf(home, returnTo);
+                    var returnForward = home ? returnSpot.y - Ball.y : Ball.y - returnSpot.y;
+                    var returnTarget = ReceivePoint(home, returnTo);
+                    var space = MarkerGap(home, returnTo);
+                    var playmaker = Person(home, from);
+                    var passSkill = playmaker == null ? 10 : PlayerAttributes.CurrentValue(playmaker, "Passe");
+                    var decisions = playmaker == null ? 10 : PlayerAttributes.CurrentValue(playmaker, "Decisão");
+                    var chance = 0.08f + passSkill * 0.006f + decisions * 0.005f;
+                    if (playmaker != null && playmaker.HasTrait(PlayerTrait.PasseDePrimeira))
+                        chance += 0.1f;
+                    if (playmaker != null && playmaker.HasTrait(PlayerTrait.CriadorDeJogo))
+                        chance += 0.06f;
+                    if (TikiPlan(home ? _match.HomeTactics : _match.AwayTactics))
+                        chance += 0.08f;
+                    if (returnForward >= -0.12f && returnForward < 0.2f && space > 0.075f
+                        && !PassLaneBlocked(home, Ball, returnTarget) && _rng.NextDouble() < Mathf.Clamp(chance, 0.08f, 0.34f))
+                    {
+                        next = returnTo;
+                        oneTwo = true;
+                    }
+                }
+            }
             _intended = -1;
             if (next < 0 || next >= squad.Count || next == from || IsPlayerInjured(squad[next]))
             {
@@ -1866,6 +2060,8 @@ namespace CoachMaster.MatchPlay
                 fail += 0.07f;
             else if (pressure < 0.09f)
                 fail += 0.035f;
+            if (kickoffPass)
+                fail = Mathf.Min(fail, 0.04f);
             if (fail > 0.42f)
                 fail = 0.42f;
             ResolvePendingPass(false, false, null);
@@ -1907,7 +2103,9 @@ namespace CoachMaster.MatchPlay
             Launch(through ? 0.82f : flairPass ? 0.38f : hop > 0.48f ? 0.18f : 0f);
             Bump(squad[from], 0.05f);
             Bump(squad[next], 0.04f);
-            if (through)
+            if (oneTwo)
+                _match.LastEvent = "Tabela entre " + fromName + " e " + toName + ".";
+            else if (through)
                 _match.LastEvent = "Passe em profundidade de " + fromName + " para " + toName + ".";
             else if (flairPass)
                 _match.LastEvent = "Passe criativo de " + fromName + " para " + toName + ".";
@@ -1972,7 +2170,8 @@ namespace CoachMaster.MatchPlay
                     continue;
                 var space = MarkerGap(home, i);
                 var pace = 10;
-                if (_match.People.TryGetValue(squad[i], out var mate) && mate.Attributes != null)
+                Player mate = null;
+                if (_match.People.TryGetValue(squad[i], out mate) && mate.Attributes != null)
                 {
                     pace = PlayerAttributes.CurrentValue(mate, "Velocidade");
                     if (mate.HasTrait(PlayerTrait.Rapido))
@@ -1980,6 +2179,21 @@ namespace CoachMaster.MatchPlay
                 }
 
                 var score = forward * 2.2f + space * 3.1f + pace / 20f;
+                if (mate != null)
+                {
+                    var duty = mate.Duty ?? "";
+                    var candidateDepth = home ? spot.y : 1f - spot.y;
+                    if (duty.Contains("desmarca"))
+                        score += 0.36f + PlayerAttributes.CurrentValue(mate, "Decisão") * 0.012f;
+                    if (duty.Contains("Chegar à área") && candidateDepth > 0.46f && candidateDepth < 0.82f)
+                        score += 0.3f + PlayerAttributes.CurrentValue(mate, "Posicionamento") * 0.012f;
+                    if (duty.Contains("Ficar na área") && candidateDepth > 0.68f)
+                        score += 0.34f + PlayerAttributes.CurrentValue(mate, "Posicionamento") * 0.012f;
+                    if ((duty.Contains("Ficar aberto") || duty.Contains("Cortar para dentro"))
+                        && (mate.Position == PlayerPosition.LeftWinger || mate.Position == PlayerPosition.RightWinger
+                            || mate.Position == PlayerPosition.LeftMidfielder || mate.Position == PlayerPosition.RightMidfielder))
+                        score += 0.16f;
+                }
                 if (space < 0.08f)
                     score -= 1.8f;
                 if (pace >= 15 && forward > 0.1f)
@@ -2257,6 +2471,8 @@ namespace CoachMaster.MatchPlay
             var squad = home ? _match.HomeOnField : _match.AwayOnField;
             var index = Mathf.Clamp(_match.BallHolder, 0, squad.Count - 1);
             var shooterId = squad[index];
+            _shotActorId = shooterId;
+            _shotActorHome = home;
             var shotOrigin = Ball;
             var shooter = Name(shooterId);
             var depth = home ? Ball.y : 1f - Ball.y;
@@ -3334,8 +3550,6 @@ namespace CoachMaster.MatchPlay
         bool TryCarryLine(bool home)
         {
             var tactics = home ? _match.HomeTactics : _match.AwayTactics;
-            if (!CrossPlan(tactics))
-                return false;
             var squad = home ? _match.HomeOnField : _match.AwayOnField;
             var from = Mathf.Clamp(_match.BallHolder, 0, squad.Count - 1);
             if (from == 0)
@@ -3343,22 +3557,42 @@ namespace CoachMaster.MatchPlay
             var spot = PlayerSpot(home, from);
             var depth = home ? spot.y : 1f - spot.y;
             var wing = spot.x < 0.4f || spot.x > 0.6f;
-            if (!wing || depth < 0.4f || depth > 0.76f)
+            var player = Person(home, from);
+            var role = player == null ? "" : player.Duty ?? "";
+            var defensiveRole = role.IndexOf("defensivo", StringComparison.OrdinalIgnoreCase) >= 0 || role.Contains("Ficar atrás");
+            var wideRole = !defensiveRole && (role.Contains("Ficar aberto") || role.Contains("Subir")
+                || player != null && (player.Position == PlayerPosition.LeftWinger || player.Position == PlayerPosition.RightWinger
+                    || player.Position == PlayerPosition.LeftMidfielder || player.Position == PlayerPosition.RightMidfielder));
+            var plannedCrossRun = !defensiveRole && CrossPlan(tactics) && depth >= 0.4f && depth <= 0.76f;
+            var space = MarkerGap(home, from);
+            var sprintRun = wideRole && depth >= 0.28f && depth <= 0.8f && space > 0.12f;
+            if (!wing || (!plannedCrossRun && !sprintRun))
                 return false;
             if (spot.x < 0.16f || spot.x > 0.84f)
                 return false;
-            if (_rng.NextDouble() > 0.62)
+            var pace = player == null ? 10 : PlayerAttributes.CurrentValue(player, "Velocidade");
+            var chance = plannedCrossRun ? 0.5f : 0.18f + Mathf.Clamp01((pace - 9f) / 11f) * 0.22f;
+            if (space > 0.18f)
+                chance += 0.12f;
+            if (player != null && (player.HasTrait(PlayerTrait.Rapido) || player.HasTrait(PlayerTrait.DribladorRapido)))
+                chance += 0.12f;
+            if (!defensiveRole && (role.Contains("Ficar aberto") || role.Contains("Subir")))
+                chance += 0.1f;
+            if (player != null && player.Fatigue > 78)
+                chance *= 0.55f;
+            if (_rng.NextDouble() > Mathf.Clamp(chance, 0f, 0.72f))
                 return false;
-            var x = spot.x < 0.5f ? Mathf.Max(0.06f, spot.x - 0.08f) : Mathf.Min(0.94f, spot.x + 0.08f);
-            var y = home ? Mathf.Min(0.88f, spot.y + 0.07f) : Mathf.Max(0.12f, spot.y - 0.07f);
+            var x = spot.x < 0.5f ? Mathf.Max(0.06f, spot.x - 0.045f) : Mathf.Min(0.94f, spot.x + 0.045f);
+            var stride = sprintRun ? 0.11f + pace * 0.002f : 0.07f;
+            var y = home ? Mathf.Min(0.88f, spot.y + stride) : Mathf.Max(0.12f, spot.y - stride);
             BallTarget = new Vector2(x, y);
             ActionKind = "solo";
             Hold = 0f;
-            Travel = 0.3f;
+            Travel = sprintRun ? Mathf.Lerp(0.32f, 0.46f, Mathf.Clamp01((pace - 9f) / 11f)) : 0.3f;
             Launch(0f);
             var name = Name(squad[from]);
-            _match.LastEvent = name + " corre a linha.";
-            _match.AddNote(name + " ataca a linha para cruzar.", "cross");
+            _match.LastEvent = sprintRun ? name + " acelera pela ala." : name + " corre para a linha de cruzamento.";
+            _match.AddNote(sprintRun ? name + " arranca pela ala com espaço." : name + " ataca a linha para cruzar.", "cross");
             return true;
         }
 

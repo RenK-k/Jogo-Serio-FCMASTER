@@ -702,8 +702,10 @@ namespace CoachMaster.UI
                 return 99999;
             var name = sprite.name ?? "";
             var lower = name.ToLowerInvariant();
-            var isNewgenPack = FolderBySprite.TryGetValue(sprite, out var folder) && folder.Contains("Newgen Revolution");
-            var regen = lower.Contains("u18") || lower.Contains("u21") || lower.Contains("young") || lower.Contains("junior") || lower.StartsWith("kt1") || isNewgenPack ? 0 : 1;
+            // Only trust explicit age cues in a portrait's own name. A pack label such as
+            // "Newgen Revolution" describes its source, not the apparent age of every face.
+            var regen = lower.Contains("u16") || lower.Contains("u18") || lower.Contains("u21")
+                || lower.Contains("young") || lower.Contains("junior") ? 0 : 1;
             var id = 0;
             var digits = 0;
             for (var i = name.Length - 1; i >= 0 && name[i] >= '0' && name[i] <= '9' && digits < 5; i--)

@@ -382,7 +382,7 @@ namespace CoachMaster.UI.Scenes
             PaintScores();
             PaintMomentum();
             PaintAdvice(english);
-            _commentary.text = string.IsNullOrEmpty(_match.LastEvent) ? "" : _match.LastEvent;
+            _commentary.text = string.IsNullOrEmpty(_match.LastEvent) ? "" : LocalizationManager.Translate(_match.LastEvent);
             PaintXg(english);
         }
 
@@ -551,7 +551,7 @@ namespace CoachMaster.UI.Scenes
                 if (!string.IsNullOrEmpty(note.PlayerId) && _match.People.TryGetValue(note.PlayerId, out var player))
                     who = player.FullName;
                 else
-                    who = note.Text;
+                    who = LocalizationManager.Translate(note.Text);
                 row.Name.text = who;
                 shown++;
             }

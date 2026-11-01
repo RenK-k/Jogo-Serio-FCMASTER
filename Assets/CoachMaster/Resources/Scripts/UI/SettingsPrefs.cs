@@ -66,7 +66,7 @@ namespace CoachMaster.UI
         public static bool SkipDayConfirmation { get => PlayerPrefs.GetInt(SkipDayConfirmationKey, 1) != 0; set => PlayerPrefs.SetInt(SkipDayConfirmationKey, value ? 1 : 0); }
         public static int MatchSpeedIndex { get => Mathf.Clamp(PlayerPrefs.GetInt(MatchSpeedKey, 1), 0, 3); set => PlayerPrefs.SetInt(MatchSpeedKey, Mathf.Clamp(value, 0, 3)); }
         public static string MatchSpeedLabel => new[] { "0,5×", "1×", "2×", "4×" }[MatchSpeedIndex];
-        public static float MatchSpeed => new[] { 0.34f, 0.68f, 1.36f, 2.72f }[MatchSpeedIndex];
+        public static float MatchSpeed => new[] { 0.5f, 1f, 2f, 4f }[MatchSpeedIndex] / 60f;
         public static int MatchHighlights { get => Mathf.Clamp(PlayerPrefs.GetInt(MatchHighlightsKey, 1), 0, 3); set => PlayerPrefs.SetInt(MatchHighlightsKey, Mathf.Clamp(value, 0, 3)); }
         public static string MatchHighlightsLabel => new[] { "Todos", "Alargados", "Chave", "Só golos" }[MatchHighlights];
         public static bool PauseOnGoal { get => PlayerPrefs.GetInt(PauseGoalKey, 0) != 0; set => PlayerPrefs.SetInt(PauseGoalKey, value ? 1 : 0); }
