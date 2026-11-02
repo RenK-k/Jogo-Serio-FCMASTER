@@ -2562,6 +2562,11 @@ namespace CoachMaster.UI.Scenes
         void CycleSpeed()
         {
             SettingsPrefs.MatchSpeedIndex = (SettingsPrefs.MatchSpeedIndex + 1) % 5;
+            if (_career != null)
+            {
+                _career.MatchSpeedIndex = SettingsPrefs.MatchSpeedIndex;
+                CareerStore.TrySave(_career);
+            }
             _speed = SettingsPrefs.MatchSpeed;
             SettingsPrefs.Commit();
             if (_speedLabel != null)

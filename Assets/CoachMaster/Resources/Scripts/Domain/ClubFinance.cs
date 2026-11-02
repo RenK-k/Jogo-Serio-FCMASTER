@@ -11,6 +11,7 @@ namespace CoachMaster.Domain
         public int TransferSpentThisSeason { get; set; }
         public int TicketIncomeThisSeason { get; set; }
         public int ShirtIncomeThisSeason { get; set; }
+        public int SponsorIncomeThisSeason { get; set; }
         public int PlayerSalesThisSeason { get; set; }
         public string PublicSituation { get; set; }
         public List<FinanceTransaction> Transactions { get; } = new List<FinanceTransaction>();

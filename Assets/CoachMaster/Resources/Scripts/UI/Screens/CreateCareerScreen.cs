@@ -1,5 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
+using CoachMaster.Career;
+using CoachMaster.UI.Scenes;
 
 namespace CoachMaster.UI.Screens
 {
@@ -45,8 +47,12 @@ namespace CoachMaster.UI.Screens
                 }
 
                 router.Session.Draft.CoachName = name;
-                router.Session.StartCareer();
-                router.Show("day");
+                CareerSetupOverlay.Open(Root.transform, router.Session, () =>
+                {
+                    router.Session.StartCareer();
+                    CareerStore.Save(router.Session.Career);
+                    router.Show("day");
+                });
             }, UiTheme.Accent);
             UiFactory.LayoutElement(confirm, 52);
         }

@@ -362,12 +362,36 @@ namespace CoachMaster.App
 
         public void StartCareer()
         {
-            Career = CareerFactory.Create(Draft.CoachName, Draft.ClubId, Data.WorldCatalog.Create());
-            Career.InjuryFrequency = SettingsPrefs.DefaultInjuryFrequency;
-            Career.RefereeStrictness = SettingsPrefs.DefaultRefereeStrictness;
-            Career.RealismPreset = SettingsPrefs.DefaultRealismPreset;
+            var world = Draft.PreviewWorld ?? Data.WorldCatalog.Create();
+            Career = CareerFactory.Create(Draft.CoachName, Draft.ClubId, world);
+            Career.InjuryFrequency = Mathf.Clamp(Draft.InjuryFrequency, 0, 2);
+            Career.RefereeStrictness = Mathf.Clamp(Draft.RefereeStrictness, 0, 2);
+            Career.RealismPreset = Mathf.Clamp(Draft.RealismPreset, 0, 4);
+            Career.MatchSpeedIndex = Mathf.Clamp(Draft.MatchSpeedIndex, 0, 4);
+            Career.AutomaticSquadSelection = Draft.AutomaticSquadSelection;
+            Career.AutomaticTraining = Draft.AutomaticTraining;
+            Career.MatchHighlights = Mathf.Clamp(Draft.MatchHighlights, 0, 3);
+            Career.PauseOnGoal = Draft.PauseOnGoal;
+            Career.PauseOnRedCard = Draft.PauseOnRedCard;
+            Career.PauseOnInjury = Draft.PauseOnInjury;
+            Career.LiveRatings = Draft.LiveRatings;
+            Career.DatabaseCustomizationEnabled = Draft.PersonalizeDatabase;
+            SettingsPrefs.ApplyCareerGameplay(Career);
+            SettingsPrefs.Commit();
             Career.LastAutoSaveDateTicks = Career.Calendar.CurrentDate.Ticks;
-            Data.ModFolder.Apply(Career);
+            if (Draft.PreviewWorld == null)
+                Data.ModFolder.Apply(Career);
+            Draft.PreviewWorld = null;
+        }
+
+        public WorldState PrepareCareerPreview()
+        {
+            if (Draft.PreviewWorld == null)
+            {
+                Draft.PreviewWorld = Data.WorldCatalog.Create();
+                Data.ModFolder.Apply(Draft.PreviewWorld);
+            }
+            return Draft.PreviewWorld;
         }
 
         public void Restore(CareerState career)
@@ -387,12 +411,38 @@ namespace CoachMaster.App
         public string LeagueId;
         public string ClubId;
         public string CoachName = "";
+        public int MatchSpeedIndex = SettingsPrefs.MatchSpeedIndex;
+        public int InjuryFrequency = SettingsPrefs.DefaultInjuryFrequency;
+        public int RefereeStrictness = SettingsPrefs.DefaultRefereeStrictness;
+        public int RealismPreset = SettingsPrefs.DefaultRealismPreset;
+        public bool AutomaticSquadSelection = SettingsPrefs.AutomaticSquadSelection;
+        public bool AutomaticTraining = SettingsPrefs.AutomaticTraining;
+        public int MatchHighlights = SettingsPrefs.MatchHighlights;
+        public bool PauseOnGoal = SettingsPrefs.PauseOnGoal;
+        public bool PauseOnRedCard = SettingsPrefs.PauseOnRedCard;
+        public bool PauseOnInjury = SettingsPrefs.PauseOnInjury;
+        public bool LiveRatings = SettingsPrefs.LiveRatings;
+        public bool PersonalizeDatabase;
+        public WorldState PreviewWorld;
 
         public void Reset()
         {
             LeagueId = null;
             ClubId = null;
             CoachName = "";
+            MatchSpeedIndex = SettingsPrefs.MatchSpeedIndex;
+            InjuryFrequency = SettingsPrefs.DefaultInjuryFrequency;
+            RefereeStrictness = SettingsPrefs.DefaultRefereeStrictness;
+            RealismPreset = SettingsPrefs.DefaultRealismPreset;
+            AutomaticSquadSelection = SettingsPrefs.AutomaticSquadSelection;
+            AutomaticTraining = SettingsPrefs.AutomaticTraining;
+            MatchHighlights = SettingsPrefs.MatchHighlights;
+            PauseOnGoal = SettingsPrefs.PauseOnGoal;
+            PauseOnRedCard = SettingsPrefs.PauseOnRedCard;
+            PauseOnInjury = SettingsPrefs.PauseOnInjury;
+            LiveRatings = SettingsPrefs.LiveRatings;
+            PersonalizeDatabase = false;
+            PreviewWorld = null;
         }
     }
 }

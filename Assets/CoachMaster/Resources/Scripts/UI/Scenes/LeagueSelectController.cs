@@ -52,11 +52,23 @@ namespace CoachMaster.UI.Scenes
                 SetCardText(card, "Desc", LeagueDescription(league));
                 SetCardText(card, "Tier", LocalizationManager.Translate(TierLabel(league.Tier)));
                 var leagueCrest = EnsureCompetitionCrest(card, league.Id);
-                BroadcastUi.Place(leagueCrest.rectTransform, 0.83f, 0.7f, 0.97f, 0.97f);
+                BroadcastUi.Place(leagueCrest.rectTransform, 0.035f, 0.32f, 0.13f, 0.7f);
+                var tierNode = card.Find("Tier");
+                if (tierNode != null)
+                    BroadcastUi.Place(tierNode.GetComponent<RectTransform>(), 0.15f, 0.68f, 0.72f, 0.9f);
+                var nameNode = card.Find("Name");
+                if (nameNode != null)
+                    BroadcastUi.Place(nameNode.GetComponent<RectTransform>(), 0.15f, 0.34f, 0.72f, 0.68f);
+                var descNode = card.Find("Desc");
+                if (descNode != null)
+                    BroadcastUi.Place(descNode.GetComponent<RectTransform>(), 0.15f, 0.08f, 0.72f, 0.36f);
                 var countNode = card.Find("Count");
                 var countLabel = countNode == null ? null : countNode.GetComponent<Text>();
                 if (countLabel != null)
+                {
                     countLabel.text = league.ClubCount + (LocalizationManager.Current == GameLanguage.English ? " clubs" : " clubes");
+                    BroadcastUi.Place(countLabel.rectTransform, 0.74f, 0.75f, 0.96f, 0.93f);
+                }
                 System.Action choose = () =>
                 {
                     session.Draft.LeagueId = league.Id;
@@ -99,13 +111,14 @@ namespace CoachMaster.UI.Scenes
                 var badge = BroadcastUi.Label(card.transform, "Tier", tier, 14, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
                 BroadcastUi.Place(badge.rectTransform, 0.04f, 0.68f, 0.4f, 0.9f);
                 var count = BroadcastUi.Label(card.transform, "Count", league.ClubCount + (LocalizationManager.Current == GameLanguage.English ? " clubs" : " clubes"), 14, UiTheme.Muted, TextAnchor.MiddleRight);
-                BroadcastUi.Place(count.rectTransform, 0.55f, 0.68f, 0.72f, 0.9f);
+                BroadcastUi.Place(count.rectTransform, 0.74f, 0.75f, 0.96f, 0.93f);
                 var name = BroadcastUi.Label(card.transform, "Name", LocalizationManager.Translate(league.Name.ToUpperInvariant()), 28, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
-                BroadcastUi.Place(name.rectTransform, 0.04f, 0.34f, 0.7f, 0.68f);
+                BroadcastUi.Place(name.rectTransform, 0.15f, 0.34f, 0.72f, 0.68f);
                 var desc = BroadcastUi.Label(card.transform, "Desc", LeagueDescription(league), 16, UiTheme.Muted, TextAnchor.MiddleLeft);
-                BroadcastUi.Place(desc.rectTransform, 0.04f, 0.08f, 0.7f, 0.36f);
+                BroadcastUi.Place(desc.rectTransform, 0.15f, 0.08f, 0.72f, 0.36f);
                 var leagueCrest = EnsureCompetitionCrest(card.transform, league.Id);
-                BroadcastUi.Place(leagueCrest.rectTransform, 0.83f, 0.7f, 0.97f, 0.97f);
+                BroadcastUi.Place(leagueCrest.rectTransform, 0.035f, 0.32f, 0.13f, 0.7f);
+                BroadcastUi.Place(badge.rectTransform, 0.15f, 0.68f, 0.72f, 0.9f);
                 System.Action choose = () =>
                 {
                     session.Draft.LeagueId = league.Id;

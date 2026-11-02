@@ -61,16 +61,16 @@ namespace CoachMaster.UI.Scenes
             var error = SceneBind.Get<Text>(root, "Card/Error");
             if (field != null && !string.IsNullOrEmpty(session.Draft.CoachName))
                 field.text = session.Draft.CoachName;
-            SceneBind.Wire(root.Find("Card/Confirm"), () => ConfirmName(session, field, error));
+            SceneBind.Wire(root.Find("Card/Confirm"), () => ConfirmName(root, session, field, error));
             if (field != null)
             {
                 field.onSubmit.RemoveAllListeners();
                 field.onEndEdit.RemoveAllListeners();
-                field.onSubmit.AddListener(text => ConfirmName(session, field, error));
+                field.onSubmit.AddListener(text => ConfirmName(root, session, field, error));
             }
         }
 
-        void ConfirmName(GameSession session, InputField field, Text error)
+        void ConfirmName(Transform root, GameSession session, InputField field, Text error)
         {
             var name = field == null || field.text == null ? "" : field.text.Trim();
             if (name.Length < 2)
@@ -81,9 +81,12 @@ namespace CoachMaster.UI.Scenes
             }
 
             session.Draft.CoachName = name;
-            session.StartCareer();
-            CareerStore.Save(session.Career);
-            GameRoot.Instance.Open(SceneNames.CareerHub);
+            CareerSetupOverlay.Open(root, session, () =>
+            {
+                session.StartCareer();
+                CareerStore.Save(session.Career);
+                GameRoot.Instance.Open(SceneNames.CareerHub);
+            });
         }
 
         void Paint(GameSession session, Club club, bool bake)
@@ -127,9 +130,12 @@ namespace CoachMaster.UI.Scenes
                 }
 
                 session.Draft.CoachName = name;
-                session.StartCareer();
-                CareerStore.Save(session.Career);
-                GameRoot.Instance.Open(SceneNames.CareerHub);
+                CareerSetupOverlay.Open(root, session, () =>
+                {
+                    session.StartCareer();
+                    CareerStore.Save(session.Career);
+                    GameRoot.Instance.Open(SceneNames.CareerHub);
+                });
             }, UiTheme.Accent, UiTheme.ButtonText, 20);
             BroadcastUi.Place(confirm.GetComponent<RectTransform>(), 0.18f, 0.06f, 0.82f, 0.18f);
             field.onSubmit.AddListener(text => confirm.onClick.Invoke());

@@ -25,9 +25,18 @@ namespace CoachMaster.Data
         {
             if (career?.World == null)
                 return;
-            WorldCatalog.NormalizeGeneratedStaff(career.World);
-            ApplyClubs(career.World);
-            ApplyPlayers(career.World);
+            Apply(career.World);
+        }
+
+        public static void Apply(WorldState world)
+        {
+            if (world == null)
+                return;
+            WorldCatalog.NormalizeGeneratedStaff(world);
+            WorldExtraCatalog.EnsureSponsors(world);
+            ApplyClubs(world);
+            ApplyPlayers(world);
+            ApplySponsors(world);
         }
 
         public static Sprite Portrait(string fullName)
@@ -35,9 +44,111 @@ namespace CoachMaster.Data
             return Picture("caras", fullName);
         }
 
+        public static Sprite PortraitFile(string fileKey)
+        {
+            return Picture("caras", fileKey);
+        }
+
+        public static List<string> PortraitKeys()
+        {
+            return ImageKeys("caras");
+        }
+
         public static Sprite Crest(string clubName)
         {
             return Picture("emblemas", clubName);
+        }
+
+        public static List<string> CrestKeys()
+        {
+            return ImageKeys("emblemas");
+        }
+
+        public static Sprite SponsorLogo(string logoKey)
+        {
+            return Picture("patrocinadores", logoKey);
+        }
+
+        public static List<string> SponsorLogoKeys()
+        {
+            return ImageKeys("patrocinadores");
+        }
+
+        public static string ImportImageFile(string sourcePath, string folderName)
+        {
+            if (string.IsNullOrWhiteSpace(sourcePath) || string.IsNullOrWhiteSpace(folderName)) return null;
+            try
+            {
+                var extension = Path.GetExtension(sourcePath).ToLowerInvariant();
+                if (extension != ".png" && extension != ".jpg" && extension != ".jpeg") return null;
+                var source = Path.GetFullPath(sourcePath);
+                if (!File.Exists(source)) return null;
+                var folder = Path.Combine(Root(), folderName);
+                Directory.CreateDirectory(folder);
+                var originalName = Path.GetFileNameWithoutExtension(source);
+                foreach (var invalid in Path.GetInvalidFileNameChars()) originalName = originalName.Replace(invalid, '_');
+                originalName = originalName.Trim().TrimEnd('.');
+                if (string.IsNullOrWhiteSpace(originalName)) originalName = "custom-image";
+                var key = originalName;
+                var destination = Path.Combine(folder, key + extension);
+                if (string.Equals(source, Path.GetFullPath(destination), StringComparison.OrdinalIgnoreCase)) return key;
+                var suffix = 2;
+                while (File.Exists(Path.Combine(folder, key + ".png"))
+                    || File.Exists(Path.Combine(folder, key + ".jpg"))
+                    || File.Exists(Path.Combine(folder, key + ".jpeg")))
+                {
+                    key = originalName + "-" + suffix++;
+                    destination = Path.Combine(folder, key + extension);
+                }
+                File.Copy(source, destination, false);
+                return key;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        static List<string> ImageKeys(string folderName)
+        {
+            var result = new List<string>();
+            var folder = Path.Combine(Root(), folderName);
+            if (!Directory.Exists(folder)) return result;
+            foreach (var path in Directory.GetFiles(folder))
+            {
+                var extension = Path.GetExtension(path).ToLowerInvariant();
+                if (extension != ".png" && extension != ".jpg" && extension != ".jpeg") continue;
+                result.Add(Path.GetFileNameWithoutExtension(path));
+            }
+            result.Sort(StringComparer.OrdinalIgnoreCase);
+            return result;
+        }
+
+        static void ApplySponsors(WorldState world)
+        {
+            var replaced = new HashSet<string>();
+            var entries = ReadLines("sponsors.txt");
+            for (var i = 0; i < entries.Count; i++)
+            {
+                var bits = entries[i].Split('|');
+                if (bits.Length < 2) continue;
+                var club = FindClub(world, bits[0]);
+                if (club == null) continue;
+                if (club.Sponsors == null) club.Sponsors = new List<SponsorContract>();
+                if (replaced.Add(club.Id)) club.Sponsors.Clear();
+                int.TryParse(bits.Length > 2 ? bits[2] : "0", out var weekly);
+                var name = bits[1].Trim();
+                if (string.IsNullOrWhiteSpace(name)) continue;
+                club.Sponsors.Add(new SponsorContract
+                {
+                    Id = "mod:sponsor:" + club.Id + ":" + club.Sponsors.Count,
+                    Name = name,
+                    WeeklyIncome = Mathf.Clamp(weekly, 0, 10000000),
+                    LogoKey = bits.Length > 3 ? bits[3].Trim() : "",
+                    LogoHex = bits.Length > 4 && Hex(bits[4], out var color) ? color : "#20D8F4",
+                    IsActive = true
+                });
+            }
         }
 
         static void ApplyClubs(WorldState world)
@@ -228,7 +339,8 @@ namespace CoachMaster.Data
                 return null;
             var png = Path.Combine(Root(), folder, name.Trim() + ".png");
             var jpg = Path.Combine(Root(), folder, name.Trim() + ".jpg");
-            var path = File.Exists(png) ? png : File.Exists(jpg) ? jpg : "";
+            var jpeg = Path.Combine(Root(), folder, name.Trim() + ".jpeg");
+            var path = File.Exists(png) ? png : File.Exists(jpg) ? jpg : File.Exists(jpeg) ? jpeg : "";
             if (string.IsNullOrEmpty(path))
                 return null;
             Sprite sprite;
@@ -239,7 +351,9 @@ namespace CoachMaster.Data
                 var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
                 if (!texture.LoadImage(File.ReadAllBytes(path)))
                     return null;
+                texture.name = Path.GetFileNameWithoutExtension(path);
                 sprite = Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f);
+                sprite.name = texture.name;
                 Sprites[path] = sprite;
                 return sprite;
             }

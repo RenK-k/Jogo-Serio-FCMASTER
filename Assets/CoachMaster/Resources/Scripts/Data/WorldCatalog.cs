@@ -84,6 +84,8 @@ namespace CoachMaster.Data
         {
             var world = CreateShell();
             EnsureAllClubs(world);
+            WorldExtraCatalog.EnsureSponsors(world);
+            FreeAgentCatalog.Ensure(world);
             return world;
         }
 
@@ -620,6 +622,12 @@ namespace CoachMaster.Data
             };
         }
 
+        static string GeneratedFormation(string clubSlug)
+        {
+            var formations = new[] { "4-3-3", "4-2-3-1", "4-4-2", "3-4-3", "5-4-1" };
+            return formations[Hash(clubSlug ?? "") % formations.Length];
+        }
+
         static List<StaffMember> Staff(string slug, string assistant, string gk, string fitness, string physio, int reputation = 74)
         {
             var clubId = Ids.Club(slug);
@@ -654,7 +662,9 @@ namespace CoachMaster.Data
             if (world == null || world.Clubs == null) return;
             foreach (var club in world.Clubs.Values)
             {
-                if (club == null || club.Staff == null) continue;
+                if (club == null) continue;
+                EnsureManager(club, false);
+                if (club.Staff == null) continue;
                 foreach (var member in club.Staff)
                 {
                     if (member == null || string.IsNullOrEmpty(member.Id)) continue;
@@ -663,6 +673,39 @@ namespace CoachMaster.Data
                     member.FullName = FaceBook.PersonName(StaffNation(parts[1]), Hash(parts[1] + ":staff:" + RoleIndex(member.Role)));
                 }
             }
+        }
+
+        static void EnsureManager(Club club, bool regenerate)
+        {
+            if (club == null) return;
+            if (club.Tactics == null)
+                club.Tactics = Identity("4-2-3-1", "Pressão média", "Construção curta", "Laterais equilibrados", "Linha média", "");
+            var name = club.Tactics.FormerCoachName;
+            if (!regenerate && !string.IsNullOrWhiteSpace(name) && !string.Equals(name, "Treinador anterior", StringComparison.OrdinalIgnoreCase))
+                return;
+            var nationality = NationalityForLeagueId(club.LeagueId);
+            club.Tactics.FormerCoachName = FaceBook.PersonName(nationality, Hash((club.Id ?? club.Name ?? "club") + ":manager"));
+        }
+
+        public static void SimulateManagerAppointments(WorldState world, DateTime month, string managedClubId)
+        {
+            if (world == null || world.Clubs == null || month.Day != 1) return;
+            var clubs = new List<Club>();
+            foreach (var club in world.Clubs.Values)
+                if (club != null && club.Id != managedClubId && club.Tactics != null)
+                    clubs.Add(club);
+            clubs.Sort((a, b) => string.CompareOrdinal(a.Id, b.Id));
+            if (clubs.Count < 2) return;
+            var monthSeed = Hash("manager-market:" + month.Year + ":" + month.Month);
+            if (monthSeed % 3 != 0) return;
+            var sourceIndex = monthSeed % clubs.Count;
+            var destinationIndex = (sourceIndex + 1 + (monthSeed / 7) % (clubs.Count - 1)) % clubs.Count;
+            var source = clubs[sourceIndex];
+            var destination = clubs[destinationIndex];
+            EnsureManager(source, false);
+            EnsureManager(destination, false);
+            destination.Tactics.FormerCoachName = source.Tactics.FormerCoachName;
+            source.Tactics.FormerCoachName = FaceBook.PersonName(NationalityForLeagueId(source.LeagueId), Hash(source.Id + ":appointment:" + month.Year + ":" + month.Month));
         }
 
         static int RoleIndex(StaffRole role)
@@ -710,6 +753,7 @@ namespace CoachMaster.Data
                 DressingRoomTension = def.DressingRoomTension,
                 Staff = def.Staff
             };
+            EnsureManager(club, true);
 
             var numberToId = new Dictionary<int, string>();
             foreach (var raw in def.Players)
@@ -982,7 +1026,7 @@ namespace CoachMaster.Data
                     PublicReputation = first ? "Clube da primeira divisão." : "Clube a lutar pela subida.",
                     Reputation = reputation,
                     Finance = Fin(first ? 2800000 : 900000, first ? 110000 : 48000, first ? 400000 : 120000, "As contas acompanham o tamanho do clube."),
-                    Tactics = Identity(i % 2 == 0 ? "4-3-3" : "4-4-2", "Pressão média", "Construção curta", "Laterais equilibrados", "Linha média", "Treinador anterior"),
+                    Tactics = Identity(GeneratedFormation(clubSlug), "Pressão média", "Construção curta", "Laterais equilibrados", "Linha média", "Treinador anterior"),
                     BoardObjectives = Obj("Pontuar com regularidade", "Manter o balneário calmo"),
                     DressingRoomAtmosphere = "O grupo espera um plano claro.",
                     PublicTeamState = "A pré-época ainda não mostrou o verdadeiro nível.",
@@ -1137,7 +1181,7 @@ namespace CoachMaster.Data
                     Reputation = reputation,
                     KitSlug = brand != null ? brand.KitId : clubSlug,
                     Finance = Fin(balance, wages, transfers, "As contas acompanham o tamanho do clube."),
-                    Tactics = Identity(i % 2 == 0 ? "4-3-3" : "4-4-2", "Pressão média", "Construção curta", "Laterais equilibrados", "Linha média", "Treinador anterior"),
+                    Tactics = Identity(GeneratedFormation(clubSlug), "Pressão média", "Construção curta", "Laterais equilibrados", "Linha média", "Treinador anterior"),
                     BoardObjectives = brand != null && brand.Reputation >= 90
                         ? Obj("Lutar pelo título", "Manter o balneário dos grandes")
                         : brand != null && brand.Reputation >= 80

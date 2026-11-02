@@ -20,6 +20,9 @@ namespace CoachMaster.Domain
         public string JerseyShortsHex { get; set; }
         public KitPattern KitPattern { get; set; }
         public ClubFinance Finance { get; set; }
+        public string CrestResourcePath { get; set; }
+        public string CustomCrestKey { get; set; }
+        public List<SponsorContract> Sponsors { get; set; } = new List<SponsorContract>();
         public TacticalIdentity Tactics { get; set; }
         public List<string> BoardObjectives { get; set; } = new List<string>();
         public string DressingRoomAtmosphere { get; set; }

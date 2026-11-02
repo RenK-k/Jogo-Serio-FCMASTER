@@ -6,7 +6,7 @@ namespace CoachMaster.Career
 {
     public static class ClubFinanceLedger
     {
-        const int MaxTransactions = 240;
+        const int MaxTransactions = 1200;
 
         public static int EnsureWeeklyWageBudget(CareerState career, Club club)
         {
@@ -88,10 +88,13 @@ namespace CoachMaster.Career
                     if (club == null || club.Finance == null)
                         continue;
                     var income = WeeklyShirtIncome(career, club);
+                    var sponsorIncome = WeeklySponsorIncome(club);
                     club.Finance.ShirtIncomeThisSeason = (int)Math.Min(int.MaxValue,
                         (long)club.Finance.ShirtIncomeThisSeason + income);
+                    club.Finance.SponsorIncomeThisSeason = (int)Math.Min(int.MaxValue,
+                        (long)club.Finance.SponsorIncomeThisSeason + sponsorIncome);
                     club.Finance.Balance = (int)Math.Max(int.MinValue,
-                        Math.Min(int.MaxValue, (long)club.Finance.Balance + income));
+                        Math.Min(int.MaxValue, (long)club.Finance.Balance + income + sponsorIncome));
 
                     var sellers = TopShirtSellers(career, club);
                     var remaining = income;
@@ -104,6 +107,10 @@ namespace CoachMaster.Career
                     }
                     if (sellers.Count == 0)
                         Record(club, payday, income, "shirt", club.Name);
+                    if (club.Sponsors != null)
+                        foreach (var sponsor in club.Sponsors)
+                            if (sponsor != null && sponsor.IsActive && sponsor.WeeklyIncome > 0)
+                                Record(club, payday, sponsor.WeeklyIncome, "sponsor", sponsor.Name);
                 }
                 payday = payday.AddDays(7);
             }
@@ -130,6 +137,16 @@ namespace CoachMaster.Career
             if (career == null || club == null)
                 return 0;
             return Math.Max(1800, club.Reputation * 95);
+        }
+
+        public static int WeeklySponsorIncome(Club club)
+        {
+            if (club?.Sponsors == null) return 0;
+            long total = 0;
+            foreach (var sponsor in club.Sponsors)
+                if (sponsor != null && sponsor.IsActive)
+                    total += Math.Max(0, sponsor.WeeklyIncome);
+            return (int)Math.Min(int.MaxValue, total);
         }
 
         public static void Record(Club club, DateTime date, int amount, string category, string description, string playerId = null)

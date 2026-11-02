@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using CoachMaster.Career;
 using UnityEngine;
 
 namespace CoachMaster.UI
@@ -88,6 +89,35 @@ namespace CoachMaster.UI
         public static int AutosaveSlots => new[] { 2, 3, 5 }[AutosaveSlotsIndex];
         public static string AutosaveSlotsLabel => AutosaveSlots + " cópias";
         public static bool MuteWhenBackground { get => PlayerPrefs.GetInt(BackgroundMuteKey, 0) != 0; set => PlayerPrefs.SetInt(BackgroundMuteKey, value ? 1 : 0); }
+
+        public static void ApplyCareerGameplay(CareerState career)
+        {
+            if (career == null) return;
+            MatchSpeedIndex = career.MatchSpeedIndex;
+            AutomaticSquadSelection = career.AutomaticSquadSelection;
+            AutomaticTraining = career.AutomaticTraining;
+            MatchHighlights = career.MatchHighlights;
+            PauseOnGoal = career.PauseOnGoal;
+            PauseOnRedCard = career.PauseOnRedCard;
+            PauseOnInjury = career.PauseOnInjury;
+            LiveRatings = career.LiveRatings;
+            DefaultInjuryFrequency = career.InjuryFrequency;
+            DefaultRefereeStrictness = career.RefereeStrictness;
+            DefaultRealismPreset = career.RealismPreset;
+        }
+
+        public static void CaptureCareerGameplay(CareerState career)
+        {
+            if (career == null) return;
+            career.MatchSpeedIndex = MatchSpeedIndex;
+            career.AutomaticSquadSelection = AutomaticSquadSelection;
+            career.AutomaticTraining = AutomaticTraining;
+            career.MatchHighlights = MatchHighlights;
+            career.PauseOnGoal = PauseOnGoal;
+            career.PauseOnRedCard = PauseOnRedCard;
+            career.PauseOnInjury = PauseOnInjury;
+            career.LiveRatings = LiveRatings;
+        }
 
         public static Snapshot Capture()
         {

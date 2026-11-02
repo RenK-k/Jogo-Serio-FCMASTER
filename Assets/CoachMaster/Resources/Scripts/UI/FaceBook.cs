@@ -395,6 +395,59 @@ namespace CoachMaster.UI
             return sprite;
         }
 
+        public static List<Sprite> AvailableFaces(string nation)
+        {
+            var result = new List<Sprite>();
+            var seen = new HashSet<string>();
+            foreach (var sprite in Pool(nation))
+                if (sprite != null && seen.Add(SpriteId(sprite))) result.Add(sprite);
+            foreach (var sprite in AllFaces())
+                if (sprite != null && seen.Add(SpriteId(sprite))) result.Add(sprite);
+            foreach (var key in ModFolder.PortraitKeys())
+            {
+                var sprite = ModFolder.PortraitFile(key);
+                if (sprite == null) continue;
+                if (!FolderBySprite.ContainsKey(sprite)) FolderBySprite[sprite] = "Mods/caras";
+                if (seen.Add(SpriteId(sprite))) result.Add(sprite);
+            }
+            result.Sort((a, b) => string.CompareOrdinal(SpriteId(a), SpriteId(b)));
+            return result;
+        }
+
+        public static Sprite ModPortrait(string fileKey)
+        {
+            var sprite = ModFolder.PortraitFile(fileKey);
+            if (sprite != null) FolderBySprite[sprite] = "Mods/caras";
+            return sprite;
+        }
+
+        public static string SpriteKey(Sprite sprite) => SpriteId(sprite);
+
+        public static void SetPortrait(Player player, Sprite sprite)
+        {
+            if (player == null || sprite == null)
+                return;
+            var key = SpriteId(sprite);
+            if (string.IsNullOrEmpty(key))
+                return;
+            player.PortraitPath = key;
+            ByPlayer[player.Id] = Center(sprite);
+            UsedPortraitIds.Add(key);
+        }
+
+        public static void RefreshPortrait(Player player)
+        {
+            if (player == null)
+                return;
+            ByPlayer.Remove(player.Id);
+            var sprite = Find(player.Nationality, player.PortraitPath);
+            if (sprite != null)
+            {
+                ByPlayer[player.Id] = Center(sprite);
+                UsedPortraitIds.Add(SpriteId(sprite));
+            }
+        }
+
         public static Sprite For(StaffMember member)
         {
             if (member == null)
@@ -734,6 +787,8 @@ namespace CoachMaster.UI
             if (mark > 0)
             {
                 var folder = portraitPath.Substring(0, mark);
+                if (folder == "Mods/caras")
+                    return ModFolder.PortraitFile(name);
                 if (folder.StartsWith("Kits/Players/"))
                 {
                     foreach (var sprite in Load(folder))

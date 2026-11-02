@@ -13,15 +13,17 @@ namespace CoachMaster.Career
             if (career == null || player == null || career.World == null)
                 return result;
             var baseValue = MarketValue(player);
-            if (!career.World.Clubs.TryGetValue(player.ClubId ?? "", out var seller))
+            var freeAgent = string.IsNullOrEmpty(player.ClubId);
+            career.World.Clubs.TryGetValue(player.ClubId ?? "", out var seller);
+            if (!freeAgent && seller == null)
                 return result;
             var scored = new List<KeyValuePair<int, Club>>();
             foreach (var club in career.World.Clubs.Values)
             {
-                if (club == null || club.Id == player.ClubId || (!includeUser && club.Id == career.Club.Id)
-                    || club.Finance == null || club.Finance.TransferBudget < baseValue || club.PlayerIds.Count >= 28)
+                if (club == null || (!freeAgent && club.Id == player.ClubId) || (!includeUser && club.Id == career.Club.Id)
+                    || club.Finance == null || (!freeAgent && club.Finance.TransferBudget < baseValue) || club.PlayerIds.Count >= 28)
                     continue;
-                var sameLeague = club.LeagueId == seller.LeagueId;
+                var sameLeague = !freeAgent && club.LeagueId == seller.LeagueId;
                 var sameCountryTier = sameLeague ? 16 : 0;
                 var positionalNeed = PositionNeed(career, club, player.Position) * 5;
                 var score = 100 - Math.Abs(club.Reputation - PlayerAttributes.Overall(player)) + sameCountryTier + positionalNeed;
@@ -36,10 +38,48 @@ namespace CoachMaster.Career
 
         public static int RequiredFee(CareerState career, Player player)
         {
+            if (player == null || string.IsNullOrEmpty(player.ClubId)) return 0;
             var value = MarketValue(player);
             var contenders = Contenders(career, player);
             var premium = Mathf.Min(0.2f, contenders.Count * 0.05f);
             return Mathf.Max(value, Mathf.RoundToInt(value * (1f + premium)));
+        }
+
+        public static bool SignFreeAgent(CareerState career, Player player, Club buyer, int wage, int years)
+        {
+            if (career == null || player == null || buyer == null || career.World == null || career.Calendar == null
+                || !string.IsNullOrEmpty(player.ClubId) || buyer.Finance == null || buyer.PlayerIds.Count >= 28
+                || MovePending(career, player.Id))
+                return false;
+            var wageBudget = ClubFinanceLedger.EnsureWeeklyWageBudget(career, buyer);
+            var payroll = ClubFinanceLedger.WeeklyPayroll(career, buyer, career.Calendar.CurrentDate);
+            if (wage < 0 || wage > Math.Max(0, wageBudget - payroll)) return false;
+
+            player.ClubId = buyer.Id;
+            player.SquadNumber = NextSquadNumber(career, buyer);
+            player.IsCaptain = false;
+            player.IsViceCaptain = false;
+            player.WeeklyWage = wage;
+            player.ContractEndTicks = career.Calendar.CurrentDate.Date.AddYears(Mathf.Clamp(years, 1, 5)).Ticks;
+            buyer.PlayerIds.Add(player.Id);
+            var record = new TransferRecord
+            {
+                DateTicks = career.Calendar.CurrentDate.Ticks,
+                PlayerId = player.Id,
+                FromClubId = "",
+                ToClubId = buyer.Id,
+                Fee = 0,
+                WeeklyWage = wage,
+                ContractYears = Mathf.Clamp(years, 1, 5),
+                AgeAtTransfer = player.Age,
+                OverallAtTransfer = PlayerAttributes.Overall(player),
+                Type = "Free Agent"
+            };
+            career.TransferHistory.Insert(0, record);
+            if (career.TransferHistory.Count > 300) career.TransferHistory.RemoveAt(career.TransferHistory.Count - 1);
+            career.Targets.Remove(player.Id);
+            career.ScoutedPlayers.Remove(player.Id);
+            return true;
         }
 
         public static bool Advance(CareerState career)

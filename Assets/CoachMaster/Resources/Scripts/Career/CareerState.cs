@@ -46,6 +46,15 @@ namespace CoachMaster.Career
         public int InjuryFrequency { get; set; } = 1;
         public int RefereeStrictness { get; set; } = 1;
         public int RealismPreset { get; set; } = 1;
+        public int MatchSpeedIndex { get; set; } = 1;
+        public bool AutomaticSquadSelection { get; set; }
+        public bool AutomaticTraining { get; set; } = true;
+        public int MatchHighlights { get; set; } = 1;
+        public bool PauseOnGoal { get; set; }
+        public bool PauseOnRedCard { get; set; }
+        public bool PauseOnInjury { get; set; } = true;
+        public bool LiveRatings { get; set; } = true;
+        public bool DatabaseCustomizationEnabled { get; set; }
         public long LastAutoSaveDateTicks { get; set; }
         public long LastPlayedUtcTicks { get; set; }
         public double PlayTimeSeconds { get; set; }

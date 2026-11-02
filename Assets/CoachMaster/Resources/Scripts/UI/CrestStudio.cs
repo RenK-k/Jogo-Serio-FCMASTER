@@ -19,6 +19,34 @@ namespace CoachMaster.UI
                 return Fallback;
             }
             WorldCatalog.PaintClub(club);
+            if (!string.IsNullOrEmpty(club.CustomCrestKey))
+            {
+                var customFile = ModFolder.Crest(club.CustomCrestKey);
+                if (customFile != null) return customFile;
+            }
+            if (!string.IsNullOrEmpty(club.CrestResourcePath))
+            {
+                var mark = club.CrestResourcePath.IndexOf('|');
+                var resourcePath = mark < 0 ? club.CrestResourcePath : club.CrestResourcePath.Substring(0, mark);
+                var spriteName = mark < 0 ? "" : club.CrestResourcePath.Substring(mark + 1);
+                var overrideKey = "custom-resource|" + club.CrestResourcePath;
+                if (Cache.TryGetValue(overrideKey, out var customCached) && customCached != null)
+                    return customCached;
+                var customSprites = Resources.LoadAll<Sprite>(resourcePath);
+                if (!string.IsNullOrEmpty(spriteName) && customSprites != null)
+                    for (var i = 0; i < customSprites.Length; i++)
+                        if (customSprites[i] != null && customSprites[i].name == spriteName)
+                        {
+                            Cache[overrideKey] = customSprites[i];
+                            return customSprites[i];
+                        }
+                var customBadge = LargestBadge(customSprites);
+                if (customBadge != null)
+                {
+                    Cache[overrideKey] = customBadge;
+                    return customBadge;
+                }
+            }
             var modCrest = ModFolder.Crest(club.Name);
             if (modCrest != null)
                 return modCrest;

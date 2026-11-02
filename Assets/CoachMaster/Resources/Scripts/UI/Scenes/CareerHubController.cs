@@ -2894,6 +2894,22 @@ namespace CoachMaster.UI.Scenes
             if (!loaned)
                 EmptyLine(host, "Ainda não puseste ninguém na lista de empréstimos.");
 
+            Section(host, LocalizationManager.Current == GameLanguage.English ? "FREE AGENTS" : "JOGADORES LIVRES");
+            var freeAgents = new List<Player>();
+            foreach (var candidate in _career.World.Players.Values)
+                if (candidate != null && string.IsNullOrEmpty(candidate.ClubId) && candidate.Age >= 18)
+                    freeAgents.Add(candidate);
+            freeAgents.Sort((a, b) =>
+            {
+                var overall = PlayerAttributes.Overall(b).CompareTo(PlayerAttributes.Overall(a));
+                return overall != 0 ? overall : string.CompareOrdinal(a.Id, b.Id);
+            });
+            var freeAgentCount = Math.Min(8, freeAgents.Count);
+            for (var i = 0; i < freeAgentCount; i++)
+                MarketRow(host, freeAgents[i], false, scout, _career.Targets.Contains(freeAgents[i].Id), search);
+            if (freeAgentCount == 0)
+                EmptyLine(host, LocalizationManager.Current == GameLanguage.English ? "No free agents are currently available." : "Não há jogadores livres disponíveis neste momento.");
+
             var query = search == null || search.text == null ? "" : search.text.Trim();
             Section(host, query.Length < 2 ? "PROCURAR NOUTROS CLUBES" : "RESULTADOS");
             if (query.Length < 2)
@@ -2905,7 +2921,7 @@ namespace CoachMaster.UI.Scenes
             var shown = 0;
             foreach (var player in _career.World.Players.Values)
             {
-                if (player.ClubId == _career.Club.Id || shown >= 40)
+                if (player.ClubId == _career.Club.Id || string.IsNullOrEmpty(player.ClubId) || shown >= 40)
                     continue;
                 if (player.FullName == null || player.FullName.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0)
                     continue;
@@ -2952,7 +2968,8 @@ namespace CoachMaster.UI.Scenes
             else
                 read = "Ainda sem relatório.";
             read = LocalizationManager.Translate(read);
-            var clubName = _career.World.Clubs.ContainsKey(player.ClubId) ? _career.World.Clubs[player.ClubId].ShortName : "";
+            var clubName = _career.World.Clubs.ContainsKey(player.ClubId) ? _career.World.Clubs[player.ClubId].ShortName
+                : string.IsNullOrEmpty(player.ClubId) ? (LocalizationManager.Current == GameLanguage.English ? "FREE AGENT" : "SEM CLUBE") : "";
             var interest = GlobalTransferMarket.Contenders(_career, player);
             if (!own && interest.Count > 0)
             {
@@ -3220,12 +3237,9 @@ namespace CoachMaster.UI.Scenes
         {
             if (_career == null || _career.Club == null || _career.Club.Finance == null)
                 return 0;
-            var weekly = 0;
-            foreach (var player in Squad(_career.Club))
-                if (player != null)
-                    weekly += Math.Max(0, player.WeeklyWage);
             var budget = ClubFinanceLedger.EnsureWeeklyWageBudget(_career, _career.Club);
-            return Math.Max(0, budget - weekly);
+            var committed = ClubFinanceLedger.WeeklyPayroll(_career, _career.Club, _career.Calendar.CurrentDate);
+            return (int)Math.Max(0L, (long)budget - committed);
         }
 
         bool TransferWindowOpen()
@@ -3234,10 +3248,166 @@ namespace CoachMaster.UI.Scenes
             return month == 1 || month == 7 || month == 8;
         }
 
+        void OpenFreeAgentNegotiation(Player player)
+        {
+            if (player == null || _career == null || _career.Club == null || !string.IsNullOrEmpty(player.ClubId))
+                return;
+            var previous = transform.Find("TransferSheet");
+            if (previous != null) Destroy(previous.gameObject);
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var sheet = BroadcastUi.Panel(transform, "TransferSheet", new Color(0.08f, 0.03f, 0.16f, 0.98f), true);
+            BroadcastUi.Place(sheet.rectTransform, 0.08f, 0.12f, 0.92f, 0.9f);
+            BroadcastUi.ApplySandPaper(sheet, 0.1f);
+            sheet.transform.SetAsLastSibling();
+            var close = BroadcastUi.Button(sheet.transform, "Close", "×", () => Destroy(sheet.gameObject), new Color(1f, 1f, 1f, 0.1f), Color.white, 20);
+            BroadcastUi.Place(close.GetComponent<RectTransform>(), 0.94f, 0.9f, 0.985f, 0.975f);
+
+            var header = BroadcastUi.Panel(sheet.transform, "Header", new Color(0.12f, 0.05f, 0.24f, 1f), false);
+            BroadcastUi.Place(header.rectTransform, 0.02f, 0.79f, 0.92f, 0.97f);
+            var faceSlot = BroadcastUi.Zone(header.transform, "FaceSlot", 0.015f, 0.08f, 0.12f, 0.92f);
+            FaceImage(faceSlot, player, 64f);
+            var title = BroadcastUi.Label(header.transform, "Title", english ? "FREE AGENT · CONTRACT TALKS" : "JOGADOR LIVRE · NEGOCIAÇÃO DE CONTRATO", 19, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(title.rectTransform, 0.15f, 0.58f, 0.95f, 0.92f);
+            var name = BroadcastUi.Label(header.transform, "Name", player.FullName, 23, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(name.rectTransform, 0.15f, 0.1f, 0.95f, 0.62f);
+
+            var wageAsk = Math.Max(250, player.WeeklyWage);
+            var wageRoom = WeeklyWageRoom();
+            var details = BroadcastUi.Panel(sheet.transform, "Details", new Color(0.1f, 0.04f, 0.2f, 1f), false);
+            BroadcastUi.Place(details.rectTransform, 0.02f, 0.22f, 0.32f, 0.76f);
+            SectionTitle(details.transform, english ? "PLAYER & CLUB" : "JOGADOR E CLUBE");
+            ContractRow(details.transform, "Age", english ? "Age · position" : "Idade · posição", player.Age + " · " + ProfilePosition(player.Position, english), 0.72f);
+            ContractRow(details.transform, "Overall", "Overall", PlayerAttributes.Overall(player).ToString(), 0.59f);
+            ContractRow(details.transform, "Fee", english ? "Transfer fee" : "Valor de transferência", english ? "No fee" : "Sem custo", 0.46f);
+            ContractRow(details.transform, "Ask", english ? "Wage requested" : "Salário pedido", Euro(wageAsk) + (english ? "/wk" : "/sem"), 0.33f);
+            ContractRow(details.transform, "Room", english ? "Available wage room" : "Folga salarial", Euro(wageRoom) + (english ? "/wk" : "/sem"), 0.2f);
+            var note = BroadcastUi.Label(details.transform, "Note", english
+                ? "There is no transfer fee. Weekly wages still count against the wage budget and are paid from the club balance."
+                : "Não há valor de transferência. O salário semanal conta para o orçamento salarial e é pago pelo saldo do clube.", 12, UiTheme.Muted, TextAnchor.UpperLeft);
+            note.horizontalOverflow = HorizontalWrapMode.Wrap;
+            BroadcastUi.Place(note.rectTransform, 0.05f, 0.025f, 0.95f, 0.16f);
+
+            var offers = BroadcastUi.Panel(sheet.transform, "Offers", new Color(0.1f, 0.04f, 0.2f, 1f), false);
+            BroadcastUi.Place(offers.rectTransform, 0.34f, 0.22f, 0.98f, 0.76f);
+            SectionTitle(offers.transform, english ? "CONTRACT PROPOSALS" : "PROPOSTAS DE CONTRATO");
+            var wages = new[] { Mathf.Max(250, Mathf.RoundToInt(wageAsk * 0.9f)), wageAsk, Mathf.RoundToInt(wageAsk * 1.15f) };
+            var terms = new[] { 2, 3, 4 };
+            var offerNames = english ? new[] { "LOWER WAGE", "MEET THE ASK", "STRONG OFFER" } : new[] { "SALÁRIO MAIS BAIXO", "ACEITAR O PEDIDO", "PROPOSTA FORTE" };
+            var pendingBoard = NotebookHas("budget-live") || DeskDue("budget", out _);
+            var boardWaiting = DeskDue("budget-wait", out var boardWaitUntil)
+                && new DateTime(boardWaitUntil).Date > _career.Calendar.CurrentDate.Date;
+            for (var i = 0; i < wages.Length; i++)
+            {
+                var wage = wages[i];
+                var years = terms[i];
+                var gap = Math.Max(0, wage - wageRoom);
+                var canAskBoard = gap > 0 && gap <= 250000 && !pendingBoard && !boardWaiting;
+                var canOffer = gap == 0;
+                var x0 = 0.025f + i * 0.325f;
+                var card = BroadcastUi.Panel(offers.transform, "Offer" + i, new Color(0.14f, 0.06f, 0.28f, 1f), true);
+                BroadcastUi.Place(card.rectTransform, x0, 0.12f, x0 + 0.305f, 0.82f);
+                var offerTitle = BroadcastUi.Label(card.transform, "Title", offerNames[i], 12, UiTheme.Accent, TextAnchor.MiddleCenter, FontStyle.Bold);
+                BroadcastUi.Place(offerTitle.rectTransform, 0.06f, 0.77f, 0.94f, 0.95f);
+                var amount = BroadcastUi.Label(card.transform, "Wage", Euro(wage) + (english ? " / week" : " / semana"), 18, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+                BroadcastUi.Place(amount.rectTransform, 0.06f, 0.54f, 0.94f, 0.76f);
+                var length = BroadcastUi.Label(card.transform, "Length", years + (english ? "-year contract" : " anos de contrato"), 13, UiTheme.Muted, TextAnchor.MiddleCenter);
+                BroadcastUi.Place(length.rectTransform, 0.06f, 0.4f, 0.94f, 0.55f);
+                var buttonLabel = canOffer ? (english ? "OFFER CONTRACT" : "PROPOR CONTRATO")
+                    : canAskBoard ? (english ? "ASK BOARD FOR WAGE ROOM" : "PEDIR REFORÇO SALARIAL")
+                    : (english ? "OVER WAGE BUDGET" : "ACIMA DA VERBA SALARIAL");
+                var captured = player;
+                var button = BroadcastUi.Button(card.transform, "OfferButton", buttonLabel, () =>
+                {
+                    if (canOffer)
+                    {
+                        ResolveFreeAgentOffer(captured, wage, years);
+                        return;
+                    }
+                    if (canAskBoard)
+                    {
+                        var openSheet = transform.Find("TransferSheet");
+                        if (openSheet != null) Destroy(openSheet.gameObject);
+                        OpenBoardMeeting(captured, 0, wage, years, 0, gap);
+                        return;
+                    }
+                    OpenTransferRefusal(captured, english
+                        ? "The weekly wage is above the club's available wage budget. Nothing was signed."
+                        : "O salário semanal ultrapassa o orçamento salarial disponível. Não foi assinado nenhum contrato.");
+                }, canOffer || canAskBoard ? UiTheme.Accent : new Color(0.25f, 0.12f, 0.16f, 1f), canOffer || canAskBoard ? UiTheme.ButtonText : Color.white, 11);
+                BroadcastUi.Place(button.GetComponent<RectTransform>(), 0.06f, 0.08f, 0.94f, 0.32f);
+            }
+            var footer = BroadcastUi.Label(sheet.transform, "Footer", english
+                ? "The player can accept, reject or come back with a wage counter-offer."
+                : "O jogador pode aceitar, recusar ou responder com uma contraproposta salarial.", 13, UiTheme.Muted, TextAnchor.MiddleCenter);
+            BroadcastUi.Place(footer.rectTransform, 0.03f, 0.04f, 0.97f, 0.16f);
+        }
+
+        void ResolveFreeAgentOffer(Player player, int wage, int years)
+        {
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var sheet = transform.Find("TransferSheet");
+            if (sheet != null) Destroy(sheet.gameObject);
+            if (player == null || _career == null || _career.Club == null || !string.IsNullOrEmpty(player.ClubId)
+                || GlobalTransferMarket.MovePending(_career, player.Id))
+                return;
+            var room = WeeklyWageRoom();
+            var gap = Math.Max(0, wage - room);
+            if (gap > 0)
+            {
+                if (gap <= 250000 && !NotebookHas("budget-live") && !DeskDue("budget", out _)
+                    && !(DeskDue("budget-wait", out var waitUntil) && new DateTime(waitUntil).Date > _career.Calendar.CurrentDate.Date))
+                {
+                    OpenBoardMeeting(player, 0, wage, years, 0, gap);
+                    return;
+                }
+                OpenTransferRefusal(player, english ? "The club cannot cover that weekly wage. No contract was signed." : "O clube não consegue suportar esse salário semanal. Não foi assinado nenhum contrato.");
+                return;
+            }
+
+            var asked = Math.Max(250, player.WeeklyWage);
+            var ratio = wage / (float)asked;
+            var acceptance = ratio >= 1.12f ? 94 : ratio >= 1f ? 80 : ratio >= 0.92f ? 58 : 32;
+            acceptance = Mathf.Clamp(acceptance + (player.Morale - 50) / 10, 10, 97);
+            var seed = player.Id + "|free-agent|" + wage + "|" + years + "|" + _career.Calendar.CurrentDate.Ticks + "|" + (++_renewalAttempt);
+            var roll = 0;
+            unchecked { foreach (var c in seed) roll = roll * 31 + c; }
+            if ((roll & 0x7fffffff) % 100 >= acceptance)
+            {
+                var counter = Mathf.Max(asked, Mathf.RoundToInt(wage * 1.1f));
+                OpenTransferRefusal(player, english
+                    ? player.FullName + " rejected the terms and countered at " + Euro(counter) + "/week. Nothing was charged."
+                    : player.FullName + " recusou os termos e contrapropôs " + Euro(counter) + "/semana. Não foi debitado nada.");
+                return;
+            }
+
+            if (!GlobalTransferMarket.SignFreeAgent(_career, player, _career.Club, wage, years))
+            {
+                OpenTransferRefusal(player, english ? "The player is no longer available or the wage budget changed. No contract was signed." : "O jogador já não está disponível ou o orçamento salarial mudou. Não foi assinado nenhum contrato.");
+                return;
+            }
+            var text = english
+                ? player.FullName + " accepted a " + years + "-year contract at " + Euro(wage) + " per week. No transfer fee was paid."
+                : player.FullName + " aceitou um contrato de " + years + " anos por " + Euro(wage) + " por semana. Não foi pago qualquer valor de transferência.";
+            Newsroom.Publish(_career, english ? "Transfer Journal" : "Diário de Transferências",
+                (english ? "Free transfer · " : "Transferência livre · ") + player.FullName, text);
+            PostDesk("✉ " + text);
+            CareerStore.Save(_career);
+            FillMarket();
+            OpenModal(english ? "CONTRACT AGREED" : "CONTRATO ACORDADO", text, true);
+            _modalActionLabel.text = english ? "DONE" : "CONCLUÍDO";
+            _modalAction.onClick.RemoveAllListeners();
+            _modalAction.onClick.AddListener(() => { CloseModal(); Refresh(); });
+        }
+
         void OpenTransferNegotiation(Player player)
         {
             if (player == null || _career == null || player.ClubId == _career.Club.Id)
                 return;
+            if (string.IsNullOrEmpty(player.ClubId))
+            {
+                OpenFreeAgentNegotiation(player);
+                return;
+            }
             var previous = transform.Find("TransferSheet");
             if (previous != null)
                 Destroy(previous.gameObject);
@@ -6859,26 +7029,45 @@ namespace CoachMaster.UI.Scenes
             var finance = _career.Club.Finance;
             var ticketIncome = finance == null ? 0 : finance.TicketIncomeThisSeason;
             var shirtIncome = finance == null ? 0 : finance.ShirtIncomeThisSeason;
+            var sponsorIncome = finance == null ? 0 : finance.SponsorIncomeThisSeason;
             var seasonYear = _career.Calendar.CurrentDate.Month >= 7 ? _career.Calendar.CurrentDate.Year : _career.Calendar.CurrentDate.Year - 1;
             var seasonStart = new DateTime(seasonYear, 7, 1);
             long transferIncome = finance == null ? 0 : finance.PlayerSalesThisSeason;
             long transferCosts = finance == null ? 0 : finance.TransferSpentThisSeason;
+            long otherIncome = 0;
+            long wages = 0;
+            long travel = 0;
+            long otherExpenses = 0;
             if (finance != null)
                 foreach (var transaction in finance.Transactions)
                 {
-                    if (transaction.DateTicks < seasonStart.Ticks || transaction.DateTicks > _career.Calendar.CurrentDate.Ticks)
+                    if (transaction == null || transaction.DateTicks < seasonStart.Ticks || transaction.DateTicks > _career.Calendar.CurrentDate.Ticks)
                         continue;
                     if (transaction.Category == "loan-income" && transaction.Amount > 0)
                         transferIncome += transaction.Amount;
                     else if (transaction.Category == "loan-fee" && transaction.Amount < 0)
                         transferCosts -= transaction.Amount;
+                    else if (transaction.Category == "wages" && transaction.Amount < 0)
+                        wages -= transaction.Amount;
+                    else if (transaction.Category == "travel" && transaction.Amount < 0)
+                        travel -= transaction.Amount;
+                    else if (transaction.Amount > 0 && transaction.Category != "ticket" && transaction.Category != "shirt"
+                        && transaction.Category != "sponsor" && transaction.Category != "player-sale" && transaction.Category != "loan-income")
+                        otherIncome += transaction.Amount;
+                    else if (transaction.Amount < 0 && transaction.Category != "transfer-fee" && transaction.Category != "loan-fee")
+                        otherExpenses -= transaction.Amount;
                 }
             return new[]
             {
                 ticketIncome,
                 shirtIncome,
+                sponsorIncome,
                 (int)Math.Min(int.MaxValue, transferIncome),
-                (int)Math.Min(int.MaxValue, transferCosts)
+                (int)Math.Min(int.MaxValue, otherIncome),
+                (int)Math.Min(int.MaxValue, transferCosts),
+                (int)Math.Min(int.MaxValue, wages),
+                (int)Math.Min(int.MaxValue, travel),
+                (int)Math.Min(int.MaxValue, otherExpenses)
             };
         }
 
@@ -6913,8 +7102,8 @@ namespace CoachMaster.UI.Scenes
             }
 
             var dashboard = BroadcastUi.Zone(_modalBody, "FinanceDashboard", 0.015f, 0.015f, 0.985f, 0.89f);
-            var income = Math.Max(0L, (long)estimate[0] + estimate[1] + estimate[2]);
-            var expenses = Math.Max(0L, estimate[3]);
+            var income = Math.Max(0L, (long)estimate[0] + estimate[1] + estimate[2] + estimate[3] + estimate[4]);
+            var expenses = Math.Max(0L, (long)estimate[5] + estimate[6] + estimate[7] + estimate[8]);
             var net = income - expenses;
             if (tab == 0) BuildFinanceOverview(dashboard, finance, estimate, income, expenses, net, english, _financeMetricSelection);
             else if (tab == 1) BuildFinanceTransactions(dashboard, finance, english);
@@ -6990,18 +7179,18 @@ namespace CoachMaster.UI.Scenes
             var categoryNames = selectedMetric == 0
                 ? (english ? new[] { "Earnings", "Expenses" } : new[] { "Receitas", "Despesas" })
                 : selectedMetric == 1
-                    ? (english ? new[] { "Ticket sales", "Shirt revenue", "Transfer income" } : new[] { "Bilheteira", "Receita de camisolas", "Receitas de transferências" })
-                    : (english ? new[] { "Transfers" } : new[] { "Transferências" });
+                    ? (english ? new[] { "Ticket sales", "Shirt revenue", "Sponsorship", "Transfer income", "Other income" } : new[] { "Bilheteira", "Receita de camisolas", "Patrocínios", "Receitas de transferências", "Outras receitas" })
+                    : (english ? new[] { "Transfers", "Wages", "Away travel", "Other expenses" } : new[] { "Transferências", "Salários", "Viagens fora", "Outras despesas" });
             var categoryValues = selectedMetric == 0
                 ? new[] { (float)income, (float)expenses }
                 : selectedMetric == 1
-                    ? new[] { (float)Math.Max(0, estimate[0]), (float)Math.Max(0, estimate[1]), (float)Math.Max(0, estimate[2]) }
-                    : new[] { (float)Math.Max(0, estimate[3]) };
+                    ? new[] { (float)Math.Max(0, estimate[0]), (float)Math.Max(0, estimate[1]), (float)Math.Max(0, estimate[2]), (float)Math.Max(0, estimate[3]), (float)Math.Max(0, estimate[4]) }
+                    : new[] { (float)Math.Max(0, estimate[5]), (float)Math.Max(0, estimate[6]), (float)Math.Max(0, estimate[7]), (float)Math.Max(0, estimate[8]) };
             var categoryColors = selectedMetric == 0
                 ? new[] { UiTheme.Fitness, UiTheme.Danger }
                 : selectedMetric == 1
-                    ? new[] { new Color(0.16f, 0.78f, 0.44f), new Color(0.11f, 0.73f, 0.88f), new Color(0.36f, 0.57f, 0.98f) }
-                    : new[] { UiTheme.Danger, new Color(0.94f, 0.38f, 0.18f), new Color(0.72f, 0.34f, 0.84f) };
+                    ? new[] { new Color(0.16f, 0.78f, 0.44f), new Color(0.11f, 0.73f, 0.88f), new Color(0.82f, 0.66f, 0.2f), new Color(0.36f, 0.57f, 0.98f), new Color(0.6f, 0.72f, 0.9f) }
+                    : new[] { UiTheme.Danger, new Color(0.94f, 0.38f, 0.18f), new Color(0.72f, 0.34f, 0.84f), new Color(0.65f, 0.35f, 0.28f) };
             donutObject.GetComponent<FinanceDonutGraphic>().SetValues(categoryValues, categoryColors, new Color(1f, 1f, 1f, 0.12f));
             var selectedTotal = selectedMetric == 0 ? net : selectedMetric == 1 ? income : -expenses;
             var centerValue = BroadcastUi.Label(chart.transform, "NetValue", Euro((int)Math.Max(int.MinValue, Math.Min(int.MaxValue, selectedTotal))), 20, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
@@ -7019,18 +7208,21 @@ namespace CoachMaster.UI.Scenes
                 BroadcastUi.Place(category.rectTransform, x0, 0.16f, x1, 0.255f);
             }
             var weeklyContext = BroadcastUi.Label(chart.transform, "WeeklyRevenueContext",
-                (english ? "Weekly shirt revenue  +" : "Receita semanal de camisolas  +")
+                (english ? "Weekly shirts  +" : "Camisolas/semana  +")
                 + Euro(ClubFinanceLedger.WeeklyShirtIncome(_career, _career.Club))
+                + (english ? "     ·     Sponsors  +" : "     ·     Patrocínios  +")
+                + Euro(ClubFinanceLedger.WeeklySponsorIncome(_career.Club))
                 + (english ? "     ·     Ticket income per home match  +" : "     ·     Bilheteira por jogo em casa  +")
-                + Euro(Math.Max(12000, _career.Club.Reputation * 650)),
+                + Euro(Math.Max(12000, _career.Club.Reputation * 650))
+                + (english ? "     ·     Transfer budget is affected only by transfer fees" : "     ·     O orçamento de transferências só é afetado por transferências"),
                 12, UiTheme.Muted, TextAnchor.MiddleCenter);
             weeklyContext.resizeTextForBestFit = true;
             weeklyContext.resizeTextMinSize = 9;
             weeklyContext.resizeTextMaxSize = 12;
             BroadcastUi.Place(weeklyContext.rectTransform, 0.04f, 0.275f, 0.96f, 0.335f);
             var accountingNote = BroadcastUi.Label(chart.transform, "AccountingNote",
-                english ? "Profit includes ticket, shirt and transfer income, less transfer costs. Payroll and travel still affect the cash balance and appear in transactions."
-                    : "O lucro inclui bilheteira, camisolas e transferências, menos custos de transferências. Salários e viagens continuam a afetar o saldo e aparecem nas transações.",
+                english ? "Profit includes recorded income and costs, including wages and away travel. Payroll and travel do not reduce the transfer budget."
+                    : "O lucro inclui receitas e custos registados, incluindo salários e viagens fora. Salários e viagens não reduzem o orçamento de transferências.",
                 10, UiTheme.Muted, TextAnchor.MiddleCenter);
             accountingNote.resizeTextForBestFit = true;
             accountingNote.resizeTextMinSize = 8;
@@ -7062,19 +7254,90 @@ namespace CoachMaster.UI.Scenes
             for (var payday = firstPayday; payday <= seasonEnd; payday = payday.AddDays(7))
             {
                 projected += ClubFinanceLedger.WeeklyShirtIncome(_career, club);
-                projected -= ClubFinanceLedger.WeeklyPayroll(_career, club, payday);
+                projected += ClubFinanceLedger.WeeklySponsorIncome(club);
+                projected -= ProjectedWeeklyPayroll(club, payday);
             }
             foreach (var fixture in _career.Fixtures)
             {
                 if (fixture == null || fixture.Played || fixture.Walkover || !fixture.Involves(club.Id)
-                    || fixture.Date.Date <= today || fixture.Date.Date > seasonEnd)
+                    || fixture.Date.Date < today || fixture.Date.Date > seasonEnd)
                     continue;
                 if (fixture.HomeClubId == club.Id)
                     projected += Math.Max(12000, club.Reputation * 650);
                 else
                     projected -= 6500 + Math.Max(0, 90 - club.Reputation) * 180;
             }
+            foreach (var line in _career.Notebook)
+            {
+                if (string.IsNullOrEmpty(line)) continue;
+                var bits = line.Split('|');
+                if (bits.Length >= 9 && bits[0] == "job" && bits[1] == "move"
+                    && long.TryParse(bits[8], out var transferTicks))
+                {
+                    var due = new DateTime(transferTicks).Date;
+                    if (due <= today || due > seasonEnd) continue;
+                    int.TryParse(bits[4], out var fee);
+                    if (bits[3] == club.Id) projected -= Math.Max(0, fee);
+                    else if (_career.World.Players.TryGetValue(bits[2], out var movingPlayer)
+                        && movingPlayer.ClubId == club.Id)
+                        projected += Math.Max(0, fee);
+                }
+                else if (bits.Length >= 8 && bits[0] == "job" && bits[1] == "loanmove"
+                    && long.TryParse(bits[5], out var loanTicks))
+                {
+                    var due = new DateTime(loanTicks).Date;
+                    if (due <= today || due > seasonEnd) continue;
+                    int.TryParse(bits[4], out var fee);
+                    if (bits[3] == club.Id) projected -= Math.Max(0, fee);
+                    else if (_career.World.Players.TryGetValue(bits[2], out var loanPlayer)
+                        && loanPlayer.ClubId == club.Id)
+                        projected += Math.Max(0, fee);
+                }
+            }
             return projected;
+        }
+
+        long ProjectedWeeklyPayroll(Club club, DateTime payday)
+        {
+            var payroll = ClubFinanceLedger.WeeklyPayroll(_career, club, payday);
+            foreach (var line in _career.Notebook)
+            {
+                if (string.IsNullOrEmpty(line)) continue;
+                var bits = line.Split('|');
+                if (bits.Length >= 9 && bits[0] == "job" && bits[1] == "move"
+                    && long.TryParse(bits[8], out var moveTicks) && payday.Date >= new DateTime(moveTicks).Date
+                    && _career.World.Players.TryGetValue(bits[2], out var movingPlayer))
+                {
+                    var oldWage = Math.Max(0, movingPlayer.WeeklyWage);
+                    var buyerId = bits[3];
+                    int.TryParse(bits[6], out var offeredWage);
+                    var sellerId = movingPlayer.ClubId;
+                    var newWage = offeredWage > 0 ? offeredWage : oldWage;
+                    if (offeredWage <= 0 && _career.World.Clubs.TryGetValue(buyerId, out var buyer)
+                        && _career.World.Clubs.TryGetValue(sellerId ?? "", out var seller))
+                        newWage = Math.Max(oldWage, Mathf.RoundToInt(oldWage * (1f + Mathf.Clamp(buyer.Reputation - seller.Reputation, -20, 40) / 100f)));
+                    if (club.Id == sellerId) payroll -= oldWage;
+                    if (club.Id == buyerId) payroll += newWage;
+                }
+                else if (bits.Length >= 8 && bits[0] == "job" && bits[1] == "loanmove"
+                    && long.TryParse(bits[5], out var loanTicks) && long.TryParse(bits[6], out var returnTicks)
+                    && payday.Date >= new DateTime(loanTicks).Date && payday.Date < new DateTime(returnTicks).Date
+                    && _career.World.Players.TryGetValue(bits[2], out var loanPlayer))
+                {
+                    var wage = Math.Max(0, loanPlayer.WeeklyWage);
+                    if (club.Id == loanPlayer.ClubId) payroll -= wage;
+                    if (club.Id == bits[3]) payroll += wage;
+                }
+                else if (bits.Length >= 8 && bits[0] == "job" && bits[1] == "active-loan"
+                    && long.TryParse(bits[6], out var loanReturnTicks) && payday.Date >= new DateTime(loanReturnTicks).Date
+                    && _career.World.Players.TryGetValue(bits[2], out var returnedPlayer))
+                {
+                    var wage = bits.Length > 7 && int.TryParse(bits[7], out var originalWage) ? Math.Max(0, originalWage) : Math.Max(0, returnedPlayer.WeeklyWage);
+                    if (club.Id == bits[3]) payroll += wage;
+                    if (club.Id == bits[4]) payroll -= Math.Max(0, returnedPlayer.WeeklyWage);
+                }
+            }
+            return Math.Max(0L, payroll);
         }
 
         void BuildFinanceTransactions(Transform host, ClubFinance finance, bool english)
@@ -7088,6 +7351,8 @@ namespace CoachMaster.UI.Scenes
             BroadcastUi.Place(sellers.rectTransform, 0.005f, 0.65f, 0.995f, 0.825f);
             var sellerTitle = BroadcastUi.Label(sellers.transform, "Title",
                 (english ? "SHIRT REVENUE  " : "RECEITA DE CAMISOLAS  ") + Euro(finance.ShirtIncomeThisSeason)
+                + "     ·     " + (english ? "TICKETS  " : "BILHETEIRA  ") + Euro(finance.TicketIncomeThisSeason)
+                + "     ·     " + (english ? "SPONSORS  " : "PATROCÍNIOS  ") + Euro(finance.SponsorIncomeThisSeason)
                 + "     ·     " + (english ? "TOP SELLERS" : "MAIS VENDIDAS"),
                 12, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
             BroadcastUi.Place(sellerTitle.rectTransform, 0.02f, 0.65f, 0.98f, 0.95f);
@@ -7110,10 +7375,13 @@ namespace CoachMaster.UI.Scenes
             var list = BroadcastUi.Panel(host, "TransactionList", new Color(0.055f, 0.075f, 0.1f, 0.97f));
             BroadcastUi.Place(list.rectTransform, 0.005f, 0.015f, 0.995f, 0.635f);
             var shown = 0;
+            var seasonYear = _career.Calendar.CurrentDate.Month >= 7 ? _career.Calendar.CurrentDate.Year : _career.Calendar.CurrentDate.Year - 1;
+            var seasonStart = new DateTime(seasonYear, 7, 1);
             for (var i = finance.Transactions.Count - 1; i >= 0 && shown < 12; i--)
             {
                 var transaction = finance.Transactions[i];
-                if (transaction.Category == "shirt")
+                if (transaction == null || transaction.DateTicks < seasonStart.Ticks
+                    || transaction.DateTicks > _career.Calendar.CurrentDate.Ticks || transaction.Category == "shirt")
                     continue;
                 var date = transaction.DateTicks > 0 && transaction.DateTicks <= DateTime.MaxValue.Ticks
                     ? LocalizationManager.FormatDate(new DateTime(transaction.DateTicks), "dd MMM") : "—";
@@ -7193,10 +7461,14 @@ namespace CoachMaster.UI.Scenes
             {
                 case "ticket": return english ? "Ticket sales" : "Receita de bilheteira";
                 case "shirt": return english ? "Shirt sale" : "Venda de camisola";
+                case "sponsor": return english ? "Sponsorship income" : "Receita de patrocínio";
                 case "player-sale": return english ? "Player sale" : "Venda de jogador";
                 case "transfer-fee": return english ? "Transfer fee" : "Taxa de transferência";
                 case "wages": return english ? "Weekly wages" : "Salários semanais";
                 case "travel": return english ? "Away travel" : "Viagem fora";
+                case "loan-fee": return english ? "Loan fee" : "Custo de empréstimo";
+                case "loan-income": return english ? "Loan income" : "Receita de empréstimo";
+                case "board": return english ? "Board contribution" : "Verba da direção";
                 default: return english ? "Other" : "Outro";
             }
         }
@@ -10506,7 +10778,10 @@ namespace CoachMaster.UI.Scenes
                 _modalAction.onClick.AddListener(() =>
                 {
                     CloseModal();
-                    ResolveTransferOffer(player, fee, wage, years);
+                    if (string.IsNullOrEmpty(player.ClubId))
+                        ResolveFreeAgentOffer(player, wage, years);
+                    else
+                        ResolveTransferOffer(player, fee, wage, years);
                 });
                 return;
             }
@@ -13933,6 +14208,10 @@ void OpenContractSheet(Player player, string page)
             var previousDay = _career.Calendar.CurrentDate.Date;
             AdvancePlayerSystems(days);
             _career.Calendar.AdvanceDays(days);
+            var advancedThrough = _career.Calendar.CurrentDate.Date;
+            for (var day = previousDay.AddDays(1); day <= advancedThrough; day = day.AddDays(1))
+                if (day.Day == 1)
+                    WorldCatalog.SimulateManagerAppointments(_career.World, day, _career.Club.Id);
             ClubFinanceLedger.SettleWeeklyPayroll(_career, previousDay, _career.Calendar.CurrentDate.Date);
             ClubFinanceLedger.SettleWeeklyCommercialIncome(_career, previousDay, _career.Calendar.CurrentDate.Date);
         }

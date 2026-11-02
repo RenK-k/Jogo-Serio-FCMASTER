@@ -140,14 +140,20 @@ namespace CoachMaster.Domain
             if (player == null)
                 return baseline;
 
+            var change = ConditionOverallChange(player);
+            var positionPenalty = PlayerPositionProfile.Penalty(player, position);
+            return UnityEngine.Mathf.Clamp(baseline + UnityEngine.Mathf.RoundToInt(change) + positionPenalty, 42, 94);
+        }
+
+        static float ConditionOverallChange(Player player)
+        {
+            if (player == null) return 0f;
             var form = (player.Form - 60) * 0.07f;
             var morale = (player.Morale - 60) * 0.06f;
             var fitness = (player.Fitness - 80) * 0.035f;
             var fatigue = player.Fatigue * 0.03f;
             var training = ((player.TrainingRating <= 0 ? 70 : player.TrainingRating) - 70) * 0.05f;
-            var change = UnityEngine.Mathf.Clamp(form + morale + fitness - fatigue + training, -4f, 4f);
-            var positionPenalty = PlayerPositionProfile.Penalty(player, position);
-            return UnityEngine.Mathf.Clamp(baseline + UnityEngine.Mathf.RoundToInt(change) + positionPenalty, 42, 94);
+            return UnityEngine.Mathf.Clamp(form + morale + fitness - fatigue + training, -5f, 5f);
         }
 
         public static int CurrentValue(Player player, string key)
@@ -178,6 +184,9 @@ namespace CoachMaster.Domain
                     change = form * 0.85f + morale * 0.65f + training * 0.65f;
                     break;
             }
+
+            // A strong match-day rating should be visible in the effective attributes too.
+            change += ConditionOverallChange(player) * 0.25f;
 
             return UnityEngine.Mathf.Clamp(value + UnityEngine.Mathf.RoundToInt(change), 1, 20);
         }

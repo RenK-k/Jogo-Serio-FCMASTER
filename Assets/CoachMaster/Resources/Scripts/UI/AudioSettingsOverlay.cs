@@ -187,9 +187,17 @@ namespace CoachMaster.UI
             var page = Page(parent, 1, "JOGABILIDADE");
             AddOption(page.transform, "AutoXI", "Escolha automática do onze", "Ignora o onze guardado e escolhe a equipa a partir da formação e posições.", () => OnOff(SettingsPrefs.AutomaticSquadSelection), () => SettingsPrefs.AutomaticSquadSelection = !SettingsPrefs.AutomaticSquadSelection, 0.76f);
             AddOption(page.transform, "Training", "Treino automático", "Quando desligado, avançar dias não altera a avaliação de treino dos jogadores.", () => OnOff(SettingsPrefs.AutomaticTraining), () => SettingsPrefs.AutomaticTraining = !SettingsPrefs.AutomaticTraining, 0.63f);
-            AddOption(page.transform, "Speed", "Velocidade inicial do jogo", "Também pode ser alterada durante a partida.", () => SettingsPrefs.MatchSpeedLabel, () => SettingsPrefs.MatchSpeedIndex = (SettingsPrefs.MatchSpeedIndex + 1) % 5, 0.50f);
+            AddOption(page.transform, "Speed", "Velocidade inicial do jogo", "Também pode ser alterada durante a partida.", () => SettingsPrefs.MatchSpeedLabel, CycleMatchSpeed, 0.50f);
             AddOption(page.transform, "Highlights", "Momentos apresentados", "Define quantos anúncios de jogo interrompem brevemente a simulação.", () => SettingsPrefs.MatchHighlightsLabel, () => SettingsPrefs.MatchHighlights = (SettingsPrefs.MatchHighlights + 1) % 4, 0.37f);
             AddText(page.transform, "MatchSpeedHelp", "O ritmo e os momentos escolhidos aplicam-se à apresentação; não alteram o resultado matemático da partida.", 15, UiTheme.Muted, 0.10f, 0.24f);
+        }
+
+        void CycleMatchSpeed()
+        {
+            SettingsPrefs.MatchSpeedIndex = (SettingsPrefs.MatchSpeedIndex + 1) % 5;
+            var career = CurrentCareer();
+            if (career != null)
+                career.MatchSpeedIndex = SettingsPrefs.MatchSpeedIndex;
         }
 
         void BuildMatchPage(Transform parent)
@@ -629,9 +637,10 @@ namespace CoachMaster.UI
 
         void PersistSettings()
         {
+            var career = CurrentCareer();
+            SettingsPrefs.CaptureCareerGameplay(career);
             SettingsPrefs.Commit();
             MatchDayController.RefreshSettings();
-            var career = CurrentCareer();
             var careerSaved = career == null || CareerStore.TrySave(career);
             if (_feedback != null)
                 _feedback.text = careerSaved
@@ -1060,6 +1069,11 @@ namespace CoachMaster.UI
         public static string OpenImage()
         {
             return OpenFiltered("Imagens\0*.png;*.jpg;*.jpeg;*.webp\0Todos os ficheiros\0*.*\0\0", "Escolher fundo", "png");
+        }
+
+        public static string OpenImage(string title)
+        {
+            return OpenFiltered("Imagens\0*.png;*.jpg;*.jpeg\0Todos os ficheiros\0*.*\0\0", title, "png");
         }
 
         static string OpenFiltered(string filter, string title, string extension)

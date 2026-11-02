@@ -318,6 +318,7 @@ namespace CoachMaster.Career
                 club.Finance.TicketIncomeThisSeason = 0;
                 club.Finance.ShirtIncomeThisSeason = 0;
                 club.Finance.PlayerSalesThisSeason = 0;
+                club.Finance.SponsorIncomeThisSeason = 0;
             }
             CareerJobOffers.Generate(career);
             Promote(career);

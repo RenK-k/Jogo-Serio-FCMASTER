@@ -6,6 +6,7 @@ using System.Text;
 using CoachMaster.App;
 using CoachMaster.Data;
 using CoachMaster.Domain;
+using CoachMaster.UI;
 using UnityEngine;
 
 namespace CoachMaster.Career
@@ -656,6 +657,9 @@ namespace CoachMaster.Career
                 "careerprogress|" + career.CompletedSeasons,
                 "fanmood|" + career.SupporterApproval,
                 "simulation|" + Mathf.Clamp(career.InjuryFrequency, 0, 2) + "|" + Mathf.Clamp(career.RefereeStrictness, 0, 2) + "|" + Mathf.Clamp(career.RealismPreset, 0, 4),
+                "matchspeed|" + Mathf.Clamp(career.MatchSpeedIndex, 0, 4),
+                "gameplay|" + (career.AutomaticSquadSelection ? "1" : "0") + "|" + (career.AutomaticTraining ? "1" : "0") + "|" + Mathf.Clamp(career.MatchHighlights, 0, 3) + "|" + (career.PauseOnGoal ? "1" : "0") + "|" + (career.PauseOnRedCard ? "1" : "0") + "|" + (career.PauseOnInjury ? "1" : "0") + "|" + (career.LiveRatings ? "1" : "0"),
+                "databasecustomization|" + (career.DatabaseCustomizationEnabled ? "1" : "0"),
                 "autosave|" + career.LastAutoSaveDateTicks,
                 "lastplayed|" + career.LastPlayedUtcTicks,
                 "playtime|" + Math.Max(0d, career.PlayTimeSeconds).ToString("R", CultureInfo.InvariantCulture),
@@ -709,11 +713,29 @@ namespace CoachMaster.Career
                 var days = player.Injury == null ? 0 : player.Injury.DaysRemaining;
                 var desc = player.Injury == null ? "" : player.Injury.Description;
                 lines.Add("player|" + player.Id + "|" + player.Morale + "|" + player.Fatigue + "|" + Esc(player.Duty) + "|" + (player.IsCaptain ? "1" : "0") + "|" + hurt + "|" + days + "|" + Esc(desc) + "|" + player.ClubId + "|" + player.Age + "|" + TraitCodes(player) + "|" + player.Form + "|" + player.Fitness + "|" + player.TrainingRating + "|" + player.HeightCm + "|" + player.WeightKg + "|" + player.WeakFootQuality + "|" + PlayerPositionProfile.Encode(player) + "|" + player.Reputation + "|" + player.WeeklyWage + "|" + player.ContractEndTicks + "|" + Esc(player.TrainingFocus) + "|" + player.TrainingProgress + "|" + player.TrainingIntensity + "|" + player.TrainingStreak + "|" + player.UnavailableUntilTicks);
+                if (career.DatabaseCustomizationEnabled)
+                {
+                    var a = player.Attributes ?? new PlayerAttributes();
+                    lines.Add("playerdatabase|" + player.Id + "|" + Esc(player.FullName) + "|" + Esc(player.Nationality) + "|" + Esc((player.PortraitPath ?? "").Replace("|", "~")) + "|" + player.Potential
+                        + "|" + a.Pace + "|" + a.Stamina + "|" + a.Strength + "|" + a.Passing + "|" + a.Finishing + "|" + a.Dribbling + "|" + a.Tackling + "|" + a.Crossing
+                        + "|" + a.Positioning + "|" + a.Composure + "|" + a.WorkRate + "|" + a.Decisions + "|" + a.Reflexes + "|" + a.Handling);
+                }
             }
 
             foreach (var club in career.World.Clubs.Values)
             {
                 lines.Add("club|" + club.Id + "|" + club.LeagueId);
+                if (career.DatabaseCustomizationEnabled)
+                {
+                    lines.Add("clubdatabase|" + club.Id + "|" + Esc(club.Name) + "|" + Esc(club.ShortName) + "|" + Esc((club.CrestResourcePath ?? "").Replace("|", "~")) + "|" + Esc(club.CustomCrestKey)
+                        + "|" + Esc(club.JerseyPrimaryHex) + "|" + Esc(club.JerseySecondaryHex) + "|" + Esc(club.JerseyShortsHex) + "|" + club.Reputation);
+                    lines.Add("coachdatabase|" + club.Id + "|" + Esc(club.Tactics == null ? "" : club.Tactics.FormerCoachName));
+                    lines.Add("sponsorset|" + club.Id);
+                    if (club.Sponsors != null)
+                        foreach (var sponsor in club.Sponsors)
+                            if (sponsor != null)
+                                lines.Add("sponsor|" + club.Id + "|" + Esc(sponsor.Id) + "|" + Esc(sponsor.Name) + "|" + sponsor.WeeklyIncome + "|" + Esc(sponsor.LogoKey) + "|" + Esc(sponsor.LogoHex) + "|" + (sponsor.IsActive ? "1" : "0"));
+                }
                 lines.Add("clubstate|" + club.Id + "|" + club.DressingRoomTension);
                 lines.Add("clubmanager|" + club.Id + "|" + Esc(club.PublicCoachVacancyNote) + "|" + Esc(club.HiddenDismissalTruth));
                 lines.Add("squad|" + club.Id + "|" + string.Join(",", club.PlayerIds));
@@ -724,7 +746,7 @@ namespace CoachMaster.Career
                             lines.Add("staff|" + club.Id + "|" + Esc(member.Id) + "|" + Esc(member.FullName) + "|" + (int)member.Role + "|" + member.Judgement + "|" + member.WeeklyWage + "|" + member.ContractEndTicks + "|" + Esc(member.PortraitPath));
                 if (club.Finance != null)
                 {
-                    lines.Add("clubfinance|" + club.Id + "|" + club.Finance.Balance + "|" + club.Finance.WageBudget + "|" + club.Finance.TransferBudget + "|" + club.Finance.TransferSpentThisSeason + "|" + club.Finance.TicketIncomeThisSeason + "|" + club.Finance.ShirtIncomeThisSeason + "|" + club.Finance.PlayerSalesThisSeason);
+                    lines.Add("clubfinance|" + club.Id + "|" + club.Finance.Balance + "|" + club.Finance.WageBudget + "|" + club.Finance.TransferBudget + "|" + club.Finance.TransferSpentThisSeason + "|" + club.Finance.TicketIncomeThisSeason + "|" + club.Finance.ShirtIncomeThisSeason + "|" + club.Finance.PlayerSalesThisSeason + "|" + club.Finance.SponsorIncomeThisSeason);
                     foreach (var transaction in club.Finance.Transactions)
                         lines.Add("financetransaction|" + club.Id + "|" + transaction.DateTicks + "|" + transaction.Amount + "|" + Esc(transaction.Category) + "|" + Esc(transaction.Description) + "|" + Esc(transaction.PlayerId));
                 }
@@ -897,6 +919,7 @@ namespace CoachMaster.Career
             try
             {
                 career = CareerFactory.Create(coach, clubId, WorldCatalog.Create());
+                ModFolder.Apply(career);
             }
             catch
             {
@@ -971,6 +994,26 @@ namespace CoachMaster.Career
                             career.RefereeStrictness = Mathf.Clamp(refereeStrictness, 0, 2);
                             career.RealismPreset = Mathf.Clamp(realismPreset, 0, 4);
                         }
+                        break;
+                    case "matchspeed":
+                        if (bits.Length > 1 && int.TryParse(bits[1], out var savedSpeed))
+                            career.MatchSpeedIndex = Mathf.Clamp(savedSpeed, 0, 4);
+                        break;
+                    case "gameplay":
+                        if (bits.Length > 7)
+                        {
+                            career.AutomaticSquadSelection = bits[1] == "1";
+                            career.AutomaticTraining = bits[2] == "1";
+                            if (int.TryParse(bits[3], out var savedHighlights))
+                                career.MatchHighlights = Mathf.Clamp(savedHighlights, 0, 3);
+                            career.PauseOnGoal = bits[4] == "1";
+                            career.PauseOnRedCard = bits[5] == "1";
+                            career.PauseOnInjury = bits[6] == "1";
+                            career.LiveRatings = bits[7] == "1";
+                        }
+                        break;
+                    case "databasecustomization":
+                        career.DatabaseCustomizationEnabled = bits.Length > 1 && bits[1] == "1";
                         break;
                     case "autosave":
                         if (bits.Length > 1 && long.TryParse(bits[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var autosaveTicks))
@@ -1118,9 +1161,38 @@ namespace CoachMaster.Career
                     case "player":
                         ApplyPlayer(career, bits);
                         break;
+                    case "playerdatabase":
+                        ApplyPlayerDatabase(career, bits);
+                        break;
                     case "club":
                         if (bits.Length > 2 && career.World.Clubs.TryGetValue(bits[1], out var savedClub))
                             savedClub.LeagueId = bits[2];
+                        break;
+                    case "clubdatabase":
+                        ApplyClubDatabase(career, bits);
+                        break;
+                    case "coachdatabase":
+                        if (bits.Length > 2 && career.World.Clubs.TryGetValue(bits[1], out var namedCoachClub) && namedCoachClub.Tactics != null)
+                            namedCoachClub.Tactics.FormerCoachName = Un(bits[2]);
+                        break;
+                    case "sponsorset":
+                        if (bits.Length > 1 && career.World.Clubs.TryGetValue(bits[1], out var sponsorClub))
+                        {
+                            if (sponsorClub.Sponsors == null) sponsorClub.Sponsors = new List<SponsorContract>();
+                            sponsorClub.Sponsors.Clear();
+                        }
+                        break;
+                    case "sponsor":
+                        if (bits.Length > 7 && career.World.Clubs.TryGetValue(bits[1], out var savedSponsorClub))
+                        {
+                            if (savedSponsorClub.Sponsors == null) savedSponsorClub.Sponsors = new List<SponsorContract>();
+                            int.TryParse(bits[4], out var sponsorWeekly);
+                            savedSponsorClub.Sponsors.Add(new SponsorContract
+                            {
+                                Id = Un(bits[2]), Name = Un(bits[3]), WeeklyIncome = Math.Max(0, sponsorWeekly),
+                                LogoKey = Un(bits[5]), LogoHex = Un(bits[6]), IsActive = bits[7] == "1"
+                            });
+                        }
                         break;
                     case "clubstate":
                         if (bits.Length > 2 && career.World.Clubs.TryGetValue(bits[1], out var stateClub) && int.TryParse(bits[2], out var tension))
@@ -1188,6 +1260,7 @@ namespace CoachMaster.Career
                             if (bits.Length > 6 && int.TryParse(bits[6], out var ticketIncome)) financeClub.Finance.TicketIncomeThisSeason = Math.Max(0, ticketIncome);
                             if (bits.Length > 7 && int.TryParse(bits[7], out var shirtIncome)) financeClub.Finance.ShirtIncomeThisSeason = Math.Max(0, shirtIncome);
                             if (bits.Length > 8 && int.TryParse(bits[8], out var playerSales)) financeClub.Finance.PlayerSalesThisSeason = Math.Max(0, playerSales);
+                            if (bits.Length > 9 && int.TryParse(bits[9], out var sponsorIncome)) financeClub.Finance.SponsorIncomeThisSeason = Math.Max(0, sponsorIncome);
                         }
                         break;
                     case "financetransaction":
@@ -1203,7 +1276,7 @@ namespace CoachMaster.Career
                                 Description = Un(bits[5]),
                                 PlayerId = bits.Length > 6 ? Un(bits[6]) : ""
                             });
-                            if (transactionClub.Finance.Transactions.Count > 240)
+                            if (transactionClub.Finance.Transactions.Count > 1200)
                                 transactionClub.Finance.Transactions.RemoveAt(0);
                         }
                         break;
@@ -1450,8 +1523,8 @@ namespace CoachMaster.Career
                     WorldCatalog.EnsureThreeColors(club);
                 }
             }
-            ModFolder.Apply(career);
             CareerOnline.BindMachine(career);
+            SettingsPrefs.ApplyCareerGameplay(career);
             if (career.LastAutoSaveDateTicks <= 0)
                 career.LastAutoSaveDateTicks = career.Calendar.CurrentDate.Ticks;
             if (!hasCareerProgress && ticks > 0)
@@ -1682,6 +1755,54 @@ namespace CoachMaster.Career
                 }
             }
             PlayerTraits.Normalize(player);
+        }
+
+        static void ApplyPlayerDatabase(CareerState career, string[] bits)
+        {
+            if (bits.Length < 20 || !career.World.Players.TryGetValue(bits[1], out var player))
+                return;
+            player.FullName = Un(bits[2]);
+            player.Nationality = Un(bits[3]);
+            var portrait = Un(bits[4]).Replace("~", "|");
+            player.PortraitPath = portrait;
+            int.TryParse(bits[5], out var potential);
+            if (player.Attributes == null)
+                player.Attributes = new PlayerAttributes();
+            var values = new int[14];
+            for (var i = 0; i < values.Length; i++)
+                if (!int.TryParse(bits[6 + i], out values[i]))
+                    return;
+            player.Attributes.Pace = Mathf.Clamp(values[0], 1, 20);
+            player.Attributes.Stamina = Mathf.Clamp(values[1], 1, 20);
+            player.Attributes.Strength = Mathf.Clamp(values[2], 1, 20);
+            player.Attributes.Passing = Mathf.Clamp(values[3], 1, 20);
+            player.Attributes.Finishing = Mathf.Clamp(values[4], 1, 20);
+            player.Attributes.Dribbling = Mathf.Clamp(values[5], 1, 20);
+            player.Attributes.Tackling = Mathf.Clamp(values[6], 1, 20);
+            player.Attributes.Crossing = Mathf.Clamp(values[7], 1, 20);
+            player.Attributes.Positioning = Mathf.Clamp(values[8], 1, 20);
+            player.Attributes.Composure = Mathf.Clamp(values[9], 1, 20);
+            player.Attributes.WorkRate = Mathf.Clamp(values[10], 1, 20);
+            player.Attributes.Decisions = Mathf.Clamp(values[11], 1, 20);
+            player.Attributes.Reflexes = Mathf.Clamp(values[12], 1, 20);
+            player.Attributes.Handling = Mathf.Clamp(values[13], 1, 20);
+            player.Potential = Mathf.Clamp(potential, PlayerAttributes.Overall(player), 99);
+            FaceBook.RefreshPortrait(player);
+        }
+
+        static void ApplyClubDatabase(CareerState career, string[] bits)
+        {
+            if (bits.Length < 10 || !career.World.Clubs.TryGetValue(bits[1], out var club))
+                return;
+            club.Name = Un(bits[2]);
+            club.ShortName = Un(bits[3]);
+            club.CrestResourcePath = Un(bits[4]).Replace("~", "|");
+            club.CustomCrestKey = Un(bits[5]);
+            club.JerseyPrimaryHex = Un(bits[6]);
+            club.JerseySecondaryHex = Un(bits[7]);
+            club.JerseyShortsHex = Un(bits[8]);
+            if (int.TryParse(bits[9], out var reputation))
+                club.Reputation = Mathf.Clamp(reputation, 1, 100);
         }
 
         static void ApplyFixture(CareerState career, string[] bits)
