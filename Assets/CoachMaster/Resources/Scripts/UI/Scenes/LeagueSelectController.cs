@@ -51,6 +51,8 @@ namespace CoachMaster.UI.Scenes
                 SetCardText(card, "Name", LocalizationManager.Translate(league.Name.ToUpperInvariant()));
                 SetCardText(card, "Desc", LeagueDescription(league));
                 SetCardText(card, "Tier", LocalizationManager.Translate(TierLabel(league.Tier)));
+                var leagueCrest = EnsureCompetitionCrest(card, league.Id);
+                BroadcastUi.Place(leagueCrest.rectTransform, 0.83f, 0.7f, 0.97f, 0.97f);
                 var countNode = card.Find("Count");
                 var countLabel = countNode == null ? null : countNode.GetComponent<Text>();
                 if (countLabel != null)
@@ -102,6 +104,8 @@ namespace CoachMaster.UI.Scenes
                 BroadcastUi.Place(name.rectTransform, 0.04f, 0.34f, 0.7f, 0.68f);
                 var desc = BroadcastUi.Label(card.transform, "Desc", LeagueDescription(league), 16, UiTheme.Muted, TextAnchor.MiddleLeft);
                 BroadcastUi.Place(desc.rectTransform, 0.04f, 0.08f, 0.7f, 0.36f);
+                var leagueCrest = EnsureCompetitionCrest(card.transform, league.Id);
+                BroadcastUi.Place(leagueCrest.rectTransform, 0.83f, 0.7f, 0.97f, 0.97f);
                 System.Action choose = () =>
                 {
                     session.Draft.LeagueId = league.Id;
@@ -113,6 +117,29 @@ namespace CoachMaster.UI.Scenes
                 var pick = BroadcastUi.Button(card.transform, "Select", LocalizationManager.Translate("ESCOLHER"), choose, UiTheme.Accent, UiTheme.ButtonText, 16);
                 BroadcastUi.Place(pick.GetComponent<RectTransform>(), 0.74f, 0.28f, 0.96f, 0.72f);
             }
+        }
+
+        static Image EnsureCompetitionCrest(Transform card, string competitionId)
+        {
+            var node = card.Find("CompetitionCrest");
+            Image image;
+            if (node == null)
+            {
+                image = BroadcastUi.Solid(card, "CompetitionCrest", Color.white, false);
+                image.preserveAspect = true;
+            }
+            else
+            {
+                image = node.GetComponent<Image>();
+                if (image == null)
+                    image = node.gameObject.AddComponent<Image>();
+            }
+
+            image.sprite = CrestStudio.ForCompetition(competitionId);
+            image.preserveAspect = true;
+            image.raycastTarget = false;
+            image.enabled = image.sprite != null;
+            return image;
         }
 
         static void SetCardText(Transform card, string childName, string value)

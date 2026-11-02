@@ -238,7 +238,9 @@ namespace CoachMaster.MatchPlay
             var hurt = new List<Player>();
             foreach (var player in players)
             {
-                if (player.Injury != null && player.Injury.IsInjured)
+                if (career.Calendar != null && player.UnavailableUntilTicks >= career.Calendar.CurrentDate.Date.Ticks)
+                    continue;
+                else if (player.Injury != null && player.Injury.IsInjured)
                     hurt.Add(player);
                 else
                     available.Add(player);
@@ -259,7 +261,8 @@ namespace CoachMaster.MatchPlay
                 for (var i = 0; i < bench.Count; i++)
                 {
                     if (career.World.Players.TryGetValue(bench[i], out var candidate)
-                        && candidate != null && (candidate.Injury == null || !candidate.Injury.IsInjured))
+                        && candidate != null && (candidate.Injury == null || !candidate.Injury.IsInjured)
+                        && (career.Calendar == null || candidate.UnavailableUntilTicks < career.Calendar.CurrentDate.Date.Ticks))
                     {
                         availableIndex = i;
                         break;

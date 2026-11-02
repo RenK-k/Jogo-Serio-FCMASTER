@@ -159,15 +159,8 @@ namespace CoachMaster.Career
                 });
             }
 
-            if (memory != null)
-            {
-                Newsroom.Publish(career, "Memórias da época", memory.Title, memory.Detail + "\n\n" + reaction);
-            }
-            else if (!string.IsNullOrEmpty(reaction))
+            if (!string.IsNullOrEmpty(reaction))
                 Newsroom.Publish(career, "O Bancada", "A bancada fala após " + match.Home.ShortName + "–" + match.Away.ShortName, reaction);
-
-            for (var i = 0; i < playerMoments.Count; i++)
-                Newsroom.Publish(career, "Memórias da carreira", playerMoments[i].Title, playerMoments[i].Detail);
 
             var notification = playerMoments.Count > 0 ? playerMoments[0] : memory;
             if (notification != null)

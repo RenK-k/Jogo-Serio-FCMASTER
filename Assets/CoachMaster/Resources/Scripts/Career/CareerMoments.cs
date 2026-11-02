@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using CoachMaster.Domain;
+using CoachMaster.MatchPlay;
+using CoachMaster.UI;
 
 namespace CoachMaster.Career
 {
@@ -27,7 +29,9 @@ namespace CoachMaster.Career
         public int[] SquadMoraleDelta;
         public int[] DressingRoomTensionDelta;
         public int[] InjuryDays;
+        public int[] UnavailableDays;
         public bool[] ToggleDuty;
+        public string IncidentType;
         public string SecondaryPlayerId;
         public int[] SecondaryMoraleDelta;
         public bool Answered;
@@ -162,6 +166,19 @@ namespace CoachMaster.Career
                 player.Injury.DaysRemaining = injuryDays;
             }
 
+            var unavailableDays = At(moment.UnavailableDays, effect);
+            if (unavailableDays > 0)
+            {
+                var unavailableUntil = career.Calendar.CurrentDate.Date.AddDays(unavailableDays - 1).Ticks;
+                if (moment.IncidentType == "betting" && choice == 1)
+                {
+                    var nextFixture = career.NextUserFixture();
+                    if (nextFixture != null)
+                        unavailableUntil = Math.Max(unavailableUntil, nextFixture.Date.Date.Ticks);
+                }
+                player.UnavailableUntilTicks = unavailableUntil;
+            }
+
             var dutyChanged = At(moment.ToggleDuty, effect);
             if (dutyChanged)
             {
@@ -190,6 +207,10 @@ namespace CoachMaster.Career
                 impact.Add("tensão do balneário " + Signed(tension));
             if (injuryDays > 0)
                 impact.Add("lesão: " + injuryDays + " dias fora");
+            if (unavailableDays > 0)
+                impact.Add(moment.IncidentType == "betting" && choice == 1
+                    ? "afastamento do próximo jogo"
+                    : "dispensa: " + unavailableDays + (unavailableDays == 1 ? " dia" : " dias"));
             if (dutyChanged)
                 impact.Add("instrução: " + player.Duty);
             moment.Body += "\n\nTu: " + moment.Replies[choice] + "\n\n" + followUp;
@@ -198,7 +219,27 @@ namespace CoachMaster.Career
             career.Notebook.Insert(0, career.Calendar.ClockText + "  " + player.FullName + " — conversa no centro de treinos.");
             var trustDelta = CareerRelationships.ApplyConversation(career, player, morale, form, tension, injuryDays);
             CareerMemories.RecordConversation(career, moment, player, choice, morale, form, tension, trustDelta, injuryDays);
-            CareerNotificationQueue.Enqueue("A TUA ESCOLHA FICA", "Confiança de " + player.FullName + ": " + CareerRelationships.TrustOf(career, player.Id) + "/100.");
+            var english = LocalizationManager.Current == GameLanguage.English;
+            CareerNotificationQueue.Enqueue(english ? "YOUR CHOICE MATTERS" : "A TUA ESCOLHA FICA",
+                english ? "Trust with " + player.FullName + ": " + CareerRelationships.TrustOf(career, player.Id) + "/100."
+                    : "Confiança de " + player.FullName + ": " + CareerRelationships.TrustOf(career, player.Id) + "/100.");
+
+            if (!string.IsNullOrEmpty(moment.IncidentType))
+            {
+                var marker = "personal-event|" + moment.When.Date.Ticks;
+                if (!career.Notebook.Contains(marker)) career.Notebook.Add(marker);
+                var headline = Newsroom.PublishPersonalIncident(career, moment, player, choice);
+                career.Board.Insert(0, new CoachNote
+                {
+                    Day = career.Calendar.WeekdayName,
+                    Hour = career.Calendar.ClockText,
+                    When = career.Calendar.CurrentDate,
+                    Text = english
+                        ? "✉ The club is supporting " + player.FullName + " through a personal matter. Open the news for the full story."
+                        : "✉ " + headline + " · " + player.FullName + " · " + followUp
+                });
+                while (career.Board.Count > 40) career.Board.RemoveAt(career.Board.Count - 1);
+            }
         }
 
         static int SpokenEffect(Player player, int choice, int count)
@@ -241,7 +282,7 @@ namespace CoachMaster.Career
                 impact.Add(label + " " + Signed(delta));
         }
 
-        public static void AfterMatch(CareerState career, int homeGoals, int awayGoals, bool userHome, string homeName, string awayName, string motm = null, string motmMark = null)
+        public static void AfterMatch(CareerState career, int homeGoals, int awayGoals, bool userHome, string homeName, string awayName, string motm = null, string motmMark = null, MatchSession match = null)
         {
             career.Current = null;
             career.Upcoming.Clear();
@@ -289,7 +330,7 @@ namespace CoachMaster.Career
                 When = career.Calendar.CurrentDate,
                 Text = tone
             });
-            Newsroom.PublishMatch(career, homeName, awayName, homeGoals, awayGoals, userHome, motm, motmMark);
+            Newsroom.PublishMatch(career, homeName, awayName, homeGoals, awayGoals, userHome, motm, motmMark, match);
             if (career.Calendar.CurrentDate.Day % 4 == 0)
                 Newsroom.PublishTransfer(career);
         }
@@ -397,9 +438,145 @@ namespace CoachMaster.Career
             var player = PickPlayer(career, when);
             if (player == null)
                 return;
-            var moment = BuildTalk(career, player, when);
+            var match = MatchOn(career, when.Date);
+            var moment = BuildPersonalIncident(career, player, when, match) ?? BuildTalk(career, player, when);
             if (moment != null)
+            {
                 career.Upcoming.Add(moment);
+                if (!string.IsNullOrEmpty(moment.IncidentType))
+                {
+                    var english = LocalizationManager.Current == GameLanguage.English;
+                    CareerNotificationQueue.Enqueue(english ? "PERSONAL MATTER" : "ASSUNTO PESSOAL",
+                        english ? player.FullName + " needs a private conversation today."
+                            : player.FullName + " precisa de falar contigo. Consulta a conversa de hoje.");
+                }
+            }
+        }
+
+        static CareerMoment BuildPersonalIncident(CareerState career, Player player, DateTime when, Fixture match)
+        {
+            if (career == null || player == null || career.Notebook == null)
+                return null;
+            var date = when.Date;
+            var dayKey = "personal-event|" + date.Ticks;
+            if (career.Notebook.Contains(dayKey))
+                return null;
+            foreach (var line in career.Notebook)
+            {
+                if (line == null || !line.StartsWith("personal-event|", StringComparison.Ordinal)) continue;
+                if (long.TryParse(line.Substring("personal-event|".Length), out var ticks)
+                    && Math.Abs((date - new DateTime(ticks).Date).TotalDays) < 21)
+                    return null;
+            }
+
+            var roll = StableHash(career.Club.Id + "|" + player.Id + "|" + date.Ticks + "|personal") % 10000;
+            if (roll >= 160)
+                return null;
+
+            string type;
+            if (match != null && roll < 8) type = "bereavement";
+            else if (roll < 48) type = "betting";
+            else if (roll < 83) type = "drunk";
+            else if (roll < 116) type = "viral";
+            else if (roll < 140) type = "family";
+            else type = "charity";
+
+            var name = player.FullName;
+            var moment = new CareerMoment
+            {
+                When = when,
+                Title = "Acontecimento pessoal · " + name,
+                Kind = MomentKind.Talk,
+                PlayerId = player.Id,
+                IncidentType = type,
+                BoardLine = name + " teve um dia difícil fora do relvado."
+            };
+            switch (type)
+            {
+                case "bereavement":
+                    moment.Body = name + " recebe a notícia de que o pai faleceu. O funeral é hoje, dia do jogo. Encontra-te no corredor e pede apoio para estar com a família.";
+                    moment.Replies = new[] { "Dou-lhe dispensa para estar com a família. O substituto entra no onze.", "Organizo apoio do clube e deixo-o decidir se consegue jogar.", "Peço-lhe que cumpra o compromisso do jogo. Tratamos do resto amanhã." };
+                    moment.FollowUps = new[] { "Vai para junto da família. O grupo prepara-se para jogar por ele.", "A equipa oferece apoio e ele decide afastar-se do jogo.", "Fica com o grupo, mas a notícia pesa-lhe durante todo o dia." };
+                    moment.MoraleDelta = new[] { 8, 5, -12 };
+                    moment.FatigueDelta = new[] { -1, 0, 2 };
+                    moment.FormDelta = new[] { -2, -2, -6 };
+                    moment.SquadMoraleDelta = new[] { 2, 2, -2 };
+                    moment.DressingRoomTensionDelta = new[] { -1, -1, 6 };
+                    moment.InjuryDays = new[] { 0, 0, 0 };
+                    moment.UnavailableDays = new[] { 1, 1, 0 };
+                    break;
+                case "betting":
+                    moment.Body = name + " é identificado numa investigação interna por ter feito apostas em futebol. O clube ainda está a confirmar os factos e a imprensa já pede uma posição.";
+                    moment.Replies = new[] { "Investigo em privado com o jogador e o responsável de integridade.", "Afasto-o do próximo jogo enquanto esclarecemos o caso.", "Digo que é assunto pessoal e não faço perguntas." };
+                    moment.FollowUps = new[] { "Coopera com a investigação. O balneário percebe que o caso está a ser tratado.", "Aceita ficar de fora enquanto a situação é revista.", "A resposta aumenta a especulação e deixa o grupo desconfortável." };
+                    moment.MoraleDelta = new[] { 1, -4, -8 };
+                    moment.FatigueDelta = new[] { 0, -2, 0 };
+                    moment.FormDelta = new[] { 1, -3, -5 };
+                    moment.SquadMoraleDelta = new[] { 0, 1, -2 };
+                    moment.DressingRoomTensionDelta = new[] { -1, 0, 5 };
+                    moment.InjuryDays = new[] { 0, 0, 0 };
+                    moment.UnavailableDays = new[] { 0, 1, 0 };
+                    break;
+                case "drunk":
+                    moment.Body = name + " chega atrasado ao treino depois de uma noite longa. Está bem, mas o cansaço é visível e um vídeo à porta de um bar já circula nas redes.";
+                    moment.Replies = new[] { "Mando-o para casa descansar e peço ao médico que o avalie.", "Aplico uma multa e deixo-o treinar com carga reduzida.", "Exijo que faça o treino completo para servir de exemplo." };
+                    moment.FollowUps = new[] { "Descansa, aceita a avaliação e regressa ao grupo no dia seguinte.", "Cumpre a sessão leve. O balneário percebe o limite que definiste.", "Acaba o treino exausto e a equipa questiona a decisão." };
+                    moment.MoraleDelta = new[] { 2, -3, -8 };
+                    moment.FatigueDelta = new[] { -8, -3, 10 };
+                    moment.FormDelta = new[] { -1, -2, -7 };
+                    moment.SquadMoraleDelta = new[] { 0, 0, -2 };
+                    moment.DressingRoomTensionDelta = new[] { -1, 1, 6 };
+                    moment.InjuryDays = new[] { 0, 0, 3 };
+                    moment.UnavailableDays = new[] { 0, 0, 0 };
+                    break;
+                case "viral":
+                    moment.Body = name + " troca as folhas da palestra por uma escalação desenhada pelo roupeiro. O vídeo do capitão a tentar explicar o 2-2-6 tornou-se viral antes do pequeno-almoço.";
+                    moment.Replies = new[] { "Rio-me com o grupo e depois confirmo o onze verdadeiro.", "Aproveito a atenção para promover o próximo jogo.", "Acabo com a brincadeira e imponho uma multa simbólica." };
+                    moment.FollowUps = new[] { "O balneário descontrai. Até o roupeiro guarda uma cópia da escalação.", "O clube ganha atenção e o jogador aparece no vídeo oficial a pedir desculpa ao treinador.", "A brincadeira acaba. O capitão devolve-te o quadro, ainda a rir." };
+                    moment.MoraleDelta = new[] { 6, 4, -4 };
+                    moment.FatigueDelta = new[] { 0, 0, 0 };
+                    moment.FormDelta = new[] { 2, 1, -1 };
+                    moment.SquadMoraleDelta = new[] { 3, 1, -1 };
+                    moment.DressingRoomTensionDelta = new[] { -2, 0, 2 };
+                    moment.InjuryDays = new[] { 0, 0, 0 };
+                    moment.UnavailableDays = new[] { 0, 0, 0 };
+                    break;
+                case "family":
+                    moment.Body = name + " conta-te que acabou de ser pai. Está feliz, mas quase não dormiu e pede para ajustar a carga de hoje, véspera de jogo.";
+                    moment.Replies = new[] { "Dou-lhe a manhã para a família e reduzo a carga.", "Ajusto o treino, mas mantenho-o disponível para o jogo.", "A vida pessoal fica à porta; a sessão é igual para todos." };
+                    moment.FollowUps = new[] { "Sorri ao receber uma fotografia da família. O grupo prepara uma pequena surpresa.", "Treina com cuidado e agradece a flexibilidade.", "Cumpre o treino, embora a felicidade dê lugar à frustração." };
+                    moment.MoraleDelta = new[] { 9, 6, -6 };
+                    moment.FatigueDelta = new[] { -5, -2, 5 };
+                    moment.FormDelta = new[] { 1, 1, -3 };
+                    moment.SquadMoraleDelta = new[] { 2, 1, -1 };
+                    moment.DressingRoomTensionDelta = new[] { -2, -1, 4 };
+                    moment.InjuryDays = new[] { 0, 0, 0 };
+                    moment.UnavailableDays = new[] { 0, 0, 0 };
+                    break;
+                default:
+                    moment.Body = name + " organizou uma visita surpresa a uma associação local e levou equipamento para os miúdos. O adjunto pergunta se deve proteger o tempo de recuperação antes do próximo jogo.";
+                    moment.Replies = new[] { "Apoio a iniciativa e ajusto o horário do treino.", "Agradeço o gesto e peço que regresse a tempo da preparação.", "Cancelo a visita; hoje a prioridade é só o futebol." };
+                    moment.FollowUps = new[] { "A iniciativa aparece nas notícias locais e o grupo fica orgulhoso.", "A visita termina cedo. O jogador promete repetir na folga.", "Regressa ao treino, mas o balneário não percebe a decisão." };
+                    moment.MoraleDelta = new[] { 7, 4, -5 };
+                    moment.FatigueDelta = new[] { 1, 0, -1 };
+                    moment.FormDelta = new[] { 2, 1, -2 };
+                    moment.SquadMoraleDelta = new[] { 2, 1, -1 };
+                    moment.DressingRoomTensionDelta = new[] { -2, -1, 4 };
+                    moment.InjuryDays = new[] { 0, 0, 0 };
+                    moment.UnavailableDays = new[] { 0, 0, 0 };
+                    break;
+            }
+            return moment;
+        }
+
+        static int StableHash(string value)
+        {
+            unchecked
+            {
+                var hash = 23;
+                for (var i = 0; i < value.Length; i++) hash = hash * 31 + value[i];
+                return hash & 0x7fffffff;
+            }
         }
 
         static CareerMoment BuildTalk(CareerState career, Player player, DateTime when)

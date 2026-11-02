@@ -1,0 +1,624 @@
+fileFormatVersion: 2
+guid: a6dfc5e46d1e935439ce57d578e1dfc3
+TextureImporter:
+  internalIDToNameTable:
+  - first:
+      213: -8276166077863936757
+    second: Deutschland Pokal_0
+  - first:
+      213: -5409601632252873306
+    second: Deutschland Pokal_1
+  - first:
+      213: 7000844117931815105
+    second: Deutschland Pokal_2
+  - first:
+      213: 4617489968646404972
+    second: Deutschland Pokal_3
+  - first:
+      213: -3820505859037476940
+    second: Deutschland Pokal_4
+  - first:
+      213: -6340869179964382092
+    second: Deutschland Pokal_5
+  - first:
+      213: -192219839522322347
+    second: Deutschland Pokal_6
+  - first:
+      213: -5581604207438061485
+    second: Deutschland Pokal_7
+  - first:
+      213: -6854937666181699584
+    second: Deutschland Pokal_8
+  - first:
+      213: 5108759377751613656
+    second: Deutschland Pokal_9
+  - first:
+      213: -1865331919979914364
+    second: Deutschland Pokal_10
+  - first:
+      213: 1425261413507220615
+    second: Deutschland Pokal_11
+  - first:
+      213: -5562643324883006660
+    second: Deutschland Pokal_12
+  - first:
+      213: -5541518499841798062
+    second: Deutschland Pokal_13
+  - first:
+      213: 1422244766991681791
+    second: Deutschland Pokal_14
+  - first:
+      213: 4331733211038362034
+    second: Deutschland Pokal_15
+  - first:
+      213: -50167188972668305
+    second: Deutschland Pokal_16
+  - first:
+      213: -1155975581597796163
+    second: Deutschland Pokal_17
+  - first:
+      213: -4420287892017238409
+    second: Deutschland Pokal_18
+  externalObjects: {}
+  serializedVersion: 13
+  mipmaps:
+    mipMapMode: 0
+    enableMipMap: 0
+    sRGBTexture: 1
+    linearTexture: 0
+    fadeOut: 0
+    borderMipMap: 0
+    mipMapsPreserveCoverage: 0
+    alphaTestReferenceValue: 0.5
+    mipMapFadeDistanceStart: 1
+    mipMapFadeDistanceEnd: 3
+  bumpmap:
+    convertToNormalMap: 0
+    externalNormalMap: 0
+    heightScale: 0.25
+    normalMapFilter: 0
+    flipGreenChannel: 0
+  isReadable: 0
+  streamingMipmaps: 0
+  streamingMipmapsPriority: 0
+  vTOnly: 0
+  ignoreMipmapLimit: 0
+  grayScaleToAlpha: 0
+  generateCubemap: 6
+  cubemapConvolution: 0
+  seamlessCubemap: 0
+  textureFormat: 1
+  maxTextureSize: 2048
+  textureSettings:
+    serializedVersion: 2
+    filterMode: 1
+    aniso: 1
+    mipBias: 0
+    wrapU: 1
+    wrapV: 1
+    wrapW: 1
+  nPOTScale: 0
+  lightmap: 0
+  compressionQuality: 50
+  spriteMode: 2
+  spriteExtrude: 1
+  spriteMeshType: 1
+  alignment: 0
+  spritePivot: {x: 0.5, y: 0.5}
+  spritePixelsToUnits: 100
+  spriteBorder: {x: 0, y: 0, z: 0, w: 0}
+  spriteGenerateFallbackPhysicsShape: 1
+  alphaUsage: 1
+  alphaIsTransparency: 1
+  spriteTessellationDetail: -1
+  textureType: 8
+  textureShape: 1
+  singleChannelComponent: 0
+  flipbookRows: 1
+  flipbookColumns: 1
+  maxTextureSizeSet: 0
+  compressionQualitySet: 0
+  textureFormatSet: 0
+  ignorePngGamma: 0
+  applyGammaDecoding: 0
+  swizzle: 50462976
+  cookieLightType: 0
+  platformSettings:
+  - serializedVersion: 4
+    buildTarget: DefaultTexturePlatform
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: Standalone
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: WebGL
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  spriteSheet:
+    serializedVersion: 2
+    sprites:
+    - serializedVersion: 2
+      name: Deutschland Pokal_0
+      rect:
+        serializedVersion: 2
+        x: 790
+        y: 1063
+        width: 166
+        height: 303
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: b0d38ca1dc6252d80800000000000000
+      internalID: -8276166077863936757
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Deutschland Pokal_1
+      rect:
+        serializedVersion: 2
+        x: 854
+        y: 914
+        width: 285
+        height: 452
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 6a5b13d0afb3de4b0800000000000000
+      internalID: -5409601632252873306
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Deutschland Pokal_2
+      rect:
+        serializedVersion: 2
+        x: 913
+        y: 1361
+        width: 97
+        height: 27
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 1c0753912aef72160800000000000000
+      internalID: 7000844117931815105
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Deutschland Pokal_3
+      rect:
+        serializedVersion: 2
+        x: 462
+        y: 799
+        width: 82
+        height: 102
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: c6b391779ae941040800000000000000
+      internalID: 4617489968646404972
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Deutschland Pokal_4
+      rect:
+        serializedVersion: 2
+        x: 567
+        y: 799
+        width: 60
+        height: 102
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 4b7c5c1c926dafac0800000000000000
+      internalID: -3820505859037476940
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Deutschland Pokal_5
+      rect:
+        serializedVersion: 2
+        x: 652
+        y: 797
+        width: 81
+        height: 104
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 47420018315b008a0800000000000000
+      internalID: -6340869179964382092
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Deutschland Pokal_6
+      rect:
+        serializedVersion: 2
+        x: 746
+        y: 799
+        width: 74
+        height: 102
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 5584d7a0319155df0800000000000000
+      internalID: -192219839522322347
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Deutschland Pokal_7
+      rect:
+        serializedVersion: 2
+        x: 836
+        y: 797
+        width: 78
+        height: 106
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 35024d2cb882a82b0800000000000000
+      internalID: -5581604207438061485
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Deutschland Pokal_8
+      rect:
+        serializedVersion: 2
+        x: 929
+        y: 797
+        width: 90
+        height: 106
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 0086bc9f28e5ed0a0800000000000000
+      internalID: -6854937666181699584
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Deutschland Pokal_9
+      rect:
+        serializedVersion: 2
+        x: 1040
+        y: 799
+        width: 81
+        height: 102
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 8d0a4d13695f5e640800000000000000
+      internalID: 5108759377751613656
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Deutschland Pokal_10
+      rect:
+        serializedVersion: 2
+        x: 1148
+        y: 799
+        width: 60
+        height: 102
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 48b566170820d16e0800000000000000
+      internalID: -1865331919979914364
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Deutschland Pokal_11
+      rect:
+        serializedVersion: 2
+        x: 1223
+        y: 799
+        width: 105
+        height: 102
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 7844b2844bb87c310800000000000000
+      internalID: 1425261413507220615
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Deutschland Pokal_12
+      rect:
+        serializedVersion: 2
+        x: 1345
+        y: 799
+        width: 88
+        height: 102
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: c3b86204e558dc2b0800000000000000
+      internalID: -5562643324883006660
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Deutschland Pokal_13
+      rect:
+        serializedVersion: 2
+        x: 1460
+        y: 799
+        width: 82
+        height: 102
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 2509cacd8429813b0800000000000000
+      internalID: -5541518499841798062
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Deutschland Pokal_14
+      rect:
+        serializedVersion: 2
+        x: 865
+        y: 702
+        width: 40
+        height: 50
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ff882388414dcb310800000000000000
+      internalID: 1422244766991681791
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Deutschland Pokal_15
+      rect:
+        serializedVersion: 2
+        x: 917
+        y: 701
+        width: 54
+        height: 52
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 2b924b9a7686d1c30800000000000000
+      internalID: 4331733211038362034
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Deutschland Pokal_16
+      rect:
+        serializedVersion: 2
+        x: 986
+        y: 702
+        width: 44
+        height: 50
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: f6a77e91535cd4ff0800000000000000
+      internalID: -50167188972668305
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Deutschland Pokal_17
+      rect:
+        serializedVersion: 2
+        x: 1040
+        y: 702
+        width: 51
+        height: 50
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: db876d9455625ffe0800000000000000
+      internalID: -1155975581597796163
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Deutschland Pokal_18
+      rect:
+        serializedVersion: 2
+        x: 1104
+        y: 702
+        width: 35
+        height: 50
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 77e2a57f49bf7a2c0800000000000000
+      internalID: -4420287892017238409
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    outline: []
+    customData: 
+    physicsShape: []
+    bones: []
+    spriteID: 
+    internalID: 0
+    vertices: []
+    indices: 
+    edges: []
+    weights: []
+    secondaryTextures: []
+    spriteCustomMetadata:
+      entries: []
+    nameFileIdTable:
+      Deutschland Pokal_0: -8276166077863936757
+      Deutschland Pokal_1: -5409601632252873306
+      Deutschland Pokal_10: -1865331919979914364
+      Deutschland Pokal_11: 1425261413507220615
+      Deutschland Pokal_12: -5562643324883006660
+      Deutschland Pokal_13: -5541518499841798062
+      Deutschland Pokal_14: 1422244766991681791
+      Deutschland Pokal_15: 4331733211038362034
+      Deutschland Pokal_16: -50167188972668305
+      Deutschland Pokal_17: -1155975581597796163
+      Deutschland Pokal_18: -4420287892017238409
+      Deutschland Pokal_2: 7000844117931815105
+      Deutschland Pokal_3: 4617489968646404972
+      Deutschland Pokal_4: -3820505859037476940
+      Deutschland Pokal_5: -6340869179964382092
+      Deutschland Pokal_6: -192219839522322347
+      Deutschland Pokal_7: -5581604207438061485
+      Deutschland Pokal_8: -6854937666181699584
+      Deutschland Pokal_9: 5108759377751613656
+  mipmapLimitGroupName: 
+  pSDRemoveMatte: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

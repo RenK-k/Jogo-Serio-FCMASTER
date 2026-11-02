@@ -1,0 +1,910 @@
+fileFormatVersion: 2
+guid: 61e8b8ebe25012644a8228f2b5d1a9d6
+TextureImporter:
+  internalIDToNameTable:
+  - first:
+      213: -4643727786018445123
+    second: CLOYFF SHIELD_0
+  - first:
+      213: 1927487055051283483
+    second: CLOYFF SHIELD_1
+  - first:
+      213: -7420690033391998113
+    second: CLOYFF SHIELD_2
+  - first:
+      213: -8533790223077185484
+    second: CLOYFF SHIELD_3
+  - first:
+      213: -7018793387997005514
+    second: CLOYFF SHIELD_4
+  - first:
+      213: 4465612937453272369
+    second: CLOYFF SHIELD_5
+  - first:
+      213: 7929824019228346831
+    second: CLOYFF SHIELD_6
+  - first:
+      213: 2841772778723427598
+    second: CLOYFF SHIELD_7
+  - first:
+      213: -3096650828261389548
+    second: CLOYFF SHIELD_8
+  - first:
+      213: -1432248342982768433
+    second: CLOYFF SHIELD_9
+  - first:
+      213: 232803943157572813
+    second: CLOYFF SHIELD_10
+  - first:
+      213: 5057252860367228832
+    second: CLOYFF SHIELD_11
+  - first:
+      213: -7569243968071031816
+    second: CLOYFF SHIELD_12
+  - first:
+      213: -3065789497118486275
+    second: CLOYFF SHIELD_13
+  - first:
+      213: -8868221633643153128
+    second: CLOYFF SHIELD_14
+  - first:
+      213: 2371403769333775851
+    second: CLOYFF SHIELD_15
+  - first:
+      213: 4653544703035744421
+    second: CLOYFF SHIELD_16
+  - first:
+      213: -2297793258046069250
+    second: CLOYFF SHIELD_17
+  - first:
+      213: 2931731412245210911
+    second: CLOYFF SHIELD_18
+  - first:
+      213: 99197124751196835
+    second: CLOYFF SHIELD_19
+  - first:
+      213: 2162491452774913823
+    second: CLOYFF SHIELD_20
+  - first:
+      213: 4847364679077840432
+    second: CLOYFF SHIELD_21
+  - first:
+      213: 7138191063034099734
+    second: CLOYFF SHIELD_22
+  - first:
+      213: 2713556455300874811
+    second: CLOYFF SHIELD_23
+  - first:
+      213: 4706642392739925156
+    second: CLOYFF SHIELD_24
+  - first:
+      213: 371210663201500009
+    second: CLOYFF SHIELD_25
+  - first:
+      213: -2321383539634658616
+    second: CLOYFF SHIELD_26
+  - first:
+      213: 2404556293006943860
+    second: CLOYFF SHIELD_27
+  - first:
+      213: 6111331142042151621
+    second: CLOYFF SHIELD_28
+  - first:
+      213: -3915944072458141664
+    second: CLOYFF SHIELD_29
+  externalObjects: {}
+  serializedVersion: 13
+  mipmaps:
+    mipMapMode: 0
+    enableMipMap: 0
+    sRGBTexture: 1
+    linearTexture: 0
+    fadeOut: 0
+    borderMipMap: 0
+    mipMapsPreserveCoverage: 0
+    alphaTestReferenceValue: 0.5
+    mipMapFadeDistanceStart: 1
+    mipMapFadeDistanceEnd: 3
+  bumpmap:
+    convertToNormalMap: 0
+    externalNormalMap: 0
+    heightScale: 0.25
+    normalMapFilter: 0
+    flipGreenChannel: 0
+  isReadable: 0
+  streamingMipmaps: 0
+  streamingMipmapsPriority: 0
+  vTOnly: 0
+  ignoreMipmapLimit: 0
+  grayScaleToAlpha: 0
+  generateCubemap: 6
+  cubemapConvolution: 0
+  seamlessCubemap: 0
+  textureFormat: 1
+  maxTextureSize: 2048
+  textureSettings:
+    serializedVersion: 2
+    filterMode: 1
+    aniso: 1
+    mipBias: 0
+    wrapU: 1
+    wrapV: 1
+    wrapW: 1
+  nPOTScale: 0
+  lightmap: 0
+  compressionQuality: 50
+  spriteMode: 2
+  spriteExtrude: 1
+  spriteMeshType: 1
+  alignment: 0
+  spritePivot: {x: 0.5, y: 0.5}
+  spritePixelsToUnits: 100
+  spriteBorder: {x: 0, y: 0, z: 0, w: 0}
+  spriteGenerateFallbackPhysicsShape: 1
+  alphaUsage: 1
+  alphaIsTransparency: 1
+  spriteTessellationDetail: -1
+  textureType: 8
+  textureShape: 1
+  singleChannelComponent: 0
+  flipbookRows: 1
+  flipbookColumns: 1
+  maxTextureSizeSet: 0
+  compressionQualitySet: 0
+  textureFormatSet: 0
+  ignorePngGamma: 0
+  applyGammaDecoding: 0
+  swizzle: 50462976
+  cookieLightType: 0
+  platformSettings:
+  - serializedVersion: 4
+    buildTarget: DefaultTexturePlatform
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: Standalone
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: WebGL
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  spriteSheet:
+    serializedVersion: 2
+    sprites:
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_0
+      rect:
+        serializedVersion: 2
+        x: 777
+        y: 1419
+        width: 124
+        height: 118
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: db862c0ae2a2e8fb0800000000000000
+      internalID: -4643727786018445123
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_1
+      rect:
+        serializedVersion: 2
+        x: 941
+        y: 1463
+        width: 125
+        height: 119
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: b1cde79a34fcfba10800000000000000
+      internalID: 1927487055051283483
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_2
+      rect:
+        serializedVersion: 2
+        x: 1106
+        y: 1419
+        width: 125
+        height: 118
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: f5b636b2bb9640990800000000000000
+      internalID: -7420690033391998113
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_3
+      rect:
+        serializedVersion: 2
+        x: 612
+        y: 1179
+        width: 30
+        height: 86
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 43868cd8103e19980800000000000000
+      internalID: -8533790223077185484
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_4
+      rect:
+        serializedVersion: 2
+        x: 628
+        y: 1245
+        width: 31
+        height: 87
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 639f39cc99c389e90800000000000000
+      internalID: -7018793387997005514
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_5
+      rect:
+        serializedVersion: 2
+        x: 640
+        y: 807
+        width: 720
+        height: 611
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 13d7a498e4b09fd30800000000000000
+      internalID: 4465612937453272369
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_6
+      rect:
+        serializedVersion: 2
+        x: 1341
+        y: 1245
+        width: 31
+        height: 87
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: fc947757ee46c0e60800000000000000
+      internalID: 7929824019228346831
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_7
+      rect:
+        serializedVersion: 2
+        x: 1358
+        y: 1179
+        width: 30
+        height: 86
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: e054f203941007720800000000000000
+      internalID: 2841772778723427598
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_8
+      rect:
+        serializedVersion: 2
+        x: 609
+        y: 1111
+        width: 32
+        height: 83
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 41b8f0c7a7c7605d0800000000000000
+      internalID: -3096650828261389548
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_9
+      rect:
+        serializedVersion: 2
+        x: 611
+        y: 1046
+        width: 46
+        height: 76
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: fc8ce5e68b1af1ce0800000000000000
+      internalID: -1432248342982768433
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_10
+      rect:
+        serializedVersion: 2
+        x: 1343
+        y: 1046
+        width: 46
+        height: 76
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: dc4a73ee3f51b3300800000000000000
+      internalID: 232803943157572813
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_11
+      rect:
+        serializedVersion: 2
+        x: 1359
+        y: 1111
+        width: 32
+        height: 83
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 0af44899ea8fe2640800000000000000
+      internalID: 5057252860367228832
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_12
+      rect:
+        serializedVersion: 2
+        x: 626
+        y: 984
+        width: 59
+        height: 67
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 8f3abd0f6b4a4f690800000000000000
+      internalID: -7569243968071031816
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_13
+      rect:
+        serializedVersion: 2
+        x: 1315
+        y: 984
+        width: 59
+        height: 67
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: df0112412b02475d0800000000000000
+      internalID: -3065789497118486275
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_14
+      rect:
+        serializedVersion: 2
+        x: 804
+        y: 802
+        width: 89
+        height: 32
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 819f349f86fbde480800000000000000
+      internalID: -8868221633643153128
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_15
+      rect:
+        serializedVersion: 2
+        x: 871
+        y: 780
+        width: 89
+        height: 30
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: bed792af92be8e020800000000000000
+      internalID: 2371403769333775851
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_16
+      rect:
+        serializedVersion: 2
+        x: 1040
+        y: 780
+        width: 89
+        height: 30
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 5a0a8da7046b49040800000000000000
+      internalID: 4653544703035744421
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_17
+      rect:
+        serializedVersion: 2
+        x: 1107
+        y: 802
+        width: 89
+        height: 32
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ef560eeb4399c10e0800000000000000
+      internalID: -2297793258046069250
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_18
+      rect:
+        serializedVersion: 2
+        x: 320
+        y: 588
+        width: 85
+        height: 104
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: f17eabbbf2a9fa820800000000000000
+      internalID: 2931731412245210911
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_19
+      rect:
+        serializedVersion: 2
+        x: 454
+        y: 590
+        width: 54
+        height: 100
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 3a20987624b606100800000000000000
+      internalID: 99197124751196835
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_20
+      rect:
+        serializedVersion: 2
+        x: 546
+        y: 588
+        width: 100
+        height: 104
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: f179778d486b20e10800000000000000
+      internalID: 2162491452774913823
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_21
+      rect:
+        serializedVersion: 2
+        x: 683
+        y: 590
+        width: 83
+        height: 100
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 036c5314e7c454340800000000000000
+      internalID: 4847364679077840432
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_22
+      rect:
+        serializedVersion: 2
+        x: 809
+        y: 590
+        width: 53
+        height: 100
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 618f30bb3f2ff0360800000000000000
+      internalID: 7138191063034099734
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_23
+      rect:
+        serializedVersion: 2
+        x: 911
+        y: 590
+        width: 53
+        height: 100
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: b324d24183d78a520800000000000000
+      internalID: 2713556455300874811
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_24
+      rect:
+        serializedVersion: 2
+        x: 1077
+        y: 588
+        width: 59
+        height: 104
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 4acce00c15a515140800000000000000
+      internalID: 4706642392739925156
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_25
+      rect:
+        serializedVersion: 2
+        x: 1188
+        y: 590
+        width: 83
+        height: 100
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 96b66f4a12ec62500800000000000000
+      internalID: 371210663201500009
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_26
+      rect:
+        serializedVersion: 2
+        x: 1330
+        y: 590
+        width: 9
+        height: 100
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 8c223ac48f9c8cfd0800000000000000
+      internalID: -2321383539634658616
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_27
+      rect:
+        serializedVersion: 2
+        x: 1398
+        y: 590
+        width: 50
+        height: 100
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 476eb176533be5120800000000000000
+      internalID: 2404556293006943860
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_28
+      rect:
+        serializedVersion: 2
+        x: 1497
+        y: 590
+        width: 55
+        height: 100
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 5ca64326b4fcfc450800000000000000
+      internalID: 6111331142042151621
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: CLOYFF SHIELD_29
+      rect:
+        serializedVersion: 2
+        x: 1596
+        y: 588
+        width: 84
+        height: 103
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 02006d81d95c7a9c0800000000000000
+      internalID: -3915944072458141664
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    outline: []
+    customData: 
+    physicsShape: []
+    bones: []
+    spriteID: 
+    internalID: 0
+    vertices: []
+    indices: 
+    edges: []
+    weights: []
+    secondaryTextures: []
+    spriteCustomMetadata:
+      entries: []
+    nameFileIdTable:
+      CLOYFF SHIELD_0: -4643727786018445123
+      CLOYFF SHIELD_1: 1927487055051283483
+      CLOYFF SHIELD_10: 232803943157572813
+      CLOYFF SHIELD_11: 5057252860367228832
+      CLOYFF SHIELD_12: -7569243968071031816
+      CLOYFF SHIELD_13: -3065789497118486275
+      CLOYFF SHIELD_14: -8868221633643153128
+      CLOYFF SHIELD_15: 2371403769333775851
+      CLOYFF SHIELD_16: 4653544703035744421
+      CLOYFF SHIELD_17: -2297793258046069250
+      CLOYFF SHIELD_18: 2931731412245210911
+      CLOYFF SHIELD_19: 99197124751196835
+      CLOYFF SHIELD_2: -7420690033391998113
+      CLOYFF SHIELD_20: 2162491452774913823
+      CLOYFF SHIELD_21: 4847364679077840432
+      CLOYFF SHIELD_22: 7138191063034099734
+      CLOYFF SHIELD_23: 2713556455300874811
+      CLOYFF SHIELD_24: 4706642392739925156
+      CLOYFF SHIELD_25: 371210663201500009
+      CLOYFF SHIELD_26: -2321383539634658616
+      CLOYFF SHIELD_27: 2404556293006943860
+      CLOYFF SHIELD_28: 6111331142042151621
+      CLOYFF SHIELD_29: -3915944072458141664
+      CLOYFF SHIELD_3: -8533790223077185484
+      CLOYFF SHIELD_4: -7018793387997005514
+      CLOYFF SHIELD_5: 4465612937453272369
+      CLOYFF SHIELD_6: 7929824019228346831
+      CLOYFF SHIELD_7: 2841772778723427598
+      CLOYFF SHIELD_8: -3096650828261389548
+      CLOYFF SHIELD_9: -1432248342982768433
+  mipmapLimitGroupName: 
+  pSDRemoveMatte: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

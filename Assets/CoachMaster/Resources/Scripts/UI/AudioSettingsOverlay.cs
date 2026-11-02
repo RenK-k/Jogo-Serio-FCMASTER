@@ -187,7 +187,7 @@ namespace CoachMaster.UI
             var page = Page(parent, 1, "JOGABILIDADE");
             AddOption(page.transform, "AutoXI", "Escolha automática do onze", "Ignora o onze guardado e escolhe a equipa a partir da formação e posições.", () => OnOff(SettingsPrefs.AutomaticSquadSelection), () => SettingsPrefs.AutomaticSquadSelection = !SettingsPrefs.AutomaticSquadSelection, 0.76f);
             AddOption(page.transform, "Training", "Treino automático", "Quando desligado, avançar dias não altera a avaliação de treino dos jogadores.", () => OnOff(SettingsPrefs.AutomaticTraining), () => SettingsPrefs.AutomaticTraining = !SettingsPrefs.AutomaticTraining, 0.63f);
-            AddOption(page.transform, "Speed", "Velocidade inicial do jogo", "Também pode ser alterada durante a partida.", () => SettingsPrefs.MatchSpeedLabel, () => SettingsPrefs.MatchSpeedIndex = (SettingsPrefs.MatchSpeedIndex + 1) % 4, 0.50f);
+            AddOption(page.transform, "Speed", "Velocidade inicial do jogo", "Também pode ser alterada durante a partida.", () => SettingsPrefs.MatchSpeedLabel, () => SettingsPrefs.MatchSpeedIndex = (SettingsPrefs.MatchSpeedIndex + 1) % 5, 0.50f);
             AddOption(page.transform, "Highlights", "Momentos apresentados", "Define quantos anúncios de jogo interrompem brevemente a simulação.", () => SettingsPrefs.MatchHighlightsLabel, () => SettingsPrefs.MatchHighlights = (SettingsPrefs.MatchHighlights + 1) % 4, 0.37f);
             AddText(page.transform, "MatchSpeedHelp", "O ritmo e os momentos escolhidos aplicam-se à apresentação; não alteram o resultado matemático da partida.", 15, UiTheme.Muted, 0.10f, 0.24f);
         }
@@ -379,14 +379,16 @@ namespace CoachMaster.UI
 
         void BuildCareerPage(Transform parent)
         {
-            var page = Page(parent, 6, "CARREIRA E SAVES");
-            var open = BroadcastUi.Button(page.transform, "OpenSaves", "GESTOR DE SAVES", OpenSaveManager, UiTheme.Accent, UiTheme.ButtonText, 16);
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var page = Page(parent, 6, english ? "CAREER & SAVES" : "CARREIRA E SAVES");
+            var open = BroadcastUi.Button(page.transform, "OpenSaves", english ? "SAVE MANAGER" : "GESTOR DE SAVES", OpenSaveManager, UiTheme.Accent, UiTheme.ButtonText, 16);
             BroadcastUi.Place(open.GetComponent<RectTransform>(), 0.18f, 0.72f, 0.82f, 0.84f);
             var online = BroadcastUi.Button(page.transform, "OpenOnline", "ONLINE", OpenOnlineFromSettings, new Color(0.10f, 0.24f, 0.38f, 1f), Color.white, 16);
-            BroadcastUi.Place(online.GetComponent<RectTransform>(), 0.18f, 0.56f, 0.49f, 0.68f);
-            var funds = BroadcastUi.Button(page.transform, "AskBoard", LocalizationManager.Current == GameLanguage.English ? "ASK THE BOARD" : "PEDIR VERBA À DIREÇÃO", AskBoardFromSettings, UiTheme.Accent, UiTheme.ButtonText, 14);
-            BroadcastUi.Place(funds.GetComponent<RectTransform>(), 0.51f, 0.56f, 0.82f, 0.68f);
-            AddText(page.transform, "SaveHelp", "Cada carreira é uma aba. Ao abrir, carregas o último save manual ou o último automático. Também dá para mudar o nome e apagar.", 15, UiTheme.Muted, 0.18f, 0.24f);
+            BroadcastUi.Place(online.GetComponent<RectTransform>(), 0.18f, 0.56f, 0.82f, 0.68f);
+            AddText(page.transform, "SaveHelp", english
+                ? "Each career has its own save. The manager opens your most recent manual or automatic save; you can rename or delete saved careers."
+                : "Cada carreira tem o seu save. O gestor abre a gravação manual ou automática mais recente; podes mudar o nome ou apagar carreiras guardadas.",
+                15, UiTheme.Muted, 0.18f, 0.24f);
         }
 
         void BuildAccessibilityPage(Transform parent)
@@ -717,21 +719,6 @@ namespace CoachMaster.UI
             hub.OpenOnlineFromSettings();
         }
 
-        void AskBoardFromSettings()
-        {
-            var hub = FindFirstObjectByType<CareerHubController>();
-            if (hub == null)
-            {
-                if (_feedback != null)
-                    _feedback.text = LocalizationManager.Current == GameLanguage.English
-                        ? "Open a career first."
-                        : "Abre uma carreira primeiro.";
-                return;
-            }
-            ApplyAndClose();
-            hub.AskBoardFromSettings();
-        }
-
         void ChooseUserBackground()
         {
             var path = WindowsMusicPicker.OpenImage();
@@ -799,9 +786,10 @@ namespace CoachMaster.UI
             BroadcastUi.Catch(dim, () => Destroy(_saveManager));
             var card = BroadcastUi.Panel(root, "Card", new Color(0.1f, 0.04f, 0.2f, 1f), true);
             BroadcastUi.Place(card.rectTransform, 0.16f, 0.08f, 0.84f, 0.92f);
-            var title = BroadcastUi.Label(card.transform, "Title", "GESTOR DE SAVES", 21, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var title = BroadcastUi.Label(card.transform, "Title", english ? "SAVE MANAGER" : "GESTOR DE SAVES", 21, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
             BroadcastUi.Place(title.rectTransform, 0.04f, 0.91f, 0.7f, 0.98f);
-            var close = BroadcastUi.Button(card.transform, "CloseSaves", "FECHAR", () => Destroy(_saveManager), new Color(1f, 1f, 1f, 0.12f), Color.white, 14);
+            var close = BroadcastUi.Button(card.transform, "CloseSaves", english ? "DONE" : "FECHAR", () => Destroy(_saveManager), new Color(1f, 1f, 1f, 0.12f), Color.white, 14);
             BroadcastUi.Place(close.GetComponent<RectTransform>(), 0.78f, 0.91f, 0.96f, 0.98f);
 
             var slots = CareerStore.ListSlots();
@@ -823,7 +811,7 @@ namespace CoachMaster.UI
             BroadcastUi.Place(list.GetComponent<RectTransform>(), 0.04f, 0.42f, 0.96f, 0.89f);
             if (slots.Count == 0)
             {
-                var empty = BroadcastUi.Label(tabs, "Empty", "Ainda não há carreiras guardadas.", 15, UiTheme.Muted, TextAnchor.MiddleLeft);
+                var empty = BroadcastUi.Label(tabs, "Empty", english ? "No saved careers yet." : "Ainda não há carreiras guardadas.", 15, UiTheme.Muted, TextAnchor.MiddleLeft);
                 empty.gameObject.AddComponent<LayoutElement>().preferredHeight = 48f;
             }
             CareerStore.CareerSlotInfo chosen = null;

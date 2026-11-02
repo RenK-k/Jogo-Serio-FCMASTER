@@ -25,6 +25,7 @@ namespace CoachMaster.Data
         {
             if (career?.World == null)
                 return;
+            WorldCatalog.NormalizeGeneratedStaff(career.World);
             ApplyClubs(career.World);
             ApplyPlayers(career.World);
         }

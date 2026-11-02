@@ -2561,7 +2561,7 @@ namespace CoachMaster.UI.Scenes
 
         void CycleSpeed()
         {
-            SettingsPrefs.MatchSpeedIndex = (SettingsPrefs.MatchSpeedIndex + 1) % 4;
+            SettingsPrefs.MatchSpeedIndex = (SettingsPrefs.MatchSpeedIndex + 1) % 5;
             _speed = SettingsPrefs.MatchSpeed;
             SettingsPrefs.Commit();
             if (_speedLabel != null)
@@ -2890,7 +2890,7 @@ namespace CoachMaster.UI.Scenes
                     Newsroom.Publish(career, english ? "The Touchline Gazette" : "A Gazeta do Relvado", headline, story);
                 }
             }
-            CareerMoments.AfterMatch(career, _match.HomeGoals, _match.AwayGoals, userHome, _match.Home.ShortName, _match.Away.ShortName, motm, best < 0 ? null : best.ToString("0.0"));
+            CareerMoments.AfterMatch(career, _match.HomeGoals, _match.AwayGoals, userHome, _match.Home.ShortName, _match.Away.ShortName, motm, best < 0 ? null : best.ToString("0.0"), _match);
             CareerMemories.RecordMatch(career, _match, userHome, motmPlayerId);
             CareerRelationships.ApplySelectionConsequences(career, _match, userHome);
             foreach (var pair in _match.OriginalDuties)

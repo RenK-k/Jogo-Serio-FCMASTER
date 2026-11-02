@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Text;
 using CoachMaster.App;
 using CoachMaster.Career;
+using CoachMaster.Data;
 using CoachMaster.Domain;
 using CoachMaster.MatchPlay;
 using CoachMaster.Presentation;
@@ -63,7 +64,6 @@ namespace CoachMaster.UI.Scenes
         int _officeTab;
         Button[] _transferTabs;
         Button[] _replies;
-        Button _skipConversations;
         Text _clock;
         Text _alertLabel;
         RectTransform _phoneSheet;
@@ -84,9 +84,6 @@ namespace CoachMaster.UI.Scenes
         int _socialFeedDaySeed = int.MinValue;
         readonly HashSet<string> _phoneAnswered = new HashSet<string>();
         Text _dateLine;
-        Text _homeTitle;
-        Text _homeBody;
-        Text _nextChip;
         Text _playLabel;
         Button _play;
         bool _reserves;
@@ -112,7 +109,6 @@ namespace CoachMaster.UI.Scenes
         RectTransform _transferMarketHost;
         InputField _transferSearch;
         Transform _transfersRoot;
-        Image _homeFace;
         Button[] _paneTabs;
         Button[] _zoneButtons;
         RectTransform _sheet;
@@ -120,7 +116,6 @@ namespace CoachMaster.UI.Scenes
         Text _vibe;
         InputField _noteField;
         RectTransform _newsContent;
-        Button _memoriesButton;
         RectTransform _tableContent;
         RectTransform _tabBar;
         RectTransform _boardContent;
@@ -183,6 +178,9 @@ namespace CoachMaster.UI.Scenes
         int _boardWage;
         int _boardYears;
         int _boardGap;
+        int _boardWageGap;
+        StaffOfferCandidate _boardStaffCandidate;
+        string _boardStaffPhoneKey;
         bool _enterPressRoom;
         readonly Dictionary<int, string> _joinNames = new Dictionary<int, string>();
 
@@ -196,6 +194,7 @@ namespace CoachMaster.UI.Scenes
                 GameRoot.Instance.Open(SceneNames.MainMenu);
                 return;
             }
+            Newsroom.PurgeCareerMemoryStories(_career);
 
             if (LanRoom.PendingShare)
             {
@@ -1353,7 +1352,7 @@ namespace CoachMaster.UI.Scenes
                 list.Add(new PhoneNote(english ? "Calendar" : "Calendário", english ? "No match is scheduled for the next few days." : "Não há jogo marcado nos próximos dias.", "calendario", null, null));
 
             if (_career.Press.Count > 0 && !string.IsNullOrEmpty(_career.Press[0].Headline))
-                list.Add(new PhoneNote(string.IsNullOrEmpty(_career.Press[0].Paper) ? (english ? "Press" : "Imprensa") : _career.Press[0].Paper, LocalizationManager.Translate(_career.Press[0].Headline), "jornal", null, null));
+                list.Add(new PhoneNote(string.IsNullOrEmpty(_career.Press[0].Paper) ? (english ? "Press" : "Imprensa") : PaperName(_career.Press[0].Paper), PressHeadline(_career.Press[0]), "jornal", null, null));
             else
                 list.Add(new PhoneNote(english ? "Press" : "Imprensa", english ? "Today's papers haven't gone to press yet." : "Os jornais ainda não fecharam a edição de hoje.", "jornal", null, null));
 
@@ -2139,27 +2138,9 @@ namespace CoachMaster.UI.Scenes
             BroadcastUi.Stretch(page.rectTransform);
             var title = BroadcastUi.Label(page.transform, "Title", "JORNAIS DO DIA", 16, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
             BroadcastUi.Place(title.rectTransform, 0.03f, 0.9f, 0.7f, 0.98f);
-            EnsureMemoriesButton(page.transform);
             var scroll = BroadcastUi.Scroll(page.transform, "Scroll", out _newsContent);
             BroadcastUi.Place(scroll.GetComponent<RectTransform>(), 0.02f, 0.03f, 0.98f, 0.88f);
             return page.gameObject;
-        }
-
-        void EnsureMemoriesButton(Transform newsPage)
-        {
-            if (newsPage == null)
-                return;
-            var existing = newsPage.Find("Memories");
-            _memoriesButton = existing == null ? null : existing.GetComponent<Button>();
-            if (_memoriesButton == null)
-                _memoriesButton = BroadcastUi.Button(newsPage, "Memories", "MEMÓRIAS", OpenMemories,
-                    new Color(1f, 1f, 1f, 0.08f), UiTheme.Accent, 13);
-            else
-            {
-                _memoriesButton.onClick.RemoveAllListeners();
-                _memoriesButton.onClick.AddListener(OpenMemories);
-            }
-            BroadcastUi.Place(_memoriesButton.GetComponent<RectTransform>(), 0.73f, 0.9f, 0.97f, 0.98f);
         }
 
         void BuildCareerRecord(Transform host)
@@ -3292,6 +3273,9 @@ namespace CoachMaster.UI.Scenes
             var room = WeeklyWageRoom();
             var window = TransferWindowOpen();
             var sellerCanSell = seller != null && seller.PlayerIds != null && seller.PlayerIds.Count > 11;
+            var boardWaitActive = DeskDue("budget-wait", out var boardWaitUntil)
+                && new DateTime(boardWaitUntil).Date > _career.Calendar.CurrentDate.Date;
+            var boardRequestPending = NotebookHas("budget-live") || DeskDue("budget", out _);
 
             var details = BroadcastUi.Panel(sheet.transform, "Details", new Color(0.1f, 0.04f, 0.2f, 1f), false);
             BroadcastUi.Place(details.rectTransform, 0.015f, 0.2f, 0.4f, 0.84f);
@@ -3349,7 +3333,10 @@ namespace CoachMaster.UI.Scenes
                 var cashFits = finance != null && fee <= budget && fee <= balance;
                 var affordable = window && sellerCanSell && cashFits && wageFits;
                 var shortfall = finance == null ? fee : Math.Max(0, fee - Math.Min(budget, balance));
-                var canAskBoard = !affordable && window && sellerCanSell && wageFits && shortfall > 0 && shortfall <= 12000000;
+                var wageShortfall = room >= int.MaxValue / 2 ? 0 : Math.Max(0, wage - room);
+                var canAskBoard = !affordable && window && sellerCanSell
+                    && !boardWaitActive && !boardRequestPending
+                    && ((shortfall > 0 && shortfall <= 12000000) || (wageShortfall > 0 && wageShortfall <= 250000));
                 var x0 = 0.015f + i * 0.27f;
                 var card = BroadcastUi.Panel(sheet.transform, "Offer" + i, new Color(0.14f, 0.06f, 0.28f, 1f), true);
                 BroadcastUi.Place(card.rectTransform, x0, 0.02f, x0 + 0.25f, 0.17f);
@@ -3362,6 +3349,7 @@ namespace CoachMaster.UI.Scenes
                 var capturedYears = years;
                 var captured = player;
                 var capturedGap = shortfall;
+                var capturedWageGap = wageShortfall;
                 var buttonLabel = affordable
                     ? (english ? "PROPOSE" : "PROPOR")
                     : canAskBoard
@@ -3379,7 +3367,7 @@ namespace CoachMaster.UI.Scenes
                         var sheetOpen = transform.Find("TransferSheet");
                         if (sheetOpen != null)
                             Destroy(sheetOpen.gameObject);
-                        OpenBoardMeeting(captured, capturedFee, capturedWage, capturedYears, capturedGap);
+                        OpenBoardMeeting(captured, capturedFee, capturedWage, capturedYears, capturedGap, capturedWageGap);
                         return;
                     }
                     OpenTransferRefusal(captured, english ? "This offer does not fit the budget, the balance or the wage bill. Nothing was charged." : "Esta proposta não cabe no orçamento, no saldo ou na massa salarial. Não foi debitado nada.");
@@ -3428,10 +3416,13 @@ namespace CoachMaster.UI.Scenes
             var room = WeeklyWageRoom();
             var wageFits = room >= int.MaxValue / 2 || wage <= room;
             var available = finance == null ? 0 : Math.Min(finance.TransferBudget, finance.Balance);
-            var gap = fee - available;
+            var gap = Math.Max(0, fee - available);
+            var wageGap = room >= int.MaxValue / 2 ? 0 : Math.Max(0, wage - room);
             if (finance == null || !wageFits || gap > 0)
             {
-                if (finance != null && wageFits && gap > 0 && gap <= 12000000)
+                var canCoverFee = gap == 0 || gap <= 12000000;
+                var canCoverWages = wageGap == 0 || wageGap <= 250000;
+                if (finance != null && canCoverFee && canCoverWages && (gap > 0 || wageGap > 0))
                 {
                     if (DeskDue("budget-wait", out var wait) && new DateTime(wait).Date > _career.Calendar.CurrentDate.Date)
                     {
@@ -3440,7 +3431,7 @@ namespace CoachMaster.UI.Scenes
                             : "A direção já respondeu a um pedido de dinheiro. O próximo é a " + LocalizationManager.FormatDate(new DateTime(wait), "d MMM") + ".");
                         return;
                     }
-                    OpenBoardMeeting(player, fee, wage, years, gap);
+                    OpenBoardMeeting(player, fee, wage, years, gap, wageGap);
                     return;
                 }
                 OpenTransferRefusal(player, !wageFits
@@ -3641,12 +3632,14 @@ namespace CoachMaster.UI.Scenes
             var t = _career.Club.Tactics;
             var presetMatch = TacticPresets.MatchingPresetIndex(t);
             var presetName = presetMatch == 2 ? "Gegenpressing" : presetMatch < 0 ? TacticPresets.CustomName : TacticPresets.Names[Mathf.Clamp(presetMatch, 0, TacticPresets.Names.Length - 1)];
+            var english = LocalizationManager.Current == GameLanguage.English;
             var summary = BroadcastUi.Label(_tacticsBody, "Summary",
-                presetName + "\n" + t.Formation + "\n" + t.Pressing + " · " + t.DefensiveLine,
+                LocalizationManager.Translate(presetName) + "\n" + t.Formation + "\n"
+                    + LocalizationManager.Translate(t.Pressing) + " · " + LocalizationManager.Translate(t.DefensiveLine),
                 13, Color.white, TextAnchor.UpperLeft);
             summary.horizontalOverflow = HorizontalWrapMode.Wrap;
             BroadcastUi.Place(summary.rectTransform, 0.04f, 0.42f, 0.96f, 0.96f);
-            var open = BroadcastUi.Button(_tacticsBody, "OpenSheet", "EDITAR TÁTICA", OpenTacticsSheet, UiTheme.Accent, UiTheme.ButtonText, 14);
+            var open = BroadcastUi.Button(_tacticsBody, "OpenSheet", english ? "EDIT TACTIC" : "EDITAR TÁTICA", OpenTacticsSheet, UiTheme.Accent, UiTheme.ButtonText, 14);
             BroadcastUi.Place(open.GetComponent<RectTransform>(), 0.04f, 0.08f, 0.96f, 0.32f);
         }
 
@@ -3701,7 +3694,7 @@ namespace CoachMaster.UI.Scenes
             var sheet = BroadcastUi.Solid(transform, "TacticsSheet", new Color(0.08f, 0.025f, 0.16f, 0.995f), true);
             BroadcastUi.Place(sheet.rectTransform, 0.015f, 0.105f, 0.985f, 0.985f);
             BroadcastUi.ApplySandPaper(sheet);
-            var tacticToolbar = BroadcastUi.Panel(sheet.transform, "TacticToolbar", new Color(0.025f, 0.34f, 0.28f, 1f), false);
+            var tacticToolbar = BroadcastUi.Panel(sheet.transform, "TacticToolbar", new Color(0.13f, 0.08f, 0.27f, 1f), false);
             BroadcastUi.Place(tacticToolbar.rectTransform, 0.006f, 0.92f, 0.994f, 0.998f);
             sheet.transform.SetAsLastSibling();
             if (_career.Club.Tactics == null)
@@ -3712,7 +3705,8 @@ namespace CoachMaster.UI.Scenes
             if (string.IsNullOrEmpty(_tacticSelection) || _tacticSelection == "preset")
                 _tacticSelection = "home";
 
-            var title = BroadcastUi.Label(sheet.transform, "Title", "TÁTICA", 18, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+            var englishTactics = LocalizationManager.Current == GameLanguage.English;
+            var title = BroadcastUi.Label(sheet.transform, "Title", englishTactics ? "TACTICS" : "TÁTICA", 18, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
             BroadcastUi.Place(title.rectTransform, 0.015f, 0.925f, 0.12f, 0.99f);
             var forms = new[] { "4-3-3", "4-2-3-1", "4-4-2", "3-4-3", "5-4-1" };
             for (var i = 0; i < forms.Length; i++)
@@ -3736,11 +3730,11 @@ namespace CoachMaster.UI.Scenes
                 var index = presetIndex[i];
                 var on = activePreset == index;
                 var x0 = 0.015f + i * 0.16f;
-                var chip = BroadcastUi.Button(sheet.transform, "Preset" + i, presetLabels[i] + (on ? "  ✓" : ""), () =>
+                var chip = BroadcastUi.Button(sheet.transform, "Preset" + i, LocalizationManager.Translate(presetLabels[i]) + (on ? "  ✓" : ""), () =>
                 {
-                    _tacticSelection = "home";
+                    _tacticSelection = "xi";
                     CommitTactic(item => TacticPresets.Apply(item, index));
-                }, on ? new Color(0.04f, 0.62f, 0.43f, 1f) : new Color(1f, 1f, 1f, 0.08f), Color.white, 13);
+                }, on ? UiTheme.Accent : new Color(0.22f, 0.12f, 0.38f, 1f), on ? UiTheme.ButtonText : Color.white, 13);
                 var chipText = chip.GetComponentInChildren<Text>();
                 if (chipText != null)
                 {
@@ -3758,7 +3752,6 @@ namespace CoachMaster.UI.Scenes
                 BroadcastUi.Place(custom.rectTransform, 0.82f, 0.855f, 0.98f, 0.915f);
             }
 
-            var englishTactics = LocalizationManager.Current == GameLanguage.English;
             var savedCount = Mathf.Min(5, _career.SavedTactics.Count);
             for (var i = 0; i < savedCount; i++)
             {
@@ -3779,7 +3772,7 @@ namespace CoachMaster.UI.Scenes
                     _tacticSelection = "xi";
                     OpenTacticsSheet();
                 }, _tacticSelection == "xi" || _tacticSelection.StartsWith("player:")
-                    ? new Color(0.04f, 0.62f, 0.43f, 1f) : new Color(1f, 1f, 1f, 0.12f), Color.white, 11);
+                    ? UiTheme.Accent : new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 11);
             var rolesLabel = playerRoles.GetComponentInChildren<Text>();
             if (rolesLabel != null) { rolesLabel.resizeTextForBestFit = true; rolesLabel.resizeTextMinSize = 8; rolesLabel.resizeTextMaxSize = 11; }
             BroadcastUi.Place(playerRoles.GetComponent<RectTransform>(), 0.59f, 0.78f, 0.75f, 0.84f);
@@ -3838,13 +3831,13 @@ namespace CoachMaster.UI.Scenes
             {
                 _tacticPhase = 0;
                 OpenTacticsSheet();
-            }, _tacticPhase == 0 ? new Color(0.04f, 0.48f, 0.39f, 1f) : new Color(0.15f, 0.17f, 0.21f, 1f), Color.white, 12);
+            }, _tacticPhase == 0 ? UiTheme.Accent : new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 12);
             BroadcastUi.Place(inButton.GetComponent<RectTransform>(), 0.035f, 0.81f, 0.49f, 0.885f);
             var outButton = BroadcastUi.Button(center, "OutPossession", english ? "OUT OF POSSESSION" : "SEM BOLA", () =>
             {
                 _tacticPhase = 1;
                 OpenTacticsSheet();
-            }, _tacticPhase == 1 ? new Color(0.04f, 0.48f, 0.39f, 1f) : new Color(0.15f, 0.17f, 0.21f, 1f), Color.white, 12);
+            }, _tacticPhase == 1 ? UiTheme.Accent : new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 12);
             BroadcastUi.Place(outButton.GetComponent<RectTransform>(), 0.51f, 0.81f, 0.965f, 0.885f);
 
             var keys = _tacticPhase == 0
@@ -3921,7 +3914,9 @@ namespace CoachMaster.UI.Scenes
                 var y1 = 0.85f - row * 0.18f;
                 var position = i < positions.Length ? positions[i] : player.Position;
                 var captured = player;
-                TacticTile(center, "Xi" + i, player.SquadNumber + "  ·  " + BroadcastUi.ShortName(player.FullName), LocalizationManager.Translate(PresentationLabels.Position(position)), "●", false,
+                var duty = string.IsNullOrEmpty(player.Duty) ? IndividualOrders.For(position, StableOfferRoll(player.Id ?? player.FullName)) : player.Duty;
+                TacticTile(center, "Xi" + i, player.SquadNumber + "  ·  " + BroadcastUi.ShortName(player.FullName),
+                    LocalizationManager.Translate(PresentationLabels.Position(position)) + "  ·  " + LocalizationManager.Translate(duty), "●", !string.IsNullOrEmpty(duty),
                     () =>
                     {
                         _tacticSelection = "player:" + captured.Id;
@@ -4080,7 +4075,7 @@ namespace CoachMaster.UI.Scenes
             titleLabel.resizeTextMinSize = 8;
             titleLabel.resizeTextMaxSize = 11;
             BroadcastUi.Place(titleLabel.rectTransform, 0.075f, 0.76f, 0.925f, 0.95f);
-            var glyph = BroadcastUi.Label(edge.transform, "Glyph", symbol ?? "→", 28, new Color(0.3f, 0.94f, 0.34f), TextAnchor.MiddleCenter, FontStyle.Bold);
+            var glyph = BroadcastUi.Label(edge.transform, "Glyph", symbol ?? "→", 28, UiTheme.Accent, TextAnchor.MiddleCenter, FontStyle.Bold);
             BroadcastUi.Place(glyph.rectTransform, 0.12f, 0.3f, 0.88f, 0.73f);
             var valueLabel = BroadcastUi.Label(edge.transform, "Value", value ?? "", 11, Color.white, TextAnchor.MiddleCenter);
             valueLabel.resizeTextForBestFit = true;
@@ -4782,8 +4777,13 @@ namespace CoachMaster.UI.Scenes
                 var background = _transferMarketPage.GetComponent<Image>();
                 if (background != null)
                     background.color = _transferPage == 2
-                        ? new Color(0.035f, 0.045f, 0.075f, 0.98f)
+                        ? new Color(0f, 0f, 0f, 0f)
                         : new Color(0.05f, 0.02f, 0.12f, 0.2f);
+                var viewport = _transferMarketPage.transform.Find("MarketScroll")?.GetComponent<Image>();
+                if (viewport != null)
+                    viewport.color = _transferPage == 2
+                        ? new Color(0f, 0f, 0f, 0f)
+                        : new Color(0f, 0f, 0f, 0.01f);
             }
             if (_transferSearch != null) _transferSearch.gameObject.SetActive(_transferPage == 1);
             if (_transferPage == 0) FillSquadList(_transferListHost);
@@ -4810,7 +4810,7 @@ namespace CoachMaster.UI.Scenes
             var labels = new List<string>();
             for (var i = 0; i < seasons.Count; i++)
                 labels.Add(seasons[i] < 0 ? (english ? "ALL SEASONS" : "TODAS AS ÉPOCAS") : seasons[i] + "/" + (seasons[i] + 1));
-            var controls = BroadcastUi.Panel(host, "HistoryControls", new Color(0.035f, 0.075f, 0.1f, 0.96f), true);
+            var controls = BroadcastUi.Panel(host, "HistoryControls", new Color(0f, 0f, 0f, 0f), false);
             BroadcastUi.Preferred(controls, 48);
             var seasonIndex = Mathf.Max(0, seasons.IndexOf(_transferHistorySeasonStart));
             CreateHistorySeasonDropdown(controls.transform, labels, seasonIndex, index =>
@@ -5268,6 +5268,7 @@ namespace CoachMaster.UI.Scenes
             {
                 AdvancePlayerSystems(elapsedDays);
                 ClubFinanceLedger.SettleWeeklyPayroll(_career, previousDay, _career.Calendar.CurrentDate.Date);
+                ClubFinanceLedger.SettleWeeklyCommercialIncome(_career, previousDay, _career.Calendar.CurrentDate.Date);
             }
             if (SettingsPrefs.AutosaveEnabled)
                 CareerStore.AutoSaveIfDue(_career, SettingsPrefs.AutosaveDays, SettingsPrefs.AutosaveSlots);
@@ -5358,6 +5359,7 @@ namespace CoachMaster.UI.Scenes
             var elapsedDays = Math.Max(1, (currentDay - previousDay).Days);
             AdvancePlayerSystems(elapsedDays);
             ClubFinanceLedger.SettleWeeklyPayroll(_career, previousDay, currentDay);
+            ClubFinanceLedger.SettleWeeklyCommercialIncome(_career, previousDay, currentDay);
             if (SettingsPrefs.AutosaveEnabled)
                 CareerStore.AutoSaveIfDue(_career, SettingsPrefs.AutosaveDays, SettingsPrefs.AutosaveSlots);
             CareerStore.Save(_career);
@@ -5480,27 +5482,33 @@ namespace CoachMaster.UI.Scenes
             var fixtures = new List<Fixture>();
             foreach (var fixture in _career.Fixtures)
             {
-                if (fixture.Played || fixture.Walkover || fixture.HomeClubId == fixture.AwayClubId || !fixture.Involves(_career.Club.Id))
+                if (fixture.Played || fixture.Walkover || fixture.Date.Date < _career.Calendar.CurrentDate.Date
+                    || fixture.HomeClubId == fixture.AwayClubId || !fixture.Involves(_career.Club.Id))
                     continue;
                 fixtures.Add(fixture);
             }
             fixtures.Sort((a, b) => a.Date.CompareTo(b.Date));
             var fixturesButton = BroadcastUi.Button(_inboxSide, "FixturesHead", english ? "FIXTURES" : "PRÓXIMOS JOGOS", OpenCalendar, new Color(0f, 0f, 0f, 0f), UiTheme.Score, 13);
             BroadcastUi.Preferred(fixturesButton, 28);
-            var fixtureCount = Mathf.Min(5, fixtures.Count);
+            var fixtureCount = Mathf.Min(3, fixtures.Count);
             for (var i = 0; i < fixtureCount; i++)
             {
                 var fixture = fixtures[i];
                 _career.World.Clubs.TryGetValue(fixture.HomeClubId, out var home);
                 _career.World.Clubs.TryGetValue(fixture.AwayClubId, out var away);
                 var line = BroadcastUi.Panel(_inboxSide, "Fixture" + i, new Color(0.08f, 0.05f, 0.16f, 0.92f), true);
-                BroadcastUi.Preferred(line, 32);
+                BroadcastUi.Preferred(line, 48);
                 BroadcastUi.Hit(line, OpenCalendar);
                 AddInboxCrest(line.transform, home, 0.02f);
                 AddInboxCrest(line.transform, away, 0.84f);
-                var caption = LocalizationManager.FormatDate(fixture.Date, "dd/MM") + "   " + (home == null ? "" : home.ShortName) + "  –  " + (away == null ? "" : away.ShortName);
-                var label = BroadcastUi.Label(line.transform, "Text", caption, 13, Color.white, TextAnchor.MiddleLeft);
-                BroadcastUi.Place(label.rectTransform, 0.14f, 0.05f, 0.82f, 0.95f);
+                var caption = LocalizationManager.FormatDate(fixture.Date, "dd/MM") + "  ·  " + FixtureKickoff(fixture)
+                    + "  ·  " + (home == null ? "" : home.ShortName) + "  –  " + (away == null ? "" : away.ShortName)
+                    + "\n" + FixtureCompetition(fixture);
+                var label = BroadcastUi.Label(line.transform, "Text", caption, 12, Color.white, TextAnchor.MiddleLeft);
+                label.resizeTextForBestFit = true;
+                label.resizeTextMinSize = 9;
+                label.resizeTextMaxSize = 12;
+                BroadcastUi.Place(label.rectTransform, 0.14f, 0.04f, 0.82f, 0.96f);
                 PassClicksTo(line.transform);
             }
             if (fixtureCount == 0)
@@ -5648,6 +5656,8 @@ namespace CoachMaster.UI.Scenes
                 var playerName = moment.PlayerId != null && _career.World.Players.TryGetValue(moment.PlayerId, out var player)
                     ? player.FullName
                     : "The player";
+                if (!string.IsNullOrEmpty(moment.IncidentType))
+                    return PersonalIncidentBodyEnglish(moment.IncidentType, playerName);
                 var source = moment.Body ?? "";
                 var trust = source.StartsWith("A confiança entre vocês está baixa.", StringComparison.Ordinal)
                     ? "Trust between you is low. "
@@ -5728,6 +5738,8 @@ namespace CoachMaster.UI.Scenes
                 var playerName = moment.PlayerId != null && _career.World.Players.TryGetValue(moment.PlayerId, out var player)
                     ? player.FullName
                     : TalkTitleName(moment.Title);
+                if (!string.IsNullOrEmpty(moment.IncidentType))
+                    return PersonalIncidentTitleEnglish(moment.IncidentType) + " · " + playerName.ToUpperInvariant();
                 return "TEAM TALK · " + playerName.ToUpperInvariant();
             }
             if (moment.Kind == MomentKind.Match)
@@ -5744,6 +5756,48 @@ namespace CoachMaster.UI.Scenes
                 case "CHEGADA":
                 case "ARRIVAL": return "ARRIVAL";
                 default: return "CLUB UPDATE";
+            }
+        }
+
+        static string PersonalIncidentTitleEnglish(string type)
+        {
+            switch ((type ?? "").ToLowerInvariant())
+            {
+                case "bereavement": return "FAMILY BEREAVEMENT";
+                case "betting": return "INTEGRITY INVESTIGATION";
+                case "drunk": return "A LONG NIGHT";
+                case "viral": return "THE 2-2-6 TEAM SHEET";
+                case "family": return "A NEW ARRIVAL";
+                case "charity": return "A GOOD DEED";
+                default: return "PERSONAL NEWS";
+            }
+        }
+
+        static string PersonalIncidentBodyEnglish(string type, string name)
+        {
+            switch ((type ?? "").ToLowerInvariant())
+            {
+                case "bereavement": return name + " has been told that his father has died. The funeral is today, on matchday. He asks for your support to be with his family.";
+                case "betting": return name + " has been named in an internal investigation into football betting. The club is checking the facts, and reporters are already asking questions.";
+                case "drunk": return name + " has arrived late after a long night out. He is safe, but clearly tired, and a clip outside a bar is circulating online.";
+                case "viral": return name + " swapped the team talk notes for a kitman's 2-2-6 formation. A video of the captain trying to explain it went viral before breakfast.";
+                case "family": return name + " has just become a parent. He is delighted but short on sleep, and asks to adjust today's workload before the match.";
+                case "charity": return name + " arranged a surprise visit to a local charity and brought equipment for the children. Your assistant asks whether to protect his recovery time.";
+                default: return name + " has brought you a personal matter that needs the club's support.";
+            }
+        }
+
+        static string[] PersonalIncidentRepliesEnglish(string type)
+        {
+            switch ((type ?? "").ToLowerInvariant())
+            {
+                case "bereavement": return new[] { "Give him leave to be with his family. The replacement starts.", "Arrange support and let him decide if he can play.", "Ask him to honour the match commitment. We will deal with the rest tomorrow." };
+                case "betting": return new[] { "Handle it privately with the player and the integrity officer.", "Keep him out of the next match while the facts are checked.", "Call it personal and ask no questions." };
+                case "drunk": return new[] { "Send him home to rest and ask the doctor to check him.", "Fine him and reduce his training load.", "Make him complete the full session to set an example." };
+                case "viral": return new[] { "Laugh with the group, then confirm the real team sheet.", "Use the attention to promote the next match.", "End the joke and issue a small fine." };
+                case "family": return new[] { "Give him the morning with his family and reduce the workload.", "Adjust training but keep him available for the match.", "Personal life stays at the door; the session is the same for everyone." };
+                case "charity": return new[] { "Support the visit and adjust the training schedule.", "Thank him and ask him to return in time for preparation.", "Cancel the visit; football is the only priority today." };
+                default: return new[] { "Give him the support he needs.", "Make a measured adjustment and review it tomorrow.", "Keep the normal schedule." };
             }
         }
 
@@ -5766,6 +5820,12 @@ namespace CoachMaster.UI.Scenes
                 return "";
             if (LocalizationManager.Current != GameLanguage.English)
                 return LocalizationManager.Translate(moment.Replies[index]);
+
+            if (!string.IsNullOrEmpty(moment.IncidentType))
+            {
+                var incidentReplies = PersonalIncidentRepliesEnglish(moment.IncidentType);
+                return incidentReplies[Mathf.Clamp(index, 0, incidentReplies.Length - 1)];
+            }
 
             var source = moment.Body ?? "";
             string[] replies;
@@ -6104,12 +6164,6 @@ namespace CoachMaster.UI.Scenes
 
         void FillNews()
         {
-            if (_memoriesButton != null)
-            {
-                var label = _memoriesButton.GetComponentInChildren<Text>();
-                if (label != null)
-                    label.text = "MEMÓRIAS  ·  " + _career.Memories.Count;
-            }
             Clear(_newsContent);
             foreach (var story in Newsroom.Edition(_career))
             {
@@ -6136,6 +6190,7 @@ namespace CoachMaster.UI.Scenes
             if (paper == "A Gazeta do Relvado") return "The Touchline Gazette";
             if (paper == "O Bancada") return "The Stand";
             if (paper == "Diário da Liga") return "League Daily";
+            if (paper == "Bastidores do Futebol") return "Football Behind the Scenes";
             return paper;
         }
 
@@ -6144,6 +6199,8 @@ namespace CoachMaster.UI.Scenes
             var english = LocalizationManager.Current == GameLanguage.English;
             if (kicker == "GLOBAL") return english ? "WORLD FOOTBALL" : "FUTEBOL MUNDIAL";
             if (kicker == "GLOBAL TRANSFER") return english ? "TRANSFER CONFIRMED" : "TRANSFERÊNCIA CONFIRMADA";
+            if (kicker != null && kicker.StartsWith("PERSONAL_", StringComparison.Ordinal))
+                return english ? "PERSONAL MATTER" : "VIDA PESSOAL";
             return LocalizationManager.Translate(kicker);
         }
 
@@ -6165,6 +6222,12 @@ namespace CoachMaster.UI.Scenes
         {
             if (story == null) return "";
             var english = LocalizationManager.Current == GameLanguage.English;
+            if (story.Kicker == "JOGO" && english && !string.IsNullOrEmpty(story.EnglishHeadline))
+                return story.EnglishHeadline;
+            if (story.Kicker != null && story.Kicker.StartsWith("PERSONAL_", StringComparison.Ordinal))
+                return english ? PersonalStoryHeadlineEnglish(story) : LocalizationManager.Translate(story.Headline);
+            if (story.Kicker == "GLOBAL" && english && !string.IsNullOrEmpty(story.EnglishHeadline))
+                return story.EnglishHeadline;
             if (story.Kicker == "GLOBAL TRANSFER")
             {
                 var name = story.Motm ?? "the player";
@@ -6219,6 +6282,9 @@ namespace CoachMaster.UI.Scenes
         {
             if (story == null)
                 return "";
+            if (story.Kicker != null && story.Kicker.StartsWith("PERSONAL_", StringComparison.Ordinal)
+                && LocalizationManager.Current == GameLanguage.English)
+                return "We are supporting the player and will handle the matter with care.";
             if (story.Kicker == "GLOBAL TRANSFER")
                 return LocalizationManager.Current == GameLanguage.English
                     ? "The club moved quickly and got its deal over the line."
@@ -6234,6 +6300,31 @@ namespace CoachMaster.UI.Scenes
         {
             if (story == null) return "";
             var english = LocalizationManager.Current == GameLanguage.English;
+            if (story.Kicker != null && story.Kicker.StartsWith("PERSONAL_", StringComparison.Ordinal))
+                return PersonalStoryBody(story, english);
+            if (story.Kicker == "JOGO")
+            {
+                if (english && !string.IsNullOrEmpty(story.EnglishBody))
+                    return story.EnglishBody;
+                var match = PressFixture(story);
+                if (match != null)
+                {
+                    var home = _career.World.Clubs[match.HomeClubId];
+                    var away = _career.World.Clubs[match.AwayClubId];
+                    var userGoals = match.IsHome(_career.Club.Id) ? match.HomeGoals : match.AwayGoals;
+                    var opponentGoals = match.IsHome(_career.Club.Id) ? match.AwayGoals : match.HomeGoals;
+                    var competition = LocalizationManager.Translate(SeasonSchedule.Competition(match.LeagueId));
+                    var resultLine = userGoals > opponentGoals
+                        ? (english ? "The result rewards the side that found the winning goal." : "O resultado premeia a equipa que encontrou o golo da vitória.")
+                        : userGoals < opponentGoals
+                            ? (english ? "The opposition left with the points after scoring more goals." : "O adversário saiu com os pontos depois de marcar mais golos.")
+                            : (english ? "Neither side managed to separate itself on the scoreboard." : "Nenhuma das equipas conseguiu desfazer a igualdade no marcador.");
+                    return competition + " · " + home.Name + " " + match.HomeGoals + "–" + match.AwayGoals + " " + away.Name + ".\n\n"
+                        + resultLine + (string.IsNullOrEmpty(story.Motm) ? "" : "\n\n" + (english ? "Player of the match: " : "Jogador da partida: ") + story.Motm + ".");
+                }
+                return english ? "The match report records the final result and the main events from the fixture."
+                    : "O relatório regista o resultado final e os principais acontecimentos da partida.";
+            }
             if (story.Kicker == "GLOBAL TRANSFER")
             {
                 var playerName = story.Motm ?? (english ? "The player" : "O jogador");
@@ -6250,6 +6341,10 @@ namespace CoachMaster.UI.Scenes
             }
             if (story.Kicker == "GLOBAL")
             {
+                if (english && !string.IsNullOrEmpty(story.EnglishBody))
+                    return story.EnglishBody;
+                if (!english && !string.IsNullOrEmpty(story.Body))
+                    return story.Body;
                 var fixture = PressFixture(story);
                 if (fixture != null && _career.World.Clubs.TryGetValue(fixture.HomeClubId, out var home) && _career.World.Clubs.TryGetValue(fixture.AwayClubId, out var away))
                     return english
@@ -6262,23 +6357,6 @@ namespace CoachMaster.UI.Scenes
             }
             if (!english)
                 return LocalizationManager.Translate(story.Body);
-            if (story.Kicker == "JOGO")
-            {
-                var fixture = PressFixture(story);
-                if (fixture != null)
-                {
-                    var home = _career.World.Clubs[fixture.HomeClubId];
-                    var away = _career.World.Clubs[fixture.AwayClubId];
-                    var userGoals = fixture.IsHome(_career.Club.Id) ? fixture.HomeGoals : fixture.AwayGoals;
-                    var opponentGoals = fixture.IsHome(_career.Club.Id) ? fixture.AwayGoals : fixture.HomeGoals;
-                    var outcome = userGoals > opponentGoals ? "The team found a way to turn pressure into a result." :
-                        userGoals < opponentGoals ? "The opposition were more clinical in the final third." :
-                        "Neither side could break the deadlock in the closing minutes.";
-                    return home.Name + " and " + away.Name + " finished " + fixture.HomeGoals + "–" + fixture.AwayGoals + ".\n\n"
-                        + _career.Club.Name + " lined up in " + _career.Club.Tactics.Formation + ". " + outcome
-                        + "\n\nPlayer of the match: " + (story.Motm ?? "—") + ".\n\n“" + PressQuote(story) + "”\n— " + (story.QuoteBy ?? _career.Coach.Name) + ", manager";
-                }
-            }
             if (story.Kicker == "ENTREVISTA")
             {
                 var opponent = story.AwayClubId != null && _career.World.Clubs.TryGetValue(story.AwayClubId, out var away) ? away : null;
@@ -6300,6 +6378,54 @@ namespace CoachMaster.UI.Scenes
                 + " The squad's tactical identity is " + LocalizationManager.Translate(_career.Club.Tactics.Summary) + ". The board expects the club to keep progressing.";
         }
 
+        static string PersonalStoryHeadlineEnglish(PaperStory story)
+        {
+            var name = story.Motm ?? "A player";
+            switch (story.Kicker.Substring("PERSONAL_".Length))
+            {
+                case "BEREAVEMENT": return name + " receives club support after a family bereavement";
+                case "BETTING": return "Club investigates a possible betting breach involving " + name;
+                case "DRUNK": return name + " arrives tired after a long night out";
+                case "VIRAL": return name + "'s 2-2-6 team sheet goes viral";
+                case "FAMILY": return name + " celebrates a new arrival in the family";
+                case "CHARITY": return name + " surprises a local charity with a visit";
+                default: return "Club supports " + name + " through a personal matter";
+            }
+        }
+
+        static string PersonalStoryBody(PaperStory story, bool english)
+        {
+            var name = story.Motm ?? (english ? "The player" : "O jogador");
+            var type = story.Kicker.Substring("PERSONAL_".Length);
+            string body;
+            if (english)
+            {
+                switch (type)
+                {
+                    case "BEREAVEMENT": body = name + " has suffered a family bereavement on matchday. The club has made support available and respected the player's need to be with family."; break;
+                    case "BETTING": body = "The club is reviewing an integrity concern involving " + name + ". No conclusion has been reached, and the player is entitled to a fair process."; break;
+                    case "DRUNK": body = name + " arrived late and visibly tired after a night out. The staff checked on the player's wellbeing and adjusted the response to the circumstances."; break;
+                    case "VIRAL": body = "A joke team sheet showing a 2-2-6 formation made the rounds online. The squad took it in good humour and returned to match preparation."; break;
+                    case "FAMILY": body = name + " has welcomed a new baby. The club adjusted the day's workload so the player could balance family and preparation."; break;
+                    case "CHARITY": body = name + " arranged a surprise visit to a local charity and brought equipment for the children. The club praised the initiative."; break;
+                    default: body = "The club is supporting " + name + " through a personal matter."; break;
+                }
+                return body + "\n\nThe manager chose a response focused on the player and the squad.";
+            }
+
+            switch (type)
+            {
+                case "BEREAVEMENT": body = name + " sofreu uma perda familiar no dia do jogo. O clube disponibilizou apoio e respeitou a necessidade de estar com a família."; break;
+                case "BETTING": body = "O clube está a analisar uma questão de integridade que envolve " + name + ". Ainda não há conclusões e o jogador tem direito a um processo justo."; break;
+                case "DRUNK": body = name + " chegou atrasado e visivelmente cansado após uma noite longa. A equipa médica verificou o seu estado e o staff ajustou a resposta."; break;
+                case "VIRAL": body = "Uma brincadeira com uma formação 2-2-6 espalhou-se online. O balneário levou a situação com humor e regressou à preparação."; break;
+                case "FAMILY": body = name + " recebeu um novo bebé na família. O clube ajustou a carga do dia para conciliar a família e a preparação."; break;
+                case "CHARITY": body = name + " organizou uma visita surpresa a uma associação local e levou equipamento para as crianças. O clube elogiou a iniciativa."; break;
+                default: body = "O clube está a apoiar " + name + " numa situação pessoal."; break;
+            }
+            return body + "\n\nA resposta do treinador procurou proteger o jogador e o grupo.";
+        }
+
         TransferRecord FindTransferRecord(PaperStory story)
         {
             foreach (var record in _career.TransferHistory)
@@ -6311,10 +6437,24 @@ namespace CoachMaster.UI.Scenes
 
         Fixture PressFixture(PaperStory story)
         {
+            var reportDate = story.DateTicks > 0 ? new DateTime(story.DateTicks).Date : DateTime.MinValue;
+            Fixture latestBeforeDate = null;
             foreach (var fixture in _career.Fixtures)
-                if (fixture.Played && fixture.HomeClubId == story.HomeClubId && fixture.AwayClubId == story.AwayClubId)
-                    return fixture;
-            return null;
+            {
+                if (!fixture.Played || fixture.HomeClubId != story.HomeClubId || fixture.AwayClubId != story.AwayClubId)
+                    continue;
+                if (story.Kicker == "JOGO")
+                {
+                    if (reportDate == DateTime.MinValue || fixture.Date.Date == reportDate)
+                        return fixture;
+                    continue;
+                }
+                if (reportDate != DateTime.MinValue && fixture.Date.Date > reportDate)
+                    continue;
+                if (latestBeforeDate == null || fixture.Date > latestBeforeDate.Date)
+                    latestBeforeDate = fixture;
+            }
+            return latestBeforeDate;
         }
 
         void OpenMemories()
@@ -6357,9 +6497,20 @@ namespace CoachMaster.UI.Scenes
                     : english ? "Date unavailable" : "Data não disponível";
                 var club = _career.World.Clubs.TryGetValue(memory.ClubId ?? "", out var memoryClub) ? memoryClub.ShortName : _career.Club.ShortName;
                 var importance = new string('★', Mathf.Clamp(memory.Importance, 1, 5));
-                AddHead(MemoryShelfName(memory, english) + "   " + importance + "   " + memory.Title);
-                AddLine(date + "  ·  " + club + (string.IsNullOrEmpty(memory.CompetitionId) ? "" : "  ·  " + memory.CompetitionId)
-                    + "\n" + (memory.Detail ?? ""));
+                var memoryTitle = LocalizationManager.Translate(memory.Title ?? "");
+                var memoryDetail = LocalizationManager.Translate(memory.Detail ?? "");
+                if (english)
+                {
+                    memoryTitle = memoryTitle.Replace("Melhor jogo:", "Best match:").Replace("Pior jogo:", "Worst match:")
+                        .Replace(" frente a ", " against ");
+                    memoryDetail = memoryDetail.Replace("A maior vantagem da carreira", "Biggest win of the career")
+                        .Replace("A derrota mais pesada da carreira", "Heaviest defeat of the career")
+                        .Replace(" contra ", " against ");
+                }
+                var competition = string.IsNullOrEmpty(memory.CompetitionId)
+                    ? "" : "  ·  " + LocalizationManager.Translate(SeasonSchedule.Competition(memory.CompetitionId));
+                AddHead(MemoryShelfName(memory, english) + "   " + importance + "   " + memoryTitle);
+                AddLine(date + "  ·  " + club + competition + "\n" + memoryDetail);
             }
         }
 
@@ -6437,11 +6588,18 @@ namespace CoachMaster.UI.Scenes
             BroadcastUi.Place(body.rectTransform, 0.04f, 0.08f, 0.96f, 0.7f);
 
             var weekBar = BroadcastUi.Panel(_boardContent, "WeekBar", new Color(0.12f, 0.05f, 0.22f, 0.96f));
-            BroadcastUi.Preferred(weekBar, 56);
+            BroadcastUi.Preferred(weekBar, 116);
             var weekHead = BroadcastUi.Label(weekBar.transform, "Head", english ? "WEEK STATUS" : "ESTADO DA SEMANA", 15, UiTheme.Score, TextAnchor.MiddleLeft, FontStyle.Bold);
-            BroadcastUi.Place(weekHead.rectTransform, 0.04f, 0.12f, 0.62f, 0.88f);
+            BroadcastUi.Place(weekHead.rectTransform, 0.04f, 0.69f, 0.62f, 0.94f);
             var openWeek = BroadcastUi.Button(weekBar.transform, "OpenWeek", english ? "OPEN" : "ABRIR", OpenWeekBoard, UiTheme.Accent, UiTheme.ButtonText, 14);
-            BroadcastUi.Place(openWeek.GetComponent<RectTransform>(), 0.7f, 0.16f, 0.96f, 0.84f);
+            BroadcastUi.Place(openWeek.GetComponent<RectTransform>(), 0.72f, 0.68f, 0.96f, 0.94f);
+            var weekReport = BroadcastUi.Label(weekBar.transform, "Review", WeekReport(), 12, Color.white, TextAnchor.UpperLeft);
+            weekReport.horizontalOverflow = HorizontalWrapMode.Wrap;
+            weekReport.verticalOverflow = VerticalWrapMode.Truncate;
+            weekReport.resizeTextForBestFit = true;
+            weekReport.resizeTextMinSize = 10;
+            weekReport.resizeTextMaxSize = 12;
+            BroadcastUi.Place(weekReport.rectTransform, 0.04f, 0.08f, 0.96f, 0.64f);
         }
 
         void OpenWeekBoard()
@@ -6544,7 +6702,8 @@ namespace CoachMaster.UI.Scenes
             {
                 foreach (var note in PhoneNotes())
                     if (note.Channel == "jogador")
-                        lines.Add(note);
+                        lines.Add(new PhoneNote(note.Who, LocalizationManager.Translate(note.Text), note.Channel,
+                            note.PlayerId, note.ClubId, note.ReplyGroup, note.Meta));
             }
             foreach (var note in _career.Board)
             {
@@ -6554,7 +6713,13 @@ namespace CoachMaster.UI.Scenes
                 if (when.Date != day.Date)
                     continue;
                 var text = note.Text.StartsWith("✉") ? note.Text.Substring(1).Trim() : note.Text;
-                lines.Add(new PhoneNote(string.IsNullOrEmpty(note.Hour) ? "Quadro" : note.Hour, text, "quadro", null, _career.Club.Id));
+                var marker = text.LastIndexOf("[[", StringComparison.Ordinal);
+                if (marker >= 0 && text.EndsWith("]]", StringComparison.Ordinal))
+                    text = text.Substring(0, marker).Trim();
+                text = LocalizationManager.Translate(text);
+                var english = LocalizationManager.Current == GameLanguage.English;
+                var boardLabel = string.IsNullOrEmpty(note.Hour) ? (english ? "Board" : "Quadro") : note.Hour;
+                lines.Add(new PhoneNote(boardLabel, text, "quadro", null, _career.Club.Id));
                 if (lines.Count >= 8)
                     break;
             }
@@ -6696,25 +6861,25 @@ namespace CoachMaster.UI.Scenes
             var shirtIncome = finance == null ? 0 : finance.ShirtIncomeThisSeason;
             var seasonYear = _career.Calendar.CurrentDate.Month >= 7 ? _career.Calendar.CurrentDate.Year : _career.Calendar.CurrentDate.Year - 1;
             var seasonStart = new DateTime(seasonYear, 7, 1);
-            long wagesPaid = 0;
+            long transferIncome = finance == null ? 0 : finance.PlayerSalesThisSeason;
+            long transferCosts = finance == null ? 0 : finance.TransferSpentThisSeason;
             if (finance != null)
                 foreach (var transaction in finance.Transactions)
-                    if (transaction.Category == "wages" && transaction.DateTicks >= seasonStart.Ticks
-                        && transaction.DateTicks <= _career.Calendar.CurrentDate.Ticks && transaction.Amount < 0)
-                        wagesPaid -= transaction.Amount;
-            var wageEstimate = (int)Math.Min(int.MaxValue, wagesPaid);
-            var sales = finance == null ? 0 : finance.PlayerSalesThisSeason;
-            var transferSpend = finance == null ? 0 : finance.TransferSpentThisSeason;
-            long travel = 0;
-            if (finance != null)
-                foreach (var transaction in finance.Transactions)
-                    if (transaction.Category == "travel" && transaction.DateTicks >= seasonStart.Ticks
-                        && transaction.DateTicks <= _career.Calendar.CurrentDate.Ticks && transaction.Amount < 0)
-                        travel -= transaction.Amount;
-            var travelCost = (int)Math.Min(int.MaxValue, travel);
-            var netEstimate = (int)Math.Max(int.MinValue, Math.Min(int.MaxValue,
-                (long)ticketIncome + shirtIncome + sales - wageEstimate - transferSpend - travelCost));
-            return new[] { ticketIncome, shirtIncome, sales, wageEstimate, travelCost, transferSpend, netEstimate };
+                {
+                    if (transaction.DateTicks < seasonStart.Ticks || transaction.DateTicks > _career.Calendar.CurrentDate.Ticks)
+                        continue;
+                    if (transaction.Category == "loan-income" && transaction.Amount > 0)
+                        transferIncome += transaction.Amount;
+                    else if (transaction.Category == "loan-fee" && transaction.Amount < 0)
+                        transferCosts -= transaction.Amount;
+                }
+            return new[]
+            {
+                ticketIncome,
+                shirtIncome,
+                (int)Math.Min(int.MaxValue, transferIncome),
+                (int)Math.Min(int.MaxValue, transferCosts)
+            };
         }
 
         void ShowFinanceDetails()
@@ -6749,7 +6914,7 @@ namespace CoachMaster.UI.Scenes
 
             var dashboard = BroadcastUi.Zone(_modalBody, "FinanceDashboard", 0.015f, 0.015f, 0.985f, 0.89f);
             var income = Math.Max(0L, (long)estimate[0] + estimate[1] + estimate[2]);
-            var expenses = Math.Max(0L, (long)estimate[3] + estimate[4] + estimate[5]);
+            var expenses = Math.Max(0L, estimate[3]);
             var net = income - expenses;
             if (tab == 0) BuildFinanceOverview(dashboard, finance, estimate, income, expenses, net, english, _financeMetricSelection);
             else if (tab == 1) BuildFinanceTransactions(dashboard, finance, english);
@@ -6825,13 +6990,13 @@ namespace CoachMaster.UI.Scenes
             var categoryNames = selectedMetric == 0
                 ? (english ? new[] { "Earnings", "Expenses" } : new[] { "Receitas", "Despesas" })
                 : selectedMetric == 1
-                    ? (english ? new[] { "Ticket sales", "Shirt sales", "Player sales" } : new[] { "Bilheteira", "Camisolas", "Vendas de jogadores" })
-                    : (english ? new[] { "Player wages", "Transfers", "Away travel" } : new[] { "Salários", "Transferências", "Viagens fora" });
+                    ? (english ? new[] { "Ticket sales", "Shirt revenue", "Transfer income" } : new[] { "Bilheteira", "Receita de camisolas", "Receitas de transferências" })
+                    : (english ? new[] { "Transfers" } : new[] { "Transferências" });
             var categoryValues = selectedMetric == 0
                 ? new[] { (float)income, (float)expenses }
                 : selectedMetric == 1
                     ? new[] { (float)Math.Max(0, estimate[0]), (float)Math.Max(0, estimate[1]), (float)Math.Max(0, estimate[2]) }
-                    : new[] { (float)Math.Max(0, estimate[3]), (float)Math.Max(0, estimate[5]), (float)Math.Max(0, estimate[4]) };
+                    : new[] { (float)Math.Max(0, estimate[3]) };
             var categoryColors = selectedMetric == 0
                 ? new[] { UiTheme.Fitness, UiTheme.Danger }
                 : selectedMetric == 1
@@ -6853,13 +7018,63 @@ namespace CoachMaster.UI.Scenes
                     14, categoryColors[i], TextAnchor.MiddleCenter, FontStyle.Bold);
                 BroadcastUi.Place(category.rectTransform, x0, 0.16f, x1, 0.255f);
             }
+            var weeklyContext = BroadcastUi.Label(chart.transform, "WeeklyRevenueContext",
+                (english ? "Weekly shirt revenue  +" : "Receita semanal de camisolas  +")
+                + Euro(ClubFinanceLedger.WeeklyShirtIncome(_career, _career.Club))
+                + (english ? "     ·     Ticket income per home match  +" : "     ·     Bilheteira por jogo em casa  +")
+                + Euro(Math.Max(12000, _career.Club.Reputation * 650)),
+                12, UiTheme.Muted, TextAnchor.MiddleCenter);
+            weeklyContext.resizeTextForBestFit = true;
+            weeklyContext.resizeTextMinSize = 9;
+            weeklyContext.resizeTextMaxSize = 12;
+            BroadcastUi.Place(weeklyContext.rectTransform, 0.04f, 0.275f, 0.96f, 0.335f);
+            var accountingNote = BroadcastUi.Label(chart.transform, "AccountingNote",
+                english ? "Profit includes ticket, shirt and transfer income, less transfer costs. Payroll and travel still affect the cash balance and appear in transactions."
+                    : "O lucro inclui bilheteira, camisolas e transferências, menos custos de transferências. Salários e viagens continuam a afetar o saldo e aparecem nas transações.",
+                10, UiTheme.Muted, TextAnchor.MiddleCenter);
+            accountingNote.resizeTextForBestFit = true;
+            accountingNote.resizeTextMinSize = 8;
+            accountingNote.resizeTextMaxSize = 10;
+            BroadcastUi.Place(accountingNote.rectTransform, 0.04f, 0.34f, 0.96f, 0.39f);
             var footer = BroadcastUi.Panel(chart.transform, "ValueFooter", new Color(0f, 0f, 0f, 0.2f));
             BroadcastUi.Place(footer.rectTransform, 0.015f, 0.015f, 0.985f, 0.135f);
             var balance = finance.Balance;
             var worth = BroadcastUi.Label(footer.transform, "Worth", (english ? "CLUB BALANCE   " : "SALDO DO CLUBE   ") + Euro(balance), 16, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
             BroadcastUi.Place(worth.rectTransform, 0.02f, 0.08f, 0.49f, 0.92f);
-            var projection = BroadcastUi.Label(footer.transform, "Projection", (english ? "PROJECTED BALANCE   " : "SALDO PROJETADO   ") + Euro((int)Math.Max(int.MinValue, Math.Min(int.MaxValue, balance + net))), 16, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            var projection = BroadcastUi.Label(footer.transform, "Projection", (english ? "PROJECTED BALANCE   " : "SALDO PROJETADO   ") + Euro((int)Math.Max(int.MinValue, Math.Min(int.MaxValue, ProjectedClubBalance(finance)))), 16, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
             BroadcastUi.Place(projection.rectTransform, 0.51f, 0.08f, 0.98f, 0.92f);
+        }
+
+        long ProjectedClubBalance(ClubFinance finance)
+        {
+            if (finance == null || _career == null || _career.Club == null)
+                return 0;
+            var club = _career.Club;
+            var today = _career.Calendar.CurrentDate.Date;
+            var seasonYear = today.Month >= 7 ? today.Year : today.Year - 1;
+            var seasonEnd = new DateTime(seasonYear + 1, 6, 30);
+
+            var daysUntilMonday = ((int)DayOfWeek.Monday - (int)today.DayOfWeek + 7) % 7;
+            if (daysUntilMonday == 0)
+                daysUntilMonday = 7;
+            var firstPayday = today.AddDays(daysUntilMonday);
+            long projected = finance.Balance;
+            for (var payday = firstPayday; payday <= seasonEnd; payday = payday.AddDays(7))
+            {
+                projected += ClubFinanceLedger.WeeklyShirtIncome(_career, club);
+                projected -= ClubFinanceLedger.WeeklyPayroll(_career, club, payday);
+            }
+            foreach (var fixture in _career.Fixtures)
+            {
+                if (fixture == null || fixture.Played || fixture.Walkover || !fixture.Involves(club.Id)
+                    || fixture.Date.Date <= today || fixture.Date.Date > seasonEnd)
+                    continue;
+                if (fixture.HomeClubId == club.Id)
+                    projected += Math.Max(12000, club.Reputation * 650);
+                else
+                    projected -= 6500 + Math.Max(0, 90 - club.Reputation) * 180;
+            }
+            return projected;
         }
 
         void BuildFinanceTransactions(Transform host, ClubFinance finance, bool english)
@@ -6964,10 +7179,10 @@ namespace CoachMaster.UI.Scenes
             var hasWait = DeskDue("budget-wait", out var waitUntil);
             var waiting = !pending && hasWait && new DateTime(waitUntil).Date > _career.Calendar.CurrentDate.Date;
             var noteText = pending
-                ? (english ? "A board meeting is already booked. Open it from settings." : "A reunião com a direção já está marcada. Abre-a nas definições.")
+                ? (english ? "A board meeting is already booked. Open it from your inbox." : "A reunião com a direção já está marcada. Abre-a nas mensagens.")
                 : waiting
                     ? (english ? "The board will not hear another request until " : "A direção só ouve outro pedido a ") + LocalizationManager.FormatDate(new DateTime(waitUntil), "d MMM") + "."
-                    : (english ? "Ask the board for extra money from settings, not from this page." : "O pedido de verba à direção faz-se nas definições, não nesta página.");
+                    : (english ? "If an incoming transfer or staff offer exceeds its budget, request extra funds during that negotiation." : "Se uma contratação de jogador ou staff ultrapassar a verba, pede reforço durante a negociação.");
             note.text = noteText;
             BroadcastUi.Place(note.rectTransform, 0.08f, 0.04f, 0.92f, 0.36f);
         }
@@ -7690,10 +7905,55 @@ namespace CoachMaster.UI.Scenes
                 if (when.Date >= start && when.Date < start.AddDays(7))
                     count++;
             }
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var wins = 0;
+            var draws = 0;
+            var losses = 0;
+            var goalsFor = 0;
+            var goalsAgainst = 0;
+            foreach (var fixture in _career.Fixtures)
+            {
+                if (fixture == null || !fixture.Played || fixture.Walkover || !fixture.Involves(_career.Club.Id)
+                    || fixture.Date.Date < start || fixture.Date.Date > _career.Calendar.CurrentDate.Date)
+                    continue;
+                var scored = fixture.IsHome(_career.Club.Id) ? fixture.HomeGoals : fixture.AwayGoals;
+                var conceded = fixture.IsHome(_career.Club.Id) ? fixture.AwayGoals : fixture.HomeGoals;
+                goalsFor += scored;
+                goalsAgainst += conceded;
+                if (scored > conceded) wins++;
+                else if (scored == conceded) draws++;
+                else losses++;
+            }
 
-            if (LocalizationManager.Current == GameLanguage.English)
-                return "Since " + LocalizationManager.FormatDate(start, "d 'de' MMMM") + ", " + count + " notes were added to the board. Dressing room: " + RoomWord(_career.Club.DressingRoomTension) + ". Next match: " + EnglishMatchLabel(_career) + ".";
-            return "Desde " + LocalizationManager.FormatDate(start, "d 'de' MMMM") + " ficaram " + count + " notas no quadro. Vestiário: " + RoomWord(_career.Club.DressingRoomTension) + ". Próximo jogo: " + NextMatchText(_career) + ".";
+            var analysis = wins + draws + losses == 0
+                ? (english ? "There was no first-team result to judge this week; preparation and recovery have been the priority." : "Esta semana não houve resultado da equipa principal para avaliar; a prioridade foi a preparação e a recuperação.")
+                : losses > wins
+                    ? (english ? "The results fell short. We need a more compact rest-defence and cleaner decisions after losing the ball." : "Os resultados ficaram aquém. Precisamos de proteger melhor a equipa quando perde a bola e decidir com mais critério.")
+                    : wins >= 2
+                        ? (english ? "The results support the current plan. Keep the shape and build on the chances the team is already creating." : "Os resultados confirmam o plano atual. Mantém a estrutura e melhora a partir das oportunidades que a equipa já cria.")
+                        : (english ? "The signs are mixed. Keep the structure, but review the final pass and the timing of the press before the next fixture." : "Os sinais são mistos. Mantém a estrutura, mas revê o último passe e o momento da pressão antes do próximo jogo.");
+
+            var fatigued = 0;
+            var lowMorale = 0;
+            foreach (var player in Squad(_career.Club))
+            {
+                if (player.Fatigue >= 70) fatigued++;
+                if (player.Morale < 40) lowMorale++;
+            }
+            if (fatigued >= 3)
+                analysis += english ? " Rotation is needed: " + fatigued + " players are carrying heavy fatigue." : " É preciso rodar: " + fatigued + " jogadores acumulam fadiga elevada.";
+            else if (lowMorale >= 2)
+                analysis += english ? " Two or more players need a direct conversation about their role." : " Dois ou mais jogadores precisam de uma conversa direta sobre o seu papel.";
+
+            var date = LocalizationManager.FormatDate(start, english ? "d MMMM" : "d 'de' MMMM");
+            var matchSummary = wins + (english ? "W " : "V ") + draws + (english ? "D " : "E ") + losses + (english ? "L" : "D");
+            var results = wins + draws + losses == 0
+                ? (english ? "No first-team matches completed." : "Sem jogos da equipa principal concluídos.")
+                : (english ? "First-team record: " : "Registo da equipa principal: ") + matchSummary
+                    + (english ? " · goals " : " · golos ") + goalsFor + "–" + goalsAgainst + ".";
+            return english
+                ? "Week of " + date + " · " + count + " board updates. " + results + " Coach's review: " + analysis + " Next: " + EnglishMatchLabel(_career)
+                : "Semana de " + date + " · " + count + " atualizações à direção. " + results + " Análise do treinador: " + analysis + " Próximo: " + NextMatchText(_career);
         }
 
         void KeepCaptainOnPitch()
@@ -8035,39 +8295,76 @@ namespace CoachMaster.UI.Scenes
 
         string ClubDigest()
         {
+            var english = LocalizationManager.Current == GameLanguage.English;
             var hurt = new List<string>();
             var tired = new List<string>();
             var low = new List<string>();
-            foreach (var player in Squad(_career.Club))
+            foreach (var squadMember in Squad(_career.Club))
             {
-                if (player.Injury != null && player.Injury.IsInjured)
-                    hurt.Add(BroadcastUi.ShortName(player.FullName));
-                if (player.Fatigue >= 70)
-                    tired.Add(BroadcastUi.ShortName(player.FullName));
-                if (player.Morale < 40)
-                    low.Add(player.FullName);
+                if (squadMember.Injury != null && squadMember.Injury.IsInjured)
+                    hurt.Add(BroadcastUi.ShortName(squadMember.FullName));
+                if (squadMember.Fatigue >= 70)
+                    tired.Add(BroadcastUi.ShortName(squadMember.FullName));
+                if (squadMember.Morale < 40)
+                    low.Add(squadMember.FullName);
             }
 
-            var captain = "sem capitão";
-            foreach (var player in Squad(_career.Club))
+            var captain = "";
+            foreach (var captainCandidate in Squad(_career.Club))
             {
-                if (player.IsCaptain)
-                    captain = player.FullName;
+                if (captainCandidate.IsCaptain)
+                    captain = captainCandidate.FullName;
             }
 
-            if (LocalizationManager.Current == GameLanguage.English)
+            var recent = new List<Fixture>();
+            foreach (var fixture in _career.Fixtures)
+                if (fixture != null && fixture.Played && !fixture.Walkover && fixture.Involves(_career.Club.Id)
+                    && fixture.Date.Date <= _career.Calendar.CurrentDate.Date)
+                    recent.Add(fixture);
+            recent.Sort((a, b) => b.Date.CompareTo(a.Date));
+            var form = "";
+            for (var i = 0; i < recent.Count && i < 3; i++)
             {
-                var textEnglish = "Captain: " + (captain == "sem capitão" ? "none" : captain) + ".  Next match: " + EnglishMatchLabel(_career) + ".  Dressing room: " + RoomWord(_career.Club.DressingRoomTension) + ".";
-                textEnglish += "\nInjured: " + (hurt.Count == 0 ? "none" : string.Join(", ", hurt));
-                textEnglish += "\nFatigued: " + (tired.Count == 0 ? "no one above the limit" : string.Join(", ", tired));
-                textEnglish += "\nLow morale: " + (low.Count == 0 ? "the squad is holding up" : string.Join(", ", low));
-                return textEnglish;
+                var fixture = recent[i];
+                var scored = fixture.IsHome(_career.Club.Id) ? fixture.HomeGoals : fixture.AwayGoals;
+                var conceded = fixture.IsHome(_career.Club.Id) ? fixture.AwayGoals : fixture.HomeGoals;
+                var result = scored > conceded ? (english ? "W" : "V")
+                    : scored == conceded ? (english ? "D" : "E") : (english ? "L" : "D");
+                form += (form.Length == 0 ? "" : " · ") + result;
             }
 
-            var text = "Capitão: " + captain + ".  Próximo jogo: " + NextMatchText(_career) + ".  Vestiário: " + RoomWord(_career.Club.DressingRoomTension) + ".";
-            text += "\nLesionados: " + (hurt.Count == 0 ? "nenhum" : string.Join(", ", hurt));
-            text += "\nCansados: " + (tired.Count == 0 ? "ninguém acima do limite" : string.Join(", ", tired));
-            text += "\nMoral em baixo: " + (low.Count == 0 ? "o grupo aguenta" : string.Join(", ", low));
+            var fixtureLabel = english ? EnglishMatchLabel(_career) : NextMatchText(_career);
+            var formation = _career.Club.Tactics == null || string.IsNullOrEmpty(_career.Club.Tactics.Formation)
+                ? "4-3-3" : _career.Club.Tactics.Formation;
+            var diagnosis = english
+                ? "The group is settled. Keep the current shape and protect the wide areas."
+                : "O grupo está estável. Mantém a estrutura e protege os corredores.";
+            if (hurt.Count > 0)
+                diagnosis = english
+                    ? "Plan around the unavailable players; avoid asking the remaining defenders to cover extra ground."
+                    : "Prepara a equipa sem os lesionados; evita pedir aos defesas disponíveis que cubram terreno a mais.";
+            else if (tired.Count >= 3)
+                diagnosis = english
+                    ? "Several players are carrying fatigue. Rotate the most tired starters before the next match."
+                    : "Há vários jogadores cansados. Roda os titulares mais fatigados antes do próximo jogo.";
+            else if (low.Count >= 2 || _career.Club.DressingRoomTension >= 65)
+                diagnosis = english
+                    ? "Confidence is fragile. Keep the message clear and speak to the players whose morale has dipped."
+                    : "A confiança está frágil. Mantém a mensagem clara e fala com quem perdeu moral.";
+
+            var recentLine = form.Length == 0
+                ? (english ? "Recent form: no completed results yet." : "Forma recente: ainda sem resultados.")
+                : (english ? "Last " : "Últimos ") + form.Length + (english ? " results: " : " jogos: ") + form;
+            var captainLabel = english ? (captain.Length == 0 ? "no captain recorded" : captain) : (captain.Length == 0 ? "sem capitão registado" : captain);
+            var text = english
+                ? "Captain: " + captainLabel + " · " + recentLine + "\nNext: " + fixtureLabel + "\nSquad check — injured: " + (hurt.Count == 0 ? "none" : string.Join(", ", hurt))
+                    + "; fatigue: " + (tired.Count == 0 ? "under control" : string.Join(", ", tired))
+                    + "; low morale: " + (low.Count == 0 ? "none" : string.Join(", ", low))
+                    + "\nCoach's read (" + formation + ", dressing room " + RoomWord(_career.Club.DressingRoomTension) + "): " + diagnosis
+                : "Capitão: " + captainLabel + " · " + recentLine + "\nPróximo: " + fixtureLabel + "\nPlantel — lesionados: " + (hurt.Count == 0 ? "nenhum" : string.Join(", ", hurt))
+                    + "; fadiga: " + (tired.Count == 0 ? "controlada" : string.Join(", ", tired))
+                    + "; moral baixa: " + (low.Count == 0 ? "nenhuma" : string.Join(", ", low))
+                    + "\nLeitura do treinador (" + formation + ", balneário " + RoomWord(_career.Club.DressingRoomTension) + "): " + diagnosis;
             return text;
         }
 
@@ -8390,15 +8687,12 @@ namespace CoachMaster.UI.Scenes
             BuildOfficeContents(_pages[6].transform);
             RefreshCareerTabLabels();
 
-            _homeTitle = null;
-            _homeFace = null;
-            _homeBody = null;
-            _nextChip = null;
             _replies = new Button[3];
-            _skipConversations = null;
 
             _newsContent = root.Find("Pages/News/Scroll/Content") as RectTransform;
-            EnsureMemoriesButton(root.Find("Pages/News"));
+            var newsMemoriesButton = root.Find("Pages/News/Memories");
+            if (newsMemoriesButton != null)
+                newsMemoriesButton.gameObject.SetActive(false);
 
             var team = root.Find("Pages/Team");
             _teamTitle = SceneBind.Get<Text>(team, "Title");
@@ -8773,6 +9067,21 @@ namespace CoachMaster.UI.Scenes
                     badge.rectTransform.anchoredPosition = Vector2.zero;
                     badge.rectTransform.sizeDelta = new Vector2(28f, 28f);
                     badge.raycastTarget = false;
+                    var competitionSprite = CrestStudio.ForCompetition(fixture.LeagueId);
+                    if (competitionSprite != null)
+                    {
+                        var competitionObject = new GameObject("CompetitionCrest", typeof(RectTransform), typeof(Image));
+                        var competitionRect = competitionObject.GetComponent<RectTransform>();
+                        competitionRect.SetParent(cell.transform, false);
+                        competitionRect.anchorMin = competitionRect.anchorMax = new Vector2(0.84f, 0.82f);
+                        competitionRect.pivot = new Vector2(0.5f, 0.5f);
+                        competitionRect.anchoredPosition = Vector2.zero;
+                        competitionRect.sizeDelta = new Vector2(19f, 19f);
+                        var competitionImage = competitionObject.GetComponent<Image>();
+                        competitionImage.sprite = competitionSprite;
+                        competitionImage.preserveAspect = true;
+                        competitionImage.raycastTarget = false;
+                    }
                     if (fixture.Played)
                     {
                         var userHome = fixture.IsHome(_career.Coach.ClubId);
@@ -8798,6 +9107,16 @@ namespace CoachMaster.UI.Scenes
                         var verdict = BroadcastUi.Label(cell.transform, "Result", mark, 18, markColor, TextAnchor.MiddleCenter, FontStyle.Bold);
                         verdict.raycastTarget = false;
                         BroadcastUi.Place(verdict.rectTransform, 0.62f, 0.02f, 0.96f, 0.38f);
+                    }
+                    else
+                    {
+                        var details = BroadcastUi.Label(cell.transform, "FixtureDetails", FixtureKickoff(fixture) + "\n" + FixtureCompetition(fixture),
+                            8, Color.white, TextAnchor.MiddleCenter);
+                        details.resizeTextForBestFit = true;
+                        details.resizeTextMinSize = 6;
+                        details.resizeTextMaxSize = 8;
+                        details.raycastTarget = false;
+                        BroadcastUi.Place(details.rectTransform, 0.04f, 0.02f, 0.96f, 0.25f);
                     }
                 }
                 else if (inMonth && ((day.Month == 1 && (day.Day == 1 || day.Day == 31)) || (day.Month == 7 && day.Day == 1) || (day.Month == 8 && day.Day == 31)))
@@ -8958,7 +9277,8 @@ namespace CoachMaster.UI.Scenes
             var formation = opp.Tactics == null ? "4-3-3" : opp.Tactics.Formation;
             var venue = LocalizationManager.Translate(fixture.IsHome(_career.Coach.ClubId) ? "Casa" : "Fora");
             var scouted = _career.Scouted.Contains(opp.Id);
-            OpenModal(opp.Name, venue + "  ·  " + LocalizationManager.FormatDate(fixture.Date, "dd MMMM") + "  ·  " + formation, scouted == false);
+            OpenModal(opp.Name, venue + "  ·  " + LocalizationManager.FormatDate(fixture.Date, "dd MMMM") + "  ·  "
+                + FixtureKickoff(fixture) + "  ·  " + FixtureCompetition(fixture) + "  ·  " + formation, scouted == false);
             SizeModal(0.22f, 0.28f, 0.78f, 0.74f);
             BroadcastUi.Place(_modalTitle.rectTransform, 0.06f, 0.88f, 0.84f, 0.97f);
             var crest = CrestImage(_modal.transform.Find("Card"), opp, 56f);
@@ -9097,14 +9417,15 @@ namespace CoachMaster.UI.Scenes
                     + "   ·   " + (english ? "Points " : "Pontos ") + table.Points;
             var recent = new List<Fixture>();
             foreach (var fixture in _career.Fixtures)
-                if (fixture.Played && fixture.Involves(club.Id) && fixture.LeagueId == club.LeagueId) recent.Add(fixture);
+                if (fixture.Played && fixture.Involves(club.Id)) recent.Add(fixture);
             recent.Sort((a, b) => b.Date.CompareTo(a.Date));
             for (var i = 0; i < Mathf.Min(2, recent.Count); i++)
             {
                 var fixture = recent[i];
                 var opponentId = fixture.OpponentId(club.Id);
                 var opponent = _career.World.Clubs.TryGetValue(opponentId, out var other) ? other.ShortName : opponentId;
-                leagueText += "\n" + LocalizationManager.FormatDate(fixture.Date, "dd MMM") + "  ·  " + opponent + "  ·  "
+                leagueText += "\n" + LocalizationManager.FormatDate(fixture.Date, "dd MMM") + "  ·  " + FixtureKickoff(fixture)
+                    + "  ·  " + FixtureCompetition(fixture) + "  ·  " + opponent + "  ·  "
                     + (fixture.IsHome(club.Id) ? fixture.HomeGoals + "–" + fixture.AwayGoals : fixture.AwayGoals + "–" + fixture.HomeGoals);
             }
             OverviewBlock(overview.transform, "League", english ? "LEAGUE POSITION  ·  RECENT RESULTS" : "POSIÇÃO NA LIGA  ·  RESULTADOS RECENTES", leagueText, 0.025f, 0.48f, 0.64f, 0.68f);
@@ -9305,7 +9626,7 @@ namespace CoachMaster.UI.Scenes
             AddClubRecentMatches(club, english, 6);
             var upcoming = new List<Fixture>();
             foreach (var fixture in _career.Fixtures)
-                if (!fixture.Played && fixture.Involves(club.Id) && fixture.LeagueId == club.LeagueId && !fixture.Walkover)
+                if (!fixture.Played && !fixture.Walkover && fixture.Date.Date >= _career.Calendar.CurrentDate.Date && fixture.Involves(club.Id))
                     upcoming.Add(fixture);
             upcoming.Sort((a, b) => a.Date.CompareTo(b.Date));
             AddHead(english ? "UPCOMING FIXTURES" : "PRÓXIMOS JOGOS");
@@ -9315,16 +9636,21 @@ namespace CoachMaster.UI.Scenes
                 _career.World.Clubs.TryGetValue(fixture.HomeClubId, out var home);
                 _career.World.Clubs.TryGetValue(fixture.AwayClubId, out var away);
                 var row = BroadcastUi.Panel(_modalBody, "Next" + i, new Color(0.08f, 0.05f, 0.16f, 0.94f), true);
-                BroadcastUi.Preferred(row, 40);
+                BroadcastUi.Preferred(row, 52);
                 AddInboxCrest(row.transform, home, 0.03f);
                 AddInboxCrest(row.transform, away, 0.82f);
-                var caption = LocalizationManager.FormatDate(fixture.Date, "dd MMM") + "   " + (home == null ? "" : home.ShortName) + "  –  " + (away == null ? "" : away.ShortName)
-                    + "   ·   " + (fixture.IsHome(club.Id) ? (english ? "Home" : "Casa") : (english ? "Away" : "Fora"));
-                var label = BroadcastUi.Label(row.transform, "Text", caption, 13, Color.white, TextAnchor.MiddleLeft);
-                BroadcastUi.Place(label.rectTransform, 0.16f, 0.08f, 0.8f, 0.92f);
+                var caption = LocalizationManager.FormatDate(fixture.Date, "dd MMM") + "  ·  " + FixtureKickoff(fixture)
+                    + "  ·  " + (fixture.IsHome(club.Id) ? (english ? "Home" : "Casa") : (english ? "Away" : "Fora"))
+                    + "\n" + (home == null ? "" : home.ShortName) + "  –  " + (away == null ? "" : away.ShortName)
+                    + "  ·  " + FixtureCompetition(fixture);
+                var label = BroadcastUi.Label(row.transform, "Text", caption, 12, Color.white, TextAnchor.MiddleLeft);
+                label.resizeTextForBestFit = true;
+                label.resizeTextMinSize = 9;
+                label.resizeTextMaxSize = 12;
+                BroadcastUi.Place(label.rectTransform, 0.16f, 0.04f, 0.8f, 0.96f);
             }
             if (upcoming.Count == 0)
-                AddLine(english ? "No upcoming league matches." : "Sem próximos jogos da liga.");
+                AddLine(english ? "No upcoming fixtures." : "Sem próximos jogos.");
         }
 
         void BuildClubPerformance(Club club, bool english)
@@ -9838,7 +10164,7 @@ namespace CoachMaster.UI.Scenes
             AddHead(english ? "RECENT MATCHES" : "JOGOS RECENTES");
             var recent = new List<Fixture>();
             foreach (var fixture in _career.Fixtures)
-                if (fixture.Played && fixture.Involves(club.Id) && fixture.LeagueId == club.LeagueId)
+                if (fixture.Played && fixture.Involves(club.Id))
                     recent.Add(fixture);
             recent.Sort((a, b) => b.Date.CompareTo(a.Date));
             for (var i = 0; i < Mathf.Min(limit, recent.Count); i++)
@@ -9848,10 +10174,11 @@ namespace CoachMaster.UI.Scenes
                 var opponent = _career.World.Clubs.TryGetValue(opponentId, out var other) ? other.ShortName : opponentId;
                 var goalsFor = fixture.IsHome(club.Id) ? fixture.HomeGoals : fixture.AwayGoals;
                 var goalsAgainst = fixture.IsHome(club.Id) ? fixture.AwayGoals : fixture.HomeGoals;
-                AddLine(LocalizationManager.FormatDate(fixture.Date, "dd MMM") + "  ·  " + opponent + "  ·  " + goalsFor + "–" + goalsAgainst);
+                AddLine(LocalizationManager.FormatDate(fixture.Date, "dd MMM") + "  ·  " + FixtureKickoff(fixture)
+                    + "  ·  " + FixtureCompetition(fixture) + "  ·  " + opponent + "  ·  " + goalsFor + "–" + goalsAgainst);
             }
             if (recent.Count == 0)
-                AddLine(english ? "No league matches have been played yet." : "Ainda não há jogos de liga realizados.");
+                AddLine(english ? "No matches have been played yet." : "Ainda não há jogos realizados.");
         }
 
         void StartScout(Club opponent, Fixture fixture)
@@ -10021,18 +10348,32 @@ namespace CoachMaster.UI.Scenes
             return sum;
         }
 
-        void OpenBoardMeeting(Player player, int fee, int wage, int years, int gap)
+        void OpenBoardMeeting(Player player, int fee, int wage, int years, int gap, int wageGap = 0,
+            StaffOfferCandidate staffCandidate = null, string staffPhoneKey = null)
         {
+            _boardStaffCandidate = staffCandidate;
+            _boardStaffPhoneKey = staffPhoneKey;
             _boardPlayerId = player == null ? null : player.Id;
             _boardFee = fee;
             _boardWage = wage;
             _boardYears = years;
             _boardGap = gap;
+            _boardWageGap = wageGap;
             var english = LocalizationManager.Current == GameLanguage.English;
-            var opener = gap > 0
+            var feeGapText = gap > 0
+                ? (english ? "The fee is " + Euro(fee) + "; the club is short " + Euro(gap) + "." : "O valor é " + Euro(fee) + "; faltam " + Euro(gap) + ".")
+                : (english ? "The transfer fee is covered." : "O valor da transferência está coberto.");
+            var wageGapText = wageGap > 0
+                ? (english ? " The wage budget is also short " + Euro(wageGap) + "/week." : " Também faltam " + Euro(wageGap) + "/semana na verba salarial.")
+                : "";
+            var opener = _boardStaffCandidate != null && wageGap > 0
                 ? (english
-                    ? "The president closes the folder. \"The fee is " + Euro(fee) + ". You are short " + Euro(gap) + ". Tell me why this room should find the rest.\""
-                    : "O presidente fecha a pasta. \"O negócio é de " + Euro(fee) + ". Faltam " + Euro(gap) + ". Diz-me porque é que esta sala há de arranjar o resto.\"")
+                    ? "The club has " + Euro(Math.Max(0, StaffWeeklyWageRoom())) + "/week in wage room, but this contract needs another " + Euro(wageGap) + ". The board must approve the weekly commitment."
+                    : "O clube tem " + Euro(Math.Max(0, StaffWeeklyWageRoom())) + "/semana de folga salarial, mas este contrato precisa de mais " + Euro(wageGap) + ". A direção tem de aprovar o compromisso semanal.")
+                : gap > 0 || wageGap > 0
+                ? (english
+                    ? "The president closes the folder. \"" + feeGapText + wageGapText + " Tell me why this room should find the rest.\""
+                    : "O presidente fecha a pasta. \"" + feeGapText + wageGapText + " Diz-me porque é que esta sala há de arranjar o resto.\"")
                 : (english
                     ? "The president does not sit down. \"You asked for more transfer money. I have the results and the dressing room in front of me. Talk.\""
                     : "O presidente não se senta. \"Pediste mais verba de transferências. Tenho os resultados e o balneário à frente. Fala.\"");
@@ -10072,7 +10413,15 @@ namespace CoachMaster.UI.Scenes
             {
                 _modalActionLabel.text = english ? "LEAVE THE ROOM" : "SAIR DA SALA";
                 _modalAction.onClick.RemoveAllListeners();
-                _modalAction.onClick.AddListener(() => CloseModal());
+                _modalAction.onClick.AddListener(() =>
+                {
+                    _boardPlayerId = null;
+                    _boardGap = 0;
+                    _boardWageGap = 0;
+                    _boardStaffCandidate = null;
+                    _boardStaffPhoneKey = null;
+                    CloseModal();
+                });
             }
         }
 
@@ -10106,32 +10455,50 @@ namespace CoachMaster.UI.Scenes
                     ? (english ? "He looks at the window. \"I do not like being pushed. I also do not want this season to die here.\"" : "Olha para a janela. \"Não gosto de ser empurrado. Também não quero que esta época morra aqui.\"")
                     : (english ? "\"Raise your voice again and the conversation ends with you, not with the budget.\"" : "\"Levanta outra vez a voz e a conversa acaba contigo, não com o orçamento.\"");
             }
-            var grant = 0;
+            var transferGrant = 0;
+            var wageGrant = 0;
+            var cashGrant = 0;
             if (won && _career.Club != null && _career.Club.Finance != null)
             {
-                grant = _boardGap > 0
-                    ? _boardGap
-                    : Mathf.Clamp(_career.Club.Reputation * 42000, 800000, 6500000);
-                _career.Club.Finance.TransferBudget += grant;
-                _career.Club.Finance.Balance += grant;
-                ClubFinanceLedger.Record(_career.Club, _career.Calendar.CurrentDate, grant, "board", english ? "Board meeting" : "Reunião com a direção");
+                if (_boardGap > 0)
+                    transferGrant = _boardGap;
+                else if (_boardStaffCandidate == null && string.IsNullOrEmpty(_boardPlayerId))
+                    transferGrant = Mathf.Clamp(_career.Club.Reputation * 42000, 800000, 6500000);
+                wageGrant = _boardWageGap;
+                _career.Club.Finance.TransferBudget = (int)Math.Min(int.MaxValue, (long)_career.Club.Finance.TransferBudget + transferGrant);
+                _career.Club.Finance.WageBudget = (int)Math.Min(int.MaxValue, (long)_career.Club.Finance.WageBudget + wageGrant);
+                cashGrant = transferGrant;
+                _career.Club.Finance.Balance = (int)Math.Max(int.MinValue, Math.Min(int.MaxValue, (long)_career.Club.Finance.Balance + cashGrant));
+                if (cashGrant > 0)
+                    ClubFinanceLedger.Record(_career.Club, _career.Calendar.CurrentDate, cashGrant, "board", english ? "Board meeting" : "Reunião com a direção");
             }
             RemoveNotebookPrefix("budget-live");
-            _career.Notebook.Add("job|budget-wait|" + _career.Calendar.CurrentDate.Date.AddDays(10).Ticks);
+            var staffCandidate = _boardStaffCandidate;
+            var staffPhoneKey = _boardStaffPhoneKey;
+            var waitKey = staffCandidate != null ? "staff-budget-wait" : "budget-wait";
+            _career.Notebook.Add("job|" + waitKey + "|" + _career.Calendar.CurrentDate.Date.AddDays(10).Ticks);
             var playerId = _boardPlayerId;
             var fee = _boardFee;
             var wage = _boardWage;
             var years = _boardYears;
             _boardPlayerId = null;
             _boardGap = 0;
+            _boardWageGap = 0;
+            _boardStaffCandidate = null;
+            _boardStaffPhoneKey = null;
             CloseModal();
-            var outcome = reply + (grant > 0
-                ? (english ? "\n\n" + Euro(grant) + " enters the transfer budget." : "\n\nEntram " + Euro(grant) + " no orçamento de transferências.")
-                : (english ? "\n\nNothing was added." : "\n\nNão entrou nada."));
+            var outcome = reply;
+            if (transferGrant > 0)
+                outcome += english ? "\n\n" + Euro(transferGrant) + " enters the transfer budget." : "\n\nEntram " + Euro(transferGrant) + " no orçamento de transferências.";
+            if (wageGrant > 0)
+                outcome += english ? "\n\nWeekly wage room rises by " + Euro(wageGrant) + "." : "\n\nA folga salarial semanal aumenta " + Euro(wageGrant) + ".";
+            if (cashGrant <= 0 && wageGrant <= 0)
+                outcome += english ? "\n\nNothing was added." : "\n\nNão entrou nada.";
             PostDesk("✉ " + outcome.Replace("\n\n", " "));
             CareerStore.Save(_career);
             Refresh();
-            if (grant > 0 && !string.IsNullOrEmpty(playerId) && _career.World.Players.TryGetValue(playerId, out var player))
+            var approvalGranted = cashGrant > 0 || wageGrant > 0;
+            if (approvalGranted && !string.IsNullOrEmpty(playerId) && _career.World.Players.TryGetValue(playerId, out var player))
             {
                 OpenModal(english ? "THE ROOM ANSWERS" : "A SALA RESPONDE", outcome, true);
                 _modalActionLabel.text = english ? "CONTINUE THE DEAL" : "CONTINUAR O NEGÓCIO";
@@ -10143,40 +10510,22 @@ namespace CoachMaster.UI.Scenes
                 });
                 return;
             }
+            if (approvalGranted && staffCandidate != null)
+            {
+                OpenModal(english ? "THE ROOM ANSWERS" : "A SALA RESPONDE", outcome, true);
+                _modalActionLabel.text = english ? "RETURN TO NEGOTIATION" : "VOLTAR À NEGOCIAÇÃO";
+                _modalAction.onClick.RemoveAllListeners();
+                _modalAction.onClick.AddListener(() =>
+                {
+                    CloseModal();
+                    OpenStaffContractOffer(staffCandidate, staffPhoneKey);
+                });
+                return;
+            }
             OpenModal(english ? "THE ROOM ANSWERS" : "A SALA RESPONDE", outcome, true);
             _modalActionLabel.text = english ? "LEAVE" : "SAIR";
             _modalAction.onClick.RemoveAllListeners();
             _modalAction.onClick.AddListener(() => { CloseModal(); Refresh(); });
-        }
-
-        public void AskBoardFromSettings()
-        {
-            AskBoardForFunds();
-        }
-
-        void AskBoardForFunds()
-        {
-            if (NotebookHas("budget-live"))
-            {
-                OpenBoardMeeting(null, 0, 0, 0, 0);
-                return;
-            }
-            if (DeskDue("budget", out _))
-                return;
-            if (DeskDue("budget-wait", out var wait) && new DateTime(wait).Date > _career.Calendar.CurrentDate.Date)
-            {
-                PostDesk("✉ A direção já respondeu a um pedido recente. O próximo pode ser feito a " + LocalizationManager.FormatDate(new DateTime(wait), "d MMM") + ".");
-                CareerStore.Save(_career);
-                Refresh();
-                ShowFinanceDetails(2);
-                return;
-            }
-            var meeting = _career.Calendar.CurrentDate.Date.AddDays(2);
-            _career.Notebook.Add("job|budget|" + meeting.Ticks);
-            PostDesk("✉ Pedido de verba enviado. A direção marca reunião para " + LocalizationManager.FormatDate(meeting, "d MMM") + ".");
-            CareerStore.Save(_career);
-            Refresh();
-            ShowFinanceDetails(2);
         }
 
         void PostDesk(string text)
@@ -10938,34 +11287,77 @@ namespace CoachMaster.UI.Scenes
             if (_modalLead != null)
                 _modalLead.gameObject.SetActive(false);
             var room = BroadcastUi.Zone(card, "PressRoom", 0.03f, 0.16f, 0.97f, 0.86f);
-            var reporters = new[] { "Rita Costa", "Nuno Vale", "Inês Melo", "Paulo Reis" };
+            var reporterNation = WorldCatalog.NationalityForLeagueId(_career.Club.LeagueId);
+            var reporters = new[]
+            {
+                FaceBook.PersonName(reporterNation, StableOfferRoll(_career.Club.LeagueId + ":press:0")),
+                FaceBook.PersonName(reporterNation, StableOfferRoll(_career.Club.LeagueId + ":press:1")),
+                FaceBook.PersonName(reporterNation, StableOfferRoll(_career.Club.LeagueId + ":press:2")),
+                FaceBook.PersonName(reporterNation, StableOfferRoll(_career.Club.LeagueId + ":press:3")),
+                FaceBook.PersonName(reporterNation, StableOfferRoll(_career.Club.LeagueId + ":press:4")),
+                FaceBook.PersonName(reporterNation, StableOfferRoll(_career.Club.LeagueId + ":press:5")),
+                FaceBook.PersonName(reporterNation, StableOfferRoll(_career.Club.LeagueId + ":press:6"))
+            };
             var desks = english
-                ? new[] { "Touchline", "Radio", "Television", "Press" }
-                : new[] { "Bancada", "Rádio", "Televisão", "Imprensa" };
+                ? new[] { "Touchline", "Radio", "Television", "Press", "Local paper", "Football weekly", "Press" }
+                : new[] { "Bancada", "Rádio", "Televisão", "Imprensa", "Jornal local", "Revista de futebol", "Imprensa" };
             var questions = english
-                ? new[]
+                ? new List<string>
                 {
-                    "What is the idea of the " + formation + " against " + rival + "?",
-                    "Does the goalkeeper stay as the first choice?",
-                    "Does the last result change anything in the dressing room?",
-                    "Is there a player who has to start this match?"
+                    "What is the tactical plan in the " + formation + " against " + rival + "?",
+                    "What did you learn from the last result, and what changes this week?",
+                    "Several players have had a heavy schedule. How will fitness affect selection?",
+                    "Are you ready to give a young player a bigger role this season?",
+                    "What kind of performance do you want the supporters to see today?",
+                    "Will the club look to strengthen the squad before the window closes?"
                 }
-                : new[]
+                : new List<string>
                 {
-                    "Qual é a ideia do " + formation + " frente ao " + rival + "?",
-                    "O guarda-redes mantém-se como primeira escolha?",
-                    "O último resultado muda alguma coisa no balneário?",
-                    "Há algum jogador que tenha de ser titular neste jogo?"
+                    "Qual é o plano tático no " + formation + " frente ao " + rival + "?",
+                    "O que retirou do último resultado e o que muda esta semana?",
+                    "Vários jogadores tiveram uma sequência exigente. A condição física vai pesar na escolha?",
+                    "Está preparado para dar mais espaço a um jovem esta época?",
+                    "Que exibição quer que os adeptos vejam hoje?",
+                    "O clube ainda vai procurar reforços antes do fecho do mercado?"
                 };
             var positive = english
-                ? new[] { "The plan is clear and the group is playing it.", "He has my trust. That is the decision.", "The group is fine. We take the next match.", "The eleven is settled. I am happy with it." }
-                : new[] { "O plano está claro e o grupo está a cumpri-lo.", "Tem a minha confiança. É essa a decisão.", "O grupo está bem. Vamos ao próximo jogo.", "O onze está fechado. Estou satisfeito." };
+                ? new List<string> { "The shape gives us a clear way to press and create chances. The players know their jobs.", "We reviewed the details, learned from them and are ready to respond.", "We will protect the group and pick a side with enough energy to execute the plan.", "If a young player earns the opportunity, age will not hold them back.", "Intensity, courage on the ball and a team that works for each other.", "We are always looking for ways to improve, but every decision has to fit the club." }
+                : new List<string> { "O sistema dá-nos uma forma clara de pressionar e criar ocasiões. Cada jogador conhece a sua tarefa.", "Revimos os detalhes, aprendemos com eles e estamos prontos para responder.", "Vamos proteger o grupo e escolher uma equipa com energia para cumprir o plano.", "Se um jovem conquistar a oportunidade, a idade não o vai impedir.", "Intensidade, coragem com bola e uma equipa que trabalha em conjunto.", "Procuramos sempre melhorar, mas cada decisão tem de fazer sentido para o clube." };
             var neutral = english
-                ? new[] { "I will not go into the detail of the plan.", "That is decided on the day, not in here.", "We look at the match, not at one result.", "I look at the week, then I decide." }
-                : new[] { "Não vou ao pormenor do plano.", "Isso decide-se no dia, não aqui.", "Olhamos para o jogo, não para um resultado.", "Vejo a semana e depois decido." };
+                ? new List<string> { "We have a plan, but we will adapt to what happens on the pitch.", "We have moved on and are focused on the next test.", "We assess each player individually and make the final call closer to kick-off.", "The academy is part of the plan. The right moment matters more than a headline.", "A disciplined performance and good decisions in both boxes.", "We will assess the squad and the market before deciding." }
+                : new List<string> { "Temos um plano, mas vamos adaptar-nos ao que acontecer no relvado.", "Seguimos em frente e estamos focados no próximo desafio.", "Avaliamos cada jogador individualmente e decidimos mais perto do apito inicial.", "A academia faz parte do plano. O momento certo vale mais do que uma manchete.", "Uma exibição disciplinada e boas decisões nas duas áreas.", "Vamos avaliar o plantel e o mercado antes de decidir." };
             var negative = english
-                ? new[] { "Some of this has to change. I will not pretend otherwise.", "The position is not closed. I am not happy.", "The last game was not good enough.", "There are places still up for grabs." }
-                : new[] { "Há coisas que têm de mudar. Não finjo o contrário.", "O lugar não está fechado. Não estou satisfeito.", "O último jogo não chegou.", "Ainda há lugares em aberto." };
+                ? new List<string> { "The last performance was short of our standard. We have to be more decisive.", "The result was not good enough and nobody is hiding from that.", "Some players need to respond. Selection is earned, not promised.", "Potential is not enough; the young players have to show they are ready.", "I expect more from us, and the supporters are right to demand it.", "If the right player is available at the right terms, we will act." }
+                : new List<string> { "A última exibição ficou abaixo do nosso padrão. Temos de ser mais decisivos.", "O resultado não chegou e ninguém se esconde disso.", "Alguns jogadores têm de responder. A titularidade conquista-se, não se promete.", "O potencial não chega; os jovens têm de mostrar que estão preparados.", "Exijo mais da equipa, e os adeptos têm razão em pedir isso.", "Se aparecer o jogador certo nas condições certas, vamos agir." };
+
+            PaperStory recentIncident = null;
+            var recentIncidentTicks = 0L;
+            for (var i = 0; i < _career.Press.Count; i++)
+            {
+                var candidate = _career.Press[i];
+                if (candidate == null || candidate.Kicker == null || !candidate.Kicker.StartsWith("PERSONAL_", StringComparison.Ordinal)
+                    || candidate.DateTicks <= 0 || candidate.DateTicks > _career.Calendar.CurrentDate.Ticks)
+                    continue;
+                if ((_career.Calendar.CurrentDate - new DateTime(candidate.DateTicks).Date).TotalDays > 30)
+                    continue;
+                var marker = "press-personal-covered|" + candidate.DateTicks;
+                if (_career.Notebook.Contains(marker)) continue;
+                recentIncident = candidate;
+                recentIncidentTicks = candidate.DateTicks;
+                break;
+            }
+            var incidentQuestionIndex = -1;
+            if (recentIncident != null)
+            {
+                incidentQuestionIndex = questions.Count;
+                var incidentPlayerName = string.IsNullOrEmpty(recentIncident.Motm) ? (english ? "a player" : "um jogador") : recentIncident.Motm;
+                questions.Add(english
+                    ? "A recent personal story involving " + incidentPlayerName + " has drawn attention. What can you say to protect the player and the squad?"
+                    : "Um acontecimento pessoal recente envolvendo " + incidentPlayerName + " chamou a atenção. O que pode dizer para proteger o jogador e o grupo?");
+                positive.Add(english ? "The player's wellbeing comes first. We are supporting them and will respect their privacy." : "O bem-estar do jogador vem primeiro. Estamos a apoiá-lo e vamos respeitar a sua privacidade.");
+                neutral.Add(english ? "We are handling it internally and will not discuss private details." : "Estamos a tratar do assunto internamente e não vamos discutir detalhes privados.");
+                negative.Add(english ? "I will not discuss it. The player has to deal with the consequences." : "Não vou falar disso. O jogador tem de lidar com as consequências.");
+            }
             var step = 0;
             var who = BroadcastUi.Label(room, "Who", "", 16, new Color(0.85f, 0.93f, 1f), TextAnchor.MiddleLeft, FontStyle.Bold);
             BroadcastUi.Place(who.rectTransform, 0.02f, 0.88f, 0.98f, 0.98f);
@@ -10983,7 +11375,7 @@ namespace CoachMaster.UI.Scenes
             Action show = null;
             show = () =>
             {
-                who.text = reporters[step] + "   ·   " + desks[step] + "      " + (step + 1) + "/4";
+                who.text = reporters[step] + "   ·   " + desks[step] + "      " + (step + 1) + "/" + questions.Count;
                 ask.text = questions[step];
                 captions[0].text = positive[step];
                 captions[1].text = neutral[step];
@@ -10992,12 +11384,15 @@ namespace CoachMaster.UI.Scenes
             for (var i = 0; i < 3; i++)
             {
                 var y1 = 0.84f - i * 0.26f;
+                var toneIndex = i;
                 var tone = BroadcastUi.Label(room, "Tone" + i, tones[i], 12, toneColors[i], TextAnchor.MiddleLeft, FontStyle.Bold);
                 BroadcastUi.Place(tone.rectTransform, 0.52f, y1 - 0.06f, 0.98f, y1);
                 var button = BroadcastUi.Button(room, "Press" + i, "", () =>
                 {
+                    if (step == incidentQuestionIndex && recentIncident != null)
+                        ApplyPressIncidentResponse(recentIncident, recentIncidentTicks, toneIndex);
                     step++;
-                    if (step >= questions.Length)
+                    if (step >= questions.Count)
                         FinishDuty("press", false);
                     else
                         show();
@@ -11016,6 +11411,27 @@ namespace CoachMaster.UI.Scenes
             _modalActionLabel.text = english ? "LEAVE IT TO THE ASSISTANT" : "DEIXAR AO ADJUNTO";
             _modalAction.onClick.RemoveAllListeners();
             _modalAction.onClick.AddListener(() => FinishDuty("press", true));
+        }
+
+        void ApplyPressIncidentResponse(PaperStory story, long storyTicks, int tone)
+        {
+            if (story == null || _career == null || storyTicks <= 0)
+                return;
+            var marker = "press-personal-covered|" + storyTicks;
+            if (_career.Notebook.Contains(marker))
+                return;
+            _career.Notebook.Add(marker);
+            foreach (var player in _career.World.Players.Values)
+            {
+                if (player == null || player.FullName != story.Motm)
+                    continue;
+                player.Morale = Mathf.Clamp(player.Morale + (tone == 0 ? 4 : tone == 1 ? 1 : -5), 0, 100);
+                break;
+            }
+            if (tone == 2)
+                _career.Club.DressingRoomTension = Mathf.Clamp(_career.Club.DressingRoomTension + 2, 0, 100);
+            else if (tone == 0)
+                _career.SupporterApproval = Mathf.Clamp(_career.SupporterApproval + 1, 0, 100);
         }
 
         static void AddDutyMark(Transform row)
@@ -13093,7 +13509,7 @@ void OpenContractSheet(Player player, string page)
                 var propose = BroadcastUi.Button(card.transform, "Propose", english ? "PROPOSE" : "PROPOR",
                     () => ResolveStaffContract(candidate, offerWage, contractYears, phoneKey), UiTheme.Accent, UiTheme.ButtonText, 13);
                 BroadcastUi.Place(propose.GetComponent<RectTransform>(), 0.06f, 0.06f, 0.94f, 0.26f);
-                propose.interactable = offerWage <= room;
+                propose.interactable = ClubStaffCount() < MaxClubStaff;
             }
         }
 
@@ -13125,8 +13541,24 @@ void OpenContractSheet(Player player, string page)
             }
             if (wage > StaffWeeklyWageRoom())
             {
+                var gap = wage - StaffWeeklyWageRoom();
+                if (gap > 0 && gap <= 250000)
+                {
+                    if (DeskDue("staff-budget-wait", out var wait) && new DateTime(wait).Date > _career.Calendar.CurrentDate.Date)
+                    {
+                        if (_staffNegotiationStatus != null)
+                            _staffNegotiationStatus.text = english
+                                ? "The board has already reviewed a staff wage request. You can ask again on " + LocalizationManager.FormatDate(new DateTime(wait), "d MMM") + "."
+                                : "A direção já analisou um pedido salarial do staff. Podes voltar a pedir a " + LocalizationManager.FormatDate(new DateTime(wait), "d MMM") + ".";
+                        return;
+                    }
+                    OpenBoardMeeting(null, 0, wage, years, 0, gap, candidate, phoneKey);
+                    return;
+                }
                 if (_staffNegotiationStatus != null)
-                    _staffNegotiationStatus.text = english ? "That wage is above the club's available wage budget." : "Esse salário ultrapassa a verba salarial disponível.";
+                    _staffNegotiationStatus.text = english
+                        ? "That wage exceeds the available room by too much for a board request."
+                        : "Esse salário ultrapassa demasiado a folga disponível para pedir reforço à direção.";
                 return;
             }
             var accepted = wage >= candidate.AskingWage && years >= candidate.ContractYears;
@@ -13502,6 +13934,7 @@ void OpenContractSheet(Player player, string page)
             AdvancePlayerSystems(days);
             _career.Calendar.AdvanceDays(days);
             ClubFinanceLedger.SettleWeeklyPayroll(_career, previousDay, _career.Calendar.CurrentDate.Date);
+            ClubFinanceLedger.SettleWeeklyCommercialIncome(_career, previousDay, _career.Calendar.CurrentDate.Date);
         }
 
         void AdvancePlayerSystems(int days)
@@ -13626,7 +14059,19 @@ void OpenContractSheet(Player player, string page)
 
             OpenModal(name, "A tabela completa e os números da época.", false);
             BroadcastUi.Place(_modalLead.rectTransform, 0.05f, 0.82f, 0.7f, 0.88f);
+            BroadcastUi.Place(_modalTitle.rectTransform, 0.14f, 0.88f, 0.91f, 0.97f);
             var card = _modal.transform.Find("Card");
+            var competitionBadge = CrestStudio.ForCompetition(leagueId);
+            if (competitionBadge != null)
+            {
+                var badgeObject = new GameObject("CompetitionBadge", typeof(RectTransform), typeof(Image));
+                badgeObject.transform.SetParent(card, false);
+                var badgeImage = badgeObject.GetComponent<Image>();
+                badgeImage.sprite = competitionBadge;
+                badgeImage.preserveAspect = true;
+                badgeImage.raycastTarget = false;
+                BroadcastUi.Place(badgeObject.GetComponent<RectTransform>(), 0.055f, 0.89f, 0.115f, 0.97f);
+            }
             var tabs = BroadcastUi.Zone(card, "StatsTabs", 0.04f, 0.72f, 0.96f, 0.81f);
             var scroll = card.Find("Scroll") as RectTransform;
             if (scroll != null)
@@ -14190,14 +14635,37 @@ void OpenContractSheet(Player player, string page)
             var next = career.NextUserFixture();
             if (next == null) return "No remaining matches this season.";
             var opponent = career.World.Clubs[next.OpponentId(career.Coach.ClubId)];
-            return (next.IsHome(career.Coach.ClubId) ? "Home" : "Away") + " vs " + opponent.Name;
+            return (next.IsHome(career.Coach.ClubId) ? "Home" : "Away") + " vs " + opponent.Name
+                + " · " + LocalizationManager.FormatDate(next.Date, "dd MMM") + " · " + FixtureKickoff(next)
+                + " · " + FixtureCompetition(next);
         }
 
         static string MatchLabel(CareerState career, Fixture fixture)
         {
             var opp = career.World.Clubs[fixture.OpponentId(career.Coach.ClubId)];
-            var venue = fixture.IsHome(career.Coach.ClubId) ? "Casa" : "Fora";
-            return venue + " vs " + opp.Name;
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var venue = fixture.IsHome(career.Coach.ClubId) ? (english ? "Home" : "Casa") : (english ? "Away" : "Fora");
+            return venue + " vs " + opp.Name + " · " + LocalizationManager.FormatDate(fixture.Date, "dd MMM")
+                + " · " + FixtureKickoff(fixture) + " · " + FixtureCompetition(fixture);
+        }
+
+        static string FixtureCompetition(Fixture fixture)
+        {
+            return fixture == null ? "" : LocalizationManager.Translate(SeasonSchedule.Competition(fixture.LeagueId));
+        }
+
+        static string FixtureKickoff(Fixture fixture)
+        {
+            if (fixture == null)
+                return "15:00";
+            if (fixture.Date.TimeOfDay != TimeSpan.Zero)
+                return fixture.Date.ToString("HH:mm", CultureInfo.InvariantCulture);
+            if (fixture.LeagueId == "league:campeoes")
+                return "20:00";
+            if (!string.IsNullOrEmpty(fixture.LeagueId) && fixture.LeagueId.StartsWith("cup:", StringComparison.Ordinal))
+                return "19:45";
+            var day = fixture.Date.DayOfWeek;
+            return day == DayOfWeek.Saturday || day == DayOfWeek.Sunday ? "15:00" : "19:45";
         }
 
         string HubLeagueId()

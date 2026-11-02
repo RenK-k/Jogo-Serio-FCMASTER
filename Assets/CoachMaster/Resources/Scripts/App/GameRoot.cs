@@ -29,6 +29,7 @@ namespace CoachMaster.App
         Coroutine _loadRoutine;
         string _loadingTarget;
         string _queuedScene;
+        float _careerSaveClock;
         const float LoadingScreenDelay = 0.32f;
         const float LoadingFrameSeconds = 0.05f;
         const int LoadingFrameColumns = 8;
@@ -66,6 +67,28 @@ namespace CoachMaster.App
         {
             if (Instance == this)
                 SceneManager.sceneLoaded -= OnSceneLoaded;
+        }
+
+        void OnApplicationQuit()
+        {
+            var career = Session == null ? null : Session.Career;
+            if (career == null || SceneManager.GetActiveScene().name == SceneNames.MainMenu
+                || (career.Online != null && career.Online.Active))
+                return;
+            CareerStore.TrySave(career);
+        }
+
+        void Update()
+        {
+            var career = Session == null ? null : Session.Career;
+            if (career == null || SceneManager.GetActiveScene().name == SceneNames.MainMenu)
+                return;
+            career.PlayTimeSeconds += Time.unscaledDeltaTime;
+            _careerSaveClock += Time.unscaledDeltaTime;
+            if (_careerSaveClock < 60f || (career.Online != null && career.Online.Active))
+                return;
+            _careerSaveClock = 0f;
+            CareerStore.TrySave(career);
         }
 
         static void OnSceneLoaded(Scene scene, LoadSceneMode mode)

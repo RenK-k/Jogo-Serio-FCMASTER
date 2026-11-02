@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using CoachMaster.Domain;
+using CoachMaster.MatchPlay;
+using UnityEngine;
 
 namespace CoachMaster.Career
 {
@@ -9,6 +11,8 @@ namespace CoachMaster.Career
         public string Headline;
         public string Deck;
         public string Body;
+        public string EnglishHeadline;
+        public string EnglishBody;
         public string Published;
         public string Kicker;
         public string HomeClubId;
@@ -16,14 +20,35 @@ namespace CoachMaster.Career
         public string Motm;
         public string Quote;
         public string QuoteBy;
+        public long DateTicks;
     }
 
     public static class Newsroom
     {
+        sealed class MatchReport
+        {
+            public string Portuguese;
+            public string English;
+        }
+
         public static List<PaperStory> Edition(CareerState career)
         {
+            PurgeCareerMemoryStories(career);
             EnsureSeed(career);
             return career.Press;
+        }
+
+        public static void PurgeCareerMemoryStories(CareerState career)
+        {
+            if (career == null || career.Press == null)
+                return;
+            for (var i = career.Press.Count - 1; i >= 0; i--)
+            {
+                var story = career.Press[i];
+                if (story == null || story.Kicker == "MEMORY"
+                    || story.Paper == "Memórias da época" || story.Paper == "Memórias da carreira")
+                    career.Press.RemoveAt(i);
+            }
         }
 
         public static void EnsureSeed(CareerState career)
@@ -65,18 +90,63 @@ namespace CoachMaster.Career
                 Paper = paper,
                 Headline = headline,
                 Body = body,
+                DateTicks = when.Ticks,
                 Published = when.ToString("dddd, d 'de' MMMM", System.Globalization.CultureInfo.GetCultureInfo("pt-PT")),
                 Deck = when.ToString("d MMM", System.Globalization.CultureInfo.GetCultureInfo("pt-PT"))
             });
         }
 
-        public static void PublishMatch(CareerState career, string home, string away, int homeGoals, int awayGoals, bool userHome, string motm = null, string motmMark = null)
+        public static string PublishPersonalIncident(CareerState career, CareerMoment moment, Player player, int choice)
         {
+            if (career == null || moment == null || player == null)
+                return "";
+
+            var type = (moment.IncidentType ?? "personal").ToUpperInvariant();
+            var headline = PersonalHeadline(moment.IncidentType, player.FullName);
+            var response = moment.FollowUps != null && choice >= 0 && choice < moment.FollowUps.Length
+                ? moment.FollowUps[choice]
+                : "O clube acompanha a situação.";
+            var story = new PaperStory
+            {
+                Paper = "Bastidores do Futebol",
+                Headline = headline,
+                Deck = "Vida para lá do relvado",
+                Body = moment.Body + "\n\n" + response + "\n\nO treinador respondeu à situação com atenção ao jogador e ao grupo.",
+                Kicker = "PERSONAL_" + type,
+                HomeClubId = career.Club.Id,
+                Motm = player.FullName,
+                Quote = response,
+                QuoteBy = career.Coach.Name
+            };
+            Stamp(career, story);
+            career.Press.Insert(0, story);
+            TrimPress(career);
+            return headline;
+        }
+
+        static string PersonalHeadline(string incidentType, string playerName)
+        {
+            switch ((incidentType ?? "").ToLowerInvariant())
+            {
+                case "bereavement": return playerName + " recebe apoio do clube após uma perda familiar";
+                case "betting": return "Clube apura possível aposta de " + playerName;
+                case "drunk": return playerName + " chega cansado ao treino após uma noite longa";
+                case "viral": return "Escalação 2-2-6 de " + playerName + " torna-se viral";
+                case "family": return playerName + " celebra a chegada de um bebé";
+                case "charity": return playerName + " surpreende associação local com visita";
+                default: return "O clube acompanha uma situação pessoal de " + playerName;
+            }
+        }
+
+        public static void PublishMatch(CareerState career, string home, string away, int homeGoals, int awayGoals, bool userHome, string motm = null, string motmMark = null, MatchSession match = null)
+        {
+            if (career == null)
+                return;
             var score = homeGoals + "–" + awayGoals;
-            var userWon = userHome ? homeGoals > awayGoals : awayGoals > homeGoals;
             var draw = homeGoals == awayGoals;
-            var verdict = draw ? "Empate" : userWon ? "Vitória" : "Derrota";
-            var headline = verdict + "  " + home + " " + score + " " + away;
+            var userWon = userHome ? homeGoals > awayGoals : awayGoals > homeGoals;
+            var headline = MatchHeadline(home, away, homeGoals, awayGoals);
+            var englishHeadline = "Match report: " + home + " " + score + " " + away;
             Club homeClub = null;
             Club awayClub = null;
             foreach (var club in career.World.Clubs.Values)
@@ -93,34 +163,179 @@ namespace CoachMaster.Career
                 motm = BestName(career, career.Club);
             if (string.IsNullOrEmpty(motmMark))
                 motmMark = draw ? "7,2" : userWon ? "7,8" : "6,6";
-            var coach = career.Coach.Name;
-            var quote = draw
-                ? "O jogo esteve partido ao meio. Saímos com a sensação de que os três pontos estavam ali."
-                : userWon
-                    ? "Fomos nós a procurar a baliza. O resultado explica o que se viu do banco."
-                    : "Faltou-nos a última decisão. Não vou esconder que o balneário saiu em silêncio.";
-            var playerQuote = "Tentei chegar à área sempre que a bola passou do meio. O resto foi o grupo.";
-            var shape = career.Club.Tactics.Formation;
-            var body = home + " e " + away + " fecharam " + score + ".\n\n" +
-                "O " + career.Club.Name + " alinhou em " + shape + ". " +
-                (draw ? "Nenhum dos lados conseguiu desfazer o equilíbrio nos últimos minutos." : userWon ? "A vantagem nasceu de quem chegou mais vezes à área." : "O adversário foi mais concreto no último terço.") +
-                "\n\nJogador da partida: " + motm + " (" + motmMark + ").\n\n" +
-                "\"" + quote + "\"\n— " + coach + ", treinador\n\n" +
-                "\"" + playerQuote + "\"\n— " + motm + ", jogador da partida";
+            var reports = BuildMatchReport(career, home, away, homeGoals, awayGoals, userHome, motm, motmMark, match);
             var story = new PaperStory
             {
                 Paper = "A Gazeta do Relvado",
                 Headline = headline,
-                Body = body,
+                EnglishHeadline = englishHeadline,
+                Body = reports.Portuguese,
+                EnglishBody = reports.English,
                 Kicker = "JOGO",
                 HomeClubId = homeClub == null ? null : homeClub.Id,
                 AwayClubId = awayClub == null ? null : awayClub.Id,
-                Motm = motm + "  ·  " + motmMark,
-                Quote = quote,
-                QuoteBy = coach
+                Motm = motm + "  ·  " + motmMark
             };
             Stamp(career, story);
             career.Press.Insert(0, story);
+        }
+
+        static string MatchHeadline(string home, string away, int homeGoals, int awayGoals)
+        {
+            var score = homeGoals + "–" + awayGoals;
+            if (homeGoals == awayGoals)
+                return "Empate deixa tudo em aberto entre " + home + " e " + away;
+            var winner = homeGoals > awayGoals ? home : away;
+            var loser = homeGoals > awayGoals ? away : home;
+            return System.Math.Abs(homeGoals - awayGoals) >= 3
+                ? winner + " impõe-se com autoridade frente a " + loser
+                : winner + " vence " + loser + " por " + score;
+        }
+
+        static MatchReport BuildMatchReport(CareerState career, string home, string away,
+            int homeGoals, int awayGoals, bool userHome, string motm, string motmMark, MatchSession match)
+        {
+            var score = homeGoals + "–" + awayGoals;
+            var competitionPt = match == null || match.Fixture == null
+                ? "Jogo oficial" : SeasonSchedule.Competition(match.Fixture.LeagueId);
+            var competitionEn = match == null || match.Fixture == null
+                ? "Competitive fixture" : CompetitionEnglish(match.Fixture.LeagueId);
+            var totalHomeXg = 0f;
+            var totalAwayXg = 0f;
+            var homeShots = match == null ? 0 : match.HomeShots;
+            var awayShots = match == null ? 0 : match.AwayShots;
+            var homePasses = 0;
+            var awayPasses = 0;
+            var homeCompleted = 0;
+            var awayCompleted = 0;
+            var homePossession = match == null ? 0f : match.HomePossession;
+            var awayPossession = match == null ? 0f : match.AwayPossession;
+            if (match != null)
+            {
+                for (var i = 0; i < match.Shots.Count; i++)
+                {
+                    var shot = match.Shots[i];
+                    if (shot == null) continue;
+                    if (shot.Home) totalHomeXg += shot.ExpectedGoals;
+                    else totalAwayXg += shot.ExpectedGoals;
+                }
+                for (var i = 0; i < match.Passes.Count; i++)
+                {
+                    var pass = match.Passes[i];
+                    if (pass == null || !pass.Resolved) continue;
+                    if (pass.Home)
+                    {
+                        homePasses++;
+                        if (pass.Completed) homeCompleted++;
+                    }
+                    else
+                    {
+                        awayPasses++;
+                        if (pass.Completed) awayCompleted++;
+                    }
+                }
+            }
+
+            var totalPossession = homePossession + awayPossession;
+            var homePoss = totalPossession > 0.01f ? Mathf.RoundToInt(homePossession / totalPossession * 100f) : 50;
+            var awayPoss = totalPossession > 0.01f ? 100 - homePoss : 50;
+            var userXg = userHome ? totalHomeXg : totalAwayXg;
+            var opponentXg = userHome ? totalAwayXg : totalHomeXg;
+            var userShots = userHome ? homeShots : awayShots;
+            var opponentShots = userHome ? awayShots : homeShots;
+            var shape = "—";
+            TacticalIdentity matchTactics = match == null ? null : userHome ? match.HomeTactics : match.AwayTactics;
+            if (matchTactics != null && !string.IsNullOrEmpty(matchTactics.Formation))
+                shape = matchTactics.Formation;
+            else if (career.Club != null && career.Club.Tactics != null && !string.IsNullOrEmpty(career.Club.Tactics.Formation))
+                shape = career.Club.Tactics.Formation;
+            var analysisPt = userXg > opponentXg + 0.45f
+                ? "A equipa criou ocasiões de maior qualidade; a diferença esteve em transformar a presença no último terço em golos."
+                : opponentXg > userXg + 0.45f
+                    ? "O adversário chegou a ocasiões mais claras. A prioridade agora é proteger melhor a zona central e controlar as transições."
+                    : userShots > opponentShots + 4
+                        ? "A equipa rematou mais, mas a produção de ocasiões ficou próxima. Vale a pena trabalhar a escolha do último passe e do remate."
+                        : opponentShots > userShots + 4
+                            ? "O adversário rematou mais vezes. A equipa precisa de encurtar o espaço entre linhas e sair com mais segurança após recuperar a bola."
+                            : "As ocasiões foram equilibradas. O resultado decidiu-se nos detalhes de execução dentro das áreas.";
+            var analysisEn = userXg > opponentXg + 0.45f
+                ? "The team created the higher-quality chances; the difference was turning final-third presence into goals."
+                : opponentXg > userXg + 0.45f
+                    ? "The opposition reached the clearer chances. The next priority is protecting the central channel and managing transitions."
+                    : userShots > opponentShots + 4
+                        ? "The team took more shots, but chance quality stayed close. The final pass and shot selection are the next areas to work on."
+                        : opponentShots > userShots + 4
+                            ? "The opposition shot more often. The team needs to close the space between the lines and use the ball more securely after regaining it."
+                            : "The chances were evenly balanced. Execution in both penalty areas decided the result.";
+
+            var statsPt = homeShots + " remates (xG " + totalHomeXg.ToString("0.00", System.Globalization.CultureInfo.GetCultureInfo("pt-PT")) + ") · "
+                + homePoss + "% posse contra " + awayPoss + "% · passes completos " + PassAccuracy(homeCompleted, homePasses) + "%";
+            var statsAwayPt = awayShots + " remates (xG " + totalAwayXg.ToString("0.00", System.Globalization.CultureInfo.GetCultureInfo("pt-PT")) + ") · "
+                + awayPoss + "% posse · passes completos " + PassAccuracy(awayCompleted, awayPasses) + "%";
+            var statsEn = homeShots + " shots (" + totalHomeXg.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + " xG) · "
+                + homePoss + "% possession · " + PassAccuracy(homeCompleted, homePasses) + "% pass completion";
+            var statsAwayEn = awayShots + " shots (" + totalAwayXg.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + " xG) · "
+                + awayPoss + "% possession · " + PassAccuracy(awayCompleted, awayPasses) + "% pass completion";
+            var pt = competitionPt + " · " + home + " " + score + " " + away + ".\n\n"
+                + home + ": " + statsPt + ".\n" + away + ": " + statsAwayPt + ".\n\n"
+                + analysisPt + "\n\n" + "Foco para o próximo jogo: "
+                + (userXg > opponentXg + 0.45f ? "melhorar a eficácia na área." : opponentXg > userXg + 0.45f
+                    ? "reduzir as ocasiões concedidas entre linhas." : "trabalhar a decisão no último terço.")
+                + "\n\nJogador da partida: " + motm + " (" + motmMark + "). " + "Esquema da equipa: " + shape + ".";
+            var en = competitionEn + " · " + home + " " + score + " " + away + ".\n\n"
+                + home + ": " + statsEn + ".\n" + away + ": " + statsAwayEn + ".\n\n"
+                + analysisEn + "\n\n" + "Next-match focus: "
+                + (userXg > opponentXg + 0.45f ? "improve finishing in the box." : opponentXg > userXg + 0.45f
+                    ? "limit the chances conceded between the lines." : "work on decision-making in the final third.")
+                + "\n\nPlayer of the match: " + motm + " (" + motmMark + "). Team shape: " + shape + ".";
+            return new MatchReport { Portuguese = pt, English = en };
+        }
+
+        static int PassAccuracy(int completed, int attempts)
+        {
+            return attempts <= 0 ? 0 : Mathf.RoundToInt(completed / (float)attempts * 100f);
+        }
+
+        static string CompetitionEnglish(string id)
+        {
+            if (string.IsNullOrEmpty(id)) return "Competitive fixture";
+            if (id == "league:campeoes") return "Champions League";
+            if (id.StartsWith("cup:", System.StringComparison.OrdinalIgnoreCase))
+            {
+                var parts = id.ToLowerInvariant().Split(':');
+                var country = parts.Length > 1 ? parts[1] : "";
+                var cupType = parts.Length > 2 ? parts[2] : "taca";
+                switch (country)
+                {
+                    case "inglesa": return cupType == "liga" ? "EFL Cup" : "FA Cup";
+                    case "francesa": return cupType == "liga" ? "Coupe de la Ligue" : "Coupe de France";
+                    case "espanhola": return cupType == "liga" ? "Spanish Super Cup" : "Copa del Rey";
+                    case "bundesliga": return cupType == "liga" ? "German Super Cup" : "DFB-Pokal";
+                    case "eredivisie": return cupType == "liga" ? "Johan Cruyff Shield" : "KNVB Cup";
+                    case "brasileira": return cupType == "liga" ? "Brazilian Super Cup" : "Copa do Brasil";
+                    case "atlas":
+                    case "horizonte": return cupType == "liga" ? "Taça da Liga" : "Taça de Portugal";
+                }
+                return "Cup tie";
+            }
+            switch (id)
+            {
+                case "league:atlas": return "Liga Portugal";
+                case "league:horizonte": return "Liga Portugal 2";
+                case "league:inglesa": return "Premier League";
+                case "league:inglesa-championship": return "Championship";
+                case "league:inglesa-league-one": return "League One";
+                case "league:inglesa-2": return "League Two";
+                case "league:francesa": return "Ligue 1";
+                case "league:bundesliga": return "Bundesliga";
+                case "league:eredivisie": return "Eredivisie";
+                case "league:brasileira": return "Brasileirão Série A";
+                case "league:espanhola": return "LaLiga";
+                case "league:espanhola-2": return "LaLiga Hypermotion";
+            }
+            return id.IndexOf("cup", System.StringComparison.OrdinalIgnoreCase) >= 0
+                || id.IndexOf("taca", System.StringComparison.OrdinalIgnoreCase) >= 0
+                ? "Cup tie" : "League match";
         }
 
         public static void PublishPreview(CareerState career, Fixture fixture)
@@ -249,13 +464,30 @@ namespace CoachMaster.Career
                 && career.World.Clubs.TryGetValue(latest.AwayClubId, out var away))
             {
                 var headline = "Around the leagues: " + home.ShortName + " " + latest.HomeGoals + "–" + latest.AwayGoals + " " + away.ShortName;
+                var homePosition = TablePosition(career, latest.LeagueId, home.Id, out var homeRow);
+                var awayPosition = TablePosition(career, latest.LeagueId, away.Id, out var awayRow);
+                var competitionPt = SeasonSchedule.Competition(latest.LeagueId);
+                var competitionEn = CompetitionEnglish(latest.LeagueId);
+                Club winner = latest.HomeGoals == latest.AwayGoals ? null : latest.HomeGoals > latest.AwayGoals ? home : away;
+                var loser = winner == home ? away : home;
+                var anglePt = winner == null
+                    ? "Os pontos foram divididos, sem alteração na diferença entre os dois clubes."
+                    : winner.ShortName + " levou os três pontos; " + loser.ShortName + " terá de responder no próximo compromisso.";
+                var angleEn = winner == null
+                    ? "The points were shared, leaving the gap between the clubs unchanged."
+                    : winner.ShortName + " took all three points; " + loser.ShortName + " will need a response in their next fixture.";
+                var positionsPt = TableContext(home.ShortName, homePosition, homeRow, away.ShortName, awayPosition, awayRow, false);
+                var positionsEn = TableContext(home.ShortName, homePosition, homeRow, away.ShortName, awayPosition, awayRow, true);
                 story = new PaperStory
                 {
                     Paper = "The Football Wire",
                     Headline = headline,
+                    EnglishHeadline = headline,
                     Deck = "World football",
-                    Body = home.Name + " and " + away.Name + " met in a fixture with wider league implications. "
-                        + "The result moves both clubs closer to their season targets, while the rest of the table continues to take shape.",
+                    Body = competitionPt + " · " + home.Name + " " + latest.HomeGoals + "–" + latest.AwayGoals + " " + away.Name + ".\n\n"
+                        + anglePt + (string.IsNullOrEmpty(positionsPt) ? "" : "\n\n" + positionsPt),
+                    EnglishBody = competitionEn + " · " + home.Name + " " + latest.HomeGoals + "–" + latest.AwayGoals + " " + away.Name + ".\n\n"
+                        + angleEn + (string.IsNullOrEmpty(positionsEn) ? "" : "\n\n" + positionsEn),
                     Kicker = "GLOBAL",
                     HomeClubId = home.Id,
                     AwayClubId = away.Id
@@ -267,12 +499,26 @@ namespace CoachMaster.Career
                 foreach (var club in career.World.Clubs.Values)
                     if (club.Id != career.Club.Id && club.Reputation > best.Reputation)
                         best = club;
+                var bestPosition = TablePosition(career, best.LeagueId, best.Id, out var bestRow);
+                var league = career.World.Leagues.Find(item => item.Id == best.LeagueId);
+                var leagueName = league == null ? best.LeagueId : league.Name;
+                var englishLeagueName = CompetitionEnglish(best.LeagueId);
+                var snapshotPt = bestRow == null
+                    ? best.Name + " continua entre os clubes de maior reputação do futebol nacional."
+                    : best.Name + " soma " + bestRow.Points + " pontos em " + bestRow.Played + " jogos, com " + bestRow.GoalsFor + " golos marcados e " + bestRow.GoalsAgainst + " sofridos."
+                        + (bestPosition > 0 ? " Ocupa o " + bestPosition + ".º lugar de " + leagueName + "." : "");
+                var snapshotEn = bestRow == null
+                    ? best.Name + " remain among the country's highest-reputation clubs."
+                    : best.Name + " have " + bestRow.Points + " points from " + bestRow.Played + " matches, scoring " + bestRow.GoalsFor + " and conceding " + bestRow.GoalsAgainst + "."
+                        + (bestPosition > 0 ? " They sit " + Ordinal(bestPosition) + " in " + englishLeagueName + "." : "");
                 story = new PaperStory
                 {
                     Paper = "The Football Wire",
                     Headline = "The wider game: " + best.ShortName + " set to shape the season",
+                    EnglishHeadline = "League watch: " + best.ShortName,
                     Deck = "World football",
-                    Body = best.Name + " are among the clubs attracting attention as the season develops. Their squad, finances and results will influence the race across the league.",
+                    Body = snapshotPt,
+                    EnglishBody = snapshotEn,
                     Kicker = "GLOBAL",
                     HomeClubId = best.Id
                 };
@@ -284,6 +530,54 @@ namespace CoachMaster.Career
             return true;
         }
 
+        static int TablePosition(CareerState career, string leagueId, string clubId, out LeagueTableRow found)
+        {
+            found = null;
+            var rows = new List<LeagueTableRow>();
+            foreach (var row in career.Table)
+                if (row != null && row.LeagueId == leagueId)
+                    rows.Add(row);
+            rows.Sort((a, b) =>
+            {
+                var points = b.Points.CompareTo(a.Points);
+                if (points != 0) return points;
+                var difference = b.GoalDifference.CompareTo(a.GoalDifference);
+                if (difference != 0) return difference;
+                return b.GoalsFor.CompareTo(a.GoalsFor);
+            });
+            for (var i = 0; i < rows.Count; i++)
+            {
+                if (rows[i].ClubId != clubId) continue;
+                found = rows[i];
+                return i + 1;
+            }
+            return 0;
+        }
+
+        static string TableContext(string home, int homePosition, LeagueTableRow homeRow,
+            string away, int awayPosition, LeagueTableRow awayRow, bool english)
+        {
+            if (homeRow == null || awayRow == null)
+                return "";
+            if (english)
+                return home + " are " + Ordinal(homePosition) + " on " + homeRow.Points + " points; "
+                    + away + " are " + Ordinal(awayPosition) + " on " + awayRow.Points + ".";
+            return home + " ocupa o " + homePosition + ".º lugar com " + homeRow.Points + " pontos; "
+                + away + " está em " + awayPosition + ".º com " + awayRow.Points + ".";
+        }
+
+        static string Ordinal(int position)
+        {
+            if (position % 100 >= 11 && position % 100 <= 13) return position + "th";
+            switch (position % 10)
+            {
+                case 1: return position + "st";
+                case 2: return position + "nd";
+                case 3: return position + "rd";
+                default: return position + "th";
+            }
+        }
+
         static void TrimPress(CareerState career)
         {
             while (career.Press.Count > 100)
@@ -293,6 +587,7 @@ namespace CoachMaster.Career
         static void Stamp(CareerState career, PaperStory story)
         {
             var when = career.Calendar.CurrentDate;
+            story.DateTicks = when.Ticks;
             story.Published = when.ToString("dddd, d 'de' MMMM", System.Globalization.CultureInfo.GetCultureInfo("pt-PT"));
             story.Deck = when.ToString("d MMM", System.Globalization.CultureInfo.GetCultureInfo("pt-PT"));
         }

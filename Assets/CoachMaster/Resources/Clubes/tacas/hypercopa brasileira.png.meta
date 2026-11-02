@@ -1,0 +1,650 @@
+fileFormatVersion: 2
+guid: c545719d9f3dc53438adf361a9d5ddf1
+TextureImporter:
+  internalIDToNameTable:
+  - first:
+      213: 7463148663183997050
+    second: hypercopa brasileira_0
+  - first:
+      213: 7728316698819506007
+    second: hypercopa brasileira_1
+  - first:
+      213: 6505582659172458052
+    second: hypercopa brasileira_2
+  - first:
+      213: 1328116327758979049
+    second: hypercopa brasileira_3
+  - first:
+      213: 3312825481343294096
+    second: hypercopa brasileira_4
+  - first:
+      213: 6869058126712495503
+    second: hypercopa brasileira_5
+  - first:
+      213: 858968360098786000
+    second: hypercopa brasileira_6
+  - first:
+      213: 463364325316291352
+    second: hypercopa brasileira_7
+  - first:
+      213: -1242991315599299281
+    second: hypercopa brasileira_8
+  - first:
+      213: -2890595213228735144
+    second: hypercopa brasileira_9
+  - first:
+      213: 3652690973889534996
+    second: hypercopa brasileira_10
+  - first:
+      213: -2551013555696556560
+    second: hypercopa brasileira_11
+  - first:
+      213: -5930118011281210430
+    second: hypercopa brasileira_12
+  - first:
+      213: 5970418547031722691
+    second: hypercopa brasileira_13
+  - first:
+      213: 4425026762227837977
+    second: hypercopa brasileira_14
+  - first:
+      213: -137095691178648658
+    second: hypercopa brasileira_15
+  - first:
+      213: -6700265659939570932
+    second: hypercopa brasileira_16
+  - first:
+      213: 1161848449748329179
+    second: hypercopa brasileira_17
+  - first:
+      213: -155067516478212910
+    second: hypercopa brasileira_18
+  - first:
+      213: 1904869811564579286
+    second: hypercopa brasileira_19
+  externalObjects: {}
+  serializedVersion: 13
+  mipmaps:
+    mipMapMode: 0
+    enableMipMap: 0
+    sRGBTexture: 1
+    linearTexture: 0
+    fadeOut: 0
+    borderMipMap: 0
+    mipMapsPreserveCoverage: 0
+    alphaTestReferenceValue: 0.5
+    mipMapFadeDistanceStart: 1
+    mipMapFadeDistanceEnd: 3
+  bumpmap:
+    convertToNormalMap: 0
+    externalNormalMap: 0
+    heightScale: 0.25
+    normalMapFilter: 0
+    flipGreenChannel: 0
+  isReadable: 0
+  streamingMipmaps: 0
+  streamingMipmapsPriority: 0
+  vTOnly: 0
+  ignoreMipmapLimit: 0
+  grayScaleToAlpha: 0
+  generateCubemap: 6
+  cubemapConvolution: 0
+  seamlessCubemap: 0
+  textureFormat: 1
+  maxTextureSize: 2048
+  textureSettings:
+    serializedVersion: 2
+    filterMode: 1
+    aniso: 1
+    mipBias: 0
+    wrapU: 1
+    wrapV: 1
+    wrapW: 1
+  nPOTScale: 0
+  lightmap: 0
+  compressionQuality: 50
+  spriteMode: 2
+  spriteExtrude: 1
+  spriteMeshType: 1
+  alignment: 0
+  spritePivot: {x: 0.5, y: 0.5}
+  spritePixelsToUnits: 100
+  spriteBorder: {x: 0, y: 0, z: 0, w: 0}
+  spriteGenerateFallbackPhysicsShape: 1
+  alphaUsage: 1
+  alphaIsTransparency: 1
+  spriteTessellationDetail: -1
+  textureType: 8
+  textureShape: 1
+  singleChannelComponent: 0
+  flipbookRows: 1
+  flipbookColumns: 1
+  maxTextureSizeSet: 0
+  compressionQualitySet: 0
+  textureFormatSet: 0
+  ignorePngGamma: 0
+  applyGammaDecoding: 0
+  swizzle: 50462976
+  cookieLightType: 0
+  platformSettings:
+  - serializedVersion: 4
+    buildTarget: DefaultTexturePlatform
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: Standalone
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: WebGL
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  spriteSheet:
+    serializedVersion: 2
+    sprites:
+    - serializedVersion: 2
+      name: hypercopa brasileira_0
+      rect:
+        serializedVersion: 2
+        x: 647
+        y: 813
+        width: 706
+        height: 706
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: a78730fea2e629760800000000000000
+      internalID: 7463148663183997050
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hypercopa brasileira_1
+      rect:
+        serializedVersion: 2
+        x: 386
+        y: 571
+        width: 109
+        height: 136
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 75f2bd8571f704b60800000000000000
+      internalID: 7728316698819506007
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hypercopa brasileira_2
+      rect:
+        serializedVersion: 2
+        x: 520
+        y: 571
+        width: 122
+        height: 136
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 44e5ae0e5f8784a50800000000000000
+      internalID: 6505582659172458052
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hypercopa brasileira_3
+      rect:
+        serializedVersion: 2
+        x: 667
+        y: 571
+        width: 103
+        height: 136
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 9ef587073ca6e6210800000000000000
+      internalID: 1328116327758979049
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hypercopa brasileira_4
+      rect:
+        serializedVersion: 2
+        x: 800
+        y: 571
+        width: 102
+        height: 136
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 09a5452293589fd20800000000000000
+      internalID: 3312825481343294096
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hypercopa brasileira_5
+      rect:
+        serializedVersion: 2
+        x: 934
+        y: 571
+        width: 114
+        height: 136
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: f8d5530f8fbc35f50800000000000000
+      internalID: 6869058126712495503
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hypercopa brasileira_6
+      rect:
+        serializedVersion: 2
+        x: 1072
+        y: 567
+        width: 122
+        height: 144
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 0daecf82c2babeb00800000000000000
+      internalID: 858968360098786000
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hypercopa brasileira_7
+      rect:
+        serializedVersion: 2
+        x: 1219
+        y: 567
+        width: 133
+        height: 144
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 81be01c16633e6600800000000000000
+      internalID: 463364325316291352
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hypercopa brasileira_8
+      rect:
+        serializedVersion: 2
+        x: 1384
+        y: 571
+        width: 103
+        height: 136
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: f2deeceebf100cee0800000000000000
+      internalID: -1242991315599299281
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hypercopa brasileira_9
+      rect:
+        serializedVersion: 2
+        x: 1504
+        y: 571
+        width: 123
+        height: 136
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 8558e06f7fa82e7d0800000000000000
+      internalID: -2890595213228735144
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hypercopa brasileira_10
+      rect:
+        serializedVersion: 2
+        x: 659
+        y: 457
+        width: 38
+        height: 51
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 41c16f48617f0b230800000000000000
+      internalID: 3652690973889534996
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hypercopa brasileira_11
+      rect:
+        serializedVersion: 2
+        x: 738
+        y: 457
+        width: 38
+        height: 51
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 0f5208bdfaaf89cd0800000000000000
+      internalID: -2551013555696556560
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hypercopa brasileira_12
+      rect:
+        serializedVersion: 2
+        x: 811
+        y: 457
+        width: 49
+        height: 51
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 2c3007d761df3bda0800000000000000
+      internalID: -5930118011281210430
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hypercopa brasileira_13
+      rect:
+        serializedVersion: 2
+        x: 894
+        y: 456
+        width: 40
+        height: 53
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 3caca3039003bd250800000000000000
+      internalID: 5970418547031722691
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hypercopa brasileira_14
+      rect:
+        serializedVersion: 2
+        x: 975
+        y: 457
+        width: 9
+        height: 51
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 91cef2c356ad86d30800000000000000
+      internalID: 4425026762227837977
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hypercopa brasileira_15
+      rect:
+        serializedVersion: 2
+        x: 1027
+        y: 457
+        width: 33
+        height: 51
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: eab5f0bf130f81ef0800000000000000
+      internalID: -137095691178648658
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hypercopa brasileira_16
+      rect:
+        serializedVersion: 2
+        x: 1098
+        y: 457
+        width: 34
+        height: 51
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: c0bbd8eb1efd303a0800000000000000
+      internalID: -6700265659939570932
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hypercopa brasileira_17
+      rect:
+        serializedVersion: 2
+        x: 1172
+        y: 457
+        width: 9
+        height: 51
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: bd266126207bf1010800000000000000
+      internalID: 1161848449748329179
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hypercopa brasileira_18
+      rect:
+        serializedVersion: 2
+        x: 1225
+        y: 457
+        width: 39
+        height: 51
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 2d43d145ae619ddf0800000000000000
+      internalID: -155067516478212910
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hypercopa brasileira_19
+      rect:
+        serializedVersion: 2
+        x: 1298
+        y: 457
+        width: 49
+        height: 51
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 6d90cad40057f6a10800000000000000
+      internalID: 1904869811564579286
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    outline: []
+    customData: 
+    physicsShape: []
+    bones: []
+    spriteID: 
+    internalID: 0
+    vertices: []
+    indices: 
+    edges: []
+    weights: []
+    secondaryTextures: []
+    spriteCustomMetadata:
+      entries: []
+    nameFileIdTable:
+      hypercopa brasileira_0: 7463148663183997050
+      hypercopa brasileira_1: 7728316698819506007
+      hypercopa brasileira_10: 3652690973889534996
+      hypercopa brasileira_11: -2551013555696556560
+      hypercopa brasileira_12: -5930118011281210430
+      hypercopa brasileira_13: 5970418547031722691
+      hypercopa brasileira_14: 4425026762227837977
+      hypercopa brasileira_15: -137095691178648658
+      hypercopa brasileira_16: -6700265659939570932
+      hypercopa brasileira_17: 1161848449748329179
+      hypercopa brasileira_18: -155067516478212910
+      hypercopa brasileira_19: 1904869811564579286
+      hypercopa brasileira_2: 6505582659172458052
+      hypercopa brasileira_3: 1328116327758979049
+      hypercopa brasileira_4: 3312825481343294096
+      hypercopa brasileira_5: 6869058126712495503
+      hypercopa brasileira_6: 858968360098786000
+      hypercopa brasileira_7: 463364325316291352
+      hypercopa brasileira_8: -1242991315599299281
+      hypercopa brasileira_9: -2890595213228735144
+  mipmapLimitGroupName: 
+  pSDRemoveMatte: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

@@ -1,0 +1,650 @@
+fileFormatVersion: 2
+guid: e152afd64f6b601408caf64eaf33137b
+TextureImporter:
+  internalIDToNameTable:
+  - first:
+      213: -9115023879585895321
+    second: Laliga_0
+  - first:
+      213: -6964226434597551979
+    second: Laliga_1
+  - first:
+      213: -3957407212306678455
+    second: Laliga_2
+  - first:
+      213: -4372869794740649844
+    second: Laliga_3
+  - first:
+      213: 6455495365554764100
+    second: Laliga_4
+  - first:
+      213: 8588904720274317762
+    second: Laliga_5
+  - first:
+      213: -4232238471298890291
+    second: Laliga_6
+  - first:
+      213: 5552595407641824136
+    second: Laliga_7
+  - first:
+      213: 2536942275747165935
+    second: Laliga_8
+  - first:
+      213: -5537283681802912456
+    second: Laliga_9
+  - first:
+      213: -7061494378803612785
+    second: Laliga_10
+  - first:
+      213: -7801087618719288243
+    second: Laliga_11
+  - first:
+      213: -3556887470836108013
+    second: Laliga_12
+  - first:
+      213: 323251013926854012
+    second: Laliga_13
+  - first:
+      213: 3454318654828631872
+    second: Laliga_14
+  - first:
+      213: 9066379648951178699
+    second: Laliga_15
+  - first:
+      213: -7334821909957234117
+    second: Laliga_16
+  - first:
+      213: -876291657428170666
+    second: Laliga_17
+  - first:
+      213: -1380215961321446512
+    second: Laliga_18
+  - first:
+      213: 2487912926982783266
+    second: Laliga_19
+  externalObjects: {}
+  serializedVersion: 13
+  mipmaps:
+    mipMapMode: 0
+    enableMipMap: 0
+    sRGBTexture: 1
+    linearTexture: 0
+    fadeOut: 0
+    borderMipMap: 0
+    mipMapsPreserveCoverage: 0
+    alphaTestReferenceValue: 0.5
+    mipMapFadeDistanceStart: 1
+    mipMapFadeDistanceEnd: 3
+  bumpmap:
+    convertToNormalMap: 0
+    externalNormalMap: 0
+    heightScale: 0.25
+    normalMapFilter: 0
+    flipGreenChannel: 0
+  isReadable: 0
+  streamingMipmaps: 0
+  streamingMipmapsPriority: 0
+  vTOnly: 0
+  ignoreMipmapLimit: 0
+  grayScaleToAlpha: 0
+  generateCubemap: 6
+  cubemapConvolution: 0
+  seamlessCubemap: 0
+  textureFormat: 1
+  maxTextureSize: 2048
+  textureSettings:
+    serializedVersion: 2
+    filterMode: 1
+    aniso: 1
+    mipBias: 0
+    wrapU: 1
+    wrapV: 1
+    wrapW: 1
+  nPOTScale: 0
+  lightmap: 0
+  compressionQuality: 50
+  spriteMode: 2
+  spriteExtrude: 1
+  spriteMeshType: 1
+  alignment: 0
+  spritePivot: {x: 0.5, y: 0.5}
+  spritePixelsToUnits: 100
+  spriteBorder: {x: 0, y: 0, z: 0, w: 0}
+  spriteGenerateFallbackPhysicsShape: 1
+  alphaUsage: 1
+  alphaIsTransparency: 1
+  spriteTessellationDetail: -1
+  textureType: 8
+  textureShape: 1
+  singleChannelComponent: 0
+  flipbookRows: 1
+  flipbookColumns: 1
+  maxTextureSizeSet: 0
+  compressionQualitySet: 0
+  textureFormatSet: 0
+  ignorePngGamma: 0
+  applyGammaDecoding: 0
+  swizzle: 50462976
+  cookieLightType: 0
+  platformSettings:
+  - serializedVersion: 4
+    buildTarget: DefaultTexturePlatform
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: Standalone
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: WebGL
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  spriteSheet:
+    serializedVersion: 2
+    sprites:
+    - serializedVersion: 2
+      name: Laliga_0
+      rect:
+        serializedVersion: 2
+        x: 431
+        y: 801
+        width: 218
+        height: 434
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 76c6412331ee08180800000000000000
+      internalID: -9115023879585895321
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Laliga_1
+      rect:
+        serializedVersion: 2
+        x: 722
+        y: 1089
+        width: 85
+        height: 109
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 5908d6ea4f81a5f90800000000000000
+      internalID: -6964226434597551979
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Laliga_2
+      rect:
+        serializedVersion: 2
+        x: 812
+        y: 1089
+        width: 117
+        height: 109
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 94d34ee8b177419c0800000000000000
+      internalID: -3957407212306678455
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Laliga_3
+      rect:
+        serializedVersion: 2
+        x: 934
+        y: 1089
+        width: 85
+        height: 109
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: c80c27317127053c0800000000000000
+      internalID: -4372869794740649844
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Laliga_4
+      rect:
+        serializedVersion: 2
+        x: 1029
+        y: 1089
+        width: 37
+        height: 109
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 449721115d6869950800000000000000
+      internalID: 6455495365554764100
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Laliga_5
+      rect:
+        serializedVersion: 2
+        x: 1076
+        y: 1087
+        width: 100
+        height: 113
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 2c160ad465be13770800000000000000
+      internalID: 8588904720274317762
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Laliga_6
+      rect:
+        serializedVersion: 2
+        x: 1182
+        y: 1073
+        width: 117
+        height: 125
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: dc5cc71a8811445c0800000000000000
+      internalID: -4232238471298890291
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Laliga_7
+      rect:
+        serializedVersion: 2
+        x: 722
+        y: 945
+        width: 96
+        height: 125
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 88bc4f5ba18ce0d40800000000000000
+      internalID: 5552595407641824136
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Laliga_8
+      rect:
+        serializedVersion: 2
+        x: 828
+        y: 961
+        width: 37
+        height: 109
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: fe6b499fe87053320800000000000000
+      internalID: 2536942275747165935
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Laliga_9
+      rect:
+        serializedVersion: 2
+        x: 871
+        y: 961
+        width: 119
+        height: 109
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 83df19544dd9723b0800000000000000
+      internalID: -5537283681802912456
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Laliga_10
+      rect:
+        serializedVersion: 2
+        x: 996
+        y: 961
+        width: 38
+        height: 109
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: f833eff9648800e90800000000000000
+      internalID: -7061494378803612785
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Laliga_11
+      rect:
+        serializedVersion: 2
+        x: 1042
+        y: 959
+        width: 102
+        height: 113
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: d44f9888428fcb390800000000000000
+      internalID: -7801087618719288243
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Laliga_12
+      rect:
+        serializedVersion: 2
+        x: 1154
+        y: 961
+        width: 37
+        height: 109
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 315b6c2c0b563aec0800000000000000
+      internalID: -3556887470836108013
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Laliga_13
+      rect:
+        serializedVersion: 2
+        x: 1201
+        y: 959
+        width: 103
+        height: 113
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: c7d1562a51b6c7400800000000000000
+      internalID: 323251013926854012
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Laliga_14
+      rect:
+        serializedVersion: 2
+        x: 1314
+        y: 961
+        width: 96
+        height: 109
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 047d01ac38430ff20800000000000000
+      internalID: 3454318654828631872
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Laliga_15
+      rect:
+        serializedVersion: 2
+        x: 722
+        y: 833
+        width: 85
+        height: 109
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: bc5d096414042dd70800000000000000
+      internalID: 9066379648951178699
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Laliga_16
+      rect:
+        serializedVersion: 2
+        x: 818
+        y: 833
+        width: 85
+        height: 109
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: b323f3e955a753a90800000000000000
+      internalID: -7334821909957234117
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Laliga_17
+      rect:
+        serializedVersion: 2
+        x: 913
+        y: 833
+        width: 37
+        height: 109
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 6580b5f5169c6d3f0800000000000000
+      internalID: -876291657428170666
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Laliga_18
+      rect:
+        serializedVersion: 2
+        x: 961
+        y: 833
+        width: 95
+        height: 109
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 0936c1855ec78dce0800000000000000
+      internalID: -1380215961321446512
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Laliga_19
+      rect:
+        serializedVersion: 2
+        x: 1067
+        y: 833
+        width: 84
+        height: 109
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 22149e420a7d68220800000000000000
+      internalID: 2487912926982783266
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    outline: []
+    customData: 
+    physicsShape: []
+    bones: []
+    spriteID: 
+    internalID: 0
+    vertices: []
+    indices: 
+    edges: []
+    weights: []
+    secondaryTextures: []
+    spriteCustomMetadata:
+      entries: []
+    nameFileIdTable:
+      Laliga_0: -9115023879585895321
+      Laliga_1: -6964226434597551979
+      Laliga_10: -7061494378803612785
+      Laliga_11: -7801087618719288243
+      Laliga_12: -3556887470836108013
+      Laliga_13: 323251013926854012
+      Laliga_14: 3454318654828631872
+      Laliga_15: 9066379648951178699
+      Laliga_16: -7334821909957234117
+      Laliga_17: -876291657428170666
+      Laliga_18: -1380215961321446512
+      Laliga_19: 2487912926982783266
+      Laliga_2: -3957407212306678455
+      Laliga_3: -4372869794740649844
+      Laliga_4: 6455495365554764100
+      Laliga_5: 8588904720274317762
+      Laliga_6: -4232238471298890291
+      Laliga_7: 5552595407641824136
+      Laliga_8: 2536942275747165935
+      Laliga_9: -5537283681802912456
+  mipmapLimitGroupName: 
+  pSDRemoveMatte: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

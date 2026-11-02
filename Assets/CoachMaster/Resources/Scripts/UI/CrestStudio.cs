@@ -45,6 +45,79 @@ namespace CoachMaster.UI
             return sprite;
         }
 
+        public static Sprite ForCompetition(string competitionId)
+        {
+            var resourcePath = CompetitionResourcePath(competitionId);
+            if (string.IsNullOrEmpty(resourcePath))
+                return null;
+
+            var key = "competition|" + resourcePath;
+            if (Cache.TryGetValue(key, out var cached))
+                return cached;
+
+            var badge = LargestBadge(Resources.LoadAll<Sprite>(resourcePath));
+            Cache[key] = badge;
+            return badge;
+        }
+
+        static string CompetitionResourcePath(string competitionId)
+        {
+            if (string.IsNullOrEmpty(competitionId))
+                return null;
+
+            var id = competitionId.ToLowerInvariant();
+            switch (id)
+            {
+                case "league:campeoes": return "Clubes/tacas/champions league";
+                case "league:atlas": return "Clubes/portugal 1/liga nacional";
+                case "league:horizonte": return "Clubes/portugal 2/liga portugal 2";
+                case "league:inglesa": return "Clubes/Inglaterra 1/English Premier League";
+                case "league:inglesa-championship": return "Clubes/Inglaterra 2/championship";
+                case "league:inglesa-league-one": return "Clubes/Inglaterra 3/League one";
+                case "league:inglesa-2": return "Clubes/Inglaterra 4/English League two";
+                case "league:francesa": return "Clubes/franca 1/Ligue Elite";
+                case "league:bundesliga": return "Clubes/alemanha 1/deutsche bundesliga";
+                case "league:eredivisie": return "Clubes/holanda/Holland premier league";
+                case "league:brasileira": return "Clubes/Brasil/brasileirao serie a";
+                case "league:espanhola": return "Clubes/espanha 1/Laliga";
+                case "league:espanhola-2": return "Clubes/espanha 2/Liga Plata";
+            }
+
+            if (!id.StartsWith("cup:", System.StringComparison.Ordinal))
+                return null;
+
+            var slug = id.Substring(4);
+            var separator = slug.LastIndexOf(':');
+            if (separator < 0)
+                return null;
+            var division = slug.Substring(0, separator);
+            var cupType = slug.Substring(separator + 1);
+
+            if (division.StartsWith("inglesa", System.StringComparison.Ordinal))
+                return cupType == "taca" ? "Clubes/tacas/FA CUP"
+                    : cupType == "liga" ? "Clubes/tacas/EFL cup" : null;
+            if (division.StartsWith("francesa", System.StringComparison.Ordinal))
+                return cupType == "taca" ? "Clubes/tacas/Coupe de france"
+                    : cupType == "liga" ? "Clubes/tacas/coupe de france 1" : null;
+            if (division.StartsWith("espanhola", System.StringComparison.Ordinal))
+                return cupType == "taca" ? "Clubes/tacas/Copa del rey"
+                    : cupType == "liga" ? "Clubes/tacas/copa espanola" : null;
+            if (division.StartsWith("bundesliga", System.StringComparison.Ordinal))
+                return cupType == "taca" ? "Clubes/tacas/Deutschland Pokal"
+                    : cupType == "liga" ? "Clubes/tacas/Deutsche cup" : null;
+            if (division.StartsWith("eredivisie", System.StringComparison.Ordinal))
+                return cupType == "taca" ? "Clubes/tacas/knvg becker"
+                    : cupType == "liga" ? "Clubes/tacas/CLOYFF SHIELD" : null;
+            if (division.StartsWith("brasileira", System.StringComparison.Ordinal))
+                return cupType == "taca" ? "Clubes/tacas/copa do brasil"
+                    : cupType == "liga" ? "Clubes/tacas/hypercopa brasileira" : null;
+            if (division == "atlas" || division == "horizonte")
+                return cupType == "taca" ? "Clubes/tacas/taca de portugal"
+                    : cupType == "liga" ? "Clubes/tacas/Taca da liga" : null;
+
+            return null;
+        }
+
         static Sprite LargestBadge(Sprite[] sprites)
         {
             if (sprites == null || sprites.Length == 0)

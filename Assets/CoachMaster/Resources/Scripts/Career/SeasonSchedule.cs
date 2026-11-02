@@ -171,24 +171,9 @@ namespace CoachMaster.Career
             if (career.World.Clubs.TryGetValue(fixture.HomeClubId, out var homeClub) && homeClub.Finance != null)
             {
                 var ticketIncome = System.Math.Max(12000, homeClub.Reputation * 650);
-                var shirtIncome = System.Math.Max(1800, homeClub.Reputation * 95);
                 homeClub.Finance.TicketIncomeThisSeason += ticketIncome;
-                homeClub.Finance.ShirtIncomeThisSeason += shirtIncome;
-                homeClub.Finance.Balance += ticketIncome + shirtIncome;
+                homeClub.Finance.Balance += ticketIncome;
                 ClubFinanceLedger.Record(homeClub, fixture.Date, ticketIncome, "ticket", homeClub.Stadium);
-                var shirtSellers = ClubFinanceLedger.TopShirtSellers(career, homeClub);
-                var remainingShirtIncome = shirtIncome;
-                var shirtWeights = new[] { 50, 30, 20 };
-                for (var i = 0; i < shirtSellers.Count; i++)
-                {
-                    var share = i == shirtSellers.Count - 1
-                        ? remainingShirtIncome
-                        : shirtIncome * shirtWeights[i] / 100;
-                    remainingShirtIncome -= share;
-                    ClubFinanceLedger.Record(homeClub, fixture.Date, share, "shirt", shirtSellers[i].FullName, shirtSellers[i].Id);
-                }
-                if (shirtSellers.Count == 0)
-                    ClubFinanceLedger.Record(homeClub, fixture.Date, shirtIncome, "shirt", homeClub.Name);
             }
             if (!fixture.Walkover && career.World.Clubs.TryGetValue(fixture.AwayClubId, out var awayClub) && awayClub.Finance != null)
             {
@@ -844,6 +829,21 @@ namespace CoachMaster.Career
             {
                 main = "Copa del Rey";
                 league = "Copa de la Liga";
+            }
+            else if (slug.StartsWith("bundesliga"))
+            {
+                main = "DFB-Pokal";
+                league = "DFL-Supercup";
+            }
+            else if (slug.StartsWith("eredivisie"))
+            {
+                main = "KNVB Beker";
+                league = "Johan Cruyff Shield";
+            }
+            else if (slug.StartsWith("brasileira"))
+            {
+                main = "Copa do Brasil";
+                league = "Supercopa do Brasil";
             }
             else
             {

@@ -638,13 +638,43 @@ namespace CoachMaster.Data
 
         static string StaffName(string fullName, string clubSlug, int roleIndex)
         {
-            var neutralFirstNames = new[] { "Alex", "Gabi", "Dani", "Sam", "Noa", "Ariel", "Cris", "Niki", "Robin", "Luca", "Sasha", "Eli", "Noor", "Rory" };
-            var source = string.IsNullOrWhiteSpace(fullName) ? "" : fullName.Trim();
-            var separator = source.LastIndexOf(' ');
-            var familyName = separator >= 0 ? source.Substring(separator + 1) : source;
             var seed = Hash((clubSlug ?? "") + ":staff:" + roleIndex);
-            var givenName = neutralFirstNames[(seed & 0x7fffffff) % neutralFirstNames.Length];
-            return string.IsNullOrEmpty(familyName) ? givenName : givenName + " " + familyName;
+            return FaceBook.PersonName(StaffNation(clubSlug), seed);
+        }
+
+        public static string NationalityForLeagueId(string leagueId)
+        {
+            var slug = (leagueId ?? "").StartsWith("league:", StringComparison.Ordinal)
+                ? leagueId.Substring("league:".Length) : (leagueId ?? "");
+            return LeagueNationality(slug);
+        }
+
+        public static void NormalizeGeneratedStaff(WorldState world)
+        {
+            if (world == null || world.Clubs == null) return;
+            foreach (var club in world.Clubs.Values)
+            {
+                if (club == null || club.Staff == null) continue;
+                foreach (var member in club.Staff)
+                {
+                    if (member == null || string.IsNullOrEmpty(member.Id)) continue;
+                    var parts = member.Id.Split(':');
+                    if (parts.Length != 3 || parts[0] != "staff") continue;
+                    member.FullName = FaceBook.PersonName(StaffNation(parts[1]), Hash(parts[1] + ":staff:" + RoleIndex(member.Role)));
+                }
+            }
+        }
+
+        static int RoleIndex(StaffRole role)
+        {
+            switch (role)
+            {
+                case StaffRole.AssistantCoach: return 0;
+                case StaffRole.GoalkeeperCoach: return 1;
+                case StaffRole.FitnessCoach: return 2;
+                case StaffRole.Physiotherapist: return 3;
+                default: return 4;
+            }
         }
 
         static void AddClub(WorldState world, string leagueId, ClubDefinition def)
@@ -891,7 +921,7 @@ namespace CoachMaster.Data
             var peakAllowance = player.Age >= 29 ? 8 : player.Age >= 25 ? 4 : 0;
             player.Reputation = Mathf.Clamp(Mathf.RoundToInt(overall * 0.58f + clubReputation * 0.32f + reputationNoise + peakAllowance), 5, 100);
             var wageFactor = Mathf.Clamp(clubReputation / 55f, 0.4f, 2.8f);
-            player.WeeklyWage = Mathf.Max(250, Mathf.RoundToInt(12000f * Mathf.Exp(0.105f * (overall - 55)) * wageFactor));
+            player.WeeklyWage = Mathf.Max(250, Mathf.RoundToInt(2000f * Mathf.Exp(0.105f * (overall - 55)) * wageFactor));
             var contractSeed = System.Math.Abs((long)(seed >> 21));
             var contractYear = 2027 + (int)(contractSeed % 5);
             player.ContractEndTicks = new DateTime(contractYear, 6, 30).Ticks;
@@ -1141,6 +1171,13 @@ namespace CoachMaster.Data
                 var suffix = slug == "inglesa-championship" ? "Town" : "United";
                 for (var i = 0; i < count; i++)
                     names[i] = towns[i] + " " + suffix;
+                if (slug == "inglesa-championship" && names.Length > 0)
+                    names[0] = "Bristol United FC";
+                else if (slug == "inglesa-league-one" && names.Length > 1)
+                {
+                    names[0] = "Leyton Orient FC";
+                    names[1] = "Oxford City FC";
+                }
                 return names;
             }
 
@@ -1179,6 +1216,16 @@ namespace CoachMaster.Data
                 names[17] = "Suffolk Town FC";
                 names[18] = "Coventry Blues FC";
                 names[19] = "Hull Tigers FC";
+            }
+            else if (slug == "inglesa-2" && names.Length > 1)
+            {
+                names[0] = "Salford FC";
+                names[1] = "Shrewsbury FC";
+            }
+            else if (slug == "francesa" && names.Length > 1)
+            {
+                names[0] = "Auxerre FC";
+                names[1] = "Paris Athletic FC";
             }
             else if (slug == "bundesliga" && names.Length > 0)
                 names[0] = "Bavaria Munich FC";
@@ -1275,6 +1322,14 @@ namespace CoachMaster.Data
                 case "Wearside Black Cats": return "Wearside FC";
                 case "Coventry Sky Blues": return "Coventry Blues FC";
                 case "Hull Tigers": return "Hull Tigers FC";
+                case "Bristol United": return "Bristol United FC";
+                case "Leyton Ocident":
+                case "Leyton Orient": return "Leyton Orient FC";
+                case "Oxford City": return "Oxford City FC";
+                case "Salford": return "Salford FC";
+                case "Shrewsbury": return "Shrewsbury FC";
+                case "Auxerre": return "Auxerre FC";
+                case "Paris Athletic": return "Paris Athletic FC";
                 case "Bavaria Munich": return "Bavaria Munich FC";
                 case "FC Norte Marítimo": return "Porto FC";
                 case "Sporting da Colina": return "SP Lisboa FC";
@@ -1302,19 +1357,19 @@ namespace CoachMaster.Data
             return new[]
             {
                 Brand("Manchester Sky FC", "Sky FC", "Manchester", "Estádio do Céu", 2009, 96,
-                    "#6CABDD", "#1C2C5B", "#FFFFFF", KitPattern.Solid, "Clubes/Inglaterra 1/MSFC",
+                    "#6CABDD", "#1C2C5B", "#FFFFFF", KitPattern.VerticalStripes, "Clubes/Inglaterra 1/MSFC",
                     "O clube mais rico do país. O céu azul compra plantéis de título.",
                     "Gigante financeiro. O título é a medida do ano."),
                 Brand("Mersey Reds FC", "Mersey Reds", "Liverpool", "Estádio do Mersey", 1892, 95,
-                    "#C8102E", "#F6EB61", "#FFFFFF", KitPattern.Solid, "Clubes/Inglaterra 1/mersey reds",
+                    "#C8102E", "#F6EB61", "#FFFFFF", KitPattern.VerticalStripes, "Clubes/Inglaterra 1/mersey reds",
                     "A margem vermelha. Europeu de peso, com uma bancada que não perdoa um jogo morno.",
                     "Clube de topo europeu. Exige noites grandes."),
                 Brand("Red Devils FC", "Red Devils", "Manchester", "Teatro dos Diabos", 1878, 94,
-                    "#DA291C", "#FBE122", "#111111", KitPattern.Solid, "Clubes/Inglaterra 1/redDevils",
+                    "#DA291C", "#FBE122", "#111111", KitPattern.VerticalStripes, "Clubes/Inglaterra 1/redDevils",
                     "O outro gigante de Manchester. Histórico, impaciente e sempre à procura do título.",
                     "Gigante histórico. A direção mede a época pelo título."),
                 Brand("London Gunners FC", "Gunners", "Londres", "Castelo do Norte", 1980, 93,
-                    "#EF0107", "#FFFFFF", "#9C824A", KitPattern.Solid, "Clubes/Inglaterra 1/London gunners",
+                    "#EF0107", "#FFFFFF", "#9C824A", KitPattern.VerticalStripes, "Clubes/Inglaterra 1/London gunners",
                     "O canhão do norte de Londres. Clube grande, organizado e habituado a lutar pelo topo.",
                     "Clube grande. O topo da tabela é a expectativa."),
                 Brand("Nlondo FC", "Nlondo", "Londres", "Ponte Azul", 1995, 91,
@@ -1382,15 +1437,15 @@ namespace CoachMaster.Data
                     "O tigre do estuário. O clube mais pequeno desta primeira divisão.",
                     "O mais pequeno da primeira. Cada época é uma luta."),
                 Brand("Bavaria Munich FC", "Bavaria", "Munique", "Arena da Baviera", 1846, 96,
-                    "#DC052D", "#FFFFFF", "#0066B3", KitPattern.Solid, "Clubes/alemanha 1/bavaria munich",
+                    "#DC052D", "#FFFFFF", "#0066B3", KitPattern.VerticalStripes, "Clubes/alemanha 1/bavaria munich",
                     "O clube da Baviera. Domina o país há anos e mede-se com os maiores da Europa.",
                     "O grande da Alemanha. O título é obrigação."),
                 Brand("Real Football Madrid", "Madrid", "Madrid", "Estádio Real", 1902, 97,
-                    "#FFFFFF", "#FEBE10", "#0A3D91", KitPattern.Solid, "Clubes/espanha 1/RF Madrid",
-                    "A casa real do futebol. O clube mais pesado do continente, de branco.",
+                    "#16804A", "#FFFFFF", "#16804A", KitPattern.VerticalStripes, "Clubes/espanha 1/RF Madrid",
+                    "A casa real do futebol. O clube mais pesado do continente, de verde e branco.",
                     "O maior clube deste campeonato. Só o título serve."),
                 Brand("Porto FC", "Porto", "Porto", "Estádio do Dragão Azul", 1894, 90,
-                    "#0033A0", "#FFFFFF", "#A7C6ED", KitPattern.Solid, "Clubes/portugal 1/Porto",
+                    "#0033A0", "#FFFFFF", "#A7C6ED", KitPattern.VerticalStripes, "Clubes/portugal 1/Porto",
                     "O dragão do norte. Clube grande, europeu, com o peso de quem discute o título todos os anos.",
                     "Gigante do norte. O título é a medida."),
                 Brand("SP Lisboa FC", "SP Lisboa", "Lisboa", "Estádio do Leão", 1942, 88,
@@ -1398,7 +1453,7 @@ namespace CoachMaster.Data
                     "O leão de Lisboa. Casa de formação, verde e dourado, e um dos três grandes do país.",
                     "Grande de Lisboa. A formação é a identidade e o título é a exigência."),
                 Brand("SL Lisboa FC", "SL Lisboa", "Lisboa", "Estádio da Águia", 1998, 91,
-                    "#E10600", "#FFFFFF", "#F0B429", KitPattern.Solid, "Clubes/portugal 1/SL lisboa",
+                    "#E10600", "#FFFFFF", "#F0B429", KitPattern.VerticalStripes, "Clubes/portugal 1/SL lisboa",
                     "A águia de Lisboa. O clube com mais peso do país, habituado a medir a época pelo título.",
                     "O maior clube de Portugal. O título é obrigação."),
                 Brand("Vila do Conde FC", "V. Conde", "Vila do Conde", "Estádio da Fénix", 1995, 66,
@@ -1406,9 +1461,37 @@ namespace CoachMaster.Data
                     "A fénix de Vila do Conde. Primeira divisão, sem o cofre dos três grandes.",
                     "Clube estabelecido da primeira. A manutenção com ambição chega."),
                 Brand("Fútbol Barcelona", "Barcelona", "Barcelona", "Estádio da Catedral", 1899, 96,
-                    "#A50044", "#004D98", "#FFED00", KitPattern.Halves, "Clubes/espanha 1/Barcelona",
+                    "#A50044", "#004D98", "#FFED00", KitPattern.VerticalStripes, "Clubes/espanha 1/Barcelona",
                     "O clube da cidade. Blaugrana, identidade forte, o único que discute o trono com Madrid.",
                     "Gigante. O título e a Europa são a conversa."),
+                Brand("Bristol United FC", "Bristol", "Bristol", "Estádio de Bristol", 1894, 61,
+                    "#C8102E", "#FFFFFF", "#111111", KitPattern.Solid, "Clubes/Inglaterra 2/bristol united",
+                    "Bristol United disputa o Championship e quer chegar à primeira divisão.",
+                    "Clube de subida. Consolidar-se no Championship é a prioridade."),
+                Brand("Leyton Orient FC", "Leyton Orient", "Londres", "Brisbane Road", 1881, 54,
+                    "#D71920", "#FFFFFF", "#132257", KitPattern.VerticalStripes, "Clubes/Inglaterra 3/Leyton Ocident",
+                    "Leyton Orient representa o leste de Londres e luta por uma subida à Championship.",
+                    "Clube de League One. Quer disputar a subida."),
+                Brand("Oxford City FC", "Oxford", "Oxford", "Oxford City Stadium", 1882, 52,
+                    "#1B75BC", "#FFFFFF", "#1B365D", KitPattern.Solid, "Clubes/Inglaterra 3/Oxford city",
+                    "Oxford City tenta crescer e chegar às divisões superiores do futebol inglês.",
+                    "Clube de League One. A subida é uma ambição realista."),
+                Brand("Salford FC", "Salford", "Salford", "Moor Lane", 1940, 49,
+                    "#D71920", "#FFFFFF", "#111111", KitPattern.Solid, "Clubes/Inglaterra 4/salford fc",
+                    "Salford procura afirmar-se no futebol profissional inglês e subir de divisão.",
+                    "Clube de League Two. Crescer e lutar pela subida."),
+                Brand("Shrewsbury FC", "Shrewsbury", "Shrewsbury", "Croud Meadow", 1886, 48,
+                    "#005EB8", "#F6C445", "#005EB8", KitPattern.Solid, "Clubes/Inglaterra 4/Shrewsbury",
+                    "Shrewsbury representa a sua cidade e quer consolidar o clube nas divisões profissionais.",
+                    "Clube de League Two. Pontuar e construir estabilidade."),
+                Brand("Auxerre FC", "Auxerre", "Auxerre", "Stade de l'Abbé Deschamps", 1905, 70,
+                    "#FFFFFF", "#1B365D", "#1B365D", KitPattern.Solid, "Clubes/franca 1/AUXERRE FC",
+                    "Auxerre regressa à primeira divisão francesa com uma identidade forte e ambição de permanência.",
+                    "Clube de Ligue 1. A permanência é o primeiro objetivo."),
+                Brand("Paris Athletic FC", "Paris Athletic", "Paris", "Estádio de Paris", 1969, 67,
+                    "#132257", "#D71920", "#FFFFFF", KitPattern.VerticalStripes, "Clubes/franca 1/paris athletic Fc",
+                    "Paris Athletic quer afirmar-se entre os clubes da primeira divisão francesa.",
+                    "Clube de Ligue 1. Quer crescer e aproximar-se da metade superior."),
             };
         }
 

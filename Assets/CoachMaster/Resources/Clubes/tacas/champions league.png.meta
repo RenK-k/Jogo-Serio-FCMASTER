@@ -1,0 +1,910 @@
+fileFormatVersion: 2
+guid: d1bd92fde8f9d5c4aa0349bf9bf4857d
+TextureImporter:
+  internalIDToNameTable:
+  - first:
+      213: -8295052681872805515
+    second: champions league_0
+  - first:
+      213: -9033739962516841803
+    second: champions league_1
+  - first:
+      213: -5307417867967166415
+    second: champions league_2
+  - first:
+      213: 3082075606613189805
+    second: champions league_3
+  - first:
+      213: 1026285683990574937
+    second: champions league_4
+  - first:
+      213: 2378099685088966900
+    second: champions league_5
+  - first:
+      213: 7794115970826701055
+    second: champions league_6
+  - first:
+      213: 1566546178387463486
+    second: champions league_7
+  - first:
+      213: 4895136059719116206
+    second: champions league_8
+  - first:
+      213: 186816929358978083
+    second: champions league_9
+  - first:
+      213: -6111822099696622298
+    second: champions league_10
+  - first:
+      213: 1117075148669253484
+    second: champions league_11
+  - first:
+      213: -4413300030473015380
+    second: champions league_12
+  - first:
+      213: 5465699219499397718
+    second: champions league_13
+  - first:
+      213: 2782261790906297704
+    second: champions league_14
+  - first:
+      213: 1287287068897346470
+    second: champions league_15
+  - first:
+      213: 1103950532983172730
+    second: champions league_16
+  - first:
+      213: 5654464182003236057
+    second: champions league_17
+  - first:
+      213: -8805025124501656560
+    second: champions league_18
+  - first:
+      213: 1816287943112245800
+    second: champions league_19
+  - first:
+      213: -1822015659850580900
+    second: champions league_20
+  - first:
+      213: -1580895470667000553
+    second: champions league_21
+  - first:
+      213: -6037531923550789751
+    second: champions league_22
+  - first:
+      213: 426269243926190713
+    second: champions league_23
+  - first:
+      213: -1922190602543789617
+    second: champions league_24
+  - first:
+      213: -4167144311367432990
+    second: champions league_25
+  - first:
+      213: 3854397162509001718
+    second: champions league_26
+  - first:
+      213: -5509477558586608650
+    second: champions league_27
+  - first:
+      213: 9202187385912181404
+    second: champions league_28
+  - first:
+      213: 6485647354548602692
+    second: champions league_29
+  externalObjects: {}
+  serializedVersion: 13
+  mipmaps:
+    mipMapMode: 0
+    enableMipMap: 0
+    sRGBTexture: 1
+    linearTexture: 0
+    fadeOut: 0
+    borderMipMap: 0
+    mipMapsPreserveCoverage: 0
+    alphaTestReferenceValue: 0.5
+    mipMapFadeDistanceStart: 1
+    mipMapFadeDistanceEnd: 3
+  bumpmap:
+    convertToNormalMap: 0
+    externalNormalMap: 0
+    heightScale: 0.25
+    normalMapFilter: 0
+    flipGreenChannel: 0
+  isReadable: 0
+  streamingMipmaps: 0
+  streamingMipmapsPriority: 0
+  vTOnly: 0
+  ignoreMipmapLimit: 0
+  grayScaleToAlpha: 0
+  generateCubemap: 6
+  cubemapConvolution: 0
+  seamlessCubemap: 0
+  textureFormat: 1
+  maxTextureSize: 2048
+  textureSettings:
+    serializedVersion: 2
+    filterMode: 1
+    aniso: 1
+    mipBias: 0
+    wrapU: 1
+    wrapV: 1
+    wrapW: 1
+  nPOTScale: 0
+  lightmap: 0
+  compressionQuality: 50
+  spriteMode: 2
+  spriteExtrude: 1
+  spriteMeshType: 1
+  alignment: 0
+  spritePivot: {x: 0.5, y: 0.5}
+  spritePixelsToUnits: 100
+  spriteBorder: {x: 0, y: 0, z: 0, w: 0}
+  spriteGenerateFallbackPhysicsShape: 1
+  alphaUsage: 1
+  alphaIsTransparency: 1
+  spriteTessellationDetail: -1
+  textureType: 8
+  textureShape: 1
+  singleChannelComponent: 0
+  flipbookRows: 1
+  flipbookColumns: 1
+  maxTextureSizeSet: 0
+  compressionQualitySet: 0
+  textureFormatSet: 0
+  ignorePngGamma: 0
+  applyGammaDecoding: 0
+  swizzle: 50462976
+  cookieLightType: 0
+  platformSettings:
+  - serializedVersion: 4
+    buildTarget: DefaultTexturePlatform
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: Standalone
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: WebGL
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  spriteSheet:
+    serializedVersion: 2
+    sprites:
+    - serializedVersion: 2
+      name: champions league_0
+      rect:
+        serializedVersion: 2
+        x: 661
+        y: 1288
+        width: 79
+        height: 173
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 571f1dfe88d02ec80800000000000000
+      internalID: -8295052681872805515
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: champions league_1
+      rect:
+        serializedVersion: 2
+        x: 695
+        y: 1365
+        width: 74
+        height: 169
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 5badeeced55b1a280800000000000000
+      internalID: -9033739962516841803
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: champions league_2
+      rect:
+        serializedVersion: 2
+        x: 724
+        y: 1422
+        width: 88
+        height: 73
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 1388149a1934856b0800000000000000
+      internalID: -5307417867967166415
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: champions league_3
+      rect:
+        serializedVersion: 2
+        x: 922
+        y: 1451
+        width: 156
+        height: 163
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: da463174f6bb5ca20800000000000000
+      internalID: 3082075606613189805
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: champions league_4
+      rect:
+        serializedVersion: 2
+        x: 1188
+        y: 1422
+        width: 88
+        height: 73
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 957b35064691e3e00800000000000000
+      internalID: 1026285683990574937
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: champions league_5
+      rect:
+        serializedVersion: 2
+        x: 1231
+        y: 1365
+        width: 74
+        height: 169
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 4f8323a5015b00120800000000000000
+      internalID: 2378099685088966900
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: champions league_6
+      rect:
+        serializedVersion: 2
+        x: 1259
+        y: 1288
+        width: 80
+        height: 173
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ff803533e234a2c60800000000000000
+      internalID: 7794115970826701055
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: champions league_7
+      rect:
+        serializedVersion: 2
+        x: 633
+        y: 1104
+        width: 106
+        height: 137
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: e3dc707037d7db510800000000000000
+      internalID: 1566546178387463486
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: champions league_8
+      rect:
+        serializedVersion: 2
+        x: 642
+        y: 1196
+        width: 86
+        height: 165
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ea563ce8f440fe340800000000000000
+      internalID: 4895136059719116206
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: champions league_9
+      rect:
+        serializedVersion: 2
+        x: 760
+        y: 803
+        width: 480
+        height: 520
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 32c9878e105b79200800000000000000
+      internalID: 186816929358978083
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: champions league_10
+      rect:
+        serializedVersion: 2
+        x: 1261
+        y: 1104
+        width: 106
+        height: 138
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 6256331ae227e2ba0800000000000000
+      internalID: -6111822099696622298
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: champions league_11
+      rect:
+        serializedVersion: 2
+        x: 1272
+        y: 1196
+        width: 86
+        height: 165
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: c67f8dfdde5a08f00800000000000000
+      internalID: 1117075148669253484
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: champions league_12
+      rect:
+        serializedVersion: 2
+        x: 657
+        y: 1019
+        width: 124
+        height: 126
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: caf6f64410fc0c2c0800000000000000
+      internalID: -4413300030473015380
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: champions league_13
+      rect:
+        serializedVersion: 2
+        x: 718
+        y: 950
+        width: 129
+        height: 143
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 652346b4b701adb40800000000000000
+      internalID: 5465699219499397718
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: champions league_14
+      rect:
+        serializedVersion: 2
+        x: 1153
+        y: 950
+        width: 129
+        height: 143
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 86dac179b549c9620800000000000000
+      internalID: 2782261790906297704
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: champions league_15
+      rect:
+        serializedVersion: 2
+        x: 1219
+        y: 1019
+        width: 124
+        height: 126
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 6a38491d4cc5dd110800000000000000
+      internalID: 1287287068897346470
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: champions league_16
+      rect:
+        serializedVersion: 2
+        x: 329
+        y: 537
+        width: 120
+        height: 139
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: a7ea0182925025f00800000000000000
+      internalID: 1103950532983172730
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: champions league_17
+      rect:
+        serializedVersion: 2
+        x: 498
+        y: 541
+        width: 133
+        height: 131
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 9dcf8730731b87e40800000000000000
+      internalID: 5654464182003236057
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: champions league_18
+      rect:
+        serializedVersion: 2
+        x: 678
+        y: 541
+        width: 142
+        height: 131
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 01c60bfdc444ec580800000000000000
+      internalID: -8805025124501656560
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: champions league_19
+      rect:
+        serializedVersion: 2
+        x: 866
+        y: 541
+        width: 155
+        height: 131
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 822c70bd240c43910800000000000000
+      internalID: 1816287943112245800
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: champions league_20
+      rect:
+        serializedVersion: 2
+        x: 1076
+        y: 541
+        width: 118
+        height: 131
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: c5c386b2966e6b6e0800000000000000
+      internalID: -1822015659850580900
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: champions league_21
+      rect:
+        serializedVersion: 2
+        x: 1245
+        y: 541
+        width: 59
+        height: 131
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 7159ed302f78f0ae0800000000000000
+      internalID: -1580895470667000553
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: champions league_22
+      rect:
+        serializedVersion: 2
+        x: 1354
+        y: 537
+        width: 137
+        height: 139
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 98f9ca824b0663ca0800000000000000
+      internalID: -6037531923550789751
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: champions league_23
+      rect:
+        serializedVersion: 2
+        x: 1540
+        y: 541
+        width: 128
+        height: 131
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 97a15ee6e996ae500800000000000000
+      internalID: 426269243926190713
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: champions league_24
+      rect:
+        serializedVersion: 2
+        x: 679
+        y: 407
+        width: 52
+        height: 55
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: fc988c8c4d10355e0800000000000000
+      internalID: -1922190602543789617
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: champions league_25
+      rect:
+        serializedVersion: 2
+        x: 794
+        y: 407
+        width: 55
+        height: 55
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 2e48729c3545b26c0800000000000000
+      internalID: -4167144311367432990
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: champions league_26
+      rect:
+        serializedVersion: 2
+        x: 910
+        y: 405
+        width: 58
+        height: 58
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 6f36f9e3cc19d7530800000000000000
+      internalID: 3854397162509001718
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: champions league_27
+      rect:
+        serializedVersion: 2
+        x: 1032
+        y: 407
+        width: 50
+        height: 55
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 6f37576d9576a83b0800000000000000
+      internalID: -5509477558586608650
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: champions league_28
+      rect:
+        serializedVersion: 2
+        x: 1147
+        y: 407
+        width: 55
+        height: 55
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: c9240e51cacb4bf70800000000000000
+      internalID: 9202187385912181404
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: champions league_29
+      rect:
+        serializedVersion: 2
+        x: 1266
+        y: 407
+        width: 55
+        height: 55
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 447425218e5a10a50800000000000000
+      internalID: 6485647354548602692
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    outline: []
+    customData: 
+    physicsShape: []
+    bones: []
+    spriteID: 
+    internalID: 0
+    vertices: []
+    indices: 
+    edges: []
+    weights: []
+    secondaryTextures: []
+    spriteCustomMetadata:
+      entries: []
+    nameFileIdTable:
+      champions league_0: -8295052681872805515
+      champions league_1: -9033739962516841803
+      champions league_10: -6111822099696622298
+      champions league_11: 1117075148669253484
+      champions league_12: -4413300030473015380
+      champions league_13: 5465699219499397718
+      champions league_14: 2782261790906297704
+      champions league_15: 1287287068897346470
+      champions league_16: 1103950532983172730
+      champions league_17: 5654464182003236057
+      champions league_18: -8805025124501656560
+      champions league_19: 1816287943112245800
+      champions league_2: -5307417867967166415
+      champions league_20: -1822015659850580900
+      champions league_21: -1580895470667000553
+      champions league_22: -6037531923550789751
+      champions league_23: 426269243926190713
+      champions league_24: -1922190602543789617
+      champions league_25: -4167144311367432990
+      champions league_26: 3854397162509001718
+      champions league_27: -5509477558586608650
+      champions league_28: 9202187385912181404
+      champions league_29: 6485647354548602692
+      champions league_3: 3082075606613189805
+      champions league_4: 1026285683990574937
+      champions league_5: 2378099685088966900
+      champions league_6: 7794115970826701055
+      champions league_7: 1566546178387463486
+      champions league_8: 4895136059719116206
+      champions league_9: 186816929358978083
+  mipmapLimitGroupName: 
+  pSDRemoveMatte: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

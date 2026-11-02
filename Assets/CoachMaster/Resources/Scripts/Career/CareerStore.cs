@@ -28,6 +28,56 @@ namespace CoachMaster.Career
         public static bool Exists => File.Exists(PathFile);
         public static bool HasAutoSave(int slot = 1) => File.Exists(AutoSavePath(Mathf.Clamp(slot, 1, 5)));
 
+        public static DateTime LastPlayedAt(CareerState career)
+        {
+            if (career == null)
+                return DateTime.MinValue;
+            if (career != null && career.LastPlayedUtcTicks > 0)
+            {
+                try { return new DateTime(career.LastPlayedUtcTicks, DateTimeKind.Utc).ToLocalTime(); }
+                catch { }
+            }
+
+            var best = DateTime.MinValue;
+            try
+            {
+                var root = Application.persistentDataPath;
+                if (Directory.Exists(root))
+                {
+                    foreach (var path in Directory.GetFiles(root, "coach-master-*.txt", SearchOption.TopDirectoryOnly))
+                    {
+                        var matches = !string.IsNullOrEmpty(career.FileId)
+                            ? ReadCareerFileId(path) == career.FileId
+                            : SavedForCareer(path, career);
+                        if (!matches)
+                            continue;
+                        var written = File.GetLastWriteTime(path);
+                        if (written > best) best = written;
+                    }
+                }
+            }
+            catch { }
+            return best;
+        }
+
+        static bool SavedForCareer(string path, CareerState career)
+        {
+            if (career?.Coach == null || !File.Exists(path))
+                return false;
+            try
+            {
+                foreach (var line in File.ReadLines(path, Encoding.UTF8))
+                {
+                    if (string.IsNullOrEmpty(line) || !line.StartsWith("coach|", StringComparison.Ordinal))
+                        continue;
+                    var bits = Split(line);
+                    return bits.Length > 2 && Un(bits[1]) == career.Coach.Name && bits[2] == career.Coach.ClubId;
+                }
+            }
+            catch { }
+            return false;
+        }
+
         public static string AutoSaveLabel(int slot, WorldState world)
         {
             slot = Mathf.Clamp(slot, 1, 5);
@@ -599,6 +649,7 @@ namespace CoachMaster.Career
         {
             if (career == null || career.Coach == null)
                 return false;
+            career.LastPlayedUtcTicks = DateTime.UtcNow.Ticks;
             var lines = new List<string>
             {
                 "coach|" + Esc(career.Coach.Name) + "|" + career.Coach.ClubId + "|" + career.Calendar.CurrentDate.Ticks,
@@ -606,8 +657,10 @@ namespace CoachMaster.Career
                 "fanmood|" + career.SupporterApproval,
                 "simulation|" + Mathf.Clamp(career.InjuryFrequency, 0, 2) + "|" + Mathf.Clamp(career.RefereeStrictness, 0, 2) + "|" + Mathf.Clamp(career.RealismPreset, 0, 4),
                 "autosave|" + career.LastAutoSaveDateTicks,
+                "lastplayed|" + career.LastPlayedUtcTicks,
+                "playtime|" + Math.Max(0d, career.PlayTimeSeconds).ToString("R", CultureInfo.InvariantCulture),
                 "careerfile|" + (career.FileId ?? "") + "|" + Esc(career.SaveLabel),
-                "financeledger|2"
+                "financeledger|3"
             };
             lines.Add("academy|" + string.Join(",", career.AcademyPlayerIds));
             foreach (var academyTactic in career.AcademyTactics)
@@ -655,7 +708,7 @@ namespace CoachMaster.Career
                 var hurt = player.Injury != null && player.Injury.IsInjured ? "1" : "0";
                 var days = player.Injury == null ? 0 : player.Injury.DaysRemaining;
                 var desc = player.Injury == null ? "" : player.Injury.Description;
-                lines.Add("player|" + player.Id + "|" + player.Morale + "|" + player.Fatigue + "|" + Esc(player.Duty) + "|" + (player.IsCaptain ? "1" : "0") + "|" + hurt + "|" + days + "|" + Esc(desc) + "|" + player.ClubId + "|" + player.Age + "|" + TraitCodes(player) + "|" + player.Form + "|" + player.Fitness + "|" + player.TrainingRating + "|" + player.HeightCm + "|" + player.WeightKg + "|" + player.WeakFootQuality + "|" + PlayerPositionProfile.Encode(player) + "|" + player.Reputation + "|" + player.WeeklyWage + "|" + player.ContractEndTicks + "|" + Esc(player.TrainingFocus) + "|" + player.TrainingProgress + "|" + player.TrainingIntensity + "|" + player.TrainingStreak);
+                lines.Add("player|" + player.Id + "|" + player.Morale + "|" + player.Fatigue + "|" + Esc(player.Duty) + "|" + (player.IsCaptain ? "1" : "0") + "|" + hurt + "|" + days + "|" + Esc(desc) + "|" + player.ClubId + "|" + player.Age + "|" + TraitCodes(player) + "|" + player.Form + "|" + player.Fitness + "|" + player.TrainingRating + "|" + player.HeightCm + "|" + player.WeightKg + "|" + player.WeakFootQuality + "|" + PlayerPositionProfile.Encode(player) + "|" + player.Reputation + "|" + player.WeeklyWage + "|" + player.ContractEndTicks + "|" + Esc(player.TrainingFocus) + "|" + player.TrainingProgress + "|" + player.TrainingIntensity + "|" + player.TrainingStreak + "|" + player.UnavailableUntilTicks);
             }
 
             foreach (var club in career.World.Clubs.Values)
@@ -682,7 +735,7 @@ namespace CoachMaster.Career
             foreach (var row in career.Table)
                 lines.Add("table|" + row.LeagueId + "|" + row.ClubId + "|" + row.Played + "|" + row.Won + "|" + row.Drawn + "|" + row.Lost + "|" + row.GoalsFor + "|" + row.GoalsAgainst + "|" + row.Points);
             foreach (var story in career.Press)
-                lines.Add("press|" + Esc(story.Paper) + "|" + Esc(story.Headline) + "|" + Esc(story.Deck) + "|" + Esc(story.Published) + "|" + Esc(story.Kicker) + "|" + story.HomeClubId + "|" + story.AwayClubId + "|" + Esc(story.Motm) + "|" + Esc(story.Quote) + "|" + Esc(story.QuoteBy) + "|" + Esc(story.Body));
+                lines.Add("press|" + Esc(story.Paper) + "|" + Esc(story.Headline) + "|" + Esc(story.Deck) + "|" + Esc(story.Published) + "|" + Esc(story.Kicker) + "|" + story.HomeClubId + "|" + story.AwayClubId + "|" + Esc(story.Motm) + "|" + Esc(story.Quote) + "|" + Esc(story.QuoteBy) + "|" + Esc(story.Body) + "|" + story.DateTicks);
             foreach (var note in career.Board)
                 lines.Add("board|" + Esc(note.Day) + "|" + Esc(note.Hour) + "|" + note.When.Ticks + "|" + Esc(note.Text));
             foreach (var line in career.Notebook)
@@ -783,6 +836,24 @@ namespace CoachMaster.Career
                 return career;
             var backup = PathFile + ".backup";
             return File.Exists(backup) ? TryLoadFrom(session, backup) : null;
+        }
+
+        public static CareerState TryLoadMostRecent(GameSession session)
+        {
+            if (session == null)
+                return null;
+            var slots = ListSlots();
+            for (var i = 0; i < slots.Count; i++)
+            {
+                var slot = slots[i];
+                if (slot == null || string.IsNullOrEmpty(slot.Id))
+                    continue;
+                var loadManual = slot.HasManual && (!slot.HasAuto || slot.ManualAt >= slot.AutoAt);
+                var career = TryLoadSlot(session, slot.Id, loadManual);
+                if (career != null)
+                    return career;
+            }
+            return TryLoad(session);
         }
 
         public static CareerState TryLoadAutoSave(GameSession session, int slot = 1)
@@ -904,6 +975,14 @@ namespace CoachMaster.Career
                     case "autosave":
                         if (bits.Length > 1 && long.TryParse(bits[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var autosaveTicks))
                             career.LastAutoSaveDateTicks = autosaveTicks;
+                        break;
+                    case "lastplayed":
+                        if (bits.Length > 1 && long.TryParse(bits[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var lastPlayedTicks))
+                            career.LastPlayedUtcTicks = lastPlayedTicks;
+                        break;
+                    case "playtime":
+                        if (bits.Length > 1 && double.TryParse(bits[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var playTime))
+                            career.PlayTimeSeconds = Math.Max(0d, playTime);
                         break;
                     case "careerfile":
                         if (bits.Length > 1 && Guid.TryParseExact(bits[1], "N", out _))
@@ -1217,7 +1296,9 @@ namespace CoachMaster.Career
                                 Motm = Un(bits[8]),
                                 Quote = Un(bits[9]),
                                 QuoteBy = Un(bits[10]),
-                                Body = Un(bits[11])
+                                Body = Un(bits[11]),
+                                DateTicks = bits.Length > 12 && long.TryParse(bits[12], NumberStyles.Integer, CultureInfo.InvariantCulture, out var pressTicks)
+                                    ? pressTicks : 0
                             });
                         }
                         break;
@@ -1359,6 +1440,8 @@ namespace CoachMaster.Career
                 ReconcileLegacyFinance(career);
             if (financeLedgerVersion < 2)
                 UpgradePremierLeagueFinances(career);
+            if (financeLedgerVersion < 3)
+                NormalizeLegacyWeeklyWages(career);
             if (career.World != null && career.World.Clubs != null)
             {
                 foreach (var club in career.World.Clubs.Values)
@@ -1406,6 +1489,33 @@ namespace CoachMaster.Career
                 home.Finance.TicketIncomeThisSeason += ticketIncome;
                 home.Finance.ShirtIncomeThisSeason += shirtIncome;
                 home.Finance.Balance += ticketIncome + shirtIncome;
+            }
+        }
+
+        static void NormalizeLegacyWeeklyWages(CareerState career)
+        {
+            if (career == null || career.World == null)
+                return;
+
+            foreach (var player in career.World.Players.Values)
+                if (player != null && player.WeeklyWage > 0)
+                    player.WeeklyWage = Math.Max(250, player.WeeklyWage / 6);
+
+            foreach (var club in career.World.Clubs.Values)
+            {
+                if (club == null || club.Finance == null)
+                    continue;
+                long balanceCorrection = 0;
+                foreach (var transaction in club.Finance.Transactions)
+                {
+                    if (transaction == null || transaction.Category != "wages" || transaction.Amount >= 0)
+                        continue;
+                    var correctedAmount = transaction.Amount / 6;
+                    balanceCorrection += correctedAmount - transaction.Amount;
+                    transaction.Amount = correctedAmount;
+                }
+                club.Finance.Balance = (int)Math.Max(int.MinValue,
+                    Math.Min(int.MaxValue, (long)club.Finance.Balance + balanceCorrection));
             }
         }
 
@@ -1557,6 +1667,7 @@ namespace CoachMaster.Career
             if (bits.Length > 24 && int.TryParse(bits[24], out var intensity)) player.TrainingIntensity = System.Math.Max(0, System.Math.Min(2, intensity));
             else player.TrainingIntensity = 1;
             if (bits.Length > 25 && int.TryParse(bits[25], out var streak)) player.TrainingStreak = System.Math.Max(0, streak);
+            if (bits.Length > 26 && long.TryParse(bits[26], NumberStyles.Integer, CultureInfo.InvariantCulture, out var unavailableUntil)) player.UnavailableUntilTicks = unavailableUntil;
             if (bits.Length > 11)
             {
                 player.Traits.Clear();

@@ -24,6 +24,10 @@ namespace CoachMaster.UI.Scenes
         Text _xg;
         Text _commentary;
         Text _paceLabel;
+        Button _suggestionButton;
+        Button _calloutButton;
+        Button _ignoreButton;
+        GameObject _calloutMenu;
         RectTransform _plot;
         int _drawnShots = -1;
         int _deskCard;
@@ -128,10 +132,16 @@ namespace CoachMaster.UI.Scenes
             BuildShape("HomeShape", true);
             Card("Dugout", 0.208f, 0.5f, 0.4f, 0.915f, english ? "ASSISTANT" : "ADJUNTO");
             _dugout = Line(transform.Find("Dugout"), "Body", 15, 0.06f, 0.22f, 0.94f, 0.84f);
-            var doIt = BroadcastUi.Button(transform.Find("Dugout"), "DoIt", english ? "Do it" : "Fazer", ApplyAdvice, new Color(0.72f, 0.2f, 0.72f), Color.white, 14);
-            BroadcastUi.Place(doIt.GetComponent<RectTransform>(), 0.06f, 0.06f, 0.48f, 0.18f);
-            var dismiss = BroadcastUi.Button(transform.Find("Dugout"), "Dismiss", "X", DismissAdvice, new Color(0.16f, 0.15f, 0.2f), Color.white, 14);
-            BroadcastUi.Place(dismiss.GetComponent<RectTransform>(), 0.52f, 0.06f, 0.7f, 0.18f);
+            _suggestionButton = BroadcastUi.Button(transform.Find("Dugout"), "DoIt", english ? "USE SUGGESTION" : "USAR SUGESTÃO",
+                ApplyAdvice, new Color(0.72f, 0.2f, 0.72f), Color.white, 11);
+            BroadcastUi.Place(_suggestionButton.GetComponent<RectTransform>(), 0.035f, 0.055f, 0.37f, 0.18f);
+            _calloutButton = BroadcastUi.Button(transform.Find("Dugout"), "Callout", english ? "TEAM TALK ▾" : "DISCURSO ▾",
+                ToggleCalloutMenu, new Color(0.13f, 0.2f, 0.28f), Color.white, 11);
+            BroadcastUi.Place(_calloutButton.GetComponent<RectTransform>(), 0.39f, 0.055f, 0.73f, 0.18f);
+            _ignoreButton = BroadcastUi.Button(transform.Find("Dugout"), "Dismiss", english ? "IGNORE" : "IGNORAR",
+                DismissAdvice, new Color(0.16f, 0.15f, 0.2f), Color.white, 11);
+            BroadcastUi.Place(_ignoreButton.GetComponent<RectTransform>(), 0.75f, 0.055f, 0.965f, 0.18f);
+            SetAdviceControls(false);
             Card("Events", 0.408f, 0.5f, 0.64f, 0.915f, english ? "MATCH EVENTS" : "ACONTECIMENTOS");
             BuildEvents();
             Card("Xg", 0.648f, 0.5f, 0.8f, 0.915f, english ? "xG GRAPH" : "HISTÓRIA DO xG");
@@ -356,7 +366,7 @@ namespace CoachMaster.UI.Scenes
             }
             if (_paceLabel != null)
             {
-                var mark = SettingsPrefs.MatchSpeedIndex == 0 ? "0.5×" : SettingsPrefs.MatchSpeedIndex == 2 ? "2×" : SettingsPrefs.MatchSpeedIndex == 3 ? "4×" : "1×";
+                var mark = SettingsPrefs.MatchSpeedLabel;
                 if (_paceLabel.text != mark)
                     _paceLabel.text = mark;
             }
@@ -835,34 +845,36 @@ namespace CoachMaster.UI.Scenes
             if (weak && _match.Minute > 20f)
                 _adviceKind = "attack";
 
-            var opponent = OpponentName(userHome);
+            _advicePlayerId = null;
             if (_adviceKind == "attack")
                 _dugout.text = english
-                    ? assistantName(assistant) + " wants the team higher. Attack their line."
-                    : assistantName(assistant) + " acha melhor subir a equipa e jogar mais à frente.";
+                    ? assistantName(assistant, true) + " sees room behind " + OpponentName(userHome) + "'s line. Raise the tempo and attack the space."
+                    : assistantName(assistant, false) + " vê espaço nas costas da defesa do " + OpponentName(userHome) + ". Sobe o ritmo e ataca esse espaço.";
             else if (_adviceKind == "deep")
                 _dugout.text = english
-                    ? assistantName(assistant) + " wants the block deeper and the game slowed down."
-                    : assistantName(assistant) + " acha melhor baixar o bloco e não abrir espaços.";
+                    ? assistantName(assistant, true) + " wants the block compact against " + OpponentName(userHome) + ". Protect the lead and slow the game."
+                    : assistantName(assistant, false) + " quer o bloco compacto contra " + OpponentName(userHome) + ". Protege a vantagem e abranda o jogo.";
             else if (_adviceKind == "mark")
             {
                 _advicePlayerId = BestOpponent(userHome);
-                var name = _advicePlayerId != null && _match.People.TryGetValue(_advicePlayerId, out var player) ? player.FullName : opponent;
+                var name = _advicePlayerId != null && _match.People.TryGetValue(_advicePlayerId, out var player)
+                    ? BroadcastUi.ShortName(player.FullName) : OpponentName(userHome);
                 _dugout.text = english
-                    ? assistantName(assistant) + " read the profile. Do not give " + name + " space."
-                    : assistantName(assistant) + " leu a ficha. Não dês espaço a " + name + ".";
+                    ? assistantName(assistant, true) + " has identified " + name + " as their main threat. Stay tight and deny the first pass."
+                    : assistantName(assistant, false) + " identificou " + name + " como principal ameaça. Fecha o espaço e impede o primeiro passe.";
             }
             else
                 _dugout.text = english
-                    ? assistantName(assistant) + " thinks the players need a word. Motivate them."
-                    : assistantName(assistant) + " acha que o grupo precisa de uma palavra. Motiva-os.";
+                    ? assistantName(assistant, true) + " sees the team losing its edge. A short, positive reminder should lift the group."
+                    : assistantName(assistant, false) + " acha que o grupo precisa de uma palavra. Motiva-os.";
             _adviceReady = true;
+            SetAdviceControls(true);
         }
 
-        static string assistantName(StaffMember assistant)
+        static string assistantName(StaffMember assistant, bool english = false)
         {
             if (assistant == null || string.IsNullOrEmpty(assistant.FullName))
-                return "O adjunto";
+                return english ? "The assistant" : "O adjunto";
             var parts = assistant.FullName.Split(' ');
             return parts.Length == 0 ? assistant.FullName : parts[0];
         }
@@ -896,6 +908,7 @@ namespace CoachMaster.UI.Scenes
                 return;
             var userHome = _career != null && _career.Coach != null && _career.Coach.ClubId == _match.Home.Id;
             var squad = userHome ? _match.HomeOnField : _match.AwayOnField;
+            var appliedText = _dugout.text;
             if (_adviceKind == "motivate")
             {
                 for (var i = 0; i < squad.Count; i++)
@@ -913,23 +926,136 @@ namespace CoachMaster.UI.Scenes
             }
             else if (_adviceKind == "deep")
             {
-                if (userHome)
-                    _match.AttackBoost = Mathf.Max(0f, _match.AttackBoost - 0.04f);
-                else
-                    _match.AwayAttackBoost = Mathf.Max(0f, _match.AwayAttackBoost - 0.04f);
+                SetTeamBoost(userHome, true, -0.035f);
+                SetTeamBoost(userHome, false, 0.025f);
             }
-            _match.AddNote(_dugout.text, "order");
-            _adviceReady = false;
-            _nextAdviceMinute = _match.Minute + 8f;
+            else if (_adviceKind == "mark")
+                SetTeamBoost(userHome, false, 0.025f);
+            ConsumeAdvice(appliedText);
         }
 
         void DismissAdvice()
         {
+            if (!_adviceReady)
+                return;
+            _match.AddNote(LocalizationManager.Current == GameLanguage.English
+                ? "The manager ignored the assistant's suggestion."
+                : "O treinador ignorou a sugestão do adjunto.", "order");
+            ConsumeAdvice(null);
+        }
+
+        void ToggleCalloutMenu()
+        {
+            if (!_adviceReady)
+                return;
+            if (_calloutMenu != null)
+            {
+                Destroy(_calloutMenu);
+                _calloutMenu = null;
+                return;
+            }
+
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var host = transform.Find("Dugout");
+            var menu = BroadcastUi.Panel(host, "CalloutMenu", new Color(0.055f, 0.045f, 0.12f, 0.99f), true);
+            _calloutMenu = menu.gameObject;
+            menu.transform.SetAsLastSibling();
+            BroadcastUi.Place(menu.rectTransform, 0.035f, 0.205f, 0.965f, 0.72f);
+            var keys = new[] { "motivate", "calm", "demand", "safe", "press", "slow" };
+            var labels = english
+                ? new[] { "MOTIVATE", "CALM DOWN", "DEMAND MORE", "PLAY IT SAFE", "PRESS HIGHER", "SLOW IT DOWN" }
+                : new[] { "MOTIVAR", "ACALMAR", "EXIGIR MAIS", "JOGAR PELO SEGURO", "PRESSIONAR MAIS ALTO", "ABRANDAR O JOGO" };
+            for (var i = 0; i < keys.Length; i++)
+            {
+                var key = keys[i];
+                var yTop = 0.97f - i * 0.16f;
+                var option = BroadcastUi.Button(menu.transform, "Callout" + i, labels[i],
+                    () => ApplyCallout(key), new Color(1f, 1f, 1f, i % 2 == 0 ? 0.1f : 0.055f), Color.white, 10);
+                BroadcastUi.Place(option.GetComponent<RectTransform>(), 0.035f, yTop - 0.145f, 0.965f, yTop - 0.01f);
+            }
+        }
+
+        void ApplyCallout(string kind)
+        {
+            if (!_adviceReady)
+                return;
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var userHome = _career != null && _career.Coach != null && _career.Coach.ClubId == _match.Home.Id;
+            var squad = userHome ? _match.HomeOnField : _match.AwayOnField;
+            var message = "";
+            switch (kind)
+            {
+                case "motivate":
+                    foreach (var id in squad)
+                        if (_match.People.TryGetValue(id, out var motivated))
+                            motivated.Morale = Mathf.Clamp(motivated.Morale + 4, 1, 99);
+                    SetTeamBoost(userHome, true, 0.015f);
+                    message = english ? "The manager urged the players to believe and keep going." : "O treinador pediu aos jogadores que acreditassem e continuassem.";
+                    break;
+                case "calm":
+                    foreach (var id in squad)
+                        if (_match.People.TryGetValue(id, out var settled))
+                            settled.Morale = Mathf.Clamp(settled.Morale + 2, 1, 99);
+                    SetTeamBoost(userHome, false, 0.01f);
+                    message = english ? "The manager asked the team to stay calm and keep its shape." : "O treinador pediu calma e organização à equipa.";
+                    break;
+                case "demand":
+                    SetTeamBoost(userHome, true, 0.035f);
+                    message = english ? "The manager demanded more intensity and sharper decisions." : "O treinador exigiu mais intensidade e melhores decisões.";
+                    break;
+                case "safe":
+                    SetTeamBoost(userHome, true, -0.035f);
+                    SetTeamBoost(userHome, false, 0.03f);
+                    message = english ? "The manager told the team to protect its shape and play safely." : "O treinador pediu à equipa que protegesse a estrutura e jogasse pelo seguro.";
+                    break;
+                case "press":
+                    SetTeamBoost(userHome, true, 0.02f);
+                    SetTeamBoost(userHome, false, -0.012f);
+                    message = english ? "The manager called for a higher press and an immediate reaction." : "O treinador pediu pressão mais alta e reação imediata.";
+                    break;
+                default:
+                    SetTeamBoost(userHome, true, -0.02f);
+                    SetTeamBoost(userHome, false, 0.012f);
+                    message = english ? "The manager asked the team to keep the ball and take time out of the game." : "O treinador pediu para manter a bola e controlar o ritmo.";
+                    break;
+            }
+            ConsumeAdvice(message);
+        }
+
+        void SetTeamBoost(bool home, bool attack, float amount)
+        {
+            if (home)
+            {
+                if (attack) _match.AttackBoost = Mathf.Clamp(_match.AttackBoost + amount, -0.08f, 0.12f);
+                else _match.DefenseBoost = Mathf.Clamp(_match.DefenseBoost + amount, 0f, 0.12f);
+            }
+            else
+            {
+                if (attack) _match.AwayAttackBoost = Mathf.Clamp(_match.AwayAttackBoost + amount, -0.08f, 0.12f);
+                else _match.AwayDefenseBoost = Mathf.Clamp(_match.AwayDefenseBoost + amount, 0f, 0.12f);
+            }
+        }
+
+        void ConsumeAdvice(string note)
+        {
+            if (!string.IsNullOrEmpty(note))
+                _match.AddNote(note, "order");
+            if (_calloutMenu != null)
+            {
+                Destroy(_calloutMenu);
+                _calloutMenu = null;
+            }
+            _dugout.text = "";
             _adviceReady = false;
             _nextAdviceMinute = _match.Minute + 8f;
-            _dugout.text = LocalizationManager.Current == GameLanguage.English
-                ? "You left the assistant's idea."
-                : "Deixaste passar a ideia do adjunto.";
+            SetAdviceControls(false);
+        }
+
+        void SetAdviceControls(bool active)
+        {
+            if (_suggestionButton != null) _suggestionButton.interactable = active;
+            if (_calloutButton != null) _calloutButton.interactable = active;
+            if (_ignoreButton != null) _ignoreButton.interactable = active;
         }
     }
 }

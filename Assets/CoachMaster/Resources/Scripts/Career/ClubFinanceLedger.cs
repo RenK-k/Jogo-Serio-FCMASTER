@@ -44,12 +44,9 @@ namespace CoachMaster.Career
             {
                 foreach (var club in career.World.Clubs.Values)
                 {
-                    if (club == null || club.Finance == null || club.PlayerIds == null)
+                    if (club == null || club.Finance == null)
                         continue;
-                    long payroll = 0;
-                    foreach (var playerId in club.PlayerIds)
-                        if (career.World.Players.TryGetValue(playerId, out var player) && player != null)
-                            payroll += Math.Max(0, player.WeeklyWage);
+                    var payroll = WeeklyPayroll(career, club, payday);
                     if (club.Staff != null)
                     {
                         for (var i = club.Staff.Count - 1; i >= 0; i--)
@@ -62,7 +59,6 @@ namespace CoachMaster.Career
                                 club.Staff.RemoveAt(i);
                                 continue;
                             }
-                            payroll += Math.Max(0, member.WeeklyWage);
                         }
                     }
                     if (payroll <= 0)
@@ -74,6 +70,66 @@ namespace CoachMaster.Career
                 }
                 payday = payday.AddDays(7);
             }
+        }
+
+        public static void SettleWeeklyCommercialIncome(CareerState career, DateTime fromDate, DateTime toDate)
+        {
+            if (career == null || career.World == null || toDate.Date <= fromDate.Date)
+                return;
+
+            var daysUntilMonday = ((int)DayOfWeek.Monday - (int)fromDate.DayOfWeek + 7) % 7;
+            if (daysUntilMonday == 0)
+                daysUntilMonday = 7;
+            var payday = fromDate.Date.AddDays(daysUntilMonday);
+            while (payday <= toDate.Date)
+            {
+                foreach (var club in career.World.Clubs.Values)
+                {
+                    if (club == null || club.Finance == null)
+                        continue;
+                    var income = WeeklyShirtIncome(career, club);
+                    club.Finance.ShirtIncomeThisSeason = (int)Math.Min(int.MaxValue,
+                        (long)club.Finance.ShirtIncomeThisSeason + income);
+                    club.Finance.Balance = (int)Math.Max(int.MinValue,
+                        Math.Min(int.MaxValue, (long)club.Finance.Balance + income));
+
+                    var sellers = TopShirtSellers(career, club);
+                    var remaining = income;
+                    var weights = new[] { 50, 30, 20 };
+                    for (var i = 0; i < sellers.Count; i++)
+                    {
+                        var share = i == sellers.Count - 1 ? remaining : income * weights[i] / 100;
+                        remaining -= share;
+                        Record(club, payday, share, "shirt", sellers[i].FullName, sellers[i].Id);
+                    }
+                    if (sellers.Count == 0)
+                        Record(club, payday, income, "shirt", club.Name);
+                }
+                payday = payday.AddDays(7);
+            }
+        }
+
+        public static long WeeklyPayroll(CareerState career, Club club, DateTime onDate)
+        {
+            if (career == null || career.World == null || club == null)
+                return 0;
+            long payroll = 0;
+            if (club.PlayerIds != null)
+                foreach (var playerId in club.PlayerIds)
+                    if (career.World.Players.TryGetValue(playerId, out var player) && player != null)
+                        payroll += Math.Max(0, player.WeeklyWage);
+            if (club.Staff != null)
+                foreach (var member in club.Staff)
+                    if (member != null && (member.ContractEndTicks <= 0 || member.ContractEndTicks > onDate.Ticks))
+                        payroll += Math.Max(0, member.WeeklyWage);
+            return payroll;
+        }
+
+        public static int WeeklyShirtIncome(CareerState career, Club club)
+        {
+            if (career == null || club == null)
+                return 0;
+            return Math.Max(1800, club.Reputation * 95);
         }
 
         public static void Record(Club club, DateTime date, int amount, string category, string description, string playerId = null)

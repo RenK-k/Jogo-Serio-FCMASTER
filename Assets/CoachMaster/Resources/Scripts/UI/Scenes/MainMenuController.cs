@@ -1,6 +1,8 @@
 using System;
+using System.Globalization;
 using CoachMaster.App;
 using CoachMaster.Career;
+using CoachMaster.UI;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Video;
@@ -20,6 +22,9 @@ namespace CoachMaster.UI.Scenes
             GameRoot.Require();
             GameRoot.EnsureUiInput();
             GameAudio.Music();
+            var session = GameRoot.Instance.Session;
+            if (session.Career == null && HasSavedCareers(session))
+                CareerStore.TryLoadMostRecent(session);
             LocalizationManager.LanguageChanged += RefreshContinueLabel;
             if (transform.Find("Design") != null)
             {
@@ -205,27 +210,29 @@ namespace CoachMaster.UI.Scenes
             SceneBind.Wire(root.Find("MenuCard/Definicoes"), OpenSettings);
             SceneBind.Wire(root.Find("MenuCard/Sair"), ExitGame);
             var career = session.Career;
-            if (career == null && CareerStore.Exists)
-                career = CareerStore.TryLoad(session);
+            if (career == null && HasSavedCareers(session))
+                career = CareerStore.TryLoadMostRecent(session);
             var resume = root.Find("MenuCard/Continuar");
             if (HasSavedCareers(session))
             {
                 if (resume == null)
                 {
-                    var button = BroadcastUi.Button(root.Find("MenuCard"), "Continuar", CareerPickerLabel(), OpenCareerPicker, new Color(1f, 1f, 1f, 0.12f), Color.white, 18);
-                    BroadcastUi.Place(button.GetComponent<RectTransform>(), 0.08f, 0.36f, 0.92f, 0.48f);
+                    var button = BroadcastUi.Button(root.Find("MenuCard"), "Continuar", CareerPickerLabel(), ContinueCareer, UiTheme.Accent, UiTheme.ButtonText, 18);
                     _continueLabel = button.GetComponentInChildren<Text>();
                 }
                 else
                 {
                     resume.gameObject.SetActive(true);
                     _continueLabel = resume.GetComponentInChildren<Text>();
-                    SceneBind.Wire(resume, OpenCareerPicker);
+                    SceneBind.Wire(resume, ContinueCareer);
                 }
             }
             else if (resume != null)
                 resume.gameObject.SetActive(false);
+            EnsureLoadGameButton(root.Find("MenuCard"));
+            SceneBind.Wire(root.Find("MenuCard/CarregarJogo"), OpenCareerPicker);
             DressMenu(root);
+            RefreshContinueDetails(root);
         }
 
         static void Hide(Transform item)
@@ -255,7 +262,9 @@ namespace CoachMaster.UI.Scenes
             if (cardImage != null)
                 cardImage.raycastTarget = false;
             BroadcastUi.Place(card.rectTransform, 0.58f, 0.26f, 0.94f, 0.74f);
-            var start = BroadcastUi.Button(card.transform, "NovaCarreira", "NOVA CARREIRA", ExitToLeague, new Color(1f, 1f, 1f, 0.12f), Color.white, 22);
+            var start = BroadcastUi.Button(card.transform, "NovaCarreira",
+                LocalizationManager.Current == GameLanguage.English ? "NEW CAREER" : "NOVA CARREIRA",
+                ExitToLeague, new Color(1f, 1f, 1f, 0.12f), Color.white, 16);
             BroadcastUi.Place(start.GetComponent<RectTransform>(), 0.08f, 0.52f, 0.92f, 0.66f);
 
             var career = session.Career;
@@ -263,16 +272,19 @@ namespace CoachMaster.UI.Scenes
                 career = CareerStore.TryLoad(session);
             if (HasSavedCareers(session))
             {
-                var resume = BroadcastUi.Button(card.transform, "Continuar", CareerPickerLabel(), OpenCareerPicker, new Color(1f, 1f, 1f, 0.12f), Color.white, 18);
-                BroadcastUi.Place(resume.GetComponent<RectTransform>(), 0.08f, 0.36f, 0.92f, 0.48f);
+                var resume = BroadcastUi.Button(card.transform, "Continuar", CareerPickerLabel(), ContinueCareer, UiTheme.Accent, UiTheme.ButtonText, 18);
                 _continueLabel = resume.GetComponentInChildren<Text>();
             }
+
+            BroadcastUi.Button(card.transform, "CarregarJogo", LocalizationManager.Current == GameLanguage.English ? "LOAD GAME" : "CARREGAR JOGO",
+                OpenCareerPicker, new Color(1f, 1f, 1f, 0.12f), Color.white, 16);
 
             var settings = BroadcastUi.Button(card.transform, "Definicoes", "DEFINIÇÕES", OpenSettings, new Color(1f, 1f, 1f, 0.12f), Color.white, 18);
             BroadcastUi.Place(settings.GetComponent<RectTransform>(), 0.08f, 0.2f, 0.92f, 0.32f);
             var quit = BroadcastUi.Button(card.transform, "Sair", "SAIR", ExitGame, new Color(1f, 1f, 1f, 0.08f), Color.white, 18);
             BroadcastUi.Place(quit.GetComponent<RectTransform>(), 0.08f, 0.05f, 0.92f, 0.16f);
             DressMenu(root);
+            RefreshContinueDetails(root);
             if (Application.isPlaying)
                 ShowMenuFilm(root);
         }
@@ -295,7 +307,7 @@ namespace CoachMaster.UI.Scenes
                 image.raycastTarget = false;
             }
             BroadcastUi.Place(card, 0.58f, 0.26f, 0.94f, 0.74f);
-            var names = new[] { "NovaCarreira", "Continuar", "Definicoes", "Sair" };
+            var names = new[] { "Continuar", "NovaCarreira", "CarregarJogo", "Definicoes", "Sair" };
             var shown = new System.Collections.Generic.List<RectTransform>();
             for (var i = 0; i < names.Length; i++)
             {
@@ -305,17 +317,62 @@ namespace CoachMaster.UI.Scenes
             }
             if (shown.Count == 0)
                 return;
-            var gap = 0.05f;
-            var slot = (1f - gap * (shown.Count + 1)) / shown.Count;
-            var height = slot * 0.76f;
-            var pad = (slot - height) * 0.5f;
+            const float margin = 0.03f;
+            const float gap = 0.03f;
+            var hasContinue = shown.Count > 0 && shown[0].name == "Continuar";
+            var continueHeight = hasContinue ? 0.42f : 0f;
+            var normalCount = shown.Count - (hasContinue ? 1 : 0);
+            var normalHeight = normalCount > 0
+                ? (1f - margin * 2f - continueHeight - gap * Mathf.Max(0, shown.Count - 1)) / normalCount
+                : 0f;
+            var top = 1f - margin;
             for (var i = 0; i < shown.Count; i++)
             {
-                var top = 1f - gap - i * (slot + gap);
-                BroadcastUi.Place(shown[i], 0.1f, top - slot + pad, 0.9f, top - pad);
+                var highlighted = shown[i].name == "Continuar";
+                var height = highlighted ? continueHeight : normalHeight;
+                BroadcastUi.Place(shown[i], 0.06f, top - height, 0.94f, top);
+                top -= height + gap;
                 var motion = shown[i].GetComponent<UiButtonMotion>();
                 if (motion == null)
                     shown[i].gameObject.AddComponent<UiButtonMotion>();
+                var buttonImage = shown[i].GetComponent<Image>();
+                if (buttonImage != null)
+                    buttonImage.color = highlighted ? UiTheme.Accent : new Color(1f, 1f, 1f, 0.12f);
+                var labels = shown[i].GetComponentsInChildren<Text>(true);
+                var label = labels.Length > 0 ? labels[0] : null;
+                if (label != null)
+                {
+                    var english = LocalizationManager.Current == GameLanguage.English;
+                    switch (shown[i].name)
+                    {
+                        case "NovaCarreira": label.text = english ? "NEW CAREER" : "NOVA CARREIRA"; break;
+                        case "CarregarJogo": label.text = english ? "LOAD GAME" : "CARREGAR JOGO"; break;
+                        case "Definicoes": label.text = english ? "SETTINGS" : "DEFINIÇÕES"; break;
+                        case "Sair": label.text = english ? "EXIT" : "SAIR"; break;
+                        case "Continuar": label.text = ""; break;
+                    }
+                    label.alignment = TextAnchor.MiddleCenter;
+                    label.fontSize = 15;
+                    label.resizeTextForBestFit = false;
+                    label.horizontalOverflow = HorizontalWrapMode.Wrap;
+                    label.verticalOverflow = VerticalWrapMode.Truncate;
+                    label.color = highlighted ? UiTheme.ButtonText : Color.white;
+                    label.raycastTarget = false;
+                    var labelRect = label.rectTransform;
+                    labelRect.anchorMin = new Vector2(0.025f, 0.04f);
+                    labelRect.anchorMax = new Vector2(0.975f, 0.96f);
+                    labelRect.offsetMin = Vector2.zero;
+                    labelRect.offsetMax = Vector2.zero;
+                    labelRect.localScale = Vector3.one;
+                    if (!highlighted)
+                    {
+                        for (var textIndex = 1; textIndex < labels.Length; textIndex++)
+                        {
+                            labels[textIndex].text = "";
+                            labels[textIndex].raycastTarget = false;
+                        }
+                    }
+                }
             }
         }
 
@@ -356,13 +413,139 @@ namespace CoachMaster.UI.Scenes
 
         static string CareerPickerLabel()
         {
-            return LocalizationManager.Current == GameLanguage.English ? "CONTINUE" : "CONTINUAR";
+            return LocalizationManager.Current == GameLanguage.English ? "CONTINUE CAREER" : "CONTINUAR CARREIRA";
         }
 
         void RefreshContinueLabel()
         {
             if (_continueLabel != null)
-                _continueLabel.text = CareerPickerLabel();
+                _continueLabel.text = "";
+            var root = BroadcastUi.Mount(this);
+            if (root != null)
+            {
+                var load = root.Find("MenuCard/CarregarJogo");
+                if (load != null)
+                {
+                    var label = load.GetComponentInChildren<Text>();
+                    if (label != null) label.text = LocalizationManager.Current == GameLanguage.English ? "LOAD GAME" : "CARREGAR JOGO";
+                }
+                DressMenu(root);
+                RefreshContinueDetails(root);
+            }
+        }
+
+        void EnsureLoadGameButton(Transform card)
+        {
+            if (card == null || card.Find("CarregarJogo") != null)
+                return;
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var load = BroadcastUi.Button(card, "CarregarJogo", english ? "LOAD GAME" : "CARREGAR JOGO",
+                OpenCareerPicker, new Color(1f, 1f, 1f, 0.12f), Color.white, 16);
+            var label = load.GetComponentInChildren<Text>();
+            if (label != null)
+            {
+                label.fontSize = 15;
+                label.resizeTextForBestFit = false;
+                label.color = Color.white;
+            }
+        }
+
+        void ContinueCareer()
+        {
+            var root = GameRoot.Instance;
+            if (root == null)
+                return;
+            var career = root.Session.Career ?? CareerStore.TryLoadMostRecent(root.Session);
+            if (career == null)
+            {
+                OpenCareerPicker();
+                return;
+            }
+            BeginExit(() => GameRoot.Instance.Open(SceneNames.CareerHub));
+        }
+
+        void RefreshContinueDetails(Transform root)
+        {
+            var button = root == null ? null : root.Find("MenuCard/Continuar") as RectTransform;
+            if (button == null || !button.gameObject.activeSelf)
+                return;
+            var original = button.GetComponentInChildren<Text>();
+            if (original != null)
+            {
+                original.text = "";
+                original.raycastTarget = false;
+            }
+            var session = GameRoot.Instance == null ? null : GameRoot.Instance.Session;
+            var career = session == null ? null : session.Career;
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var title = FindOrAddMenuLabel(button, "ContinueTitle", CareerPickerLabel(), 17, UiTheme.ButtonText, FontStyle.Bold);
+            BroadcastUi.Place(title.rectTransform, 0.24f, 0.69f, 0.96f, 0.96f);
+            var club = career == null ? null : career.Club;
+            var clubName = FindOrAddMenuLabel(button, "ContinueClub", club == null ? (english ? "No career saved" : "Sem carreira guardada") : club.Name,
+                20, UiTheme.ButtonText, FontStyle.Bold);
+            BroadcastUi.Place(clubName.rectTransform, 0.24f, 0.36f, 0.96f, 0.72f);
+            var dateText = career == null || career.Calendar == null ? "" : career.Calendar.CurrentDate.ToString(
+                english ? "d MMMM yyyy" : "d 'de' MMMM 'de' yyyy",
+                CultureInfo.GetCultureInfo(english ? "en-GB" : "pt-PT"));
+            var playedAt = career == null ? DateTime.MinValue : CareerStore.LastPlayedAt(career);
+            var lastPlayed = playedAt == DateTime.MinValue ? "" : playedAt.ToString(
+                english ? "Last played  ·  dd MMM yyyy HH:mm" : "Última vez  ·  dd/MM/yyyy HH:mm",
+                CultureInfo.GetCultureInfo(english ? "en-GB" : "pt-PT"));
+            var playTime = career == null ? "" : FormatPlayTime(career.PlayTimeSeconds, english);
+            var details = string.IsNullOrEmpty(dateText) ? "" : (english ? "Game date  ·  " : "Data do jogo  ·  ") + dateText
+                + "\n" + lastPlayed + "\n" + (english ? "Play time  ·  " : "Tempo jogado  ·  ") + playTime;
+            var detail = FindOrAddMenuLabel(button, "ContinueDetails", details, 12, UiTheme.ButtonText, FontStyle.Normal);
+            detail.alignment = TextAnchor.UpperLeft;
+            detail.horizontalOverflow = HorizontalWrapMode.Wrap;
+            detail.verticalOverflow = VerticalWrapMode.Truncate;
+            BroadcastUi.Place(detail.rectTransform, 0.24f, 0.04f, 0.96f, 0.39f);
+
+            var badgeTransform = button.Find("ContinueBadge");
+            Image badge;
+            if (badgeTransform == null)
+            {
+                var go = new GameObject("ContinueBadge", typeof(RectTransform), typeof(Image));
+                go.transform.SetParent(button, false);
+                badge = go.GetComponent<Image>();
+            }
+            else badge = badgeTransform.GetComponent<Image>();
+            if (badge != null)
+            {
+                badge.sprite = club == null ? null : CrestStudio.For(club);
+                badge.preserveAspect = true;
+                badge.raycastTarget = false;
+                badge.enabled = badge.sprite != null;
+                BroadcastUi.Place(badge.rectTransform, 0.035f, 0.19f, 0.205f, 0.83f);
+            }
+        }
+
+        static Text FindOrAddMenuLabel(Transform parent, string name, string text, int size, Color color, FontStyle style)
+        {
+            var existing = parent.Find(name);
+            var label = existing == null
+                ? BroadcastUi.Label(parent, name, text, size, color, TextAnchor.MiddleLeft, style)
+                : existing.GetComponent<Text>();
+            if (label != null)
+            {
+                label.text = text;
+                label.fontSize = size;
+                label.color = color;
+                label.fontStyle = style;
+                label.raycastTarget = false;
+                label.resizeTextForBestFit = true;
+                label.resizeTextMinSize = Mathf.Max(9, size - 2);
+                label.resizeTextMaxSize = size;
+            }
+            return label;
+        }
+
+        static string FormatPlayTime(double seconds, bool english)
+        {
+            var totalMinutes = Math.Max(0, (int)Math.Floor(seconds / 60d));
+            var hours = totalMinutes / 60;
+            var minutes = totalMinutes % 60;
+            if (hours == 0) return english ? minutes + " min" : minutes + " min";
+            return english ? hours + "h " + minutes + "m" : hours + "h " + minutes + "m";
         }
 
         void OpenCareerPicker()

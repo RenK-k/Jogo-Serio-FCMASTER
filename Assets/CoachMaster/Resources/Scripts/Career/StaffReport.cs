@@ -1,4 +1,6 @@
 using CoachMaster.Domain;
+using CoachMaster.Data;
+using CoachMaster.UI;
 
 namespace CoachMaster.Career
 {
@@ -53,12 +55,12 @@ namespace CoachMaster.Career
         {
             var current = Find(club, role);
             var seed = Stable(current, club.Id, role + ":" + club.DressingRoomTension);
-            var name = Names[seed % Names.Length];
+            var name = FaceBook.PersonName(WorldCatalog.NationalityForLeagueId(club.LeagueId), seed);
             var guard = 0;
-            while (Taken(club, name) && guard < Names.Length)
+            while (Taken(club, name) && guard < 12)
             {
                 guard++;
-                name = Names[(seed + guard) % Names.Length];
+                name = FaceBook.PersonName(WorldCatalog.NationalityForLeagueId(club.LeagueId), seed + guard * 97);
             }
 
             var judgement = 15 + seed % 5;
@@ -109,11 +111,5 @@ namespace CoachMaster.Career
             }
         }
 
-        static readonly string[] Names =
-        {
-            "Duarte Belém", "Rita Sado", "Nuno Vouga", "Helena Tejo", "Paulo Mira",
-            "Inês Laurada", "Rui Cértima", "Marta Azibo", "João Lena", "Sara Dão",
-            "Carlos Minho", "Beatriz Tua", "Miguel Arda", "Ana Zêzere", "Vítor Cávado"
-        };
     }
 }

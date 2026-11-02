@@ -47,6 +47,8 @@ namespace CoachMaster.Career
         public int RefereeStrictness { get; set; } = 1;
         public int RealismPreset { get; set; } = 1;
         public long LastAutoSaveDateTicks { get; set; }
+        public long LastPlayedUtcTicks { get; set; }
+        public double PlayTimeSeconds { get; set; }
         public string FileId { get; set; }
         public string SaveLabel { get; set; }
 

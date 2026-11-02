@@ -1,0 +1,520 @@
+fileFormatVersion: 2
+guid: 277b0cd08b496bc4bb130fbd567cdb29
+TextureImporter:
+  internalIDToNameTable:
+  - first:
+      213: -6451203549628772437
+    second: Coupe de france_0
+  - first:
+      213: -9045521699495053985
+    second: Coupe de france_1
+  - first:
+      213: -8871241669310384517
+    second: Coupe de france_2
+  - first:
+      213: 9056771695149792802
+    second: Coupe de france_3
+  - first:
+      213: -8203817153742742754
+    second: Coupe de france_4
+  - first:
+      213: 1603407092987051920
+    second: Coupe de france_5
+  - first:
+      213: 8560971097483170772
+    second: Coupe de france_6
+  - first:
+      213: 2330168579557132776
+    second: Coupe de france_7
+  - first:
+      213: -6600653891746547182
+    second: Coupe de france_8
+  - first:
+      213: -2664833812286580000
+    second: Coupe de france_9
+  - first:
+      213: 550896810472974719
+    second: Coupe de france_10
+  - first:
+      213: 5084321911019701502
+    second: Coupe de france_11
+  - first:
+      213: -610559245879814719
+    second: Coupe de france_12
+  - first:
+      213: 4034604892086302151
+    second: Coupe de france_13
+  - first:
+      213: 255626471711529808
+    second: Coupe de france_14
+  externalObjects: {}
+  serializedVersion: 13
+  mipmaps:
+    mipMapMode: 0
+    enableMipMap: 0
+    sRGBTexture: 1
+    linearTexture: 0
+    fadeOut: 0
+    borderMipMap: 0
+    mipMapsPreserveCoverage: 0
+    alphaTestReferenceValue: 0.5
+    mipMapFadeDistanceStart: 1
+    mipMapFadeDistanceEnd: 3
+  bumpmap:
+    convertToNormalMap: 0
+    externalNormalMap: 0
+    heightScale: 0.25
+    normalMapFilter: 0
+    flipGreenChannel: 0
+  isReadable: 0
+  streamingMipmaps: 0
+  streamingMipmapsPriority: 0
+  vTOnly: 0
+  ignoreMipmapLimit: 0
+  grayScaleToAlpha: 0
+  generateCubemap: 6
+  cubemapConvolution: 0
+  seamlessCubemap: 0
+  textureFormat: 1
+  maxTextureSize: 2048
+  textureSettings:
+    serializedVersion: 2
+    filterMode: 1
+    aniso: 1
+    mipBias: 0
+    wrapU: 1
+    wrapV: 1
+    wrapW: 1
+  nPOTScale: 0
+  lightmap: 0
+  compressionQuality: 50
+  spriteMode: 2
+  spriteExtrude: 1
+  spriteMeshType: 1
+  alignment: 0
+  spritePivot: {x: 0.5, y: 0.5}
+  spritePixelsToUnits: 100
+  spriteBorder: {x: 0, y: 0, z: 0, w: 0}
+  spriteGenerateFallbackPhysicsShape: 1
+  alphaUsage: 1
+  alphaIsTransparency: 1
+  spriteTessellationDetail: -1
+  textureType: 8
+  textureShape: 1
+  singleChannelComponent: 0
+  flipbookRows: 1
+  flipbookColumns: 1
+  maxTextureSizeSet: 0
+  compressionQualitySet: 0
+  textureFormatSet: 0
+  ignorePngGamma: 0
+  applyGammaDecoding: 0
+  swizzle: 50462976
+  cookieLightType: 0
+  platformSettings:
+  - serializedVersion: 4
+    buildTarget: DefaultTexturePlatform
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: Standalone
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: WebGL
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  spriteSheet:
+    serializedVersion: 2
+    sprites:
+    - serializedVersion: 2
+      name: Coupe de france_0
+      rect:
+        serializedVersion: 2
+        x: 651
+        y: 870
+        width: 697
+        height: 369
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: baf43a23d88b876a0800000000000000
+      internalID: -6451203549628772437
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Coupe de france_1
+      rect:
+        serializedVersion: 2
+        x: 827
+        y: 1068
+        width: 308
+        height: 404
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: f55728580f9d77280800000000000000
+      internalID: -9045521699495053985
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Coupe de france_2
+      rect:
+        serializedVersion: 2
+        x: 402
+        y: 649
+        width: 121
+        height: 137
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: b767c1024b403e480800000000000000
+      internalID: -8871241669310384517
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Coupe de france_3
+      rect:
+        serializedVersion: 2
+        x: 572
+        y: 649
+        width: 131
+        height: 137
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 22e37353fdd10bd70800000000000000
+      internalID: 9056771695149792802
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Coupe de france_4
+      rect:
+        serializedVersion: 2
+        x: 755
+        y: 649
+        width: 115
+        height: 135
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: e1b58eca3cf262e80800000000000000
+      internalID: -8203817153742742754
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Coupe de france_5
+      rect:
+        serializedVersion: 2
+        x: 925
+        y: 651
+        width: 111
+        height: 133
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 09fb5df7142704610800000000000000
+      internalID: 1603407092987051920
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Coupe de france_6
+      rect:
+        serializedVersion: 2
+        x: 1086
+        y: 651
+        width: 100
+        height: 133
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 4d3deddeaddaec670800000000000000
+      internalID: 8560971097483170772
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Coupe de france_7
+      rect:
+        serializedVersion: 2
+        x: 1327
+        y: 651
+        width: 120
+        height: 133
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 8e987433afb665020800000000000000
+      internalID: 2330168579557132776
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Coupe de france_8
+      rect:
+        serializedVersion: 2
+        x: 1498
+        y: 651
+        width: 100
+        height: 133
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 21ab529d144c564a0800000000000000
+      internalID: -6600653891746547182
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Coupe de france_9
+      rect:
+        serializedVersion: 2
+        x: 535
+        y: 391
+        width: 91
+        height: 133
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 0ea553144cb940bd0800000000000000
+      internalID: -2664833812286580000
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Coupe de france_10
+      rect:
+        serializedVersion: 2
+        x: 677
+        y: 391
+        width: 120
+        height: 133
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: f792328fabd25a700800000000000000
+      internalID: 550896810472974719
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Coupe de france_11
+      rect:
+        serializedVersion: 2
+        x: 841
+        y: 391
+        width: 135
+        height: 133
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ef4801617d32f8640800000000000000
+      internalID: 5084321911019701502
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Coupe de france_12
+      rect:
+        serializedVersion: 2
+        x: 1025
+        y: 391
+        width: 119
+        height: 133
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 1c5d00bc99bd687f0800000000000000
+      internalID: -610559245879814719
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Coupe de france_13
+      rect:
+        serializedVersion: 2
+        x: 1196
+        y: 389
+        width: 121
+        height: 137
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 7c57bd9e5cbcdf730800000000000000
+      internalID: 4034604892086302151
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Coupe de france_14
+      rect:
+        serializedVersion: 2
+        x: 1368
+        y: 391
+        width: 101
+        height: 133
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 05b5d81fbea2c8300800000000000000
+      internalID: 255626471711529808
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    outline: []
+    customData: 
+    physicsShape: []
+    bones: []
+    spriteID: 
+    internalID: 0
+    vertices: []
+    indices: 
+    edges: []
+    weights: []
+    secondaryTextures: []
+    spriteCustomMetadata:
+      entries: []
+    nameFileIdTable:
+      Coupe de france_0: -6451203549628772437
+      Coupe de france_1: -9045521699495053985
+      Coupe de france_10: 550896810472974719
+      Coupe de france_11: 5084321911019701502
+      Coupe de france_12: -610559245879814719
+      Coupe de france_13: 4034604892086302151
+      Coupe de france_14: 255626471711529808
+      Coupe de france_2: -8871241669310384517
+      Coupe de france_3: 9056771695149792802
+      Coupe de france_4: -8203817153742742754
+      Coupe de france_5: 1603407092987051920
+      Coupe de france_6: 8560971097483170772
+      Coupe de france_7: 2330168579557132776
+      Coupe de france_8: -6600653891746547182
+      Coupe de france_9: -2664833812286580000
+  mipmapLimitGroupName: 
+  pSDRemoveMatte: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

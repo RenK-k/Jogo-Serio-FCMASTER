@@ -24,6 +24,7 @@ namespace CoachMaster.UI
             { "ANTERIOR", "PREVIOUS" }, { "GUARDAR", "SAVE" }, { "SAIR", "EXIT" }, { "SIM", "YES" }, { "NÃO", "NO" },
             { "RESTAURAR", "RESTORE" }, { "ABRIR CÓPIA", "OPEN SAVED COPY" },
             { "GESTOR DE GRAVAÇÕES", "SAVE MANAGER" }, { "CRIAR CÓPIA", "CREATE COPY" }, { "GRAVAÇÕES GUARDADAS", "SAVED CAREERS" },
+            { "GESTOR DE SAVES", "SAVE MANAGER" },
             { "As cópias nomeadas ficam separadas dos autosaves e da gravação principal.", "Named copies stay separate from autosaves and the main career save." },
             { "A gravação anterior foi mantida.", "The previous save was kept." },
             { "ECRÃ E GRÁFICOS", "DISPLAY & GRAPHICS" }, { "JOGABILIDADE", "GAMEPLAY" }, { "DIA DE JOGO", "MATCH DAY" },
@@ -508,7 +509,141 @@ namespace CoachMaster.UI
             { "   ·   treino ", "   ·   training " },
             { "   ·   Mister ", "   ·   Manager " },
             { "SEMANA DE ", "WEEK OF " },
-            { "CARREGAR", "LOADING" }, { "A carregar…", "Loading…" }
+            { "CARREGAR", "LOADING" }, { "A carregar…", "Loading…" },
+            { "DFB-Pokal", "DFB-Pokal" }, { "DFL-Supercup", "DFL-Supercup" },
+            { "KNVB Beker", "KNVB Cup" }, { "Johan Cruyff Shield", "Johan Cruyff Shield" },
+            { "Copa do Brasil", "Brazil Cup" }, { "Supercopa do Brasil", "Brazilian Super Cup" },
+            { "Munique", "Munich" }, { "Lisboa", "Lisbon" },
+            { "Lutar pelo título", "Challenge for the title" }, { "Manter o peso europeu", "Maintain the club's European standing" },
+            { "Manter o dressing room dos grandes", "Keep a dressing room worthy of a major club" },
+            { "Manter o balneário dos grandes", "Keep a dressing room worthy of a major club" },
+            { "Lutar pelos lugares europeus", "Challenge for European places" },
+            { "Manter o balneário estável", "Keep the dressing room stable" },
+            { "Integrar dois jogadores da formação", "Bring two academy players into the first team" },
+            { "Disputar o título", "Challenge for the title" }, { "Manter a formação como prioridade", "Keep the academy a priority" },
+            { "Não abdicar do meio-campo", "Maintain control of midfield" },
+            { "Garantir a manutenção", "Secure survival" }, { "Manter a intensidade que o público exige", "Keep up the intensity the supporters expect" },
+            { "Controlar os custos do plantel", "Keep squad costs under control" }, { "Manter o plantel de grande", "Keep a squad worthy of a major club" },
+            { "Afirmar a águia na Europa", "Establish the Eagles in Europe" }, { "Ficar a meio da tabela", "Finish in mid-table" },
+            { "Manter a solidez defensiva", "Maintain defensive solidity" }, { "Evitar experiências táticas bruscas", "Avoid drastic tactical changes" },
+            { "Manutenção confortável", "Secure comfortable survival" }, { "Dar minutos a jogadores da formação", "Give academy players minutes" },
+            { "Manter a identidade de jogo apoiado", "Keep the possession-based identity" }, { "Evitar a descida", "Avoid relegation" },
+            { "Acalmar o ambiente interno", "Calm the atmosphere inside the club" }, { "Recuperar a relação com a massa adepta", "Rebuild the relationship with the supporters" },
+            { "Manutenção", "Survive" }, { "Preservar o espírito coletivo", "Preserve the team spirit" },
+            { "Dar continuidade à formação local", "Continue developing local academy players" }, { "Lutar pela subida", "Challenge for promotion" },
+            { "Manter o grupo unido", "Keep the squad together" }, { "Não perder a identidade da casa", "Stay true to the club's identity" },
+            { "Subir de divisão", "Win promotion" }, { "Ganhar em casa com autoridade", "Win convincingly at home" },
+            { "Recuperar jogadores-chave da última época", "Get key players back to their best" },
+            { "Chegar aos lugares de subida", "Reach the promotion places" }, { "Manter um futebol ofensivo", "Keep playing attacking football" },
+            { "Afirmar o clube fora da região", "Build the club's profile beyond the region" }, { "Manutenção tranquila", "Stay up comfortably" },
+            { "Dar espaço aos da casa", "Make room for home-grown players" }, { "Crescer sem perder a identidade", "Grow without losing the club's identity" },
+            { "Ficar na primeira metade da tabela", "Finish in the top half" }, { "Tornar o Alto da Pedra ainda mais difícil", "Make Alto da Pedra an even tougher place to visit" },
+            { "Evitar lesões da pré-época", "Avoid pre-season injuries" }, { "Respeitar a história do clube", "Respect the club's history" },
+            { "Não gastar o que não se tem", "Do not spend beyond the club's means" },
+            { "Pontuar com regularidade", "Pick up points consistently" }, { "Manter o balneário calmo", "Keep the dressing room calm" },
+            { "O clube mais rico do país. O céu azul compra plantéis de título.", "The country's richest club. Its sky-blue wealth buys title-winning squads." },
+            { "Gigante financeiro. O título é a medida do ano.", "A financial giant. The title is the measure of a successful season." },
+            { "A margem vermelha. Europeu de peso, com uma bancada que não perdoa um jogo morno.", "The red side of the Mersey. A European heavyweight with supporters who never forgive a flat performance." },
+            { "Clube de topo europeu. Exige noites grandes.", "A European powerhouse. Big nights are expected." },
+            { "O outro gigante de Manchester. Histórico, impaciente e sempre à procura do título.", "Manchester's other giant. Historic, impatient and always chasing the title." },
+            { "Gigante histórico. A direção mede a época pelo título.", "A historic giant. The board measures the season by the title." },
+            { "O canhão do norte de Londres. Clube grande, organizado e habituado a lutar pelo topo.", "North London's cannon. A major, well-organised club used to challenging at the top." },
+            { "Clube grande. O topo da tabela é a expectativa.", "A major club. A place at the top of the table is expected." },
+            { "O leão azul do norte de Londres. Dinheiro, estrelas e a obrigação de ganhar taças.", "North London's blue lion. Money, stars and an expectation to win trophies." },
+            { "Clube de estrelas. Taças e lugares de topo.", "A star-studded club. Trophies and top finishes are expected." },
+            { "O lírio branco do norte de Londres. Ataque bonito e a pressão de voltar ao topo.", "North London's white lily. A stylish attack and pressure to return to the top." },
+            { "Clube grande. Exige futebol e lugares europeus.", "A major club. Attractive football and European qualification are expected." },
+            { "A cidade das riscas. Um clube grande do Norte, com bancada cheia e ambição europeia.", "The city of stripes. A major northern club with a full stadium and European ambitions." },
+            { "Clube grande do Norte. A Europa é o mínimo.", "A major northern club. Europe is the minimum expectation." },
+            { "O leão de Birmingham. Clube histórico, de grená e azul, a querer voltar às noites grandes.", "Birmingham's lion. A historic claret-and-blue club looking to return to the big European nights." },
+            { "Clube estabelecido. Quer a Europa.", "An established club with European ambitions." },
+            { "Um dos clubes mais antigos do país. Já foi europeu e ainda se vê como grande.", "One of the country's oldest clubs. Formerly a European force, it still sees itself as a giant." },
+            { "Clube histórico. Não aceita a mediocridade.", "A historic club that will not accept mediocrity." },
+            { "O azul da outra margem. Clube tradicional, fiel e cansado de viver à sombra do vizinho.", "The blue side of the river. A traditional, loyal club tired of living in its neighbour's shadow." },
+            { "Clube tradicional. Quer a metade de cima e uma taça.", "A traditional club targeting the top half and a cup." },
+            { "O branco de Yorkshire. Clube intenso, de bancada hostil, a querer fixar-se no topo.", "Yorkshire's whites. An intense club with a hostile crowd, aiming to establish itself near the top." },
+            { "Clube de primeira. A estabilidade no topo é o plano.", "A top-flight club aiming to establish itself in the upper half." },
+            { "A gaivota da costa sul. Clube moderno, bem gerido, sem o peso de um gigante.", "The south coast seagull. A modern, well-run club without the pressure of a giant." },
+            { "Clube estável da primeira. Quer crescer sem loucura.", "A stable top-flight club looking to grow sensibly." },
+            { "A águia do sul de Londres. Clube de bairro que chegou ao topo e quer lá ficar.", "South London's eagle. A neighbourhood club that reached the top and wants to stay there." },
+            { "Clube da primeira. Manter-se e assustar os grandes.", "A top-flight club aiming to stay up and unsettle the giants." },
+            { "O branco de Fulham. Clube de Londres, mais casa do que império.", "Fulham's whites. A London club built more on home comforts than empire." },
+            { "Clube de Londres. A permanência tranquila chega.", "A London club where comfortable survival is enough." },
+            { "As cerejas da costa sul. Clube pequeno no mapa, teimoso na primeira divisão.", "The south coast cherries. A small club with a stubborn place in the top flight." },
+            { "Clube modesto da primeira. Sobreviver já é época boa.", "A modest top-flight club. Survival makes for a good season." },
+            { "A abelha do oeste de Londres. Orçamento curto, identidade forte.", "West London's bee. A tight budget with a strong identity." },
+            { "Clube combativo. Cada ponto na primeira conta.", "A competitive club where every top-flight point matters." },
+            { "O gato preto de Wearside. Clube histórico do Nordeste, de novo entre os grandes.", "Wearside's black cat. A historic north-east club back among the country's elite." },
+            { "Clube tradicional. Fixar-se na primeira é o mandato.", "A traditional club whose mandate is to establish itself in the top flight." },
+            { "O cavalo de Suffolk. Clube de província, azul e branco, sem dinheiro de gigante.", "Suffolk's horse. A provincial blue-and-white club without giant-sized resources." },
+            { "Clube de província. A primeira divisão já é uma conquista.", "A provincial club for whom top-flight status is already an achievement." },
+            { "O azul-céu de Coventry. Ainda a aprender o peso da primeira divisão.", "Coventry sky blue. Still learning the demands of the top flight." },
+            { "Recém-chegado ao convívio dos grandes. Permanecer.", "New to the top flight. Survival is the target." },
+            { "O tigre do estuário. O clube mais pequeno desta primeira divisão.", "The estuary tiger. The smallest club in this top-flight division." },
+            { "O mais pequeno da primeira. Cada época é uma luta.", "The smallest club in the top flight. Every season is a battle." },
+            { "O clube da Baviera. Domina o país há anos e mede-se com os maiores da Europa.", "Bavaria's club. It has dominated at home for years and measures itself against Europe's best." },
+            { "O grande da Alemanha. O título é obrigação.", "Germany's biggest club. Winning the title is a requirement." },
+            { "A casa real do futebol. O clube mais pesado do continente, de verde e branco.", "The royal home of football. The continent's most powerful club, in green and white." },
+            { "O maior clube deste campeonato. Só o título serve.", "The biggest club in this competition. Only the title will do." },
+            { "A águia de Lisboa. O clube com mais peso do país, habituado a medir a época pelo título.", "The Lisbon eagle. One of the country's biggest clubs, accustomed to measuring every season by the title." },
+            { "A fénix de Vila do Conde. Primeira divisão, sem o cofre dos três grandes.", "The Vila do Conde phoenix. A top-flight club without the resources of the country's big three." },
+            { "O clube da cidade. Blaugrana, identidade forte, o único que discute o trono com Madrid.", "The city's club. Red and blue with a strong identity, and the only side challenging Madrid for the throne." },
+            { "Gigante. O título e a Europa são a conversa.", "A giant. The title and Europe are the only things that matter." },
+            { "A direção fala abertamente de um momento financeiro delicado.", "The board has openly acknowledged the club's financial difficulties." },
+            { "A direção gere o clube com prudência e pouca tolerância a dívidas.", "The board runs the club cautiously and has little tolerance for debt." },
+            { "A pré-época ainda não mostrou o verdadeiro nível.", "Pre-season has not yet revealed the team's true level." },
+            { "A pré-época arranca com um plantel experiente, mas o ambiente no centro de treinos não é o de um recomeço tranquilo.", "Pre-season begins with an experienced squad, but the training ground does not feel like a fresh start." },
+            { "A última época foi agitada. O plantel chegou à pré-época com um treinador novo pela terceira vez em dois anos.", "Last season was turbulent. The squad has a new manager for the third time in two years." },
+            { "Alberto Sousa reformou-se no final da época, deixando o cargo vago.", "Alberto Sousa retired at the end of the season, leaving the position vacant." },
+            { "António Ribeira saiu para cuidar da família, segundo o comunicado do clube.", "António Ribeira left to care for his family, according to the club's statement." },
+            { "As contas acompanham o tamanho do clube.", "The finances reflect the size of the club." },
+            { "As contas estão justas. A direção promete estabilidade, não reforços caros.", "The finances are tight. The board promises stability rather than expensive signings." },
+            { "Carlos Magalhães foi despedido após falhar a subida no último jogo.", "Carlos Magalhães was dismissed after missing out on promotion in the final match." },
+            { "Contas de grande, com a formação como regra da casa.", "Big-club finances, with academy development at the heart of the club." },
+            { "Contas equilibradas e uma direção avessa a riscos.", "Balanced finances and a board that avoids risk." },
+            { "Fernando Vale foi despedido após uma última volta abaixo do esperado.", "Fernando Vale was dismissed after an underwhelming final stretch of the season." },
+            { "Francisco Bruma deixou o cargo após seis épocas, por decisão da assembleia.", "Francisco Bruma left after six seasons following a decision by the club's members." },
+            { "Há alguma folga, mas a direção quer o regresso à primeira liga sem despesismo.", "There is some room in the budget, but the board wants promotion without reckless spending." },
+            { "Há muitos jogadores novos no grupo. Falta perceber quem assume o vestuário.", "There are many new players in the squad. It remains to be seen who will lead the dressing room." },
+            { "Há talento no ataque e dúvidas atrás. O antigo treinador deixou um grupo habituado a arriscar.", "There is attacking talent but uncertainty at the back. The former manager left a squad used to taking risks." },
+            { "José Cardoso saiu após oito épocas no cargo.", "José Cardoso left after eight seasons in charge." },
+            { "Manuel Correia foi dispensado depois de uma época irregular.", "Manuel Correia was dismissed after an inconsistent season." },
+            { "Manuel Pedra foi despedido após uma pré-época anterior marcada por várias baixas físicas.", "Manuel Pedra was dismissed after the previous pre-season was disrupted by several fitness problems." },
+            { "O banco está vago.", "The manager's position is vacant." },
+            { "O clube procura treinador após a saída de Hélder Paiva no final da época.", "The club is looking for a manager after Hélder Paiva left at the end of the season." },
+            { "O clube vive no limite. Qualquer decisão tem de ser explicada aos sócios.", "The club is operating on the edge. Every decision must be explained to its members." },
+            { "O cofre de um grande. A direção exige noites europeias.", "A major club's resources. The board expects European nights." },
+            { "O cofre do maior. A direção não aceita uma época sem título.", "The country's biggest club has the resources to match. The board will not accept a season without a trophy." },
+            { "O grupo conhece-se bem. A saída do treinador surpreendeu muita gente fora do clube.", "The squad knows each other well. The manager's departure surprised many people outside the club." },
+            { "O grupo está habituado a um futebol de combate. Há dúvidas sobre o que o novo treinador vai pedir.", "The squad is used to a physical style. There are questions about what the new manager will ask of them." },
+            { "O grupo está habituado a um método rígido. O antigo treinador deixou pouca margem de interpretação.", "The squad is used to a strict approach. The former manager left little room for interpretation." },
+            { "O orçamento é curto. Qualquer despesa extra precisa de aprovação da direção.", "The budget is tight. Any extra spending needs board approval." },
+            { "O orçamento é modesto e depende de vendas pontuais da formação.", "The budget is modest and depends on occasional academy sales." },
+            { "O plantel acredita na subida. Falta perceber se essa crença se aguenta ao primeiro revés.", "The squad believes it can earn promotion. The first setback will test that belief." },
+            { "O plantel é curto e conhece-se de trás para a frente. Um treinador de fora será sempre posto à prova.", "The squad is small and knows each other inside out. An outsider will have to prove themselves." },
+            { "O plantel é jovem. Há poucos líderes óbvios à primeira vista.", "The squad is young, with few obvious leaders at first glance." },
+            { "O plantel é talentoso. A última época ficou aquém das expectativas da direção.", "The squad is talented. Last season fell short of the board's expectations." },
+            { "O plantel está habituado a um sistema específico. Qualquer mudança será sentida.", "The squad is used to a specific system. Any change will be felt." },
+            { "O plantel sente que devia já estar na Liga Portugal. Essa ideia está presente em quase todas as conversas.", "The squad feels it should already be in Liga Portugal. That belief comes up in almost every conversation." },
+            { "Orçamento de clube médio. Cada contratação pesa.", "A mid-sized club's budget. Every signing matters." },
+            { "Paulo Rangel foi despedido após uma sequência de resultados negativos.", "Paulo Rangel was dismissed after a run of poor results." },
+            { "Pedro Laranja saiu após um desentendimento público com a direção.", "Pedro Laranja left after a public disagreement with the board." },
+            { "Rui Tavares saiu para um clube da Liga Portugal, deixando o cargo vago.", "Rui Tavares left for a Liga Portugal club, leaving the position vacant." },
+            { "Sofia Menezes saiu por acordo mútuo após desentendimentos com a direção.", "Sofia Menezes left by mutual agreement after disagreements with the board." },
+            { "Vários jogadores da última época saíram. O plantel mistura veteranos e jovens ainda por afirmar.", "Several players left after last season. The squad combines veterans with young players still finding their feet." },
+            { "Vítor Gama deixou o cargo após uma época considerada insuficiente.", "Vítor Gama left after the season was judged unsatisfactory." },
+            { "Vive com o que tem. A formação é a principal fonte de oxigénio.", "The club lives within its means. The academy is its main source of income." },
+            { "Vive dentro das possibilidades. Não há margem para erros de mercado.", "The club lives within its means. There is no room for transfer-market mistakes." },
+            { "O clube mais rico do país", "The country's richest club" },
+            { "diz o que pensa, mesmo à frente do grupo.", "says what he thinks, even in front of the squad." },
+            { "puxa os outros sem esperar que lho peçam.", "brings the others along without being asked." },
+            { "fecha a cara à primeira contrariedade.", "looks unhappy at the first setback." },
+            { "faz o trabalho e deixa o resto em silêncio.", "does the work and lets it speak for itself." },
+            { "olha para o lado antes de falar.", "looks away before speaking." },
+            { "mede o dia pelo lugar que quer ocupar.", "measures the day by the place he wants to earn." },
+            { "observa e só entra quando o chamam.", "watches and only joins in when called." },
+            { "ficou curto no exercício.", "struggled to finish the drill." },
+            { "come à parte.", "eats alone." }
         };
         static readonly KeyValuePair<string, string>[] EnglishTerms = BuildEnglishTerms();
 
@@ -978,6 +1113,56 @@ namespace CoachMaster.UI
 
         static string TranslateGenerated(string source)
         {
+            const string keepsApart = " come à parte. ";
+            var apartAt = source.IndexOf(keepsApart, StringComparison.Ordinal);
+            if (apartAt > 0)
+            {
+                var voice = source.Substring(apartAt + keepsApart.Length);
+                return source.Substring(0, apartAt) + " keeps to himself. " + (TranslateDictionaryTerms(voice) ?? voice);
+            }
+            const string distant = " anda afastado. ";
+            var distantAt = source.IndexOf(distant, StringComparison.Ordinal);
+            if (distantAt > 0)
+            {
+                var voice = source.Substring(distantAt + distant.Length);
+                return source.Substring(0, distantAt) + " has been keeping his distance. " + (TranslateDictionaryTerms(voice) ?? voice);
+            }
+            const string exercise = " ficou curto no exercício. ";
+            var exerciseAt = source.IndexOf(exercise, StringComparison.Ordinal);
+            if (exerciseAt > 0)
+            {
+                var voice = source.Substring(exerciseAt + exercise.Length);
+                return source.Substring(0, exerciseAt) + " struggled to finish the drill. " + (TranslateDictionaryTerms(voice) ?? voice);
+            }
+
+            const string splitTable = "A mesa partiu-se. ";
+            const string splitMiddle = " ficou com metade e ";
+            const string splitEnd = " com a outra.";
+            if (source.StartsWith(splitTable, StringComparison.Ordinal) && source.EndsWith(splitEnd, StringComparison.Ordinal))
+            {
+                var middleAt = source.IndexOf(splitMiddle, splitTable.Length, StringComparison.Ordinal);
+                if (middleAt > splitTable.Length)
+                    return "The group split into two sides. " + source.Substring(splitTable.Length, middleAt - splitTable.Length)
+                        + " took one side and " + source.Substring(middleAt + splitMiddle.Length, source.Length - middleAt - splitMiddle.Length - splitEnd.Length)
+                        + " took the other.";
+            }
+
+            const string arrivedEarly = " chegou cedo. ";
+            const string enteredQuietly = " entrou sem falar. ";
+            var arrivalAt = source.IndexOf(arrivedEarly, StringComparison.Ordinal);
+            if (arrivalAt > 0)
+            {
+                var secondStart = arrivalAt + arrivedEarly.Length;
+                var quietAt = source.IndexOf(enteredQuietly, secondStart, StringComparison.Ordinal);
+                if (quietAt > secondStart)
+                {
+                    var voice = source.Substring(quietAt + enteredQuietly.Length);
+                    var translatedVoice = TranslateDictionaryTerms(voice) ?? voice;
+                    return source.Substring(0, arrivalAt) + " arrived early. "
+                        + source.Substring(secondStart, quietAt - secondStart) + " came in without a word. " + translatedVoice;
+                }
+            }
+
             const string oneTwoPrefix = "Tabela entre ";
             if (source.StartsWith(oneTwoPrefix, StringComparison.Ordinal) && source.EndsWith(".", StringComparison.Ordinal))
             {

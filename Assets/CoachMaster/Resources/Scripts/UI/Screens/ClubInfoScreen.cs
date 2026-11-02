@@ -13,7 +13,10 @@ namespace CoachMaster.UI.Screens
         {
             UiFactory.FullScreen(Root.transform, "Bg", UiTheme.Canvas);
             var club = router.Session.Catalog.Clubs[router.Session.Draft.ClubId];
-            ScreenChrome.Page(Root.transform, club.Name, $"{club.City}  ·  Fundado em {club.FoundedYear}  ·  {club.Stadium}", () => router.Show("clubs"), out var body);
+            var english = LocalizationManager.Current == GameLanguage.English;
+            ScreenChrome.Page(Root.transform, club.Name,
+                LocalizationManager.Translate(club.City) + (english ? "  ·  Founded " : "  ·  Fundado em ") + club.FoundedYear
+                + "  ·  " + LocalizationManager.Translate(club.Stadium), () => router.Show("clubs"), out var body);
 
             var split = UiFactory.Row(body.transform, "Split", 18, new RectOffset(0, 0, 0, 0), false);
             var splitLe = split.gameObject.AddComponent<LayoutElement>();
@@ -41,18 +44,18 @@ namespace CoachMaster.UI.Screens
             scrollLe.flexibleHeight = 1;
             scrollLe.minHeight = 200;
 
-            AddBlock(content, "História", club.History);
-            AddBlock(content, "Reputação", club.PublicReputation);
-            AddBlock(content, "Situação financeira", club.Finance.PublicSituation);
-            AddBlock(content, "Identidade do antigo treinador",
-                $"{club.Tactics.FormerCoachName}\n{club.Tactics.Summary}");
-            AddBlock(content, "Cargo vago", club.PublicCoachVacancyNote);
-            AddBlock(content, "Objetivos da direção", JoinLines(club.BoardObjectives));
-            AddBlock(content, "Estado do plantel", club.PublicTeamState);
-            AddBlock(content, "Equipa técnica", StaffText(club));
-            AddBlock(content, "Plantel", SquadText(router, club));
+            AddBlock(content, english ? "History" : "História", LocalizationManager.Translate(club.History));
+            AddBlock(content, english ? "Reputation" : "Reputação", LocalizationManager.Translate(club.PublicReputation));
+            AddBlock(content, english ? "Financial situation" : "Situação financeira", LocalizationManager.Translate(club.Finance.PublicSituation));
+            AddBlock(content, english ? "Previous manager's identity" : "Identidade do antigo treinador",
+                club.Tactics.FormerCoachName + "\n" + LocalizationManager.Translate(club.Tactics.Summary));
+            AddBlock(content, english ? "Vacant position" : "Cargo vago", LocalizationManager.Translate(club.PublicCoachVacancyNote));
+            AddBlock(content, english ? "Board expectations" : "Objetivos da direção", JoinLines(club.BoardObjectives));
+            AddBlock(content, english ? "Squad status" : "Estado do plantel", LocalizationManager.Translate(club.PublicTeamState));
+            AddBlock(content, english ? "Coaching staff" : "Equipa técnica", StaffText(club));
+            AddBlock(content, english ? "Squad" : "Plantel", SquadText(router, club));
 
-            var choose = UiFactory.Button(body.transform, "ESCOLHER ESTE CLUBE", () => router.Show("create"), UiTheme.Accent);
+            var choose = UiFactory.Button(body.transform, english ? "CHOOSE THIS CLUB" : "ESCOLHER ESTE CLUBE", () => router.Show("create"), UiTheme.Accent);
             UiFactory.LayoutElement(choose, 52);
         }
 
@@ -80,7 +83,7 @@ namespace CoachMaster.UI.Screens
             for (var i = 0; i < items.Count; i++)
             {
                 if (i > 0) sb.Append('\n');
-                sb.Append("· ").Append(items[i]);
+                sb.Append("· ").Append(LocalizationManager.Translate(items[i]));
             }
             return sb.ToString();
         }
@@ -92,7 +95,7 @@ namespace CoachMaster.UI.Screens
             {
                 if (i > 0) sb.Append('\n');
                 var staff = club.Staff[i];
-                sb.Append(PresentationLabels.StaffRole(staff.Role)).Append(" — ").Append(staff.FullName);
+                sb.Append(LocalizationManager.Translate(PresentationLabels.StaffRole(staff.Role))).Append(" — ").Append(staff.FullName);
             }
             return sb.ToString();
         }
@@ -110,12 +113,12 @@ namespace CoachMaster.UI.Screens
                 if (sb.Length > 0) sb.Append('\n');
                 sb.Append(player.SquadNumber.ToString("00"))
                     .Append("  ")
-                    .Append(PresentationLabels.Position(player.Position).PadRight(3))
+                    .Append(LocalizationManager.Translate(PresentationLabels.Position(player.Position)).PadRight(3))
                     .Append("  ")
                     .Append(player.FullName)
                     .Append("  (").Append(player.Age).Append(")");
-                if (player.IsCaptain) sb.Append("  ·  Capitão");
-                if (player.IsViceCaptain) sb.Append("  ·  Vice-capitão");
+                if (player.IsCaptain) sb.Append("  ·  ").Append(LocalizationManager.Current == GameLanguage.English ? "Captain" : "Capitão");
+                if (player.IsViceCaptain) sb.Append("  ·  ").Append(LocalizationManager.Current == GameLanguage.English ? "Vice-captain" : "Vice-capitão");
             }
             return sb.ToString();
         }
