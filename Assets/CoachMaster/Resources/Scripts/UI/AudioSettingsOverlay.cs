@@ -1,10 +1,13 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using CoachMaster.App;
 using CoachMaster.Career;
+using CoachMaster.Data;
 using CoachMaster.UI.Scenes;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -17,7 +20,7 @@ namespace CoachMaster.UI
     {
         static readonly string[] Categories =
         {
-            "Ecrã e gráficos", "Jogabilidade", "Dia de jogo", "Notificações", "Som", "Realismo", "Carreira e saves", "Acessibilidade"
+            "Ecrã e gráficos", "Jogabilidade", "Dia de jogo", "Notificações", "Som", "Realismo", "Carreira e saves", "Acessibilidade", "Mods e dados"
         };
 
         static readonly string[] PageNotes =
@@ -29,7 +32,20 @@ namespace CoachMaster.UI
             "Volumes separados; usa esquerda/direita no comando para ajustar.",
             "Ajustes da simulação guardados dentro da carreira.",
             "O jogo guarda cada carreira neste computador. O gestor abre o último save manual ou o automático.",
-            "Escala do interface, movimento e idioma."
+            "Escala do interface, movimento e idioma.",
+            "Importa pastas de mods, consulta os formatos aceites e cria ficheiros modelo."
+        };
+        static readonly string[] EnglishPageNotes =
+        {
+            "Image and performance. Menu scale is in Accessibility.",
+            "Controls that affect preparation and match pace.",
+            "Automatic pauses and information shown during a match.",
+            "Career alerts. Events remain in the history.",
+            "Separate volume controls; use left/right on a controller.",
+            "Simulation settings saved in the career.",
+            "Each career is saved on this computer. Manage manual and automatic saves.",
+            "Interface scale, motion and language.",
+            "Import mod folders, read the accepted formats and create templates."
         };
 
         GameObject _root;
@@ -40,6 +56,12 @@ namespace CoachMaster.UI
         InputField _musicPath;
         RectTransform _musicRows;
         Text _musicStatus;
+        Text _modStatus;
+        Text _modPath;
+        Image _modProgressFill;
+        Button _importModButton;
+        string _selectedModFolder;
+        Coroutine _modImportRoutine;
         GameObject[] _pages;
         Button[] _tabs;
         Text _now;
@@ -140,7 +162,7 @@ namespace CoachMaster.UI
             {
                 var index = i;
                 var y = 0.91f - i * 0.085f;
-                _tabs[i] = BroadcastUi.Button(side.transform, "Category" + i, Categories[i], () => SelectPage(index),
+                _tabs[i] = BroadcastUi.Button(side.transform, "Category" + i, CategoryName(i), () => SelectPage(index),
                     new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 14);
                 BroadcastUi.Place(_tabs[i].GetComponent<RectTransform>(), 0.055f, y - 0.07f, 0.945f, y);
             }
@@ -153,6 +175,7 @@ namespace CoachMaster.UI
             BuildRealismPage(content.transform);
             BuildCareerPage(content.transform);
             BuildAccessibilityPage(content.transform);
+            BuildModsPage(content.transform);
 
             _feedback = BroadcastUi.Label(card.transform, "SettingsFeedback", "", 12, UiTheme.Muted, TextAnchor.MiddleLeft);
             BroadcastUi.Place(_feedback.rectTransform, 0.27f, 0.105f, 0.95f, 0.145f);
@@ -412,6 +435,168 @@ namespace CoachMaster.UI
                 () => OnOff(SettingsPrefs.SkipDayConfirmation), () => SettingsPrefs.SkipDayConfirmation = !SettingsPrefs.SkipDayConfirmation, 0.37f);
         }
 
+        void BuildModsPage(Transform parent)
+        {
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var page = Page(parent, 8, english ? "MODS & DATABASE" : "MODS E BASE DE DADOS");
+            var guidePanel = BroadcastUi.Panel(page.transform, "ModsGuidePanel", new Color(1f, 1f, 1f, 0.045f));
+            BroadcastUi.Place(guidePanel.rectTransform, 0.035f, 0.16f, 0.59f, 0.80f);
+            var guide = BroadcastUi.Label(guidePanel.transform, "ModsGuide",
+                english
+                    ? "IMPORT A COMPLETE MOD FOLDER\nChoose the folder that contains the mod files. A nested Mods folder is also detected. Supported files are copied into this game's Mods folder; matching names are replaced and unrelated files stay untouched.\n\nFILES\nclubs.txt / equipas.txt\nplayers.txt / jogadores.txt\nmanagers.txt / treinadores.txt\nstaff.txt\nsponsors.txt\n\nIMAGES\ncaras/ or faces/\nemblemas/, badges/ or crests/\npatrocinadores/ or sponsors/\nUse PNG, JPG or JPEG. Image file names are the portrait, crest or logo keys.\n\nFor bulk editing, use the exact field order in MODS-LEIA-ME.txt. Rows are UTF-8, one record per line, fields separated by |. Use IDs from Database Preview; current names also work. # starts a comment. Missing optional values keep the existing value. Import the folder, then load or start a career to apply its database changes."
+                    : "IMPORTAR UMA PASTA DE MOD COMPLETA\nEscolhe a pasta que contém os ficheiros do mod. Também é detetada uma pasta Mods no interior. Os ficheiros suportados são copiados para a pasta Mods do jogo; ficheiros com o mesmo nome são substituídos e os restantes mantêm-se.\n\nFICHEIROS\nequipas.txt / clubs.txt\njogadores.txt / players.txt\ntreinadores.txt / managers.txt\nstaff.txt\nsponsors.txt\n\nIMAGENS\ncaras/ ou faces/\nemblemas/, badges/ ou crests/\npatrocinadores/ ou sponsors/\nUsa PNG, JPG ou JPEG. O nome do ficheiro é a chave do rosto, emblema ou logótipo.\n\nPara editar em lote, segue a ordem exata em MODS-LEIA-ME.txt. As linhas são UTF-8, um registo por linha, campos separados por |. Usa os IDs da Pré-visualização da base de dados; os nomes atuais também funcionam. # inicia um comentário. Campos opcionais vazios mantêm o valor existente. Importa a pasta e depois carrega ou inicia uma carreira para aplicar as alterações.",
+                12, Color.white, TextAnchor.UpperLeft);
+            BroadcastUi.Place(guide.rectTransform, 0.025f, 0.025f, 0.975f, 0.975f);
+
+            var pathTitle = BroadcastUi.Label(page.transform, "ModsPathTitle", english ? "GAME MODS FOLDER" : "PASTA DE MODS DO JOGO", 12, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(pathTitle.rectTransform, 0.63f, 0.76f, 0.96f, 0.81f);
+            _modPath = BroadcastUi.Label(page.transform, "ModsPath", ModFolder.Root(), 11, UiTheme.Muted, TextAnchor.UpperLeft);
+            BroadcastUi.Place(_modPath.rectTransform, 0.63f, 0.68f, 0.96f, 0.76f);
+
+            var choose = BroadcastUi.Button(page.transform, "ChooseModFolder", english ? "CHOOSE MOD FOLDER" : "ESCOLHER PASTA DE MODS", ChooseModFolder, UiTheme.Accent, UiTheme.ButtonText, 13);
+            BroadcastUi.Place(choose.GetComponent<RectTransform>(), 0.63f, 0.57f, 0.96f, 0.66f);
+            _importModButton = BroadcastUi.Button(page.transform, "ImportModFolder", english ? "IMPORT FOLDER" : "IMPORTAR PASTA", ImportModFolder, new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 13);
+            BroadcastUi.Place(_importModButton.GetComponent<RectTransform>(), 0.63f, 0.46f, 0.96f, 0.55f);
+            var templates = BroadcastUi.Button(page.transform, "CreateModTemplates", english ? "CREATE GUIDE & TEMPLATES" : "CRIAR GUIA E MODELOS", CreateModTemplates, new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 12);
+            BroadcastUi.Place(templates.GetComponent<RectTransform>(), 0.63f, 0.35f, 0.96f, 0.44f);
+            var open = BroadcastUi.Button(page.transform, "OpenModsFolder", english ? "OPEN GAME MODS FOLDER" : "ABRIR PASTA DE MODS", OpenModsFolder, new Color(0.10f, 0.24f, 0.38f, 1f), Color.white, 12);
+            BroadcastUi.Place(open.GetComponent<RectTransform>(), 0.63f, 0.24f, 0.96f, 0.33f);
+
+            var track = BroadcastUi.Panel(page.transform, "ModsProgressTrack", new Color(1f, 1f, 1f, 0.12f));
+            BroadcastUi.Place(track.rectTransform, 0.63f, 0.16f, 0.96f, 0.205f);
+            var fill = BroadcastUi.Panel(track.transform, "ModsProgressFill", UiTheme.Accent);
+            BroadcastUi.Place(fill.rectTransform, 0f, 0f, 0f, 1f);
+            _modProgressFill = fill;
+            _modStatus = BroadcastUi.Label(page.transform, "ModsStatus", english ? "Choose a folder to begin." : "Escolhe uma pasta para começar.", 12, UiTheme.Muted, TextAnchor.UpperLeft);
+            BroadcastUi.Place(_modStatus.rectTransform, 0.63f, 0.06f, 0.96f, 0.15f);
+        }
+
+        void ChooseModFolder()
+        {
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var folder = WindowsMusicPicker.OpenFolder(english ? "Choose mod folder" : "Escolher pasta de mods");
+            if (string.IsNullOrWhiteSpace(folder)) return;
+            _selectedModFolder = folder;
+            var files = ModFolder.EnumeratePackageFiles(folder, out var error);
+            if (_modStatus != null)
+                _modStatus.text = files.Count > 0
+                    ? (english ? files.Count + " supported files ready to import." : files.Count + " ficheiros compatíveis prontos a importar.")
+                    : error;
+            if (_modProgressFill != null) BroadcastUi.Place(_modProgressFill.rectTransform, 0f, 0f, 0f, 1f);
+        }
+
+        void ImportModFolder()
+        {
+            if (string.IsNullOrWhiteSpace(_selectedModFolder))
+            {
+                if (_modStatus != null) _modStatus.text = LocalizationManager.Current == GameLanguage.English ? "Choose a package folder first." : "Escolhe primeiro a pasta do pacote.";
+                return;
+            }
+            var files = ModFolder.EnumeratePackageFiles(_selectedModFolder, out var error);
+            if (files.Count == 0)
+            {
+                if (_modStatus != null) _modStatus.text = error;
+                return;
+            }
+            if (_modImportRoutine != null) StopCoroutine(_modImportRoutine);
+            if (_modProgressFill != null) BroadcastUi.Place(_modProgressFill.rectTransform, 0f, 0f, 0f, 1f);
+            _modImportRoutine = StartCoroutine(ImportModFiles(files));
+        }
+
+        IEnumerator ImportModFiles(List<ModPackageFile> files)
+        {
+            var english = LocalizationManager.Current == GameLanguage.English;
+            if (_importModButton != null) _importModButton.interactable = false;
+            long totalWork = 0;
+            for (var i = 0; i < files.Count; i++)
+            {
+                long length = 0;
+                try { length = new FileInfo(files[i].SourcePath).Length; }
+                catch { }
+                totalWork += Math.Max(1L, length);
+            }
+            var completedWork = 0L;
+            var buffer = new byte[256 * 1024];
+            var importedAll = true;
+            var copiedAny = false;
+            for (var i = 0; i < files.Count; i++)
+            {
+                var job = new ModPackageCopyJob();
+                if (!job.Open(files[i], out var error))
+                {
+                    if (_modStatus != null) _modStatus.text = (english ? "Import stopped: " : "Importação interrompida: ") + error;
+                    importedAll = false;
+                    break;
+                }
+                while (!job.IsComplete)
+                {
+                    if (!job.CopyChunk(buffer, out _, out error))
+                    {
+                        if (_modStatus != null) _modStatus.text = (english ? "Import stopped: " : "Importação interrompida: ") + error;
+                        importedAll = false;
+                        break;
+                    }
+                    var fileWeight = Math.Max(1L, job.TotalBytes);
+                    var currentFileWork = job.TotalBytes > 0 ? job.CopiedBytes : job.IsComplete ? 1L : 0L;
+                    var progress = totalWork <= 0 ? 0f : Mathf.Clamp01((completedWork + currentFileWork) / (float)totalWork);
+                    if (_modProgressFill != null) BroadcastUi.Place(_modProgressFill.rectTransform, 0f, 0f, progress, 1f);
+                    if (_modStatus != null) _modStatus.text = english
+                        ? "Importing " + (i + 1) + " / " + files.Count + " · " + Path.GetFileName(files[i].SourcePath) + " · " + Mathf.RoundToInt(progress * 100f) + "%"
+                        : "A importar " + (i + 1) + " / " + files.Count + " · " + Path.GetFileName(files[i].SourcePath) + " · " + Mathf.RoundToInt(progress * 100f) + "%";
+                    yield return null;
+                }
+                completedWork += Math.Max(1L, job.TotalBytes);
+                if (job.IsComplete) copiedAny = true;
+                job.Dispose();
+                if (!importedAll) break;
+            }
+            if (copiedAny)
+            {
+                ModFolder.RefreshImportedImages();
+                FaceBook.InvalidateImportedCaches();
+            }
+            if (importedAll)
+            {
+                if (_modProgressFill != null) BroadcastUi.Place(_modProgressFill.rectTransform, 0f, 0f, 1f, 1f);
+                if (_modStatus != null) _modStatus.text = english
+                    ? "Import complete. Changes apply when a career loads."
+                    : "Importação concluída. As alterações aplicam-se ao carregar uma carreira.";
+            }
+            if (_importModButton != null) _importModButton.interactable = true;
+            _modImportRoutine = null;
+        }
+
+        void CreateModTemplates()
+        {
+            try
+            {
+                ModFolder.CreateTemplates();
+                if (_modStatus != null) _modStatus.text = LocalizationManager.Current == GameLanguage.English
+                    ? "The guide and starter templates are ready in the game Mods folder. Existing templates were kept."
+                    : "O guia e os modelos estão prontos na pasta Mods do jogo. Os modelos existentes foram mantidos.";
+            }
+            catch (Exception exception)
+            {
+                if (_modStatus != null) _modStatus.text = exception.Message;
+            }
+        }
+
+        void OpenModsFolder()
+        {
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+            try
+            {
+                Process.Start(new ProcessStartInfo { FileName = "explorer.exe", Arguments = "\"" + ModFolder.Root() + "\"", UseShellExecute = true });
+            }
+            catch (Exception exception)
+            {
+                if (_modStatus != null) _modStatus.text = exception.Message;
+            }
+#else
+            if (_modStatus != null) _modStatus.text = LocalizationManager.Current == GameLanguage.English ? "Open this folder from the displayed path." : "Abre esta pasta através do caminho mostrado.";
+#endif
+        }
+
         GameObject Page(Transform parent, int index, string heading)
         {
             var page = BroadcastUi.Panel(parent, "SettingsPage" + index, new Color(0f, 0f, 0f, 0.001f));
@@ -419,9 +604,27 @@ namespace CoachMaster.UI
             _pages[index] = page.gameObject;
             var title = BroadcastUi.Label(page.transform, "PageTitle", heading, 18, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
             BroadcastUi.Place(title.rectTransform, 0.04f, 0.92f, 0.94f, 0.99f);
-            var note = BroadcastUi.Label(page.transform, "PageNote", PageNotes[index], 13, UiTheme.Muted, TextAnchor.MiddleLeft);
+            var noteText = LocalizationManager.Current == GameLanguage.English ? EnglishPageNotes[index] : PageNotes[index];
+            var note = BroadcastUi.Label(page.transform, "PageNote", noteText, 13, UiTheme.Muted, TextAnchor.MiddleLeft);
             BroadcastUi.Place(note.rectTransform, 0.04f, 0.86f, 0.94f, 0.92f);
             return page.gameObject;
+        }
+
+        static string CategoryName(int index)
+        {
+            if (LocalizationManager.Current != GameLanguage.English) return Categories[index];
+            switch (index)
+            {
+                case 0: return "Display & graphics";
+                case 1: return "Gameplay";
+                case 2: return "Match day";
+                case 3: return "Notifications";
+                case 4: return "Audio";
+                case 5: return "Realism";
+                case 6: return "Career & saves";
+                case 7: return "Accessibility";
+                default: return "Mods & database";
+            }
         }
 
         void AddOption(Transform parent, string name, string title, string description, Func<string> value, Action change, float y)
@@ -966,7 +1169,7 @@ namespace CoachMaster.UI
             ControlChrome.SettingsClosed();
             GameRoot.Instance.Open(SceneNames.CareerHub);
             if (!saved)
-                Debug.LogWarning("O save foi carregado, mas não foi possível atualizar a gravação principal.");
+                UnityEngine.Debug.LogWarning("O save foi carregado, mas não foi possível atualizar a gravação principal.");
         }
 
         void LeaveToMenu()
@@ -1061,6 +1264,32 @@ namespace CoachMaster.UI
 
     static class WindowsMusicPicker
     {
+        public static string OpenFolder(string title)
+        {
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+            var info = new BrowseInfo
+            {
+                owner = GetActiveWindow(),
+                displayName = new StringBuilder(260),
+                title = title,
+                flags = 0x0001 | 0x0040
+            };
+            var item = SHBrowseForFolderW(ref info);
+            if (item == IntPtr.Zero) return null;
+            try
+            {
+                var path = new StringBuilder(1024);
+                return SHGetPathFromIDListW(item, path) ? path.ToString() : null;
+            }
+            finally
+            {
+                CoTaskMemFree(item);
+            }
+#else
+            return null;
+#endif
+        }
+
         public static string Open()
         {
             return OpenFiltered("Ficheiros de música\0*.mp3;*.wav;*.ogg;*.aiff;*.aif\0Todos os ficheiros\0*.*\0\0", "Escolher música", "mp3");
@@ -1108,6 +1337,28 @@ namespace CoachMaster.UI
         }
 
 #if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        struct BrowseInfo
+        {
+            public IntPtr owner;
+            public IntPtr root;
+            [MarshalAs(UnmanagedType.LPWStr)] public StringBuilder displayName;
+            [MarshalAs(UnmanagedType.LPWStr)] public string title;
+            public uint flags;
+            public IntPtr callback;
+            public IntPtr parameter;
+            public int image;
+        }
+
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode, EntryPoint = "SHBrowseForFolderW")]
+        static extern IntPtr SHBrowseForFolderW(ref BrowseInfo info);
+
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode, EntryPoint = "SHGetPathFromIDListW")]
+        static extern bool SHGetPathFromIDListW(IntPtr item, StringBuilder path);
+
+        [DllImport("ole32.dll")]
+        static extern void CoTaskMemFree(IntPtr memory);
+
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
         class OpenFileName
         {

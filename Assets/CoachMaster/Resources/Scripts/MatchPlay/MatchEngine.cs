@@ -13,6 +13,7 @@ namespace CoachMaster.MatchPlay
         const float FixedStep = 1f / 60f;
         const float MaxFrameDelta = 0.2f;
         const float ReferenceMatchSpeed = 1f / 60f;
+        const float FatigueRateScale = 0.02f;
         const int MaxStepsPerTick = 12;
         readonly MatchSession _match;
         readonly System.Random _rng;
@@ -3225,33 +3226,61 @@ namespace CoachMaster.MatchPlay
                 Tire(squad[index], dt * 1.4f);
             var other = _match.HomeHasBall ? _match.AwayOnField : _match.HomeOnField;
             var best = 99f;
-            string closest = null;
+            var closestIndex = -1;
             for (var i = 0; i < other.Count && i < 11; i++)
             {
+                if (IsPlayerInjured(other[i]))
+                    continue;
                 var distance = Vector2.Distance(Ball, MotionOf(!_match.HomeHasBall, i));
                 if (distance < best)
                 {
                     best = distance;
-                    closest = other[i];
+                    closestIndex = i;
                 }
             }
 
-            if (closest != null)
-                Tire(closest, dt * 1.1f);
+            if (closestIndex >= 0)
+                Tire(other[closestIndex], dt * 1.1f);
             var defending = !_match.HomeHasBall;
             var press = PressAmount(defending ? _match.HomeTactics : _match.AwayTactics);
             if (press > 0.2f)
             {
                 var extra = press > 0.3f ? 3 : 2;
-                for (var i = 1; i < other.Count && i < extra + 1; i++)
-                    Tire(other[i], dt * press * 0.85f);
+                var selectedA = -1;
+                var selectedB = -1;
+                var selectedC = -1;
+                for (var n = 0; n < extra; n++)
+                {
+                    var nearestIndex = -1;
+                    var nearestDistance = float.MaxValue;
+                    for (var i = 0; i < other.Count && i < 11; i++)
+                    {
+                        if (i == selectedA || i == selectedB || i == selectedC || IsPlayerInjured(other[i]))
+                            continue;
+                        var distance = Vector2.Distance(Ball, MotionOf(!_match.HomeHasBall, i));
+                        if (distance < nearestDistance)
+                        {
+                            nearestDistance = distance;
+                            nearestIndex = i;
+                        }
+                    }
+
+                    if (nearestIndex < 0)
+                        break;
+                    if (n == 0) selectedA = nearestIndex;
+                    else if (n == 1) selectedB = nearestIndex;
+                    else selectedC = nearestIndex;
+                    if (nearestIndex != closestIndex)
+                        Tire(other[nearestIndex], dt * press * 0.85f);
+                }
             }
         }
 
         void Tire(string id, float amount)
         {
-            if (string.IsNullOrEmpty(id) || !_match.People.TryGetValue(id, out var player))
+            if (string.IsNullOrEmpty(id) || IsPlayerInjured(id) || !_match.People.TryGetValue(id, out var player))
                 return;
+            amount *= FatigueRateScale;
             if (!_load.ContainsKey(id))
                 _load[id] = 0f;
             if (player.Attributes != null)

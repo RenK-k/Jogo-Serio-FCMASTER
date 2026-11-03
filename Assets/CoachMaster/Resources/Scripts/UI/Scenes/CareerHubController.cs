@@ -740,19 +740,48 @@ namespace CoachMaster.UI.Scenes
 
             if (note.ReplyGroup == "loan")
             {
-                AddPhoneChoice(LocalizationManager.Current == GameLanguage.English ? "NEGOTIATE THE LOAN" : "NEGOCIAR O EMPRÉSTIMO",
+                var english = LocalizationManager.Current == GameLanguage.English;
+                AddPhoneChoice(english ? "ACCEPT LOAN OFFER" : "ACEITAR EMPRÉSTIMO",
+                    () => ResolveIncomingOffer(note, key, note.OfferAmount, false));
+                AddPhoneChoice(english ? "COUNTER THE LOAN FEE" : "CONTRA-PROPOR VALOR",
                     () => OpenIncomingOfferNegotiation(note, key, true));
-                AddPhoneChoice(LocalizationManager.Current == GameLanguage.English ? "REJECT THE APPROACH" : "RECUSAR A ABORDAGEM",
+                AddPhoneChoice(english ? "REJECT THE APPROACH" : "RECUSAR A ABORDAGEM",
                     () => AnswerClub(note, key, LocalizationManager.Current == GameLanguage.English ? "I rejected the loan approach." : "Recusei a abordagem de empréstimo."));
                 return;
             }
 
             if (note.ReplyGroup == "transfer")
             {
-                AddPhoneChoice(LocalizationManager.Current == GameLanguage.English ? "OPEN TRANSFER NEGOTIATIONS" : "ABRIR NEGOCIAÇÃO DE TRANSFERÊNCIA",
+                var english = LocalizationManager.Current == GameLanguage.English;
+                AddPhoneChoice(english ? "ACCEPT OFFER" : "ACEITAR PROPOSTA",
+                    () => ResolveIncomingOffer(note, key, note.OfferAmount, false));
+                AddPhoneChoice(english ? "COUNTEROFFER" : "CONTRA-PROPOSTA",
                     () => OpenIncomingOfferNegotiation(note, key, false));
-                AddPhoneChoice(LocalizationManager.Current == GameLanguage.English ? "REJECT THE OFFER" : "RECUSAR A PROPOSTA",
+                AddPhoneChoice(english ? "REJECT OFFER" : "RECUSAR PROPOSTA",
                     () => AnswerClub(note, key, LocalizationManager.Current == GameLanguage.English ? "I rejected the transfer offer and kept the player." : "Recusei a proposta e mantive o jogador no plantel."));
+                return;
+            }
+
+            if (note.ReplyGroup.StartsWith("transfer-response-", StringComparison.Ordinal)
+                || note.ReplyGroup.StartsWith("loan-response-", StringComparison.Ordinal))
+            {
+                var english = LocalizationManager.Current == GameLanguage.English;
+                var loanResponse = note.ReplyGroup.StartsWith("loan-response-", StringComparison.Ordinal);
+                var rejected = note.ReplyGroup.EndsWith("-rejected", StringComparison.Ordinal);
+                if (rejected)
+                {
+                    AddPhoneChoice(english ? "GOT IT" : "PERCEBIDO", () => AnswerClub(note, key,
+                        english ? "Negotiations ended; the player stays at the club." : "A negociação terminou; o jogador mantém-se no clube."));
+                    return;
+                }
+                AddPhoneChoice(english ? (loanResponse ? "ACCEPT LOAN TERMS" : "ACCEPT AGREED FEE")
+                    : (loanResponse ? "ACEITAR EMPRÉSTIMO" : "ACEITAR VALOR ACORDADO"),
+                    () => CompleteIncomingOffer(note, key, note.OfferAmount, loanResponse));
+                if (note.ReplyGroup.EndsWith("-countered", StringComparison.Ordinal) && note.OfferRound < 2)
+                    AddPhoneChoice(english ? "SEND ONE MORE COUNTER" : "ENVIAR OUTRA CONTRA-PROPOSTA",
+                        () => QueueIncomingCounter(note, key, Mathf.RoundToInt(note.OfferAmount * (loanResponse ? 1.15f : 1.08f))));
+                AddPhoneChoice(english ? "REJECT TERMS" : "RECUSAR TERMOS", () => AnswerClub(note, key,
+                    english ? "I rejected the revised terms and kept the player." : "Recusei os novos termos e mantive o jogador no plantel."));
                 return;
             }
 
@@ -891,6 +920,13 @@ namespace CoachMaster.UI.Scenes
                 return;
             var english = LocalizationManager.Current == GameLanguage.English;
             var loan = note.ReplyGroup == "loan";
+            if (counter)
+            {
+                QueueIncomingCounter(note, phoneKey, fee);
+                var counterSheet = transform.Find("ReceivedOfferSheet");
+                if (counterSheet != null) Destroy(counterSheet.gameObject);
+                return;
+            }
             if (!TransferWindowOpen())
             {
                 AnswerClub(note, phoneKey, english ? "The transfer window closed before we reached terms." : "O mercado fechou antes de chegarmos a acordo.");
@@ -903,36 +939,117 @@ namespace CoachMaster.UI.Scenes
             {
                 AnswerClub(note, phoneKey, english ? "The club could not fund the proposed terms." : "O clube não conseguiu financiar os termos propostos.");
             }
-            else
+            else if (loan)
             {
-                var acceptance = counter ? (loan ? 68 : 72) : 90;
-                if (!loan && fee >= GlobalTransferMarket.MarketValue(player) * 1.1f) acceptance = 94;
-                var seed = StableOfferRoll(note.Key + "|" + fee + "|" + _career.Calendar.CurrentDate.Date.Ticks);
-                var acceptedByClub = seed % 100 < acceptance;
-                if (!acceptedByClub)
-                    AnswerClub(note, phoneKey, english ? buyer.Name + " refused the terms. The player stays at the club." : buyer.Name + " recusou os termos. O jogador fica no clube.");
-                else if (loan)
-                {
-                    var currentDate = _career.Calendar.CurrentDate.Date;
-                    var seasonEnd = new DateTime(currentDate.Month >= 7 ? currentDate.Year + 1 : currentDate.Year, 6, 30);
-                    var daysUntilReturn = Math.Max(30, (seasonEnd - currentDate.AddDays(5)).Days);
-                    if (!GlobalTransferMarket.ScheduleLoan(_career, player, buyer, fee, 5, daysUntilReturn))
-                        AnswerClub(note, phoneKey, english ? "The loan could not be registered. The squad and budget are unchanged." : "Não foi possível registar o empréstimo. O plantel e o orçamento mantêm-se.");
-                    else
-                        AnswerClub(note, phoneKey, english
-                            ? "Loan agreed for " + Euro(fee) + ". " + player.FullName + " joins " + buyer.Name + " in five days and returns after the agreed spell."
-                            : "Empréstimo acordado por " + Euro(fee) + ". " + player.FullName + " segue para o " + buyer.Name + " daqui a cinco dias e regressa no fim do prazo.");
-                }
-                else if (!GlobalTransferMarket.ScheduleMove(_career, player, buyer, fee, Mathf.Clamp(note.OfferYears, 1, 5), note.OfferWeeklyWage, "out", 5))
-                    AnswerClub(note, phoneKey, english ? "The transfer could not be registered. The squad and budget are unchanged." : "Não foi possível registar a transferência. O plantel e o orçamento mantêm-se.");
+                var currentDate = _career.Calendar.CurrentDate.Date;
+                var seasonEnd = new DateTime(currentDate.Month >= 7 ? currentDate.Year + 1 : currentDate.Year, 6, 30);
+                var daysUntilReturn = Math.Max(30, (seasonEnd - currentDate.AddDays(5)).Days);
+                if (!GlobalTransferMarket.ScheduleLoan(_career, player, buyer, fee, 5, daysUntilReturn))
+                    AnswerClub(note, phoneKey, english ? "The loan could not be registered. The squad and budget are unchanged." : "Não foi possível registar o empréstimo. O plantel e o orçamento mantêm-se.");
                 else
                     AnswerClub(note, phoneKey, english
-                        ? "Transfer agreed for " + Euro(fee) + ". " + player.FullName + " stays until the move is completed in five days."
-                        : "Transferência acordada por " + Euro(fee) + ". " + player.FullName + " continua no plantel até à mudança, daqui a cinco dias.");
+                        ? "Loan accepted for " + Euro(fee) + ". " + player.FullName + " joins " + buyer.Name + " in five days and returns after the agreed spell."
+                        : "Empréstimo aceite por " + Euro(fee) + ". " + player.FullName + " segue para o " + buyer.Name + " daqui a cinco dias e regressa no fim do prazo.");
             }
+            else if (!GlobalTransferMarket.ScheduleMove(_career, player, buyer, fee, Mathf.Clamp(note.OfferYears, 1, 5), note.OfferWeeklyWage, "out", 5))
+                AnswerClub(note, phoneKey, english ? "The transfer could not be registered. The squad and budget are unchanged." : "Não foi possível registar a transferência. O plantel e o orçamento mantêm-se.");
+            else
+                AnswerClub(note, phoneKey, english
+                    ? "Offer accepted for " + Euro(fee) + ". " + player.FullName + " stays until the move is completed in five days."
+                    : "Proposta aceite por " + Euro(fee) + ". " + player.FullName + " continua no plantel até à mudança, daqui a cinco dias.");
             var sheet = transform.Find("ReceivedOfferSheet");
             if (sheet != null) Destroy(sheet.gameObject);
             CareerStore.Save(_career);
+        }
+
+        void QueueIncomingCounter(PhoneNote note, string phoneKey, int fee)
+        {
+            if (note == null || _career == null || !_career.World.Players.TryGetValue(note.PlayerId ?? "", out var player)
+                || !_career.World.Clubs.TryGetValue(note.ClubId ?? "", out var buyer))
+                return;
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var loan = note.ReplyGroup == "loan" || note.ReplyGroup.StartsWith("loan-response-", StringComparison.Ordinal);
+            if (!TransferWindowOpen() || player.ClubId != _career.Club.Id || buyer.Finance == null)
+            {
+                AnswerClub(note, phoneKey, english ? "The offer is no longer available to negotiate." : "A proposta já não está disponível para negociação.");
+                return;
+            }
+
+            fee = Math.Max(note.OfferAmount + 1, fee);
+            var marketValue = Math.Max(1, GlobalTransferMarket.MarketValue(player));
+            var round = note.OfferRound + 1;
+            var responseKind = "rejected";
+            var responseFee = 0;
+            var comparisonValue = loan ? Math.Max(1, note.OfferAmount) : marketValue;
+            var acceptable = loan ? comparisonValue * (round == 1 ? 1.25f : 1.35f)
+                : marketValue * (round == 1 ? 1.22f : 1.3f);
+            if (fee <= buyer.Finance.TransferBudget && fee <= acceptable)
+            {
+                responseKind = "accepted";
+                responseFee = fee;
+            }
+            else if (round < 3 && fee <= buyer.Finance.TransferBudget
+                && fee <= comparisonValue * (loan ? 1.8f : 1.6f))
+            {
+                responseFee = loan
+                    ? Mathf.RoundToInt(comparisonValue * 1.12f)
+                    : Mathf.RoundToInt(marketValue * (round == 1 ? 1.08f : 1.14f));
+                responseFee = Mathf.Min(fee - 1, Mathf.Max(note.OfferAmount, responseFee));
+                if (responseFee > 0 && responseFee <= buyer.Finance.TransferBudget)
+                    responseKind = "countered";
+                else
+                    responseFee = 0;
+            }
+
+            var delay = 2 + StableOfferRoll(note.Key + "|reply|" + fee) % 3;
+            var dueTicks = _career.Calendar.CurrentDate.Date.AddDays(delay).Ticks;
+            var line = "job|incoming-counter|" + (loan ? "loan" : "transfer") + "|" + player.Id + "|" + buyer.Id + "|"
+                + note.OfferAmount + "|" + fee + "|" + Math.Max(0, note.OfferWeeklyWage) + "|" + Math.Max(0, note.OfferYears) + "|"
+                + responseFee + "|" + responseKind + "|" + round + "|" + dueTicks;
+            if (!_career.Notebook.Contains(line))
+                _career.Notebook.Add(line);
+            MarkPhoneAnswered(phoneKey);
+            _career.Notebook.Insert(0, _career.Calendar.ClockText + "  " + (english
+                ? "You sent a counteroffer to " + buyer.Name + ". They will reply in " + delay + " days."
+                : "Enviaste uma contraproposta ao " + buyer.Name + ". A resposta deverá chegar dentro de " + delay + " dias."));
+            ClosePhoneChoices();
+            AddPhoneLine(english ? "Counteroffer sent. Waiting for the club to respond." : "Contraproposta enviada. Aguardas agora a resposta do clube.");
+            CareerStore.Save(_career);
+        }
+
+        void CompleteIncomingOffer(PhoneNote note, string phoneKey, int fee, bool loan)
+        {
+            if (note == null || _career == null || !_career.World.Players.TryGetValue(note.PlayerId ?? "", out var player)
+                || !_career.World.Clubs.TryGetValue(note.ClubId ?? "", out var buyer))
+                return;
+            var english = LocalizationManager.Current == GameLanguage.English;
+            if (!TransferWindowOpen() || player.ClubId != _career.Club.Id || buyer.Finance == null
+                || buyer.Finance.TransferBudget < fee)
+            {
+                AnswerClub(note, phoneKey, english ? "The agreed terms are no longer available. The player stays at the club." : "Os termos acordados já não estão disponíveis. O jogador mantém-se no clube.");
+                return;
+            }
+            if (loan)
+            {
+                var date = _career.Calendar.CurrentDate.Date;
+                var seasonEnd = new DateTime(date.Month >= 7 ? date.Year + 1 : date.Year, 6, 30);
+                var returnDays = Math.Max(30, (seasonEnd - date.AddDays(5)).Days);
+                if (!GlobalTransferMarket.ScheduleLoan(_career, player, buyer, fee, 5, returnDays))
+                {
+                    AnswerClub(note, phoneKey, english ? "The loan could not be registered. No money was charged." : "Não foi possível registar o empréstimo. Não foi debitado dinheiro.");
+                    return;
+                }
+                AnswerClub(note, phoneKey, english ? "Loan terms accepted. The move is scheduled for five days from now." : "Termos do empréstimo aceites. A mudança ficou marcada para daqui a cinco dias.");
+            }
+            else
+            {
+                if (!GlobalTransferMarket.ScheduleMove(_career, player, buyer, fee, Mathf.Clamp(note.OfferYears, 1, 5), note.OfferWeeklyWage, "out", 5))
+                {
+                    AnswerClub(note, phoneKey, english ? "The transfer could not be registered. No money was charged." : "Não foi possível registar a transferência. Não foi debitado dinheiro.");
+                    return;
+                }
+                AnswerClub(note, phoneKey, english ? "Transfer terms accepted. The move is scheduled for five days from now." : "Termos da transferência aceites. A mudança ficou marcada para daqui a cinco dias.");
+            }
         }
 
         static int StableOfferRoll(string value)
@@ -1030,18 +1147,26 @@ namespace CoachMaster.UI.Scenes
                 || line.IndexOf("mantive", StringComparison.OrdinalIgnoreCase) >= 0
                 || line.IndexOf("fechei", StringComparison.OrdinalIgnoreCase) >= 0
                 || line.IndexOf("I rejected", StringComparison.OrdinalIgnoreCase) >= 0
-                || line.IndexOf("kept the player", StringComparison.OrdinalIgnoreCase) >= 0;
+                || line.IndexOf("kept the player", StringComparison.OrdinalIgnoreCase) >= 0
+                || line.IndexOf("negotiations ended", StringComparison.OrdinalIgnoreCase) >= 0
+                || line.IndexOf("player stays at the club", StringComparison.OrdinalIgnoreCase) >= 0
+                || line.IndexOf("negociação terminou", StringComparison.OrdinalIgnoreCase) >= 0
+                || line.IndexOf("jogador mantém-se no clube", StringComparison.OrdinalIgnoreCase) >= 0;
             line = LocalizationManager.Translate(line);
             MarkPhoneAnswered(key);
             _career.Notebook.Insert(0, _career.Calendar.ClockText + "  " + note.Who + " — " + line);
-            if (note != null && (note.ReplyGroup == "transfer" || note.ReplyGroup == "loan")
+            var incomingDealReply = note != null && (note.ReplyGroup == "transfer" || note.ReplyGroup == "loan"
+                || note.ReplyGroup.StartsWith("transfer-response-", StringComparison.Ordinal)
+                || note.ReplyGroup.StartsWith("loan-response-", StringComparison.Ordinal));
+            if (incomingDealReply
                 && !string.IsNullOrEmpty(note.PlayerId)
                 && _career.World.Players.TryGetValue(note.PlayerId, out var player))
             {
                 var refused = refusedResponse;
-                var kind = note.ReplyGroup == "loan" ? "abordagem-emprestimo" : "abordagem-transferencia";
+                var loan = note.ReplyGroup == "loan" || note.ReplyGroup.StartsWith("loan-response-", StringComparison.Ordinal);
+                var kind = loan ? "abordagem-emprestimo" : "abordagem-transferencia";
                 var english = LocalizationManager.Current == GameLanguage.English;
-                var subject = note.ReplyGroup == "loan" ? (english ? "loan" : "empréstimo") : (english ? "transfer" : "transferência");
+                var subject = loan ? (english ? "loan" : "empréstimo") : (english ? "transfer" : "transferência");
                 var memory = CareerMemories.Record(_career, new FootballMemory
                 {
                     WhenTicks = _career.Calendar.CurrentDate.Ticks,
@@ -1067,9 +1192,25 @@ namespace CoachMaster.UI.Scenes
                     CareerStore.Save(_career);
                 }
             }
+            RemoveIncomingCounterReply(note);
             ClosePhoneChoices();
             AddPhoneLine(line);
             CareerStore.Save(_career);
+        }
+
+        void RemoveIncomingCounterReply(PhoneNote note)
+        {
+            if (_career == null || note == null || string.IsNullOrEmpty(note.Meta)
+                || !(note.ReplyGroup.StartsWith("transfer-response-", StringComparison.Ordinal)
+                    || note.ReplyGroup.StartsWith("loan-response-", StringComparison.Ordinal))) return;
+            for (var i = _career.Notebook.Count - 1; i >= 0; i--)
+            {
+                var line = _career.Notebook[i];
+                if (string.IsNullOrEmpty(line) || !line.StartsWith("job|incoming-counter|", StringComparison.Ordinal)) continue;
+                var bits = line.Split('|');
+                if (bits.Length > 12 && bits[3] == note.PlayerId && bits[4] == note.ClubId && bits[12] == note.Meta)
+                    _career.Notebook.RemoveAt(i);
+            }
         }
 
         CareerJobOffer FindJobOffer(string clubId)
@@ -1108,6 +1249,103 @@ namespace CoachMaster.UI.Scenes
                 var child = _phoneList.GetChild(i);
                 if (child.name == "Choice")
                     Destroy(child.gameObject);
+            }
+        }
+
+        bool HasIncomingCounterPending(string playerId)
+        {
+            if (_career == null || string.IsNullOrEmpty(playerId)) return false;
+            foreach (var line in _career.Notebook)
+            {
+                if (string.IsNullOrEmpty(line) || !line.StartsWith("job|incoming-counter|", StringComparison.Ordinal)) continue;
+                var bits = line.Split('|');
+                if (bits.Length > 3 && bits[3] == playerId) return true;
+            }
+            return false;
+        }
+
+        bool HasNotebookPrefix(string prefix)
+        {
+            if (_career == null || string.IsNullOrEmpty(prefix)) return false;
+            foreach (var line in _career.Notebook)
+                if (line != null && line.StartsWith(prefix, StringComparison.Ordinal)) return true;
+            return false;
+        }
+
+        void AddStoredWeeklyIncomingOffers(List<PhoneNote> list, int week, bool english)
+        {
+            var transferPrefix = "job|incoming-offer-week|" + week + "|";
+            var loanPrefix = "job|incoming-loan-week|" + week + "|";
+            foreach (var line in _career.Notebook)
+            {
+                if (string.IsNullOrEmpty(line)) continue;
+                var bits = line.Split('|');
+                if (line.StartsWith(transferPrefix, StringComparison.Ordinal) && bits.Length >= 6
+                    && int.TryParse(bits[5], out var bid)
+                    && _career.World.Players.TryGetValue(bits[3], out var player) && player.ClubId == _career.Club.Id
+                    && _career.World.Clubs.TryGetValue(bits[4], out var buyer))
+                {
+                    list.Add(new PhoneNote(buyer.Name, english
+                        ? buyer.Name + " has made an opening bid of " + Euro(bid) + " for " + player.FullName + ". The fee and contract are open to negotiation."
+                        : buyer.Name + " apresentou uma primeira proposta de " + Euro(bid) + " por " + player.FullName + ". O valor e o contrato podem ser negociados.",
+                        "clube", player.Id, buyer.Id, "transfer", week.ToString())
+                    {
+                        OfferAmount = bid,
+                        OfferWeeklyWage = Math.Max(player.WeeklyWage, Mathf.RoundToInt(player.WeeklyWage * 1.08f)),
+                        OfferYears = 3
+                    });
+                }
+                else if (line.StartsWith(loanPrefix, StringComparison.Ordinal) && bits.Length >= 6
+                    && int.TryParse(bits[5], out var loanFee)
+                    && _career.World.Players.TryGetValue(bits[3], out var youth) && youth.ClubId == _career.Club.Id
+                    && _career.World.Clubs.TryGetValue(bits[4], out var lender))
+                {
+                    list.Add(new PhoneNote(lender.Name, english
+                        ? lender.Name + " has offered a loan fee of " + Euro(loanFee) + " for " + youth.FullName + " until the end of the season. They will cover the player's weekly wage."
+                        : lender.Name + " oferece " + Euro(loanFee) + " pelo empréstimo de " + youth.FullName + " até ao fim da época. O clube cobre o salário semanal.",
+                        "clube", youth.Id, lender.Id, "loan", week.ToString())
+                    {
+                        OfferAmount = loanFee,
+                        OfferWeeklyWage = youth.WeeklyWage,
+                        OfferYears = 0
+                    });
+                }
+            }
+        }
+
+        void AddReadyCounterReplies(List<PhoneNote> list, bool english)
+        {
+            if (_career == null || _career.Calendar == null) return;
+            foreach (var line in _career.Notebook)
+            {
+                if (string.IsNullOrEmpty(line) || !line.StartsWith("job|incoming-counter|", StringComparison.Ordinal)) continue;
+                var bits = line.Split('|');
+                if (bits.Length < 13 || !long.TryParse(bits[12], out var dueTicks)
+                    || new DateTime(dueTicks).Date > _career.Calendar.CurrentDate.Date
+                    || !_career.World.Players.TryGetValue(bits[3], out var player)
+                    || !_career.World.Clubs.TryGetValue(bits[4], out var buyer)) continue;
+                int.TryParse(bits[6], out var requestedFee);
+                int.TryParse(bits[7], out var wage);
+                int.TryParse(bits[8], out var years);
+                int.TryParse(bits[9], out var responseFee);
+                int.TryParse(bits[11], out var round);
+                var loan = bits[2] == "loan";
+                var kind = bits[10];
+                var group = (loan ? "loan" : "transfer") + "-response-" + kind;
+                var text = kind == "accepted"
+                    ? (english ? buyer.Name + " has accepted your counteroffer of " + Euro(requestedFee) + " for " + player.FullName + ". Review the agreed terms and confirm or decline." : buyer.Name + " aceitou a contraproposta de " + Euro(requestedFee) + " por " + player.FullName + ". Confirma ou recusa os termos acordados.")
+                    : kind == "countered"
+                        ? (english ? buyer.Name + " has replied with a revised offer of " + Euro(responseFee) + " for " + player.FullName + ". You can accept, counter once more or walk away." : buyer.Name + " respondeu com uma proposta revista de " + Euro(responseFee) + " por " + player.FullName + ". Podes aceitar, voltar a contrapropor ou desistir.")
+                        : (english ? buyer.Name + " has withdrawn its approach for " + player.FullName + ". No agreement was reached." : buyer.Name + " retirou a abordagem por " + player.FullName + ". Não houve acordo.");
+                var note = new PhoneNote(buyer.Name, text, "clube", player.Id, buyer.Id, group, dueTicks.ToString())
+                {
+                    OfferAmount = kind == "countered" ? responseFee : requestedFee,
+                    OfferWeeklyWage = wage,
+                    OfferYears = years,
+                    OfferRound = round,
+                    Important = true
+                };
+                list.Add(note);
             }
         }
 
@@ -1256,18 +1494,21 @@ namespace CoachMaster.UI.Scenes
 
             var transferWindow = TransferWindowOpen();
             var offerWeek = _career.Calendar.CurrentDate.Year * 100 + ((_career.Calendar.CurrentDate.DayOfYear - 1) / 7);
-            if (transferWindow && star != null && _career.Club.PlayerIds.Count > 11 && !GlobalTransferMarket.MovePending(_career, star.Id))
+            var weeklyOfferPrefix = "job|incoming-offer-week|" + offerWeek + "|";
+            var weeklyLoanPrefix = "job|incoming-loan-week|" + offerWeek + "|";
+            AddStoredWeeklyIncomingOffers(list, offerWeek, english);
+            if (transferWindow && star != null && _career.Club.PlayerIds.Count > 11 && !GlobalTransferMarket.MovePending(_career, star.Id)
+                && !HasIncomingCounterPending(star.Id) && !HasNotebookPrefix(weeklyOfferPrefix))
             {
                 var contenders = GlobalTransferMarket.Contenders(_career, star, false);
                 var value = GlobalTransferMarket.MarketValue(star);
-                for (var i = 0; i < Math.Min(3, contenders.Count); i++)
+                if (contenders.Count > 0)
                 {
-                    var interestedClub = contenders[i];
-                    if (i == 0) buyer = interestedClub;
-                    var multiplier = i == 0 ? (interestedClub.Reputation >= club.Reputation ? 1.08f : 0.98f) : i == 1 ? 0.96f : 0.88f;
+                    var interestedClub = contenders[0];
+                    var multiplier = interestedClub.Reputation >= club.Reputation ? 1.08f : 0.98f;
                     var bid = Mathf.Clamp(Mathf.RoundToInt(value * multiplier), 80000, interestedClub.Finance.TransferBudget);
                     var bidNote = new PhoneNote(interestedClub.Name, english
-                        ? interestedClub.Name + " have made an opening bid of " + Euro(bid) + " for " + star.FullName + ". The fee and contract are open to negotiation."
+                        ? interestedClub.Name + " has made an opening bid of " + Euro(bid) + " for " + star.FullName + ". The fee and contract are open to negotiation."
                         : interestedClub.Name + " apresentou uma primeira proposta de " + Euro(bid) + " por " + star.FullName + ". O valor e o contrato podem ser negociados.",
                         "clube", star.Id, interestedClub.Id, "transfer", offerWeek.ToString())
                     {
@@ -1276,16 +1517,19 @@ namespace CoachMaster.UI.Scenes
                         OfferYears = 3
                     };
                     list.Add(bidNote);
+                    _career.Notebook.Add(weeklyOfferPrefix + star.Id + "|" + interestedClub.Id + "|" + bid);
+                    CareerStore.Save(_career);
                 }
             }
             if (transferWindow && lender != null && youth != null && lender.Id != (buyer == null ? "" : buyer.Id)
-                && _career.Club.PlayerIds.Count > 11 && !GlobalTransferMarket.MovePending(_career, youth.Id))
+                && _career.Club.PlayerIds.Count > 11 && !GlobalTransferMarket.MovePending(_career, youth.Id)
+                && !HasIncomingCounterPending(youth.Id) && !HasNotebookPrefix(weeklyLoanPrefix))
             {
                 var loanFee = Mathf.Max(10000, Mathf.RoundToInt(GlobalTransferMarket.MarketValue(youth) * 0.045f));
                 if (lender.Finance != null && lender.Finance.TransferBudget >= loanFee)
                 {
                     var loanNote = new PhoneNote(lender.Name, english
-                        ? lender.Name + " offer a loan fee of " + Euro(loanFee) + " for " + youth.FullName + " until the end of the season. They will cover the player's weekly wage."
+                        ? lender.Name + " has offered a loan fee of " + Euro(loanFee) + " for " + youth.FullName + " until the end of the season. They will cover the player's weekly wage."
                         : lender.Name + " oferece " + Euro(loanFee) + " pelo empréstimo de " + youth.FullName + " até ao fim da época. O clube cobre o salário semanal.",
                         "clube", youth.Id, lender.Id, "loan", offerWeek.ToString())
                     {
@@ -1294,12 +1538,11 @@ namespace CoachMaster.UI.Scenes
                         OfferYears = 0
                     };
                     list.Add(loanNote);
+                    _career.Notebook.Add(weeklyLoanPrefix + youth.Id + "|" + lender.Id + "|" + loanFee);
+                    CareerStore.Save(_career);
                 }
             }
-            if (foe != null)
-                list.Add(new PhoneNote(foe.Name, english
-                    ? "Confirmed: we play on " + LocalizationManager.FormatDate(next.Date, "dd/MM") + (next.IsHome(club.Id) ? " at your ground. Get the team ready; we'll talk after the whistle." : " at our ground. See you there.")
-                    : "Está confirmado: jogamos a " + LocalizationManager.FormatDate(next.Date, "dd/MM") + (next.IsHome(club.Id) ? " no teu campo. Prepara a equipa; falamos depois do apito." : " no nosso campo. Esperamos por vocês."), "clube", null, foe.Id, "fixture"));
+            AddReadyCounterReplies(list, english);
 
             var assistant = StaffReport.Find(club, StaffRole.AssistantCoach);
             list.Add(new PhoneNote(assistant == null ? (english ? "Assistant" : "Adjunto") : assistant.FullName, foe == null
@@ -2068,6 +2311,7 @@ namespace CoachMaster.UI.Scenes
             public int OfferAmount;
             public int OfferWeeklyWage;
             public int OfferYears;
+            public int OfferRound;
 
             public PhoneNote(string who, string text, string channel, string playerId, string clubId, string replyGroup = null, string meta = null)
             {
@@ -6351,6 +6595,26 @@ namespace CoachMaster.UI.Scenes
                 var deck = BroadcastUi.Label(card.transform, "Deck", PressDate(string.IsNullOrEmpty(story.Published) ? story.Deck : story.Published), 14, UiTheme.Muted, TextAnchor.MiddleLeft);
                 BroadcastUi.Place(deck.rectTransform, 0.04f, 0.08f, 0.96f, 0.34f);
             }
+
+            // Recalculate the full card stack before ScrollRect clamps its bounds. Without
+            // this, late-created/replaced stories can leave the bottom of the list unreachable.
+            if (_newsContent != null)
+            {
+                var newsScroll = _newsContent.GetComponentInParent<ScrollRect>();
+                if (newsScroll != null)
+                {
+                    newsScroll.StopMovement();
+                    newsScroll.horizontal = false;
+                    newsScroll.vertical = true;
+                    newsScroll.movementType = ScrollRect.MovementType.Clamped;
+                    Canvas.ForceUpdateCanvases();
+                    LayoutRebuilder.ForceRebuildLayoutImmediate(_newsContent);
+                    if (newsScroll.viewport != null)
+                        LayoutRebuilder.ForceRebuildLayoutImmediate(newsScroll.viewport);
+                    newsScroll.Rebuild(CanvasUpdate.PostLayout);
+                    newsScroll.verticalNormalizedPosition = 1f;
+                }
+            }
         }
 
         string PaperName(string paper)
@@ -6461,7 +6725,7 @@ namespace CoachMaster.UI.Scenes
                     : "O clube avançou rapidamente e fechou o negócio.";
             if (LocalizationManager.Current != GameLanguage.English)
                 return story == null ? "" : story.Quote;
-            if (story.Kicker == "MERCADO") return "I won't comment on names. Any discussion is with the club, not the papers.";
+            if (story.Kicker == "MERCADO") return "My focus is on helping the team. My representative can handle any contact with the club.";
             if (story.Kicker == "ENTREVISTA") return "If the ball reaches me in the box, I won't think twice.";
             return "We went looking for the goal. The result reflects what we saw from the touchline.";
         }
@@ -6531,15 +6795,14 @@ namespace CoachMaster.UI.Scenes
             {
                 var opponent = story.AwayClubId != null && _career.World.Clubs.TryGetValue(story.AwayClubId, out var away) ? away : null;
                 return _career.Club.Name + " face " + (opponent == null ? "their next opponent" : opponent.Name) + ". The opposition are expected to use "
-                    + (opponent == null ? "their usual shape" : opponent.Tactics.Formation) + ".\n\nThe assistant has highlighted " + (story.Motm ?? "a key player") + " as a possible difference-maker.\n\n“"
-                    + PressQuote(story) + "”\n— " + (story.QuoteBy ?? _career.Coach.Name);
+                    + (opponent == null ? "their usual shape" : opponent.Tactics.Formation) + ".\n\nThe assistant has highlighted " + (story.Motm ?? "a key player") + " as a possible difference-maker.";
             }
             if (story.Kicker == "MERCADO")
             {
                 var seller = story.AwayClubId != null && _career.World.Clubs.TryGetValue(story.AwayClubId, out var owner) ? owner : null;
-                return "Transfer talk around " + (story.Motm ?? "the player") + " has resurfaced. " + _career.Club.ShortName + " are monitoring the situation, but no offer has been confirmed.\n\n“"
-                    + PressQuote(story) + "”\n— " + _career.Coach.Name + "\n\n"
-                    + (seller == null ? "The player's club has made no formal announcement." : seller.Name + " say the player is focused on the next match. There is no confirmed agreement.");
+                return "Transfer talk around " + (story.Motm ?? "the player") + " has resurfaced. "
+                    + (seller == null ? "The discussions are being handled privately, and no agreement has been announced." : seller.Name + " have made no public announcement, and no agreement has been announced.")
+                    + " The player's camp has declined to discuss details while the situation remains informal.";
             }
             var next = _career.NextUserFixture();
             var opponentClub = next == null ? null : _career.World.Clubs[next.OpponentId(_career.Club.Id)];
@@ -9508,7 +9771,7 @@ namespace CoachMaster.UI.Scenes
             var headline = PressHeadline(story);
             var highlight = BroadcastUi.Label(_modalBody, "Headline", headline, 22, Color.white, TextAnchor.UpperLeft, FontStyle.Bold);
             BroadcastUi.SetWrapped(highlight, headline, 48);
-            if (!string.IsNullOrEmpty(story.Motm))
+            if (story.Kicker == "JOGO" && !string.IsNullOrEmpty(story.Motm))
             {
                 var motm = BroadcastUi.Label(_modalBody, "Motm", LocalizationManager.Translate("JOGADOR DA PARTIDA") + "   " + story.Motm, 16, UiTheme.Score, TextAnchor.MiddleLeft, FontStyle.Bold);
                 BroadcastUi.Preferred(motm, 28);

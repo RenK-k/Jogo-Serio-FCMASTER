@@ -48,6 +48,37 @@ namespace CoachMaster.Career
                 if (story == null || story.Kicker == "MEMORY"
                     || story.Paper == "Memórias da época" || story.Paper == "Memórias da carreira")
                     career.Press.RemoveAt(i);
+                else if (story.Kicker != null && story.Kicker.StartsWith("PERSONAL_", System.StringComparison.Ordinal))
+                {
+                    // Older saves stored the manager's response as a second quote, which made
+                    // it appear again in the story card under the manager's name.
+                    story.Quote = null;
+                    story.QuoteBy = null;
+                }
+                else if (story.Kicker == "ENTREVISTA" && !string.IsNullOrEmpty(story.Quote)
+                    && !string.IsNullOrEmpty(story.Body))
+                {
+                    // Older previews embedded the player's quote in the article body and also
+                    // rendered it in the dedicated quote panel. Keep it in the panel only.
+                    var quoteStart = story.Body.IndexOf("\"" + story.Quote + "\"", System.StringComparison.Ordinal);
+                    if (quoteStart >= 0)
+                    {
+                        var paragraphStart = story.Body.LastIndexOf("\n\n", quoteStart, System.StringComparison.Ordinal);
+                        story.Body = story.Body.Substring(0, paragraphStart >= 0 ? paragraphStart : quoteStart).TrimEnd();
+                    }
+                }
+                else if (story.Kicker == "MERCADO" && !string.IsNullOrEmpty(story.Motm))
+                {
+                    story.Quote = "O meu foco é ajudar a equipa. Se surgir algum contacto, o meu representante fala com o clube.";
+                    story.QuoteBy = story.Motm;
+                    if (!string.IsNullOrEmpty(story.Body))
+                    {
+                        var quoteStart = story.Body.IndexOf("\n\n\"", System.StringComparison.Ordinal);
+                        var clubParagraph = quoteStart < 0 ? -1 : story.Body.IndexOf("\n\nNo ", quoteStart, System.StringComparison.Ordinal);
+                        if (quoteStart >= 0 && clubParagraph >= 0)
+                            story.Body = story.Body.Substring(0, quoteStart) + story.Body.Substring(clubParagraph);
+                    }
+                }
             }
         }
 
@@ -114,9 +145,7 @@ namespace CoachMaster.Career
                 Body = moment.Body + "\n\n" + response + "\n\nO treinador respondeu à situação com atenção ao jogador e ao grupo.",
                 Kicker = "PERSONAL_" + type,
                 HomeClubId = career.Club.Id,
-                Motm = player.FullName,
-                Quote = response,
-                QuoteBy = career.Coach.Name
+                Motm = player.FullName
             };
             Stamp(career, story);
             career.Press.Insert(0, story);
@@ -359,8 +388,7 @@ namespace CoachMaster.Career
             var body = "Antevisão  ·  " + home.ShortName + "–" + away.ShortName + "\n\n" +
                 user.Name + " joga " + where + " frente ao " + opp.Name + ", que se apresenta em " + opp.Tactics.Formation + ".\n\n" +
                 "No " + user.ShortName + ", " + star + " é o nome que o banco aponta para desequilibrar. Do outro lado, " + their + " é quem o adjunto pede para não perder de vista.\n\n" +
-                "\"" + (user.DressingRoomTension >= 60 ? "O balneário precisa do jogo, não de mais conversa." : "Quero o grupo junto desde o primeiro minuto.") + "\"\n— " + coach + ", antes do jogo\n\n" +
-                "\"" + "Se a bola me chegar na área, não vou pensar duas vezes." + "\"\n— " + star;
+                "\"" + (user.DressingRoomTension >= 60 ? "O balneário precisa do jogo, não de mais conversa." : "Quero o grupo junto desde o primeiro minuto.") + "\"\n— " + coach + ", antes do jogo.";
             var story = new PaperStory
             {
                 Paper = "O Bancada",
@@ -393,10 +421,13 @@ namespace CoachMaster.Career
             if (seller == null)
                 return;
             var name = BestName(career, seller);
+            foreach (var existing in career.Press)
+                if (existing != null && existing.Kicker == "MERCADO" && existing.Motm == name
+                    && (career.Calendar.CurrentDate.Date - new System.DateTime(existing.DateTicks).Date).Days < 14)
+                    return;
             var body = "Mercado  ·  " + seller.ShortName + "\n\n" +
-                "O nome de " + name + " voltou a circular nos corredores. O " + career.Club.ShortName + " ouve, a direção ainda não assina nada.\n\n" +
-                "\"" + "Não comento nomes. Se houver conversa, é com o clube, não com o jornal." + "\"\n— " + career.Coach.Name + "\n\n" +
-                "No " + seller.Name + ", a resposta foi curta: o jogador concentra-se no próximo jogo. Não há acordo, nem desmentido firme.";
+                "O nome de " + name + " voltou a surgir nas conversas do mercado. Os contactos são tratados em privado e ainda não foi anunciado qualquer acordo entre os clubes.\n\n" +
+                "O jogador mantém-se concentrado no trabalho diário enquanto o seu representante trata de qualquer contacto.";
             var story = new PaperStory
             {
                 Paper = "Diário da Liga",
@@ -406,8 +437,8 @@ namespace CoachMaster.Career
                 HomeClubId = career.Club.Id,
                 AwayClubId = seller.Id,
                 Motm = name,
-                Quote = "Não comento nomes. Se houver conversa, é com o clube, não com o jornal.",
-                QuoteBy = career.Coach.Name
+                Quote = "O meu foco é ajudar a equipa. Se surgir algum contacto, o meu representante fala com o clube.",
+                QuoteBy = name
             };
             Stamp(career, story);
             career.Press.Insert(0, story);

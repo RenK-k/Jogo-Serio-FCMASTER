@@ -1,0 +1,30 @@
+COACH MASTER MODS / MODS DO COACH MASTER
+
+HOW TO INSTALL: In Career Setup > Database Preview > Mods (or Settings > Mods & Database), choose the folder that contains these files and image folders, then choose Import. The folder may also contain one child folder named Mods. The game copies supported files into its Mods folder and replaces files with the same name; unrelated files are kept. Import is career data only and does not run code. When imported from Database Preview, the changes are also applied to that career draft.
+
+PACKAGE LAYOUT (names are case-insensitive):
+YourPackage/
+  jogadores.txt (or players.txt)
+  equipas.txt (or clubs.txt / teams.txt)
+  treinadores.txt (or managers.txt / coaches.txt)
+  staff.txt (or equipa-tecnica.txt)
+  sponsors.txt (or patrocinadores.txt)
+  caras/ (or faces/)
+  emblemas/ (or badges/ / crests/)
+  patrocinadores/ (or sponsors/)
+
+IMAGE RULES: PNG, JPG and JPEG are supported. Name each image with the exact Portrait key, Custom Crest key, or Sponsor Logo key used in its data row, without the extension. Use unique names. Example: caras/face_104.png pairs with portrait key face_104. Files are matched by key, not by the image's visual contents.
+
+TEXT RULES: Save as UTF-8. Put one existing database record on each line. Separate fields with | and keep empty fields between separators so later columns stay in the right place. A line whose first non-space character is # is a comment. Use IDs from Database Preview; names are accepted as a fallback. Text in brackets below describes a field and must not be copied literally. Empty optional fields keep existing values, except a blank player club ID makes that player a free agent.
+
+jogadores.txt / players.txt (49 columns, indexes 0-48):
+0 database player ID or current full name | 1 full name | 2 nationality | 3 position enum | 4 age | 5 shirt number | 6 potential | 7 height cm | 8 weight kg | 9 preferred foot (Left/Right/Both) | 10 weekly wage | 11 contract date YYYY-MM-DD | 12 morale | 13 fatigue | 14 fitness | 15 form | 16 motivation | 17 weak foot quality 1-5 | 18 training rating | 19 training focus | 20 training progress | 21 training intensity 0-3 | 22 training streak | 23 personality enum | 24 traits, comma-separated enum names | 25 alternate position enums, comma-separated | 26 captain true/false | 27 vice-captain true/false | 28 duty | 29 injury days | 30 injury description | 31 pace | 32 stamina | 33 strength | 34 passing | 35 finishing | 36 dribbling | 37 tackling | 38 crossing | 39 positioning | 40 composure | 41 work rate | 42 decisions | 43 reflexes | 44 handling | 45 portrait key | 46 reputation 1-100 | 47 new club database ID/name (blank means free agent) | 48 unavailable-until date ticks (0 means available; ticks are .NET DateTime ticks).
+Positions and enum values use the database spelling, for example Striker, Goalkeeper, LeftWinger, RightBack, Right, Outspoken. Attributes use 1-20. Current overall is calculated from the attributes and position; potential cannot be below that overall. The player key in column 0 stays the same when you rename the player.
+
+equipas.txt / clubs.txt / teams.txt (46 columns, indexes 0-45):
+0 database club ID or current name | 1 club name | 2 short name | 3 city | 4 stadium | 5 founded year | 6 reputation 1-100 | 7 primary #RRGGBB | 8 secondary #RRGGBB | 9 shorts #RRGGBB | 10 history | 11 public reputation | 12 balance | 13 wage budget | 14 transfer budget | 15 manager name | 16 formation | 17 pressing | 18 build-up | 19 fullbacks | 20 defensive line | 21 public team state | 22 dressing-room atmosphere | 23 internal problems | 24 board objectives, comma-separated | 25 custom crest image key | 26 kit pattern enum | 27 league ID | 28 width | 29 tempo | 30 passing style | 31 attack idea | 32 marking | 33 transfer spending this season | 34 ticket income this season | 35 shirt income this season | 36 sponsor income this season | 37 player sales this season | 38 public financial situation | 39 penalty taker player ID | 40 corner taker player ID | 41 free-kick taker player ID | 42 starting lineup player IDs, comma-separated | 43 bench player IDs, comma-separated | 44 crest resource path | 45 optional legacy shorts colour override.
+treinadores.txt / managers.txt / coaches.txt: club database ID or current name | manager name.
+staff.txt (new full format): club ID | staff database ID | role enum (AssistantCoach/GoalkeeperCoach/FitnessCoach/Physiotherapist/Scout) | full name | judgement 1-20 | weekly wage | contract date YYYY-MM-DD | portrait key. Legacy format is club ID | role | full name | judgement | weekly wage | contract date | portrait key.
+sponsors.txt / patrocinadores.txt: one row per sponsor; rows for a club replace that club's sponsor list. club ID or current name | sponsor name | weekly income | logo key | logo colour #RRGGBB | active true/false (optional).
+
+Use the files in Database Preview to look up IDs and exact enum values. Rows only edit existing players, clubs and staff; sponsor rows can define the club's full sponsor list. The *_template.txt files repeat the column order for quick copying.

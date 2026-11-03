@@ -1,9 +1,14 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Globalization;
+using System.IO;
 using CoachMaster.App;
 using CoachMaster.Career;
 using CoachMaster.Data;
 using CoachMaster.Domain;
+using CoachMaster.UI;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -177,7 +182,7 @@ namespace CoachMaster.UI.Scenes
 
     public sealed class CareerDatabaseEditorOverlay : MonoBehaviour
     {
-        enum DatabaseTab { Players, Coaches, Staff, Sponsors, Teams }
+        enum DatabaseTab { Players, Coaches, Staff, Sponsors, Teams, Mods }
 
         static readonly string[] ColorChoices = { "#B5122B", "#164B9A", "#14844A", "#D8B525", "#EEEEEE", "#171923", "#6A35A5", "#E36B25" };
 
@@ -200,9 +205,19 @@ namespace CoachMaster.UI.Scenes
         DatabaseTab _tab;
         int _page;
         string _selected;
+        int _playerDetailPage;
+        int _teamDetailPage;
         string _scopeLeagueId;
         string _scopeClubId;
         bool _suppressSearchRefresh;
+        string _selectedModFolder;
+        Coroutine _modImportRoutine;
+        ModPackageCopyJob _activeModCopyJob;
+        Text _modStatus;
+        Image _modProgressFill;
+        Button _importModButton;
+        string _modStatusMessage;
+        float _modProgressValue;
         readonly Dictionary<DatabaseTab, Button> _tabButtons = new Dictionary<DatabaseTab, Button>();
 
         public static void Open(Transform parent, GameSession session, Action finish)
@@ -242,6 +257,7 @@ namespace CoachMaster.UI.Scenes
             AddTab(tabBar, english ? "STAFF" : "EQUIPA TÉCNICA", DatabaseTab.Staff, 2);
             AddTab(tabBar, english ? "SPONSORS" : "PATROCINADORES", DatabaseTab.Sponsors, 3);
             AddTab(tabBar, english ? "CLUBS" : "CLUBES", DatabaseTab.Teams, 4);
+            AddTab(tabBar, english ? "MODS" : "MODS", DatabaseTab.Mods, 5);
 
             var listPanel = BroadcastUi.Panel(panel.transform, "DatabaseList", new Color(0.035f, 0.06f, 0.12f, 1f));
             BroadcastUi.Place(listPanel.rectTransform, 0.025f, 0.11f, 0.35f, 0.8f);
@@ -297,7 +313,7 @@ namespace CoachMaster.UI.Scenes
                 RefreshList();
             }, new Color(1f, 1f, 1f, 0.08f), Color.white, 12);
             _tabButtons[tab] = button;
-            BroadcastUi.Place(button.GetComponent<RectTransform>(), index * 0.2f + 0.004f, 0.04f, (index + 1) * 0.2f - 0.004f, 0.96f);
+            BroadcastUi.Place(button.GetComponent<RectTransform>(), index / 6f + 0.003f, 0.04f, (index + 1) / 6f - 0.003f, 0.96f);
             UpdateTabHighlight();
         }
 
@@ -339,6 +355,17 @@ namespace CoachMaster.UI.Scenes
         {
             var entries = new List<Entry>();
             var english = LocalizationManager.Current == GameLanguage.English;
+            if (_tab == DatabaseTab.Mods)
+            {
+                entries.Add(new Entry
+                {
+                    Key = "mods",
+                    Title = english ? "Mod folder & guide" : "Pasta de mods e guia",
+                    Subtitle = english ? "Import data, portraits, badges and sponsor logos" : "Importar dados, rostos, emblemas e logótipos",
+                    Kind = "mods"
+                });
+                return entries;
+            }
             var query = _search == null ? "" : (_search.text ?? "").Trim();
             var globalSearch = query.Length > 0 && string.IsNullOrEmpty(_scopeLeagueId) && string.IsNullOrEmpty(_scopeClubId);
             if (globalSearch)
@@ -519,11 +546,11 @@ namespace CoachMaster.UI.Scenes
                 BroadcastUi.Place(pageText.rectTransform, 0.32f, 0f, 0.68f, 1f);
             }
             else Destroy(pageText.gameObject);
-            var recordEntries = entries.Exists(x => x.Kind == "record" || x.Kind == "club-leaf");
-            if (recordEntries && (string.IsNullOrEmpty(_selected) || !entries.Exists(x => (x.Kind == "record" || x.Kind == "club-leaf") && x.Key == _selected)))
+            var recordEntries = entries.Exists(x => x.Kind == "record" || x.Kind == "club-leaf" || x.Kind == "mods");
+            if (recordEntries && (string.IsNullOrEmpty(_selected) || !entries.Exists(x => (x.Kind == "record" || x.Kind == "club-leaf" || x.Kind == "mods") && x.Key == _selected)))
             {
-                var firstRecord = entries.FindIndex(start, x => x.Kind == "record" || x.Kind == "club-leaf");
-                if (firstRecord < 0) firstRecord = entries.FindIndex(x => x.Kind == "record" || x.Kind == "club-leaf");
+                var firstRecord = entries.FindIndex(start, x => x.Kind == "record" || x.Kind == "club-leaf" || x.Kind == "mods");
+                if (firstRecord < 0) firstRecord = entries.FindIndex(x => x.Kind == "record" || x.Kind == "club-leaf" || x.Kind == "mods");
                 _selected = entries[firstRecord].Key;
                 BuildDetails();
             }
@@ -587,6 +614,26 @@ namespace CoachMaster.UI.Scenes
             }
             else
             {
+                if (_tab == DatabaseTab.Staff)
+                {
+                    var staffParts = entry.Key.Split('|');
+                    if (staffParts.Length >= 3 && _world.Clubs.TryGetValue(staffParts[1], out var staffOwner)
+                        && staffOwner.Staff != null)
+                    {
+                        var staffMember = staffOwner.Staff.Find(candidate => candidate != null && candidate.Id == staffParts[2]);
+                        if (staffMember != null) portrait = FaceBook.For(staffMember);
+                    }
+                }
+                else if (_tab == DatabaseTab.Sponsors)
+                {
+                    var sponsorParts = entry.Key.Split('|');
+                    if (sponsorParts.Length >= 3 && _world.Clubs.TryGetValue(sponsorParts[1], out var sponsorOwner)
+                        && sponsorOwner.Sponsors != null)
+                    {
+                        var sponsor = sponsorOwner.Sponsors.Find(candidate => candidate != null && candidate.Id == sponsorParts[2]);
+                        if (sponsor != null) portrait = ModFolder.SponsorLogo(sponsor.LogoKey);
+                    }
+                }
                 var clubId = entry.Key;
                 if (clubId.StartsWith("manager|", StringComparison.Ordinal)) clubId = clubId.Substring("manager|".Length);
                 else if (clubId.StartsWith("staff|", StringComparison.Ordinal) || clubId.StartsWith("sponsor|", StringComparison.Ordinal))
@@ -656,7 +703,188 @@ namespace CoachMaster.UI.Scenes
                 case DatabaseTab.Staff: BuildStaffDetails(); break;
                 case DatabaseTab.Sponsors: BuildSponsorDetails(); break;
                 case DatabaseTab.Teams: BuildTeamDetails(); break;
+                case DatabaseTab.Mods: BuildModsDetails(); break;
             }
+        }
+
+        void BuildModsDetails()
+        {
+            var english = LocalizationManager.Current == GameLanguage.English;
+            AddDetailTitle(english ? "Mods & database" : "Mods e base de dados",
+                english ? "Import a complete folder before starting this career." : "Importa uma pasta completa antes de começares esta carreira.");
+            var guide = BroadcastUi.Label(_detailRoot, "ModGuide", english
+                ? "FOLDER LAYOUT\nPackage/\n  players.txt · clubs.txt · managers.txt · staff.txt · sponsors.txt\n  faces/ · badges/ · sponsors/\n\nUse UTF-8 text files, one existing record per line, with fields separated by |. Keep empty columns in place. Put PNG/JPG/JPEG images in the matching folders and name each image with the portrait, crest or sponsor-logo key from its row. Existing destination filenames are replaced. The full field order, IDs, enum values and examples are in MODS-LEIA-ME.txt. Templates are created only when missing."
+                : "ESTRUTURA DA PASTA\nPacote/\n  jogadores.txt · equipas.txt · treinadores.txt · staff.txt · sponsors.txt\n  caras/ · emblemas/ · patrocinadores/\n\nUsa ficheiros de texto UTF-8, um registo existente por linha e campos separados por |. Mantém as colunas vazias no lugar. Coloca imagens PNG/JPG/JPEG na pasta correspondente e usa a chave do rosto, emblema ou logótipo indicada na linha. Ficheiros com o mesmo nome são substituídos. A ordem completa dos campos, IDs, enums e exemplos está em MODS-LEIA-ME.txt. Os modelos só são criados quando ainda não existem.",
+                13, Color.white, TextAnchor.UpperLeft);
+            BroadcastUi.Place(guide.rectTransform, 0.035f, 0.53f, 0.965f, 0.79f);
+
+            var pathHeading = BroadcastUi.Label(_detailRoot, "ModsFolderHeading", english ? "GAME MODS FOLDER" : "PASTA DE MODS DO JOGO", 11, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(pathHeading.rectTransform, 0.04f, 0.47f, 0.96f, 0.52f);
+            var path = BroadcastUi.Label(_detailRoot, "ModsFolderPath", ModFolder.Root(), 11, UiTheme.Muted, TextAnchor.MiddleLeft);
+            BroadcastUi.Place(path.rectTransform, 0.04f, 0.42f, 0.96f, 0.47f);
+
+            var choose = BroadcastUi.Button(_detailRoot, "ChoosePackage", english ? "CHOOSE COMPLETE MOD FOLDER" : "ESCOLHER PASTA COMPLETA DE MODS", () =>
+            {
+                var selected = WindowsMusicPicker.OpenFolder(english ? "Choose mod folder" : "Escolher pasta de mods");
+                if (string.IsNullOrWhiteSpace(selected)) return;
+                _selectedModFolder = selected;
+                var files = ModFolder.EnumeratePackageFiles(selected, out var error);
+                SetModStatus(files.Count > 0
+                    ? (english ? files.Count + " supported files ready." : files.Count + " ficheiros compatíveis prontos.")
+                    : error);
+                SetModProgress(0f);
+            }, UiTheme.Accent, UiTheme.ButtonText, 12);
+            BroadcastUi.Place(choose.GetComponent<RectTransform>(), 0.04f, 0.33f, 0.49f, 0.41f);
+            _importModButton = BroadcastUi.Button(_detailRoot, "ImportPackage", english ? "IMPORT & APPLY TO THIS PREVIEW" : "IMPORTAR E APLICAR À PRÉ-VISUALIZAÇÃO", ImportSelectedModFolder,
+                new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 12);
+            BroadcastUi.Place(_importModButton.GetComponent<RectTransform>(), 0.51f, 0.33f, 0.96f, 0.41f);
+            var templates = BroadcastUi.Button(_detailRoot, "CreateGuideTemplates", english ? "CREATE GUIDE & TEMPLATES" : "CRIAR GUIA E MODELOS", () =>
+            {
+                try
+                {
+                    ModFolder.CreateTemplates();
+                    SetModStatus(english
+                        ? "Guide and starter files are ready in the displayed Mods folder. Existing files were kept."
+                        : "O guia e os ficheiros iniciais estão prontos na pasta Mods. Os ficheiros existentes foram mantidos.");
+                }
+                catch (Exception exception)
+                {
+                    SetModStatus(exception.Message);
+                }
+            }, new Color(0.12f, 0.24f, 0.38f, 1f), Color.white, 11);
+            BroadcastUi.Place(templates.GetComponent<RectTransform>(), 0.04f, 0.24f, 0.49f, 0.32f);
+            var open = BroadcastUi.Button(_detailRoot, "OpenModsFolder", english ? "OPEN MODS FOLDER" : "ABRIR PASTA DE MODS", () =>
+            {
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+                try { Process.Start(new ProcessStartInfo { FileName = "explorer.exe", Arguments = "\"" + ModFolder.Root() + "\"", UseShellExecute = true }); }
+                catch (Exception exception) { SetModStatus(exception.Message); }
+#else
+                SetModStatus(ModFolder.Root());
+#endif
+            }, new Color(1f, 1f, 1f, 0.08f), Color.white, 11);
+            BroadcastUi.Place(open.GetComponent<RectTransform>(), 0.51f, 0.24f, 0.96f, 0.32f);
+
+            var track = BroadcastUi.Panel(_detailRoot, "ModProgressTrack", new Color(1f, 1f, 1f, 0.12f));
+            BroadcastUi.Place(track.rectTransform, 0.04f, 0.16f, 0.96f, 0.205f);
+            var fill = BroadcastUi.Panel(track.transform, "ModProgressFill", UiTheme.Accent);
+            BroadcastUi.Place(fill.rectTransform, 0f, 0f, 0f, 1f);
+            _modProgressFill = fill;
+            _modStatus = BroadcastUi.Label(_detailRoot, "ModStatus", string.IsNullOrEmpty(_modStatusMessage)
+                ? (english ? "Choose a package folder. Import only supported data and image files." : "Escolhe a pasta do pacote. A importação lê apenas dados e imagens compatíveis.")
+                : _modStatusMessage, 11, UiTheme.Muted, TextAnchor.UpperLeft);
+            BroadcastUi.Place(_modStatus.rectTransform, 0.04f, 0.04f, 0.96f, 0.15f);
+            SetModProgress(_modProgressValue);
+        }
+
+        void ImportSelectedModFolder()
+        {
+            var english = LocalizationManager.Current == GameLanguage.English;
+            if (string.IsNullOrWhiteSpace(_selectedModFolder))
+            {
+                SetModStatus(english ? "Choose a package folder first." : "Escolhe primeiro a pasta do pacote.");
+                return;
+            }
+            var files = ModFolder.EnumeratePackageFiles(_selectedModFolder, out var error);
+            if (files.Count == 0)
+            {
+                SetModStatus(error);
+                return;
+            }
+            if (_modImportRoutine != null)
+            {
+                StopCoroutine(_modImportRoutine);
+                _activeModCopyJob?.Dispose();
+                _activeModCopyJob = null;
+            }
+            SetModProgress(0f);
+            _modImportRoutine = StartCoroutine(ImportSelectedModFiles(files));
+        }
+
+        IEnumerator ImportSelectedModFiles(List<ModPackageFile> files)
+        {
+            var english = LocalizationManager.Current == GameLanguage.English;
+            if (_importModButton != null) _importModButton.interactable = false;
+            long totalBytes = 0;
+            foreach (var file in files)
+            {
+                try { totalBytes += Math.Max(1L, new FileInfo(file.SourcePath).Length); }
+                catch { totalBytes++; }
+            }
+            var completedBytes = 0L;
+            var buffer = new byte[256 * 1024];
+            var copiedAny = false;
+            var failed = "";
+            for (var index = 0; index < files.Count; index++)
+            {
+                var job = new ModPackageCopyJob();
+                _activeModCopyJob = job;
+                if (!job.Open(files[index], out failed))
+                {
+                    job.Dispose();
+                    _activeModCopyJob = null;
+                    break;
+                }
+                while (!job.IsComplete)
+                {
+                    if (!job.CopyChunk(buffer, out _, out failed)) break;
+                    var fileWork = job.TotalBytes > 0 ? job.CopiedBytes : job.IsComplete ? 1L : 0L;
+                    var progress = totalBytes <= 0 ? 0f : (completedBytes + fileWork) / (float)totalBytes;
+                    SetModProgress(progress);
+                    SetModStatus((english ? "Importing " : "A importar ")
+                        + (index + 1) + " / " + files.Count + " · " + Path.GetFileName(files[index].SourcePath)
+                        + " · " + Mathf.RoundToInt(progress * 100f) + "%");
+                    yield return null;
+                }
+                if (job.IsComplete) copiedAny = true;
+                completedBytes += Math.Max(1L, job.TotalBytes);
+                job.Dispose();
+                _activeModCopyJob = null;
+                if (!string.IsNullOrEmpty(failed)) break;
+            }
+            if (copiedAny)
+            {
+                try
+                {
+                    ModFolder.RefreshImportedImages();
+                    ModFolder.Apply(_world);
+                    ClearSearch();
+                    _page = 0;
+                }
+                catch (Exception exception)
+                {
+                    failed = exception.Message;
+                }
+            }
+            var complete = string.IsNullOrEmpty(failed);
+            var finalStatus = complete
+                ? (english ? "Import complete and applied to this career preview. These edits will be saved with the career."
+                    : "Importação concluída e aplicada à pré-visualização desta carreira. As alterações ficam guardadas nela.")
+                : (english ? "Import stopped: " : "Importação interrompida: ") + failed;
+            if (complete) _modProgressValue = 1f;
+            if (_importModButton != null) _importModButton.interactable = true;
+            _modImportRoutine = null;
+            RefreshList();
+            SetModProgress(_modProgressValue);
+            SetModStatus(finalStatus);
+        }
+
+        void SetModProgress(float value)
+        {
+            _modProgressValue = Mathf.Clamp01(value);
+            if (_modProgressFill != null)
+                BroadcastUi.Place(_modProgressFill.rectTransform, 0f, 0f, _modProgressValue, 1f);
+        }
+
+        void SetModStatus(string value)
+        {
+            _modStatusMessage = value ?? "";
+            if (_modStatus != null) _modStatus.text = _modStatusMessage;
+        }
+
+        void OnDestroy()
+        {
+            _activeModCopyJob?.Dispose();
+            _activeModCopyJob = null;
         }
 
         void ClearDetails()
@@ -672,20 +900,20 @@ namespace CoachMaster.UI.Scenes
             var english = LocalizationManager.Current == GameLanguage.English;
             if (player.Attributes == null) player.Attributes = new PlayerAttributes();
             AddDetailTitle(player.FullName, NationalityName(player.Nationality, english) + " · " + PositionName(player.Position, english) + " · " + player.Age + (english ? " years" : " anos"));
+            AddDetailTabs(english ? new[] { "IDENTITY", "ATTRIBUTES", "STATUS" } : new[] { "IDENTIDADE", "ATRIBUTOS", "ESTADO" }, _playerDetailPage, index => { _playerDetailPage = index; BuildDetails(); });
+            if (_playerDetailPage == 0) BuildPlayerIdentity(player, english);
+            else if (_playerDetailPage == 1) BuildPlayerAttributes(player, english);
+            else BuildPlayerStatus(player, english);
+        }
+
+        void BuildPlayerIdentity(Player player, bool english)
+        {
             var portrait = new GameObject("Face", typeof(RectTransform), typeof(Image)).GetComponent<Image>();
             portrait.transform.SetParent(_detailRoot, false);
             portrait.preserveAspect = true;
             portrait.sprite = FaceBook.For(player);
-            BroadcastUi.Place(portrait.rectTransform, 0.035f, 0.59f, 0.22f, 0.83f);
-            AddInput(english ? "PLAYER NAME" : "NOME DO JOGADOR", player.FullName, 0.25f, 0.70f, value => { player.FullName = value; RefreshList(); });
-            var overall = PlayerAttributes.OverallAtPosition(player, player.Position);
-            AddStepper(english ? "CURRENT OVERALL" : "NÍVEL ATUAL", overall.ToString(), 0.59f,
-                () => { SetOverall(player, PlayerAttributes.OverallAtPosition(player, player.Position) - 1); BuildDetails(); },
-                () => { SetOverall(player, PlayerAttributes.OverallAtPosition(player, player.Position) + 1); BuildDetails(); }, 0.25f, 0.96f);
-            AddStepper(english ? "POTENTIAL" : "POTENCIAL", player.Potential.ToString(), 0.48f,
-                () => { player.Potential = Mathf.Max(PlayerAttributes.OverallAtPosition(player, player.Position), player.Potential - 1); BuildDetails(); },
-                () => { player.Potential = Mathf.Min(99, player.Potential + 1); BuildDetails(); }, 0.25f, 0.96f);
-            AddButton(english ? "CHOOSE FACE FROM YOUR FILES" : "ESCOLHER ROSTO DOS TEUS FICHEIROS", 0.035f, 0.46f, 0.22f, () =>
+            BroadcastUi.Place(portrait.rectTransform, 0.035f, 0.57f, 0.18f, 0.72f);
+            AddButton(english ? "CHOOSE FACE FROM YOUR FILES" : "ESCOLHER ROSTO DOS TEUS FICHEIROS", 0.035f, 0.46f, 0.19f, () =>
             {
                 var fileKey = ChooseImageFile("caras", english ? "Choose player face" : "Escolher rosto do jogador");
                 if (string.IsNullOrEmpty(fileKey)) return;
@@ -693,6 +921,32 @@ namespace CoachMaster.UI.Scenes
                 if (imported != null) FaceBook.SetPortrait(player, imported);
                 BuildDetails();
             });
+            var x = new[] { 0.22f, 0.48f, 0.74f };
+            var w = 0.24f;
+            var ys = new[] { 0.57f, 0.43f, 0.29f, 0.15f };
+            AddInput(english ? "PLAYER NAME" : "NOME DO JOGADOR", player.FullName, x[0], ys[0], value => { player.FullName = value; RefreshList(); }, x[0] + w);
+            AddInput(english ? "NATIONALITY" : "NACIONALIDADE", player.Nationality, x[1], ys[0], value => player.Nationality = value, x[1] + w);
+            AddInput(english ? "POSITION" : "POSIÇÃO", player.Position.ToString(), x[2], ys[0], value => { if (Enum.TryParse(value, true, out PlayerPosition parsed)) player.Position = parsed; }, x[2] + w);
+            AddInput(english ? "AGE" : "IDADE", player.Age.ToString(), x[0], ys[1], value => SetInt(value, 15, 50, parsed => player.Age = parsed), x[0] + w);
+            AddInput(english ? "SHIRT NUMBER" : "NÚMERO", player.SquadNumber.ToString(), x[1], ys[1], value => SetInt(value, 1, 99, parsed => player.SquadNumber = parsed), x[1] + w);
+            AddInput(english ? "REPUTATION" : "REPUTAÇÃO", player.Reputation.ToString(), x[2], ys[1], value => SetInt(value, 1, 100, parsed => player.Reputation = parsed), x[2] + w);
+            AddInput(english ? "HEIGHT (CM)" : "ALTURA (CM)", player.HeightCm.ToString(), x[0], ys[2], value => SetInt(value, 130, 220, parsed => player.HeightCm = parsed), x[0] + w);
+            AddInput(english ? "WEIGHT (KG)" : "PESO (KG)", player.WeightKg.ToString(), x[1], ys[2], value => SetInt(value, 35, 150, parsed => player.WeightKg = parsed), x[1] + w);
+            AddInput(english ? "PREFERRED FOOT" : "PÉ PREFERIDO", player.PreferredFoot.ToString(), x[2], ys[2], value => { if (Enum.TryParse(value, true, out PreferredFoot parsed)) player.PreferredFoot = parsed; }, x[2] + w);
+            AddInput(english ? "WEAK FOOT (1-5)" : "PÉ FRACO (1-5)", player.WeakFootQuality.ToString(), x[0], ys[3], value => SetInt(value, 1, 5, parsed => player.WeakFootQuality = parsed), x[0] + w);
+            AddInput(english ? "WEEKLY WAGE" : "SALÁRIO SEMANAL", player.WeeklyWage.ToString(), x[1], ys[3], value => SetInt(value, 0, int.MaxValue, parsed => player.WeeklyWage = parsed), x[1] + w);
+            AddInput(english ? "CONTRACT END (YYYY-MM-DD)" : "FIM DO CONTRATO (AAAA-MM-DD)", ContractDate(player.ContractEndTicks), x[2], ys[3], value => SetDate(value, parsed => player.ContractEndTicks = parsed), x[2] + w);
+        }
+
+        void BuildPlayerAttributes(Player player, bool english)
+        {
+            var overall = PlayerAttributes.OverallAtPosition(player, player.Position);
+            AddStepper(english ? "CURRENT OVERALL" : "NÍVEL ATUAL", overall.ToString(), 0.59f,
+                () => { SetOverall(player, PlayerAttributes.OverallAtPosition(player, player.Position) - 1); BuildDetails(); },
+                () => { SetOverall(player, PlayerAttributes.OverallAtPosition(player, player.Position) + 1); BuildDetails(); }, 0.25f, 0.96f);
+            AddStepper(english ? "POTENTIAL" : "POTENCIAL", player.Potential.ToString(), 0.48f,
+                () => { player.Potential = Mathf.Max(PlayerAttributes.OverallAtPosition(player, player.Position), player.Potential - 1); BuildDetails(); },
+                () => { player.Potential = Mathf.Min(99, player.Potential + 1); BuildDetails(); }, 0.25f, 0.96f);
             var fields = player.Position == PlayerPosition.Goalkeeper
                 ? new[] { "Reflexes", "Handling", "Positioning", "Composure", "Decisions", "Pace", "Passing", "Stamina", "Strength", "WorkRate", "Tackling", "Crossing", "Dribbling", "Finishing" }
                 : new[] { "Pace", "Stamina", "Strength", "Passing", "Finishing", "Dribbling", "Tackling", "Crossing", "Positioning", "Composure", "WorkRate", "Decisions", "Reflexes", "Handling" };
@@ -702,14 +956,77 @@ namespace CoachMaster.UI.Scenes
                 var row = i % 7;
                 var x0 = column == 0 ? 0.035f : 0.515f;
                 var x1 = column == 0 ? 0.485f : 0.965f;
-                var y = 0.395f - row * 0.052f;
+                var y = 0.34f - row * 0.045f;
                 var field = fields[i];
                 AddAttributeStepper(player, field, AttributeLabel(field, english), x0, x1, y);
             }
             var attributes = BroadcastUi.Label(_detailRoot, "AttributesHint", english
                 ? "Position-weighted overall updates from these attributes. Form, fitness and morale also affect match-day attributes."
                 : "O nível ponderado pela posição atualiza com estes atributos. A forma, condição física e moral também afetam os atributos no jogo.", 10, UiTheme.Muted, TextAnchor.MiddleLeft);
-            BroadcastUi.Place(attributes.rectTransform, 0.035f, 0.015f, 0.965f, 0.055f);
+            BroadcastUi.Place(attributes.rectTransform, 0.035f, 0.035f, 0.965f, 0.075f);
+        }
+
+        void BuildPlayerStatus(Player player, bool english)
+        {
+            if (player.Injury == null) player.Injury = new InjuryState();
+            var xs = new[] { 0.035f, 0.355f, 0.675f };
+            var xw = 0.29f;
+            var ys = new[] { 0.58f, 0.50f, 0.42f, 0.34f, 0.26f, 0.18f, 0.10f };
+            void Field(int col, int row, string label, string value, Action<string> changed) => AddCompactInput(label, value, xs[col], ys[row], xs[col] + xw, changed);
+            Field(0, 0, english ? "MORALE" : "MORAL", player.Morale.ToString(), value => SetInt(value, 0, 100, parsed => player.Morale = parsed));
+            Field(1, 0, english ? "FATIGUE" : "FADIGA", player.Fatigue.ToString(), value => SetInt(value, 0, 100, parsed => player.Fatigue = parsed));
+            Field(2, 0, english ? "FITNESS" : "CONDIÇÃO FÍSICA", player.Fitness.ToString(), value => SetInt(value, 0, 100, parsed => player.Fitness = parsed));
+            Field(0, 1, english ? "FORM" : "FORMA", player.Form.ToString(), value => SetInt(value, 0, 100, parsed => player.Form = parsed));
+            Field(1, 1, english ? "MOTIVATION" : "MOTIVAÇÃO", player.Motivation.ToString(), value => SetInt(value, 0, 100, parsed => player.Motivation = parsed));
+            Field(2, 1, english ? "TRAINING RATING" : "NOTA DE TREINO", player.TrainingRating.ToString(), value => SetInt(value, 0, 100, parsed => player.TrainingRating = parsed));
+            Field(0, 2, english ? "TRAINING FOCUS" : "FOCO DE TREINO", player.TrainingFocus, value => player.TrainingFocus = value);
+            Field(1, 2, english ? "TRAINING PROGRESS" : "PROGRESSO DE TREINO", player.TrainingProgress.ToString(), value => SetInt(value, 0, 100, parsed => player.TrainingProgress = parsed));
+            Field(2, 2, english ? "TRAINING INTENSITY (0-3)" : "INTENSIDADE (0-3)", player.TrainingIntensity.ToString(), value => SetInt(value, 0, 3, parsed => player.TrainingIntensity = parsed));
+            Field(0, 3, english ? "TRAINING STREAK" : "SEQUÊNCIA DE TREINO", player.TrainingStreak.ToString(), value => SetInt(value, 0, 100, parsed => player.TrainingStreak = parsed));
+            Field(1, 3, english ? "PERSONALITY" : "PERSONALIDADE", player.Personality.ToString(), value => { if (Enum.TryParse(value, true, out PersonalityTrait parsed)) player.Personality = parsed; });
+            Field(2, 3, english ? "TRAITS (COMMA SEPARATED)" : "TRAÇOS (SEPARADOS POR VÍRGULA)", JoinEnums(player.Traits), value => player.Traits = ParseEnumList<PlayerTrait>(value));
+            Field(0, 4, english ? "ALTERNATE POSITIONS" : "POSIÇÕES ALTERNATIVAS", JoinEnums(player.AlternatePositions), value => player.AlternatePositions = ParseEnumList<PlayerPosition>(value));
+            Field(1, 4, english ? "CAPTAIN (TRUE/FALSE)" : "CAPITÃO (TRUE/FALSE)", player.IsCaptain.ToString(), value => SetBool(value, parsed => player.IsCaptain = parsed));
+            Field(2, 4, english ? "VICE-CAPTAIN (TRUE/FALSE)" : "SUBCAPITÃO (TRUE/FALSE)", player.IsViceCaptain.ToString(), value => SetBool(value, parsed => player.IsViceCaptain = parsed));
+            Field(0, 5, english ? "DUTY" : "FUNÇÃO", player.Duty, value => player.Duty = value);
+            Field(1, 5, english ? "INJURY DAYS" : "DIAS DE LESÃO", player.Injury.DaysRemaining.ToString(), value => SetInt(value, 0, 3650, parsed => { player.Injury.DaysRemaining = parsed; player.Injury.IsInjured = parsed > 0; }));
+            Field(2, 5, english ? "INJURY DESCRIPTION" : "DESCRIÇÃO DA LESÃO", player.Injury.Description, value => player.Injury.Description = value);
+            AddCompactInput(english ? "UNAVAILABLE UNTIL (YYYY-MM-DD)" : "INDISPONÍVEL ATÉ (AAAA-MM-DD)", ContractDate(player.UnavailableUntilTicks), 0.035f, ys[6], 0.355f, value => SetDate(value, parsed => player.UnavailableUntilTicks = parsed));
+            AddCompactInput(english ? "CLUB ID OR NAME (BLANK = FREE AGENT)" : "ID OU NOME DO CLUBE (VAZIO = LIVRE)", player.ClubId, 0.355f, ys[6], 0.965f, value =>
+            {
+                if (SetPlayerClub(player, value)) RefreshList();
+            });
+        }
+
+        bool SetPlayerClub(Player player, string clubKey)
+        {
+            if (player == null || _world == null || _world.Clubs == null) return false;
+            var requested = (clubKey ?? "").Trim();
+            var target = string.IsNullOrEmpty(requested) ? null : FindClubByKey(requested);
+            if (!string.IsNullOrEmpty(requested) && target == null) return false;
+            if (!string.IsNullOrEmpty(player.ClubId) && _world.Clubs.TryGetValue(player.ClubId, out var previous))
+            {
+                previous.PlayerIds?.Remove(player.Id);
+                previous.ManualLineup?.Remove(player.Id);
+                previous.ManualBenchOrder?.Remove(player.Id);
+            }
+            player.ClubId = target == null ? null : target.Id;
+            if (target != null)
+            {
+                if (target.PlayerIds == null) target.PlayerIds = new List<string>();
+                if (!target.PlayerIds.Contains(player.Id)) target.PlayerIds.Add(player.Id);
+            }
+            return true;
+        }
+
+        Club FindClubByKey(string key)
+        {
+            if (_world?.Clubs == null || string.IsNullOrWhiteSpace(key)) return null;
+            foreach (var club in _world.Clubs.Values)
+                if (club != null && (string.Equals(club.Id, key, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(club.Name, key, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(club.ShortName, key, StringComparison.OrdinalIgnoreCase))) return club;
+            return null;
         }
 
         static void SetOverall(Player player, int target)
@@ -866,10 +1183,28 @@ namespace CoachMaster.UI.Scenes
             if (member == null) return;
             var english = LocalizationManager.Current == GameLanguage.English;
             AddDetailTitle(member.FullName, club.Name + " · " + StaffRoleName(member.Role, english));
-            AddInput(english ? "STAFF NAME" : "NOME DO STAFF", member.FullName, 0.24f, 0.68f, value => { member.FullName = value; RefreshList(); });
-            AddStepper(english ? "JUDGEMENT" : "AVALIAÇÃO", member.Judgement.ToString(), 0.48f,
+            var portrait = new GameObject("StaffFace", typeof(RectTransform), typeof(Image)).GetComponent<Image>();
+            portrait.transform.SetParent(_detailRoot, false);
+            portrait.preserveAspect = true;
+            portrait.sprite = FaceBook.For(member);
+            BroadcastUi.Place(portrait.rectTransform, 0.04f, 0.55f, 0.19f, 0.76f);
+            AddButton(english ? "CHOOSE PHOTO FROM YOUR FILES" : "ESCOLHER FOTO DOS TEUS FICHEIROS", 0.04f, 0.43f, 0.20f, () =>
+            {
+                var key = ChooseImageFile("caras", english ? "Choose staff photo" : "Escolher foto do staff");
+                var sprite = string.IsNullOrEmpty(key) ? null : FaceBook.ModPortrait(key);
+                if (sprite != null) FaceBook.SetPortrait(member, sprite);
+                BuildDetails();
+            });
+            AddInput(english ? "STAFF NAME" : "NOME DO STAFF", member.FullName, 0.25f, 0.65f, value => { member.FullName = value; RefreshList(); });
+            AddInput(english ? "ROLE (ENUM NAME)" : "FUNÇÃO (NOME DO ENUM)" , member.Role.ToString(), 0.25f, 0.49f,
+                value => { if (Enum.TryParse(value, true, out StaffRole parsed)) member.Role = parsed; });
+            AddStepper(english ? "JUDGEMENT (1-20)" : "AVALIAÇÃO (1-20)", member.Judgement.ToString(), 0.30f,
                 () => { member.Judgement = Mathf.Max(1, member.Judgement - 1); BuildDetails(); },
-                () => { member.Judgement = Mathf.Min(20, member.Judgement + 1); BuildDetails(); });
+                () => { member.Judgement = Mathf.Min(20, member.Judgement + 1); BuildDetails(); }, 0.25f, 0.96f);
+            AddInput(english ? "WEEKLY WAGE" : "SALÁRIO SEMANAL", member.WeeklyWage.ToString(), 0.25f, 0.13f,
+                value => SetInt(value, 0, int.MaxValue, parsed => member.WeeklyWage = parsed));
+            AddInput(english ? "CONTRACT END (YYYY-MM-DD)" : "FIM DO CONTRATO (AAAA-MM-DD)", ContractDate(member.ContractEndTicks), 0.62f, 0.13f,
+                value => SetDate(value, parsed => member.ContractEndTicks = parsed));
         }
 
         void BuildSponsorDetails()
@@ -932,7 +1267,13 @@ namespace CoachMaster.UI.Scenes
                 _selected = "sponsor|" + club.Id + "|" + newSponsor.Id;
                 RefreshList();
             }, new Color(0.12f, 0.39f, 0.5f, 1f), Color.white, 12);
-            BroadcastUi.Place(add.GetComponent<RectTransform>(), 0.04f, 0.06f, 0.96f, 0.16f);
+            BroadcastUi.Place(add.GetComponent<RectTransform>(), 0.52f, 0.06f, 0.96f, 0.16f);
+            var active = BroadcastUi.Button(_detailRoot, "SponsorActive", (english ? "CONTRACT " : "CONTRATO ") + (sponsor.IsActive ? (english ? "ACTIVE" : "ATIVO") : (english ? "INACTIVE" : "INATIVO")), () =>
+            {
+                sponsor.IsActive = !sponsor.IsActive;
+                BuildDetails();
+            }, sponsor.IsActive ? new Color(0.12f, 0.39f, 0.5f, 1f) : new Color(0.36f, 0.17f, 0.2f, 1f), Color.white, 11);
+            BroadcastUi.Place(active.GetComponent<RectTransform>(), 0.04f, 0.06f, 0.49f, 0.16f);
         }
 
         void BuildTeamDetails()
@@ -940,14 +1281,34 @@ namespace CoachMaster.UI.Scenes
             if (!_world.Clubs.TryGetValue(_selected, out var club)) return;
             var english = LocalizationManager.Current == GameLanguage.English;
             AddDetailTitle(club.Name, LeagueName(club.LeagueId) + " · " + (english ? "club identity" : "identidade do clube"));
+            AddDetailTabs(english ? new[] { "IDENTITY", "FINANCE", "TACTICS", "CULTURE", "SQUAD" } : new[] { "IDENTIDADE", "FINANÇAS", "TÁTICAS", "CULTURA", "PLANTEL" }, _teamDetailPage, index => { _teamDetailPage = index; BuildDetails(); });
+            if (_teamDetailPage == 0) BuildClubIdentity(club, english);
+            else if (_teamDetailPage == 1) BuildClubFinance(club, english);
+            else if (_teamDetailPage == 2) BuildClubTactics(club, english);
+            else if (_teamDetailPage == 3) BuildClubCulture(club, english);
+            else BuildClubLineup(club, english);
+        }
+
+        void BuildClubIdentity(Club club, bool english)
+        {
             var crest = new GameObject("Badge", typeof(RectTransform), typeof(Image)).GetComponent<Image>();
             crest.transform.SetParent(_detailRoot, false);
             crest.preserveAspect = true;
             crest.sprite = CrestStudio.For(club);
-            BroadcastUi.Place(crest.rectTransform, 0.78f, 0.73f, 0.95f, 0.94f);
-            AddInput(english ? "TEAM NAME" : "NOME DO CLUBE", club.Name, 0.04f, 0.69f, value => { club.Name = value; RefreshList(); }, 0.70f);
-            AddInput(english ? "SHORT NAME" : "NOME CURTO", club.ShortName, 0.04f, 0.54f, value => { club.ShortName = value; RefreshList(); }, 0.70f);
-            AddButton(english ? "CHOOSE BADGE FROM YOUR FILES" : "ESCOLHER EMBLEMA DOS TEUS FICHEIROS", 0.04f, 0.36f, 0.96f, () =>
+            BroadcastUi.Place(crest.rectTransform, 0.84f, 0.81f, 0.94f, 0.94f);
+            var xs = new[] { 0.04f, 0.36f, 0.68f };
+            var width = 0.28f;
+            var ys = new[] { 0.56f, 0.42f, 0.28f, 0.14f };
+            AddCompactInput(english ? "CLUB NAME" : "NOME DO CLUBE", club.Name, xs[0], ys[0], xs[0] + width, value => { club.Name = value; RefreshList(); });
+            AddCompactInput(english ? "SHORT NAME" : "NOME CURTO", club.ShortName, xs[1], ys[0], xs[1] + width, value => { club.ShortName = value; RefreshList(); });
+            AddCompactInput(english ? "CITY" : "CIDADE", club.City, xs[2], ys[0], xs[2] + width, value => club.City = value);
+            AddCompactInput(english ? "STADIUM" : "ESTÁDIO", club.Stadium, xs[0], ys[1], xs[0] + width, value => club.Stadium = value);
+            AddCompactInput(english ? "FOUNDED YEAR" : "ANO DE FUNDAÇÃO", club.FoundedYear.ToString(), xs[1], ys[1], xs[1] + width, value => SetInt(value, 1800, 2100, parsed => club.FoundedYear = parsed));
+            AddCompactInput(english ? "REPUTATION (1-100)" : "REPUTAÇÃO (1-100)", club.Reputation.ToString(), xs[2], ys[1], xs[2] + width, value => SetInt(value, 1, 100, parsed => club.Reputation = parsed));
+            AddCompactInput(english ? "HISTORY" : "HISTÓRIA", club.History, xs[0], ys[2], xs[0] + width, value => club.History = value);
+            AddCompactInput(english ? "PUBLIC REPUTATION" : "REPUTAÇÃO PÚBLICA", club.PublicReputation, xs[1], ys[2], xs[1] + width, value => club.PublicReputation = value);
+            AddCompactInput(english ? "LEAGUE ID" : "ID DA LIGA", club.LeagueId, xs[2], ys[2], xs[2] + width, value => { club.LeagueId = value; RefreshList(); });
+            AddButton(english ? "CHOOSE BADGE FROM YOUR FILES" : "ESCOLHER EMBLEMA DOS TEUS FICHEIROS", 0.04f, 0.105f, 0.32f, () =>
             {
                 var fileKey = ChooseImageFile("emblemas", english ? "Choose club badge" : "Escolher emblema do clube");
                 if (string.IsNullOrEmpty(fileKey)) return;
@@ -955,12 +1316,147 @@ namespace CoachMaster.UI.Scenes
                 club.CrestResourcePath = "";
                 BuildDetails();
             });
-            AddButton(english ? "CHANGE PRIMARY COLOUR" : "MUDAR COR PRINCIPAL", 0.04f, 0.21f, 0.48f, () => CycleClubColor(club, true));
-            AddButton(english ? "CHANGE SECONDARY COLOUR" : "MUDAR COR SECUNDÁRIA", 0.52f, 0.21f, 0.96f, () => CycleClubColor(club, false));
-            var info = BroadcastUi.Label(_detailRoot, "TeamInfo", english
-                ? "Club colours also update the generated kit and badge if no custom crest is selected."
-                : "As cores do clube também atualizam o equipamento e o emblema gerado se não escolheres um emblema personalizado.", 12, UiTheme.Muted, TextAnchor.MiddleLeft);
-            BroadcastUi.Place(info.rectTransform, 0.04f, 0.08f, 0.96f, 0.17f);
+            AddButton(english ? "PRIMARY COLOUR" : "COR PRINCIPAL", 0.36f, 0.105f, 0.55f, () => CycleClubColor(club, true));
+            AddButton(english ? "SECONDARY COLOUR" : "COR SECUNDÁRIA", 0.58f, 0.105f, 0.77f, () => CycleClubColor(club, false));
+            AddCompactInput(english ? "KIT PATTERN" : "PADRÃO DO EQUIPAMENTO", club.KitPattern.ToString(), 0.79f, 0.115f, 0.96f,
+                value => { if (Enum.TryParse(value, true, out KitPattern parsed)) club.KitPattern = parsed; });
+        }
+
+        void BuildClubFinance(Club club, bool english)
+        {
+            if (club.Finance == null) club.Finance = new ClubFinance();
+            var xs = new[] { 0.04f, 0.36f, 0.68f };
+            var width = 0.28f;
+            var ys = new[] { 0.56f, 0.42f, 0.28f };
+            void Money(int col, int row, string label, int value, Action<int> write) => AddCompactInput(label, value.ToString(), xs[col], ys[row], xs[col] + width, text => SetInt(text, 0, int.MaxValue, write));
+            Money(0, 0, english ? "CLUB BALANCE" : "SALDO DO CLUBE", club.Finance.Balance, value => club.Finance.Balance = value);
+            Money(1, 0, english ? "WAGE BUDGET" : "ORÇAMENTO SALARIAL", club.Finance.WageBudget, value => club.Finance.WageBudget = value);
+            Money(2, 0, english ? "TRANSFER BUDGET" : "ORÇAMENTO DE TRANSFERÊNCIAS", club.Finance.TransferBudget, value => club.Finance.TransferBudget = value);
+            Money(0, 1, english ? "SPENT ON TRANSFERS" : "GASTO EM TRANSFERÊNCIAS", club.Finance.TransferSpentThisSeason, value => club.Finance.TransferSpentThisSeason = value);
+            Money(1, 1, english ? "TICKET INCOME" : "RECEITA DE BILHETES", club.Finance.TicketIncomeThisSeason, value => club.Finance.TicketIncomeThisSeason = value);
+            Money(2, 1, english ? "SHIRT INCOME" : "RECEITA DE CAMISOLAS", club.Finance.ShirtIncomeThisSeason, value => club.Finance.ShirtIncomeThisSeason = value);
+            Money(0, 2, english ? "SPONSOR INCOME" : "RECEITA DE PATROCÍNIOS", club.Finance.SponsorIncomeThisSeason, value => club.Finance.SponsorIncomeThisSeason = value);
+            Money(1, 2, english ? "PLAYER SALES" : "VENDAS DE JOGADORES", club.Finance.PlayerSalesThisSeason, value => club.Finance.PlayerSalesThisSeason = value);
+            AddCompactInput(english ? "PUBLIC FINANCIAL SITUATION" : "SITUAÇÃO FINANCEIRA PÚBLICA", club.Finance.PublicSituation, xs[2], ys[2], xs[2] + width, value => club.Finance.PublicSituation = value);
+        }
+
+        void BuildClubTactics(Club club, bool english)
+        {
+            if (club.Tactics == null) club.Tactics = new TacticalIdentity();
+            var xs = new[] { 0.04f, 0.36f, 0.68f };
+            var width = 0.28f;
+            var ys = new[] { 0.56f, 0.42f, 0.28f, 0.14f };
+            void TextField(int col, int row, string label, string value, Action<string> write) => AddCompactInput(label, value, xs[col], ys[row], xs[col] + width, changed =>
+            {
+                write(changed);
+                club.Tactics.Summary = string.Join(" · ", new[] { club.Tactics.Formation, club.Tactics.Pressing, club.Tactics.BuildUp, club.Tactics.FullBacks, club.Tactics.DefensiveLine });
+            });
+            TextField(0, 0, english ? "MANAGER" : "TREINADOR", club.Tactics.FormerCoachName, value => club.Tactics.FormerCoachName = value);
+            TextField(1, 0, english ? "FORMATION" : "FORMAÇÃO", club.Tactics.Formation, value => club.Tactics.Formation = value);
+            TextField(2, 0, english ? "PRESSING" : "PRESSÃO", club.Tactics.Pressing, value => club.Tactics.Pressing = value);
+            TextField(0, 1, english ? "BUILD-UP" : "CONSTRUÇÃO", club.Tactics.BuildUp, value => club.Tactics.BuildUp = value);
+            TextField(1, 1, english ? "FULLBACKS" : "LATERAIS", club.Tactics.FullBacks, value => club.Tactics.FullBacks = value);
+            TextField(2, 1, english ? "DEFENSIVE LINE" : "LINHA DEFENSIVA", club.Tactics.DefensiveLine, value => club.Tactics.DefensiveLine = value);
+            TextField(0, 2, english ? "WIDTH" : "LARGURA", club.Tactics.Width, value => club.Tactics.Width = value);
+            TextField(1, 2, english ? "TEMPO" : "RITMO", club.Tactics.Tempo, value => club.Tactics.Tempo = value);
+            TextField(2, 2, english ? "PASSING STYLE" : "ESTILO DE PASSE", club.Tactics.PassingStyle, value => club.Tactics.PassingStyle = value);
+            TextField(0, 3, english ? "ATTACK IDEA" : "IDEIA DE ATAQUE", club.Tactics.AttackIdea, value => club.Tactics.AttackIdea = value);
+            TextField(1, 3, english ? "MARKING" : "MARCAÇÃO", club.Tactics.Marking, value => club.Tactics.Marking = value);
+            TextField(2, 3, english ? "TACTICAL PRESET" : "PREDEFINIÇÃO TÁTICA", club.Tactics.Preset, value => club.Tactics.Preset = value);
+        }
+
+        void BuildClubCulture(Club club, bool english)
+        {
+            var xs = new[] { 0.04f, 0.36f, 0.68f };
+            var width = 0.28f;
+            var ys = new[] { 0.56f, 0.42f, 0.28f };
+            void TextField(int col, int row, string label, string value, Action<string> write) => AddCompactInput(label, value, xs[col], ys[row], xs[col] + width, write);
+            TextField(0, 0, english ? "PUBLIC TEAM STATE" : "ESTADO PÚBLICO DA EQUIPA", club.PublicTeamState, value => club.PublicTeamState = value);
+            TextField(1, 0, english ? "DRESSING ROOM ATMOSPHERE" : "AMBIENTE DO BALNEÁRIO", club.DressingRoomAtmosphere, value => club.DressingRoomAtmosphere = value);
+            TextField(2, 0, english ? "INTERNAL PROBLEMS" : "PROBLEMAS INTERNOS", club.HiddenInternalProblems, value => club.HiddenInternalProblems = value);
+            TextField(0, 1, english ? "BOARD OBJECTIVES (COMMA SEPARATED)" : "OBJETIVOS DA DIREÇÃO (POR VÍRGULAS)", club.BoardObjectives == null ? "" : string.Join(",", club.BoardObjectives), value => club.BoardObjectives = SplitEditorList(value));
+            TextField(1, 1, english ? "COACH VACANCY NOTE" : "NOTA SOBRE VAGA DE TREINADOR", club.PublicCoachVacancyNote, value => club.PublicCoachVacancyNote = value);
+            TextField(2, 1, english ? "DISMISSAL TRUTH" : "MOTIVO INTERNO DO DESPEDIMENTO", club.HiddenDismissalTruth, value => club.HiddenDismissalTruth = value);
+            AddCompactInput(english ? "DRESSING ROOM TENSION (0-100)" : "TENSÃO NO BALNEÁRIO (0-100)", club.DressingRoomTension.ToString(), xs[0], ys[2], xs[0] + width, value => SetInt(value, 0, 100, parsed => club.DressingRoomTension = parsed));
+            AddCompactInput(english ? "CUSTOM CREST KEY" : "CHAVE DO EMBLEMA PERSONALIZADO", club.CustomCrestKey, xs[1], ys[2], xs[1] + width, value => club.CustomCrestKey = value);
+            AddCompactInput(english ? "CREST RESOURCE PATH" : "CAMINHO DO EMBLEMA", club.CrestResourcePath, xs[2], ys[2], xs[2] + width, value => club.CrestResourcePath = value);
+            AddCompactInput(english ? "PRIMARY HEX COLOUR" : "CÓDIGO HEX DA COR PRINCIPAL", club.JerseyPrimaryHex, xs[0], 0.14f, xs[0] + width, value => SetClubHex(club, value, 0));
+            AddCompactInput(english ? "SECONDARY HEX COLOUR" : "CÓDIGO HEX DA COR SECUNDÁRIA", club.JerseySecondaryHex, xs[1], 0.14f, xs[1] + width, value => SetClubHex(club, value, 1));
+            AddCompactInput(english ? "SHORTS HEX COLOUR" : "CÓDIGO HEX DOS CALÇÕES", club.JerseyShortsHex, xs[2], 0.14f, xs[2] + width, value => SetClubHex(club, value, 2));
+        }
+
+        void BuildClubLineup(Club club, bool english)
+        {
+            if (club.PlayerIds == null) club.PlayerIds = new List<string>();
+            if (club.ManualLineup == null) club.ManualLineup = new List<string>();
+            if (club.ManualBenchOrder == null) club.ManualBenchOrder = new List<string>();
+            AddCompactInput(english ? "SQUAD PLAYER IDs OR NAMES (COMMA SEPARATED)" : "IDS OU NOMES DO PLANTEL (SEPARADOS POR VÍRGULAS)",
+                string.Join(",", club.PlayerIds), 0.04f, 0.56f, 0.96f, value => SetClubPlayerIds(club, value));
+            var xs = new[] { 0.04f, 0.36f, 0.68f };
+            var width = 0.28f;
+            AddCompactInput(english ? "PENALTY TAKER ID" : "ID DO MARCADOR DE PENÁLTIS", club.PenaltyTakerId, xs[0], 0.40f, xs[0] + width, value => club.PenaltyTakerId = value);
+            AddCompactInput(english ? "CORNER TAKER ID" : "ID DO MARCADOR DE CANTOS", club.CornerTakerId, xs[1], 0.40f, xs[1] + width, value => club.CornerTakerId = value);
+            AddCompactInput(english ? "FREE-KICK TAKER ID" : "ID DO MARCADOR DE LIVRES", club.FreeKickTakerId, xs[2], 0.40f, xs[2] + width, value => club.FreeKickTakerId = value);
+            AddCompactInput(english ? "STARTING XI PLAYER IDs (COMMA SEPARATED)" : "IDS DO ONZE INICIAL (SEPARADOS POR VÍRGULAS)",
+                string.Join(",", club.ManualLineup), 0.04f, 0.23f, 0.96f, value => club.ManualLineup = ResolveClubPlayerIds(club, value));
+            AddCompactInput(english ? "BENCH PLAYER IDs (COMMA SEPARATED)" : "IDS DO BANCO (SEPARADOS POR VÍRGULAS)",
+                string.Join(",", club.ManualBenchOrder), 0.04f, 0.06f, 0.96f, value => club.ManualBenchOrder = ResolveClubPlayerIds(club, value));
+        }
+
+        void SetClubPlayerIds(Club club, string value)
+        {
+            var newIds = ResolvePlayerIds(value);
+            var newSet = new HashSet<string>(newIds, StringComparer.OrdinalIgnoreCase);
+            foreach (var oldId in club.PlayerIds.ToArray())
+            {
+                if (newSet.Contains(oldId)) continue;
+                if (_world.Players.TryGetValue(oldId, out var oldPlayer) && oldPlayer != null && oldPlayer.ClubId == club.Id)
+                {
+                    oldPlayer.ClubId = null;
+                    club.ManualLineup.Remove(oldId);
+                    club.ManualBenchOrder.Remove(oldId);
+                }
+            }
+            for (var i = 0; i < newIds.Count; i++)
+            {
+                if (!_world.Players.TryGetValue(newIds[i], out var player) || player == null) continue;
+                if (!string.IsNullOrWhiteSpace(player.ClubId) && player.ClubId != club.Id && _world.Clubs.TryGetValue(player.ClubId, out var previous))
+                {
+                    previous.PlayerIds?.Remove(player.Id);
+                    previous.ManualLineup?.Remove(player.Id);
+                    previous.ManualBenchOrder?.Remove(player.Id);
+                }
+                player.ClubId = club.Id;
+            }
+            club.PlayerIds = newIds;
+        }
+
+        List<string> ResolveClubPlayerIds(Club club, string value)
+        {
+            var allowed = new HashSet<string>(club.PlayerIds ?? new List<string>(), StringComparer.OrdinalIgnoreCase);
+            var resolved = ResolvePlayerIds(value);
+            resolved.RemoveAll(id => !allowed.Contains(id));
+            return resolved;
+        }
+
+        List<string> ResolvePlayerIds(string value)
+        {
+            var ids = new List<string>();
+            foreach (var key in (value ?? "").Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                var player = FindPlayerByKey(key.Trim());
+                if (player != null && !ids.Contains(player.Id)) ids.Add(player.Id);
+            }
+            return ids;
+        }
+
+        Player FindPlayerByKey(string key)
+        {
+            if (_world?.Players == null || string.IsNullOrWhiteSpace(key)) return null;
+            foreach (var player in _world.Players.Values)
+                if (player != null && (string.Equals(player.Id, key, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(player.FullName, key, StringComparison.OrdinalIgnoreCase))) return player;
+            return null;
         }
 
         void CycleClubColor(Club club, bool primary)
@@ -972,6 +1468,27 @@ namespace CoachMaster.UI.Scenes
             WorldCatalog.EnsureThreeColors(club);
             club.KitSlug = "mod:" + club.JerseyPrimaryHex + ":" + club.JerseySecondaryHex + ":" + club.JerseyShortsHex;
             BuildDetails();
+        }
+
+        static void SetClubHex(Club club, string value, int channel)
+        {
+            if (club == null || string.IsNullOrWhiteSpace(value)) return;
+            var hex = value.Trim();
+            if (!hex.StartsWith("#", StringComparison.Ordinal)) hex = "#" + hex;
+            if (!ColorUtility.TryParseHtmlString(hex, out _)) return;
+            if (channel == 0) club.JerseyPrimaryHex = hex.ToUpperInvariant();
+            else if (channel == 1) club.JerseySecondaryHex = hex.ToUpperInvariant();
+            else club.JerseyShortsHex = hex.ToUpperInvariant();
+            WorldCatalog.EnsureThreeColors(club);
+            club.KitSlug = "mod:" + club.JerseyPrimaryHex + ":" + club.JerseySecondaryHex + ":" + club.JerseyShortsHex;
+        }
+
+        static List<string> SplitEditorList(string value)
+        {
+            var result = new List<string>();
+            foreach (var item in (value ?? "").Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries))
+                if (!string.IsNullOrWhiteSpace(item)) result.Add(item.Trim());
+            return result;
         }
 
         string ChooseImageFile(string folder, string title)
@@ -1000,6 +1517,71 @@ namespace CoachMaster.UI.Scenes
             BroadcastUi.Place(title.rectTransform, 0.04f, 0.88f, 0.75f, 0.98f);
             var subtitle = BroadcastUi.Label(_detailRoot, "DetailSubtitle", subheading, 13, UiTheme.AccentSoft, TextAnchor.MiddleLeft);
             BroadcastUi.Place(subtitle.rectTransform, 0.04f, 0.82f, 0.8f, 0.89f);
+        }
+
+        void AddDetailTabs(string[] labels, int selected, Action<int> choose)
+        {
+            var width = 0.93f / labels.Length;
+            for (var i = 0; i < labels.Length; i++)
+            {
+                var index = i;
+                var button = BroadcastUi.Button(_detailRoot, "DetailTab" + index, labels[index], () => choose?.Invoke(index),
+                    index == selected ? UiTheme.Accent : new Color(0.22f, 0.12f, 0.38f, 1f),
+                    index == selected ? UiTheme.ButtonText : Color.white, 11);
+                BroadcastUi.Place(button.GetComponent<RectTransform>(), 0.035f + i * width, 0.735f, 0.035f + (i + 1) * width - 0.012f, 0.80f);
+            }
+        }
+
+        InputField AddCompactInput(string label, string value, float x0, float y, float x1, Action<string> changed)
+        {
+            var title = BroadcastUi.Label(_detailRoot, "CompactLabel" + label + y, label, 9, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(title.rectTransform, x0, y + 0.045f, x1, y + 0.085f);
+            var field = UiFactory.Input(_detailRoot, label);
+            field.text = value ?? "";
+            BroadcastUi.Place(field.GetComponent<RectTransform>(), x0, y, x1, y + 0.045f);
+            field.onEndEdit.AddListener(text => changed?.Invoke((text ?? "").Trim()));
+            return field;
+        }
+
+        static void SetInt(string value, int minimum, int maximum, Action<int> write)
+        {
+            if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)) write?.Invoke(Mathf.Clamp(parsed, minimum, maximum));
+        }
+
+        static void SetLong(string value, Action<long> write)
+        {
+            if (long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)) write?.Invoke(Math.Max(0L, parsed));
+        }
+
+        static void SetBool(string value, Action<bool> write)
+        {
+            if (bool.TryParse(value, out var parsed)) write?.Invoke(parsed);
+            else if (value == "1" || string.Equals(value, "yes", StringComparison.OrdinalIgnoreCase) || string.Equals(value, "sim", StringComparison.OrdinalIgnoreCase)) write?.Invoke(true);
+            else if (value == "0" || string.Equals(value, "no", StringComparison.OrdinalIgnoreCase) || string.Equals(value, "não", StringComparison.OrdinalIgnoreCase)) write?.Invoke(false);
+        }
+
+        static void SetDate(string value, Action<long> write)
+        {
+            if (DateTime.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var date)) write?.Invoke(date.Ticks);
+            else if (long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var ticks) && ticks >= 0 && ticks <= DateTime.MaxValue.Ticks) write?.Invoke(ticks);
+        }
+
+        static string ContractDate(long ticks)
+        {
+            return ticks > 0 && ticks <= DateTime.MaxValue.Ticks ? new DateTime(ticks).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : "";
+        }
+
+        static string JoinEnums<T>(List<T> values)
+        {
+            return values == null ? "" : string.Join(",", values);
+        }
+
+        static List<T> ParseEnumList<T>(string value) where T : struct
+        {
+            var result = new List<T>();
+            foreach (var token in (value ?? "").Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries))
+                if (Enum.TryParse(token.Trim(), true, out T parsed) && !result.Contains(parsed)) result.Add(parsed);
+            return result;
         }
 
         InputField AddInput(string label, string value, float x0, float y, Action<string> changed, float x1 = 0.96f)

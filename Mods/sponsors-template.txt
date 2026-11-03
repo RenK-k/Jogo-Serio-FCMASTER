@@ -1,0 +1,1 @@
+# club ID or current name | sponsor name | weekly income | logo key | logo colour #RRGGBB | active true/false

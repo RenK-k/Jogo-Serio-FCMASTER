@@ -435,6 +435,38 @@ namespace CoachMaster.UI
             UsedPortraitIds.Add(key);
         }
 
+        public static void SetPortrait(StaffMember member, Sprite sprite)
+        {
+            if (member == null || sprite == null) return;
+            var key = SpriteId(sprite);
+            if (string.IsNullOrEmpty(key)) return;
+            member.PortraitPath = key;
+            ByStaff[StaffKey(member)] = Center(sprite);
+            if (!UsedStaffByClub.TryGetValue(member.ClubId ?? "", out var used))
+            {
+                used = new HashSet<string>();
+                UsedStaffByClub[member.ClubId ?? ""] = used;
+            }
+            used.Add(key);
+        }
+
+        public static void InvalidateImportedCaches()
+        {
+            Pools.Clear();
+            LoadedFolders.Clear();
+            ByPlayer.Clear();
+            ByStaff.Clear();
+            SocialFaces.Clear();
+            UsedSocialFaces.Clear();
+            FolderBySprite.Clear();
+            UsedPortraitIds.Clear();
+            UsedStaffByClub.Clear();
+            _all = null;
+            _allAssignedPool = null;
+            _staffFaces = null;
+            _defaultPortrait = null;
+        }
+
         public static void RefreshPortrait(Player player)
         {
             if (player == null)
@@ -582,6 +614,9 @@ namespace CoachMaster.UI
                 return null;
             var mark = portraitPath.IndexOf('|');
             var name = mark < 0 ? portraitPath : portraitPath.Substring(mark + 1);
+            var modPortrait = ModFolder.PortraitFile(name);
+            if (modPortrait != null)
+                return modPortrait;
             if (mark > 0)
             {
                 var folder = portraitPath.Substring(0, mark);

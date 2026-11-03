@@ -441,16 +441,7 @@ namespace CoachMaster.Career
             var match = MatchOn(career, when.Date);
             var moment = BuildPersonalIncident(career, player, when, match) ?? BuildTalk(career, player, when);
             if (moment != null)
-            {
                 career.Upcoming.Add(moment);
-                if (!string.IsNullOrEmpty(moment.IncidentType))
-                {
-                    var english = LocalizationManager.Current == GameLanguage.English;
-                    CareerNotificationQueue.Enqueue(english ? "PERSONAL MATTER" : "ASSUNTO PESSOAL",
-                        english ? player.FullName + " needs a private conversation today."
-                            : player.FullName + " precisa de falar contigo. Consulta a conversa de hoje.");
-                }
-            }
         }
 
         static CareerMoment BuildPersonalIncident(CareerState career, Player player, DateTime when, Fixture match)
