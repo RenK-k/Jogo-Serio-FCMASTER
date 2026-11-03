@@ -82,7 +82,14 @@ namespace CoachMaster.Data
 
         public static WorldState Create()
         {
-            var world = CreateShell();
+            return CompleteCareerWorld(CreateShell());
+        }
+
+        public static WorldState CompleteCareerWorld(WorldState world)
+        {
+            if (world == null)
+                world = CreateShell();
+
             EnsureAllClubs(world);
             WorldExtraCatalog.EnsureSponsors(world);
             FreeAgentCatalog.Ensure(world);
@@ -92,17 +99,50 @@ namespace CoachMaster.Data
         public static void EnsureAllClubs(WorldState world)
         {
             foreach (var league in world.Leagues)
-                EnsureLeagueClubs(world, league.Id, false);
+                EnsureLeagueClubs(world, league.Id);
 
+            PreserveCatalogOrder(world);
             FaceBook.Deal(world);
         }
 
-        public static void EnsureLeagueClubs(WorldState world, string leagueId)
+        static void PreserveCatalogOrder(WorldState world)
         {
-            EnsureLeagueClubs(world, leagueId, true);
+            var clubs = new List<Club>(world.Clubs.Count);
+            foreach (var league in world.Leagues)
+                foreach (var club in world.Clubs.Values)
+                    if (club.LeagueId == league.Id)
+                        clubs.Add(club);
+
+            var seenClubs = new HashSet<string>();
+            for (var i = 0; i < clubs.Count; i++)
+                seenClubs.Add(clubs[i].Id);
+            foreach (var club in world.Clubs.Values)
+                if (seenClubs.Add(club.Id))
+                    clubs.Add(club);
+
+            world.Clubs.Clear();
+            for (var i = 0; i < clubs.Count; i++)
+                world.Clubs.Add(clubs[i].Id, clubs[i]);
+
+            var players = new List<Player>(world.Players.Count);
+            var seenPlayers = new HashSet<string>();
+            for (var i = 0; i < clubs.Count; i++)
+            {
+                var playerIds = clubs[i].PlayerIds;
+                for (var j = 0; j < playerIds.Count; j++)
+                    if (world.Players.TryGetValue(playerIds[j], out var player) && seenPlayers.Add(player.Id))
+                        players.Add(player);
+            }
+            foreach (var player in world.Players.Values)
+                if (seenPlayers.Add(player.Id))
+                    players.Add(player);
+
+            world.Players.Clear();
+            for (var i = 0; i < players.Count; i++)
+                world.Players.Add(players[i].Id, players[i]);
         }
 
-        static void EnsureLeagueClubs(WorldState world, string leagueId, bool dealFaces)
+        public static void EnsureLeagueClubs(WorldState world, string leagueId)
         {
             if (world.LoadedLeagueIds.Contains(leagueId))
                 return;
@@ -118,8 +158,6 @@ namespace CoachMaster.Data
                 PadLeague(world, leagueId);
 
             world.LoadedLeagueIds.Add(leagueId);
-            if (dealFaces)
-                FaceBook.Deal(world);
         }
 
         static void AddAtlasClubs(WorldState world, string leagueId)

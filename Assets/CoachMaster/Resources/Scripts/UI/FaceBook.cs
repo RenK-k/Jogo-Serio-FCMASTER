@@ -189,9 +189,6 @@ namespace CoachMaster.UI
             UsedSocialFaces.Clear();
             UsedPortraitIds.Clear();
             UsedStaffByClub.Clear();
-            _all = null;
-            _allAssignedPool = null;
-            _staffFaces = null;
 
             var players = new List<Player>(world.Players.Values);
             players.Sort((a, b) =>

@@ -388,7 +388,7 @@ namespace CoachMaster.App
         {
             if (Draft.PreviewWorld == null)
             {
-                Draft.PreviewWorld = Data.WorldCatalog.Create();
+                Draft.PreviewWorld = Data.WorldCatalog.CompleteCareerWorld(Catalog);
                 Data.ModFolder.Apply(Draft.PreviewWorld);
             }
             return Draft.PreviewWorld;
