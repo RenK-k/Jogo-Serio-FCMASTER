@@ -34,7 +34,6 @@ namespace CoachMaster.UI.Scenes
         int _subOff = 10;
         int _subOn;
         int _noteCount = -1;
-        bool _snap = true;
         float _slow;
         int _lastHudHomeGoals = int.MinValue;
         int _lastHudAwayGoals = int.MinValue;
@@ -53,9 +52,6 @@ namespace CoachMaster.UI.Scenes
         Color _awayColor = new Color(0.85f, 0.2f, 0.2f);
         Token[] _homeTokens;
         Token[] _awayTokens;
-        readonly Vector2[] _tokenPoints = new Vector2[22];
-        readonly Vector2[] _tokenOffsets = new Vector2[22];
-        readonly Vector2[] _tokenRenderOffsets = new Vector2[22];
         SideColumn _homeCol;
         SideColumn _awayCol;
         GameObject _fitnessPage;
@@ -175,6 +171,12 @@ namespace CoachMaster.UI.Scenes
             _career = career;
             _match = match;
             BuildInto(BroadcastUi.CreateDesign(transform));
+        }
+
+        void OnDestroy()
+        {
+            _engine?.Dispose();
+            _engine = null;
         }
 
         void Update()
@@ -2571,6 +2573,18 @@ namespace CoachMaster.UI.Scenes
             SettingsPrefs.Commit();
             if (_speedLabel != null)
                 _speedLabel.text = MatchSpeedText();
+            if (SettingsPrefs.MatchSpeedIndex != 4)
+                HideMatchEventPopups();
+        }
+
+        void HideMatchEventPopups()
+        {
+            _watchEvent = false;
+            if (_eventCard != null) _eventCard.SetActive(false);
+            if (_flash != null) _flash.gameObject.SetActive(false);
+            if (_eventStrip != null) _eventStrip.gameObject.SetActive(false);
+            var momentRoll = transform.Find("MomentRoll");
+            if (momentRoll != null) momentRoll.gameObject.SetActive(false);
         }
 
         static string MatchSpeedText()
@@ -2591,6 +2605,8 @@ namespace CoachMaster.UI.Scenes
             controller._speed = SettingsPrefs.MatchSpeed;
             if (controller._speedLabel != null)
                 controller._speedLabel.text = MatchSpeedText();
+            if (SettingsPrefs.MatchSpeedIndex != 4)
+                controller.HideMatchEventPopups();
         }
 
         void LateUpdate()
@@ -2995,12 +3011,15 @@ namespace CoachMaster.UI.Scenes
                 var isExtended = isKeyEvent || isShotResult || eventText.Contains("AMARELO") || eventText.Contains("YELLOW CARD")
                     || eventText.Contains("FALTA") || eventText.Contains("FOUL") || eventText.Contains("CANTO") || eventText.Contains("CORNER");
                 var highlightMode = SettingsPrefs.MatchHighlights;
-                var important = highlightMode == 0 || (highlightMode == 1 && isExtended) || (highlightMode == 2 && isKeyEvent) || (highlightMode == 3 && isGoal);
+                var selectedByHighlights = highlightMode == 0 || (highlightMode == 1 && isExtended) || (highlightMode == 2 && isKeyEvent) || (highlightMode == 3 && isGoal);
+                var important = SettingsPrefs.MatchSpeedIndex == 4 && selectedByHighlights;
                 var roll = isKeyEvent || isShotResult || eventText.Contains("CHILENA") || eventText.Contains("BICYCLE") || eventText.Contains("DEFESA") || eventText.Contains("SAVE");
                 _watchEvent = important && !isShotResult;
                 _flashLeft = isGoal ? 2.65f : _watchEvent ? 3.4f : 2.4f;
                 GameAudio.ForFlash(_match.Flash);
-                _subsAfterEvent = isInjury;
+                var userPlayerInjured = isInjury && person != null && _career?.Coach != null
+                    && person.ClubId == _career.Coach.ClubId;
+                _subsAfterEvent = userPlayerInjured;
                 _pauseAfterEvent = !isInjury && ((isGoal && SettingsPrefs.PauseOnGoal) || (isRed && SettingsPrefs.PauseOnRedCard));
                 if (roll && important)
                 {
@@ -3154,7 +3173,6 @@ namespace CoachMaster.UI.Scenes
                     var playerId = _match.HomeOnField[i];
                     var slot = _engine.ShownMotionOf(true, i);
                     Move(homeToken, ToPitch(slot), _match.HomeHasBall && i == _match.BallHolder, Jumping(true, i), _engine.LookTarget(true, i));
-                    KeepBallOffBody(homeToken, slot, _match.HomeHasBall && i == _match.BallHolder);
                     if (homeToken.PlayerId != playerId)
                     {
                         homeToken.PlayerId = playerId;
@@ -3171,7 +3189,6 @@ namespace CoachMaster.UI.Scenes
                     var playerId = _match.AwayOnField[i];
                     var slot = _engine.ShownMotionOf(false, i);
                     Move(awayToken, ToPitch(slot), !_match.HomeHasBall && i == _match.BallHolder, Jumping(false, i), _engine.LookTarget(false, i));
-                    KeepBallOffBody(awayToken, slot, !_match.HomeHasBall && i == _match.BallHolder);
                     if (awayToken.PlayerId != playerId)
                     {
                         awayToken.PlayerId = playerId;
@@ -3183,8 +3200,6 @@ namespace CoachMaster.UI.Scenes
                     Dive(awayToken, _engine.KeeperDive(false), i == 0);
                 }
             }
-
-            SeparateTokenPositions();
 
             var ball = ToPitch(_engine.ShownBall());
             _ball.anchorMin = ball;
@@ -3206,7 +3221,6 @@ namespace CoachMaster.UI.Scenes
             if (_ballImage != null)
                 _ballImage.color = Color.white;
             HighlightLineupPicks();
-            _snap = false;
         }
 
         static Vector2 ToPitch(Vector2 slot)
@@ -3217,79 +3231,6 @@ namespace CoachMaster.UI.Scenes
         static Color NumberInk(Color jerseyColor)
         {
             return jerseyColor.grayscale >= 0.5f ? new Color(0.08f, 0.08f, 0.1f, 1f) : Color.white;
-        }
-
-        Token TokenAt(int index)
-        {
-            return index < 11 ? _homeTokens[index] : _awayTokens[index - 11];
-        }
-
-        void SeparateTokenPositions()
-        {
-            if (_pitch == null || _homeTokens == null || _awayTokens == null)
-                return;
-            var pitchSize = _pitch.rect.size;
-            if (pitchSize.x < 1f || pitchSize.y < 1f)
-                return;
-
-            for (var i = 0; i < 22; i++)
-            {
-                var token = TokenAt(i);
-                _tokenOffsets[i] = Vector2.zero;
-                var active = token != null && token.Rect != null && token.Rect.gameObject.activeInHierarchy;
-                if (!active)
-                {
-                    _tokenPoints[i] = Vector2.zero;
-                    _tokenRenderOffsets[i] = Vector2.zero;
-                    continue;
-                }
-                _tokenPoints[i] = Vector2.Scale(token.Rect.anchorMin, pitchSize) + token.Rect.anchoredPosition;
-            }
-
-            for (var pass = 0; pass < 5; pass++)
-            {
-                for (var i = 0; i < 22; i++)
-                {
-                    var first = TokenAt(i);
-                    if (first == null || first.Rect == null || !first.Rect.gameObject.activeInHierarchy)
-                        continue;
-                    for (var j = i + 1; j < 22; j++)
-                    {
-                        var second = TokenAt(j);
-                        if (second == null || second.Rect == null || !second.Rect.gameObject.activeInHierarchy)
-                            continue;
-
-                        var delta = _tokenPoints[j] + _tokenOffsets[j] - _tokenPoints[i] - _tokenOffsets[i];
-                        var distance = delta.magnitude;
-                        var firstRadius = Mathf.Max(first.Rect.sizeDelta.x, first.Rect.sizeDelta.y) * first.Rect.localScale.x * 0.5f;
-                        var secondRadius = Mathf.Max(second.Rect.sizeDelta.x, second.Rect.sizeDelta.y) * second.Rect.localScale.x * 0.5f;
-                        var minimumDistance = firstRadius + secondRadius + 2f;
-                        if (distance >= minimumDistance)
-                            continue;
-
-                        var direction = distance > 0.01f
-                            ? delta / distance
-                            : new Vector2((i + j) % 2 == 0 ? 1f : -1f, i % 2 == 0 ? 1f : -1f).normalized;
-                        var push = (minimumDistance - distance) * 0.5f;
-                        _tokenOffsets[i] -= direction * push;
-                        _tokenOffsets[j] += direction * push;
-                    }
-                }
-            }
-
-            for (var i = 0; i < 22; i++)
-            {
-                var token = TokenAt(i);
-                if (token == null || token.Rect == null || !token.Rect.gameObject.activeInHierarchy)
-                    continue;
-                var targetOffset = Vector2.ClampMagnitude(_tokenOffsets[i], 28f);
-                if (_snap)
-                    _tokenRenderOffsets[i] = targetOffset;
-                else
-                    _tokenRenderOffsets[i] = Vector2.Lerp(_tokenRenderOffsets[i], targetOffset,
-                        1f - Mathf.Exp(-12f * Time.unscaledDeltaTime));
-                token.Rect.anchoredPosition += _tokenRenderOffsets[i];
-            }
         }
 
         bool Jumping(bool home, int index)
@@ -3305,39 +3246,12 @@ namespace CoachMaster.UI.Scenes
             return depth > 0.7f && Mathf.Abs(spot.x - 0.5f) < 0.22f;
         }
 
-        void KeepBallOffBody(Token token, Vector2 pitchSlot, bool carrying)
-        {
-            if (!carrying || token == null || token.Rect == null || _engine == null || _pitch == null)
-                return;
-            if (_engine.BallHeight > 0.2f)
-                return;
-            var size = _pitch.rect.size;
-            if (size.x < 1f || size.y < 1f)
-                return;
-            var playerPx = Vector2.Scale(ToPitch(pitchSlot), size) + token.Rect.anchoredPosition;
-            var ballPx = Vector2.Scale(ToPitch(_engine.ShownBall()), size);
-            var away = playerPx - ballPx;
-            var gap = away.magnitude;
-            if (gap >= 18f)
-                return;
-            var dir = gap > 0.5f ? away / gap : Vector2.down;
-            token.Rect.anchoredPosition += dir * (18f - gap);
-        }
-
         void Move(Token token, Vector2 anchor, bool hasBall, bool jumping, Vector2 logicalLookTarget)
         {
-            if (_snap || token.Rect.anchorMin == Vector2.zero && token.Rect.anchorMax == Vector2.zero)
-            {
-                token.Rect.anchorMin = anchor;
-                token.Rect.anchorMax = anchor;
-            }
-            else
-            {
-                var follow = 1f - Mathf.Exp(-32f * Time.unscaledDeltaTime);
-                var shown = Vector2.Lerp(token.Rect.anchorMin, anchor, follow);
-                token.Rect.anchorMin = shown;
-                token.Rect.anchorMax = shown;
-            }
+            // MatchEngine.ShownMotionOf already interpolates its fixed-step simulation state.
+            // A second render-time lerp made player markers trail their actual movement.
+            token.Rect.anchorMin = anchor;
+            token.Rect.anchorMax = anchor;
             var lift = _engine == null ? 0f : Mathf.Clamp01(_engine.BallHeight);
             var swell = jumping ? lift * lift : 0f;
             token.Rect.anchoredPosition = new Vector2(0f, swell * 22f);

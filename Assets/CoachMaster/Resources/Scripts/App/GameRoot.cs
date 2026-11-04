@@ -373,7 +373,6 @@ namespace CoachMaster.App
             Career.MatchHighlights = Mathf.Clamp(Draft.MatchHighlights, 0, 3);
             Career.PauseOnGoal = Draft.PauseOnGoal;
             Career.PauseOnRedCard = Draft.PauseOnRedCard;
-            Career.PauseOnInjury = Draft.PauseOnInjury;
             Career.LiveRatings = Draft.LiveRatings;
             Career.DatabaseCustomizationEnabled = Draft.PersonalizeDatabase;
             SettingsPrefs.ApplyCareerGameplay(Career);
@@ -420,7 +419,6 @@ namespace CoachMaster.App
         public int MatchHighlights = SettingsPrefs.MatchHighlights;
         public bool PauseOnGoal = SettingsPrefs.PauseOnGoal;
         public bool PauseOnRedCard = SettingsPrefs.PauseOnRedCard;
-        public bool PauseOnInjury = SettingsPrefs.PauseOnInjury;
         public bool LiveRatings = SettingsPrefs.LiveRatings;
         public bool PersonalizeDatabase;
         public WorldState PreviewWorld;
@@ -439,7 +437,6 @@ namespace CoachMaster.App
             MatchHighlights = SettingsPrefs.MatchHighlights;
             PauseOnGoal = SettingsPrefs.PauseOnGoal;
             PauseOnRedCard = SettingsPrefs.PauseOnRedCard;
-            PauseOnInjury = SettingsPrefs.PauseOnInjury;
             LiveRatings = SettingsPrefs.LiveRatings;
             PersonalizeDatabase = false;
             PreviewWorld = null;

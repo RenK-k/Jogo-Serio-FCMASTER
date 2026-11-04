@@ -100,13 +100,9 @@ namespace CoachMaster.UI.Scenes
                 () => OnOff(session.Draft.PauseOnRedCard, english),
                 () => session.Draft.PauseOnRedCard = !session.Draft.PauseOnRedCard, left, columnEnd, rowY[4],
                 english ? "Automatically pauses the live match when a player is sent off." : "Pausa automaticamente o jogo ao vivo quando um jogador é expulso.", ShowSettingHelp);
-            AddSetting(panel.transform, english ? "PAUSE AFTER INJURY" : "PAUSAR DEPOIS DE LESÃO",
-                () => OnOff(session.Draft.PauseOnInjury, english),
-                () => session.Draft.PauseOnInjury = !session.Draft.PauseOnInjury, right, 0.955f, rowY[4],
-                english ? "Automatically pauses the live match when a player is injured." : "Pausa automaticamente o jogo ao vivo quando um jogador se lesiona.", ShowSettingHelp);
             AddSetting(panel.transform, english ? "LIVE RATINGS" : "PONTUAÇÕES AO VIVO",
                 () => OnOff(session.Draft.LiveRatings, english),
-                () => session.Draft.LiveRatings = !session.Draft.LiveRatings, left, columnEnd, rowY[5],
+                () => session.Draft.LiveRatings = !session.Draft.LiveRatings, right, 0.955f, rowY[4],
                 english ? "Shows player performance ratings during the live match." : "Mostra as classificações de desempenho dos jogadores durante o jogo ao vivo.", ShowSettingHelp);
 
             var personalizeText = BroadcastUi.Label(panel.transform, "PersonalizeText", english ? "EDIT THE DATABASE BEFORE THIS CAREER" : "EDITAR A BASE DE DADOS ANTES DA CARREIRA", 15, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);

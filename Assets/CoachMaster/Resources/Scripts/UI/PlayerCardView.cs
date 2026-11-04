@@ -23,13 +23,16 @@ namespace CoachMaster.UI
                 card.gameObject.AddComponent<RectMask2D>();
 
             var shirt = club == null ? UiTheme.Accent : BroadcastUi.Parse(club.JerseyPrimaryHex, UiTheme.Accent);
-            var number = BroadcastUi.Label(card.transform, "BackNumber", player.SquadNumber.ToString(), 46,
-                new Color(shirt.r, shirt.g, shirt.b, 0.22f), TextAnchor.MiddleCenter, FontStyle.Bold);
+            var number = BroadcastUi.Label(card.transform, "BackNumber", player.SquadNumber.ToString(), 52,
+                new Color(Mathf.Lerp(shirt.r, 1f, 0.7f), Mathf.Lerp(shirt.g, 1f, 0.7f), Mathf.Lerp(shirt.b, 1f, 0.7f), 0.52f),
+                TextAnchor.MiddleCenter, FontStyle.Bold);
+            number.font = UiTheme.Font;
             number.resizeTextForBestFit = true;
             number.resizeTextMinSize = 8;
             number.resizeTextMaxSize = 60;
             number.horizontalOverflow = HorizontalWrapMode.Overflow;
-            number.verticalOverflow = VerticalWrapMode.Truncate;
+            number.verticalOverflow = VerticalWrapMode.Overflow;
+            number.raycastTarget = false;
             BroadcastUi.Place(number.rectTransform, 0.02f, 0.02f, 0.98f, 0.98f);
 
             var faceObject = new GameObject("Face", typeof(RectTransform), typeof(Image));
@@ -45,6 +48,19 @@ namespace CoachMaster.UI
             face.rectTransform.offsetMin = Vector2.zero;
             face.rectTransform.offsetMax = Vector2.zero;
             face.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+
+            if (player.IsCaptain || player.IsViceCaptain)
+            {
+                var captainColor = player.IsCaptain ? new Color(0.96f, 0.72f, 0.18f, 0.98f) : new Color(0.62f, 0.72f, 0.86f, 0.98f);
+                var captainBadge = BroadcastUi.Panel(card.transform, "CaptainBadge", captainColor, false);
+                BroadcastUi.Place(captainBadge.rectTransform, 0.73f, 0.79f, 0.975f, 0.98f);
+                var captainLabel = BroadcastUi.Label(captainBadge.transform, "Mark", player.IsCaptain ? "C" : "VC", 10,
+                    new Color(0.04f, 0.04f, 0.06f, 1f), TextAnchor.MiddleCenter, FontStyle.Bold);
+                captainLabel.resizeTextForBestFit = true;
+                captainLabel.resizeTextMinSize = 6;
+                captainLabel.resizeTextMaxSize = 10;
+                BroadcastUi.Stretch(captainLabel.rectTransform);
+            }
 
             var name = BroadcastUi.Label(card.transform, "Name", BroadcastUi.ShortName(player.FullName).ToUpperInvariant(),
                 13, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
