@@ -725,6 +725,19 @@ namespace CoachMaster.Data
             club.Tactics.FormerCoachName = FaceBook.PersonName(nationality, Hash((club.Id ?? club.Name ?? "club") + ":manager"));
         }
 
+        public static string CurrentManagerName(Club club)
+        {
+            EnsureManager(club, false);
+            return club == null || club.Tactics == null ? "" : club.Tactics.FormerCoachName;
+        }
+
+        public static string GenerateManagerName(Club club, string seed)
+        {
+            if (club == null) return "";
+            var nationality = NationalityForLeagueId(club.LeagueId);
+            return FaceBook.PersonName(nationality, Hash((club.Id ?? club.Name ?? "club") + ":manager:" + (seed ?? "new")));
+        }
+
         public static void SimulateManagerAppointments(WorldState world, DateTime month, string managedClubId)
         {
             if (world == null || world.Clubs == null || month.Day != 1) return;

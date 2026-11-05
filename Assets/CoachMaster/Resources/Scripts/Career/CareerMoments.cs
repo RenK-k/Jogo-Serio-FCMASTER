@@ -51,6 +51,12 @@ namespace CoachMaster.Career
 
         public static void Continue(CareerState career)
         {
+            if (career.Current != null && !string.IsNullOrEmpty(career.Current.IncidentType) && !career.Current.Answered)
+            {
+                if (career.Current.Kind == MomentKind.Talk)
+                    career.Current.Kind = MomentKind.Note;
+                Answer(career, 0);
+            }
             if (career.Current != null && career.Current.Kind == MomentKind.Match && !career.Current.Fixture.Played)
                 return;
 
@@ -118,7 +124,8 @@ namespace CoachMaster.Career
         public static void Answer(CareerState career, int choice)
         {
             var moment = career.Current;
-            if (moment == null || moment.Kind != MomentKind.Talk || moment.Answered)
+            var automaticIncident = moment != null && moment.Kind != MomentKind.Talk && !string.IsNullOrEmpty(moment.IncidentType);
+            if (moment == null || (moment.Kind != MomentKind.Talk && !automaticIncident) || moment.Answered)
                 return;
             if (moment.Replies == null || choice < 0 || choice >= moment.Replies.Length)
                 return;
@@ -193,8 +200,11 @@ namespace CoachMaster.Career
                     dutyChanged = false;
             }
 
-            var followUp = moment.FollowUps != null && choice < moment.FollowUps.Length ? moment.FollowUps[choice] : "";
-            if (effect != choice)
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var followUp = automaticIncident
+                ? IncidentPlayerResponse(player, moment.IncidentType, english)
+                : moment.FollowUps != null && choice < moment.FollowUps.Length ? moment.FollowUps[choice] : "";
+            if (effect != choice && !automaticIncident)
                 followUp += effect < choice
                     ? " Com este jogador, a frase mais dura foi a que fez sentido."
                     : " Com este jogador, essa frase não colou.";
@@ -213,32 +223,110 @@ namespace CoachMaster.Career
                     : "dispensa: " + unavailableDays + (unavailableDays == 1 ? " dia" : " dias"));
             if (dutyChanged)
                 impact.Add("instrução: " + player.Duty);
-            moment.Body += "\n\nTu: " + moment.Replies[choice] + "\n\n" + followUp;
+            if (automaticIncident)
+                moment.Body += "\n\n" + followUp;
+            else
+                moment.Body += "\n\nTu: " + moment.Replies[choice] + "\n\n" + followUp;
             if (impact.Count > 0)
                 moment.Body += "\n\nImpacto: " + string.Join(" · ", impact) + ".";
-            career.Notebook.Insert(0, career.Calendar.ClockText + "  " + player.FullName + " — conversa no centro de treinos.");
-            var trustDelta = CareerRelationships.ApplyConversation(career, player, morale, form, tension, injuryDays);
-            CareerMemories.RecordConversation(career, moment, player, choice, morale, form, tension, trustDelta, injuryDays);
-            var english = LocalizationManager.Current == GameLanguage.English;
-            CareerNotificationQueue.Enqueue(english ? "YOUR CHOICE MATTERS" : "A TUA ESCOLHA FICA",
-                english ? "Trust with " + player.FullName + ": " + CareerRelationships.TrustOf(career, player.Id) + "/100."
-                    : "Confiança de " + player.FullName + ": " + CareerRelationships.TrustOf(career, player.Id) + "/100.");
+            if (!automaticIncident)
+            {
+                career.Notebook.Insert(0, career.Calendar.ClockText + "  " + player.FullName + " — conversa no centro de treinos.");
+                var trustDelta = CareerRelationships.ApplyConversation(career, player, morale, form, tension, injuryDays);
+                CareerMemories.RecordConversation(career, moment, player, choice, morale, form, tension, trustDelta, injuryDays);
+                CareerNotificationQueue.Enqueue(english ? "YOUR CHOICE MATTERS" : "A TUA ESCOLHA FICA",
+                    english ? "Trust with " + player.FullName + ": " + CareerRelationships.TrustOf(career, player.Id) + "/100."
+                        : "Confiança de " + player.FullName + ": " + CareerRelationships.TrustOf(career, player.Id) + "/100.");
+            }
 
             if (!string.IsNullOrEmpty(moment.IncidentType))
             {
                 var marker = "personal-event|" + moment.When.Date.Ticks;
                 if (!career.Notebook.Contains(marker)) career.Notebook.Add(marker);
-                var headline = Newsroom.PublishPersonalIncident(career, moment, player, choice);
+                var playerReaction = IncidentPlayerResponse(player, moment.IncidentType, english);
+                var teamReaction = IncidentTeamResponseForNews(career, player, moment.IncidentType, english);
+                var headline = Newsroom.PublishPersonalIncident(career, moment, player);
                 career.Board.Insert(0, new CoachNote
                 {
                     Day = career.Calendar.WeekdayName,
                     Hour = career.Calendar.ClockText,
                     When = career.Calendar.CurrentDate,
-                    Text = english
-                        ? "✉ The club is supporting " + player.FullName + " through a personal matter. Open the news for the full story."
-                        : "✉ " + headline + " · " + player.FullName + " · " + followUp
+                    Text = (english
+                        ? "✉ " + player.FullName + " responds to the incident: " + playerReaction + " " + teamReaction
+                        : "✉ " + headline + " · " + playerReaction + " " + teamReaction)
+                        + " [[player-incident:" + player.Id + "|" + moment.IncidentType + "|" + moment.When.Ticks + "]]"
                 });
                 while (career.Board.Count > 40) career.Board.RemoveAt(career.Board.Count - 1);
+            }
+        }
+
+        public static string IncidentPlayerResponse(Player player, string incidentType, bool english)
+        {
+            var personality = player == null ? PersonalityTrait.Reserved : player.Personality;
+            switch ((incidentType ?? "").ToLowerInvariant())
+            {
+                case "betting":
+                    if (personality == PersonalityTrait.Professional || personality == PersonalityTrait.Leader)
+                        return english ? "I made a serious mistake. I understand the rules and will cooperate fully. I'm sorry I put the squad in this position."
+                            : "Cometi um erro sério. Percebo as regras e vou cooperar totalmente. Lamento ter colocado o grupo nesta posição.";
+                    if (personality == PersonalityTrait.Outspoken || personality == PersonalityTrait.Temperamental)
+                        return english ? "I shouldn't have placed that bet. I'll answer the questions honestly, and I know the group deserves better from me."
+                            : "Não devia ter feito aquela aposta. Vou responder com honestidade e sei que o grupo merece mais de mim.";
+                    return english ? "I made a bad decision and I'm sorry. I'll cooperate with the review and speak to the team myself."
+                        : "Tomei uma má decisão e peço desculpa. Vou cooperar com a investigação e falar com a equipa.";
+                case "drunk":
+                    return personality == PersonalityTrait.Outspoken
+                        ? (english ? "I let everyone down by turning up like that. No excuses; I'll put it right." : "Desiludi toda a gente ao aparecer assim. Não há desculpas; vou corrigir a situação.")
+                        : (english ? "I know I let the group down. I'm sorry, and I'll make sure it doesn't affect the next session." : "Sei que desiludi o grupo. Peço desculpa e vou garantir que isto não afeta o próximo treino.");
+                case "bereavement":
+                    return english ? "Thank you for giving me space to be with my family. I appreciate the support from everyone at the club."
+                        : "Obrigado por me deixarem estar com a minha família. Agradeço o apoio de todos no clube.";
+                case "viral":
+                    return personality == PersonalityTrait.Outspoken || personality == PersonalityTrait.Temperamental
+                        ? (english ? "The 2-2-6 was a joke, not my tactical masterplan. At least the lads got a laugh out of it." : "O 2-2-6 era uma piada, não o meu plano tático. Ao menos os rapazes riram-se.")
+                        : (english ? "I didn't expect the team sheet to travel that far. The lads have already promised to make me explain the shape on the pitch." : "Não esperava que a equipa desenhada circulasse tanto. Os rapazes já disseram que vou ter de explicar a tática no campo.");
+                case "family":
+                    return english ? "It's a special day for my family. Thanks for helping me balance it with the team's plans."
+                        : "É um dia especial para a minha família. Obrigado por me ajudarem a conciliá-lo com os planos da equipa.";
+                case "charity":
+                    return english ? "The kids were brilliant. I'm glad the club let me spend time with them." : "As crianças foram incríveis. Fico contente por o clube me ter deixado passar tempo com elas.";
+                default:
+                    return english ? "I appreciate the club checking in. I'll keep you updated." : "Agradeço que o clube se preocupe. Vou mantendo-vos a par.";
+            }
+        }
+
+        public static string IncidentTeamResponseForNews(CareerState career, Player player, string incidentType, bool english)
+        {
+            Player captain = null;
+            if (career != null && career.Club != null)
+                foreach (var id in career.Club.PlayerIds)
+                    if (career.World.Players.TryGetValue(id, out var candidate) && candidate.IsCaptain)
+                    {
+                        captain = candidate;
+                        break;
+                    }
+            var captainName = captain == null ? (english ? "The senior players" : "Os jogadores mais experientes") : captain.FullName;
+            switch ((incidentType ?? "").ToLowerInvariant())
+            {
+                case "betting": return english
+                    ? captainName + " want the facts established, but have asked the dressing room to avoid rumours until the review is complete."
+                    : captainName + " querem que os factos sejam apurados e pediram ao balneário que evite rumores até a análise terminar.";
+                case "drunk": return english
+                    ? captainName + " told the group to move on after the apology and keep the focus on training."
+                    : captainName + " pediu ao grupo que aceitasse o pedido de desculpa e mantivesse o foco no treino.";
+                case "bereavement": return english
+                    ? "The squad sent its support and agreed to dedicate the match to the player's family."
+                    : "O plantel enviou o seu apoio e combinou dedicar o jogo à família do jogador.";
+                case "viral": return english
+                    ? "The dressing room shared the joke and then got back to preparing the real shape."
+                    : "O balneário alinhou na brincadeira e depois voltou à preparação da formação verdadeira.";
+                case "family": return english
+                    ? "Teammates congratulated the family and adjusted the session around the player's plans."
+                    : "Os colegas felicitaram a família e ajustaram o treino aos planos do jogador.";
+                case "charity": return english
+                    ? "Teammates praised the visit and asked the club to organise another one together."
+                    : "Os colegas elogiaram a visita e pediram ao clube que organize outra em conjunto.";
+                default: return english ? "The dressing room offered its support." : "O balneário mostrou o seu apoio.";
             }
         }
 
@@ -361,6 +449,8 @@ namespace CoachMaster.Career
             career.Calendar.SetInstant(career.Current.When);
             if (career.Current.Kind != MomentKind.Talk)
                 career.Notebook.Insert(0, career.Calendar.ClockText + "  " + career.Current.Title);
+            if (!string.IsNullOrEmpty(career.Current.IncidentType) && !career.Current.Answered)
+                Answer(career, 0);
         }
 
         static void QueueUntil(CareerState career, int minimum)
@@ -477,10 +567,10 @@ namespace CoachMaster.Career
             {
                 When = when,
                 Title = "Acontecimento pessoal · " + name,
-                Kind = MomentKind.Talk,
+                Kind = MomentKind.Note,
                 PlayerId = player.Id,
                 IncidentType = type,
-                BoardLine = name + " teve um dia difícil fora do relvado."
+                BoardLine = null
             };
             switch (type)
             {

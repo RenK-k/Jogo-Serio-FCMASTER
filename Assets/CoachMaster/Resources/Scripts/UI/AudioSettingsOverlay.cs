@@ -20,7 +20,7 @@ namespace CoachMaster.UI
     {
         static readonly string[] Categories =
         {
-            "Ecrã e gráficos", "Jogabilidade", "Dia de jogo", "Notificações", "Som", "Realismo", "Carreira e saves", "Acessibilidade", "Mods e dados"
+            "Ecrã e gráficos", "Jogabilidade", "Dia de jogo", "Notificações", "Som", "Realismo", "Carreira e saves", "Acessibilidade", "Mods e dados", "Tema e cores"
         };
 
         static readonly string[] PageNotes =
@@ -33,7 +33,8 @@ namespace CoachMaster.UI
             "Ajustes da simulação guardados dentro da carreira.",
             "O jogo guarda cada carreira neste computador. O gestor abre o último save manual ou o automático.",
             "Escala do interface, movimento e idioma.",
-            "Importa pastas de mods, consulta os formatos aceites e cria ficheiros modelo."
+            "Importa pastas de mods, consulta os formatos aceites e cria ficheiros modelo.",
+            "Personaliza as cores principais e pré-visualiza a página inicial."
         };
         static readonly string[] EnglishPageNotes =
         {
@@ -45,7 +46,8 @@ namespace CoachMaster.UI
             "Simulation settings saved in the career.",
             "Each career is saved on this computer. Manage manual and automatic saves.",
             "Interface scale, motion and language.",
-            "Import mod folders, read the accepted formats and create templates."
+            "Import mod folders, read the accepted formats and create templates.",
+            "Choose the main interface colours and preview the home screen."
         };
 
         GameObject _root;
@@ -77,6 +79,27 @@ namespace CoachMaster.UI
         string _pendingNamedSaveId;
         bool _pendingLoadManual;
         string _selectedSlot;
+        Color[] _themeDraft;
+        int _selectedThemeRole;
+        Button[] _themeRoleButtons;
+        Slider[] _themeSliders;
+        Text[] _themeSliderValues;
+        Image _themeColorChip;
+        Button _themePreviewOpenButton;
+        List<Text> _themePreviewTexts;
+        HueSaturationWheel _themeWheel;
+        InputField _themeHexInput;
+        GameObject _themePreviewModal;
+        Image _themePreviewBackground;
+        Image _themePreviewHeader;
+        Image _themePreviewCard;
+        Image _themePreviewNewsCard;
+        Image _themePreviewSecondaryCard;
+        Image _themePreviewAccentBar;
+        Image _themePreviewAction;
+        Text _themePreviewTitle;
+        Text _themePreviewBody;
+        Text _themePreviewActionText;
         readonly Dictionary<Button, Func<string>> _buttonValues = new Dictionary<Button, Func<string>>();
         readonly List<Action> _refreshValues = new List<Action>();
 
@@ -123,6 +146,9 @@ namespace CoachMaster.UI
         void BeginEdit()
         {
             _career = CurrentCareer();
+            _themeDraft = UiTheme.EditablePalette();
+            if (_themeRoleButtons != null)
+                RefreshThemeEditor();
             if (_feedback != null)
                 _feedback.text = LocalizationManager.Current == GameLanguage.English
                     ? "Settings apply immediately and save automatically."
@@ -161,7 +187,7 @@ namespace CoachMaster.UI
             for (var i = 0; i < Categories.Length; i++)
             {
                 var index = i;
-                var y = 0.91f - i * 0.085f;
+                var y = 0.895f - i * 0.075f;
                 _tabs[i] = BroadcastUi.Button(side.transform, "Category" + i, CategoryName(i), () => SelectPage(index),
                     new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 14);
                 BroadcastUi.Place(_tabs[i].GetComponent<RectTransform>(), 0.055f, y - 0.07f, 0.945f, y);
@@ -176,6 +202,7 @@ namespace CoachMaster.UI
             BuildCareerPage(content.transform);
             BuildAccessibilityPage(content.transform);
             BuildModsPage(content.transform);
+            BuildThemePage(content.transform);
 
             _feedback = BroadcastUi.Label(card.transform, "SettingsFeedback", "", 12, UiTheme.Muted, TextAnchor.MiddleLeft);
             BroadcastUi.Place(_feedback.rectTransform, 0.27f, 0.105f, 0.95f, 0.145f);
@@ -207,11 +234,16 @@ namespace CoachMaster.UI
 
         void BuildGameplayPage(Transform parent)
         {
-            var page = Page(parent, 1, "JOGABILIDADE");
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var page = Page(parent, 1, english ? "GAMEPLAY" : "JOGABILIDADE");
             AddOption(page.transform, "AutoXI", "Escolha automática do onze", "Ignora o onze guardado e escolhe a equipa a partir da formação e posições.", () => OnOff(SettingsPrefs.AutomaticSquadSelection), () => SettingsPrefs.AutomaticSquadSelection = !SettingsPrefs.AutomaticSquadSelection, 0.76f);
-            AddOption(page.transform, "Training", "Treino automático", "Quando desligado, avançar dias não altera a avaliação de treino dos jogadores.", () => OnOff(SettingsPrefs.AutomaticTraining), () => SettingsPrefs.AutomaticTraining = !SettingsPrefs.AutomaticTraining, 0.63f);
+            AddOption(page.transform, "Training", english ? "Automatic training" : "Treino automático",
+                english ? "On: general development and individual focuses apply. Off: only assigned training focuses take effect." : "Ligado aplica desenvolvimento geral e focos individuais; desligado, só os focos atribuídos produzem treino.",
+                () => OnOff(SettingsPrefs.AutomaticTraining), () => SettingsPrefs.AutomaticTraining = !SettingsPrefs.AutomaticTraining, 0.63f);
             AddOption(page.transform, "Speed", "Velocidade inicial do jogo", "Também pode ser alterada durante a partida.", () => SettingsPrefs.MatchSpeedLabel, CycleMatchSpeed, 0.50f);
-            AddOption(page.transform, "Highlights", "Momentos apresentados", "Define quantos anúncios de jogo interrompem brevemente a simulação.", () => SettingsPrefs.MatchHighlightsLabel, () => SettingsPrefs.MatchHighlights = (SettingsPrefs.MatchHighlights + 1) % 4, 0.37f);
+            AddOption(page.transform, "Highlights", english ? "Match event cards" : "Momentos apresentados",
+                english ? "Choose which event cards appear at 8×; this does not change the match result." : "Escolhe que cartões de acontecimentos aparecem a 8×; não altera o resultado da partida.",
+                () => SettingsPrefs.MatchHighlightsLabel, () => SettingsPrefs.MatchHighlights = (SettingsPrefs.MatchHighlights + 1) % 4, 0.37f);
             AddText(page.transform, "MatchSpeedHelp", "O ritmo e os momentos escolhidos aplicam-se à apresentação; não alteram o resultado matemático da partida.", 15, UiTheme.Muted, 0.10f, 0.24f);
         }
 
@@ -225,11 +257,13 @@ namespace CoachMaster.UI
 
         void BuildMatchPage(Transform parent)
         {
-            var page = Page(parent, 2, "DIA DE JOGO");
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var page = Page(parent, 2, english ? "MATCHDAY" : "DIA DE JOGO");
             AddOption(page.transform, "PauseGoal", "Pausar depois de um golo", "A pausa começa depois de a bola entrar e o golo ser confirmado.", () => OnOff(SettingsPrefs.PauseOnGoal), () => SettingsPrefs.PauseOnGoal = !SettingsPrefs.PauseOnGoal, 0.76f);
             AddOption(page.transform, "PauseRed", "Pausar depois de um vermelho", "Abre a pausa para poderes rever a equipa e as táticas.", () => OnOff(SettingsPrefs.PauseOnRedCard), () => SettingsPrefs.PauseOnRedCard = !SettingsPrefs.PauseOnRedCard, 0.63f);
-            AddOption(page.transform, "PauseInjury", "Pausar depois de uma lesão", "Abre a pausa quando uma lesão é confirmada na partida.", () => OnOff(SettingsPrefs.PauseOnInjury), () => SettingsPrefs.PauseOnInjury = !SettingsPrefs.PauseOnInjury, 0.50f);
-            AddOption(page.transform, "Ratings", "Pontuações ao vivo", "Mostra ou oculta a página de classificações dos jogadores.", () => OnOff(SettingsPrefs.LiveRatings), () => SettingsPrefs.LiveRatings = !SettingsPrefs.LiveRatings, 0.37f);
+            AddOption(page.transform, "Ratings", english ? "Live ratings" : "Pontuações ao vivo",
+                english ? "Shows or hides the player ratings page during a match." : "Mostra ou oculta a página de classificações dos jogadores durante a partida.",
+                () => OnOff(SettingsPrefs.LiveRatings), () => SettingsPrefs.LiveRatings = !SettingsPrefs.LiveRatings, 0.50f);
             AddText(page.transform, "HalfTimeInfo", "O jogo já para sempre no intervalo para a conversa e escolhas do balneário.", 15, UiTheme.Muted, 0.10f, 0.24f);
         }
 
@@ -424,15 +458,16 @@ namespace CoachMaster.UI
 
         void BuildAccessibilityPage(Transform parent)
         {
-            var page = Page(parent, 7, "INTERFACE E ACESSIBILIDADE");
             var english = LocalizationManager.Current == GameLanguage.English;
-            AddOption(page.transform, "Scale", "Escala do interface", "Aumenta ou reduz todos os ecrãs. As outras definições não mudam o tamanho.", () => Percent(SettingsPrefs.UiScale), () => { SettingsPrefs.UiScaleIndex = (SettingsPrefs.UiScaleIndex + 1) % 5; GameRoot.ApplyUiScale(); }, 0.76f);
-            AddOption(page.transform, "Motion", "Reduzir animações", "Encurta os fades das mensagens e transições de carregamento.", () => OnOff(SettingsPrefs.ReduceMotion), () => SettingsPrefs.ReduceMotion = !SettingsPrefs.ReduceMotion, 0.63f);
-            AddOption(page.transform, "Language", "Idioma", "Escolhe o idioma do jogo.", LanguageLabel, CycleLanguage, 0.50f);
+            var page = Page(parent, 7, english ? "INTERFACE & ACCESSIBILITY" : "INTERFACE E ACESSIBILIDADE");
+            AddOption(page.transform, "Scale", english ? "Interface scale" : "Escala do interface", english ? "Changes menu and text scale; player cards keep their own size." : "Aumenta ou reduz os menus e texto; as cartas mantêm o tamanho próprio.", () => Percent(SettingsPrefs.UiScale), () => { SettingsPrefs.UiScaleIndex = (SettingsPrefs.UiScaleIndex + 1) % 5; GameRoot.ApplyUiScale(); }, 0.76f);
+            AddOption(page.transform, "Motion", english ? "Reduce animations" : "Reduzir animações", english ? "Shortens menu fades and loading transitions." : "Encurta os fades dos menus e as transições de carregamento.", () => OnOff(SettingsPrefs.ReduceMotion), () => SettingsPrefs.ReduceMotion = !SettingsPrefs.ReduceMotion, 0.63f);
+            AddOption(page.transform, "Language", english ? "Language" : "Idioma", english ? "Choose the game language." : "Escolhe o idioma do jogo.", LanguageLabel, CycleLanguage, 0.50f);
+            AddOption(page.transform, "ControllerHints", english ? "Control hints" : "Ajuda de controlos", english ? "Show or hide the navigation guide on the player conversations screen." : "Mostra ou oculta o guia de navegação no ecrã das conversas com jogadores.", () => OnOff(SettingsPrefs.ControllerHints), () => SettingsPrefs.ControllerHints = !SettingsPrefs.ControllerHints, 0.37f);
             AddOption(page.transform, "SkipDayConfirmation",
                 english ? "Confirm before skipping a day" : "Confirmar antes de saltar o dia",
                 english ? "Restore the confirmation prompt after choosing not to show it again." : "Volta a mostrar a confirmação se escolheste não a voltar a mostrar.",
-                () => OnOff(SettingsPrefs.SkipDayConfirmation), () => SettingsPrefs.SkipDayConfirmation = !SettingsPrefs.SkipDayConfirmation, 0.37f);
+                () => OnOff(SettingsPrefs.SkipDayConfirmation), () => SettingsPrefs.SkipDayConfirmation = !SettingsPrefs.SkipDayConfirmation, 0.24f);
         }
 
         void BuildModsPage(Transform parent)
@@ -469,6 +504,385 @@ namespace CoachMaster.UI
             _modProgressFill = fill;
             _modStatus = BroadcastUi.Label(page.transform, "ModsStatus", english ? "Choose a folder to begin." : "Escolhe uma pasta para começar.", 12, UiTheme.Muted, TextAnchor.UpperLeft);
             BroadcastUi.Place(_modStatus.rectTransform, 0.63f, 0.06f, 0.96f, 0.15f);
+        }
+
+        void BuildThemePage(Transform parent)
+        {
+            var english = LocalizationManager.Current == GameLanguage.English;
+            var page = Page(parent, 9, english ? "THEME COLOURS" : "CORES DO TEMA");
+            _themeDraft = UiTheme.EditablePalette();
+            _selectedThemeRole = Mathf.Clamp(_selectedThemeRole, 0, _themeDraft.Length - 1);
+            _themeRoleButtons = new Button[_themeDraft.Length];
+
+            var roleNames = english
+                ? new[] { "BACKGROUND", "PANELS", "ACCENT", "TEXT" }
+                : new[] { "FUNDO", "PAINÉIS", "DESTAQUE", "TEXTO" };
+            for (var i = 0; i < roleNames.Length; i++)
+            {
+                var role = i;
+                var x0 = 0.035f + i * 0.117f;
+                _themeRoleButtons[i] = BroadcastUi.Button(page.transform, "ThemeRole" + i, roleNames[i],
+                    () => SelectThemeRole(role), _themeDraft[i], ThemeButtonText(_themeDraft[i]), 10);
+                BroadcastUi.Place(_themeRoleButtons[i].GetComponent<RectTransform>(), x0, 0.72f, x0 + 0.11f, 0.81f);
+            }
+
+            var selectedLabel = BroadcastUi.Label(page.transform, "ThemeSelectedRole",
+                english ? "EDIT SELECTED COLOUR" : "EDITAR COR",
+                12, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(selectedLabel.rectTransform, 0.04f, 0.64f, 0.48f, 0.70f);
+            var colorChip = BroadcastUi.Panel(page.transform, "ThemeColorChip", _themeDraft[_selectedThemeRole]);
+            BroadcastUi.Place(colorChip.rectTransform, 0.39f, 0.63f, 0.47f, 0.70f);
+            _themeColorChip = colorChip;
+
+            var wheelObject = new GameObject("HueSaturationWheel", typeof(RectTransform), typeof(HueSaturationWheel));
+            var wheelRect = wheelObject.GetComponent<RectTransform>();
+            wheelRect.SetParent(page.transform, false);
+            wheelRect.anchorMin = wheelRect.anchorMax = new Vector2(0.26f, 0.465f);
+            wheelRect.pivot = new Vector2(0.5f, 0.5f);
+            wheelRect.sizeDelta = new Vector2(300f, 300f);
+            _themeWheel = wheelObject.GetComponent<HueSaturationWheel>();
+            _themeWheel.SetColorChanged(SetThemeHueSaturation);
+            var markerObject = new GameObject("WheelSelection", typeof(RectTransform), typeof(Image), typeof(Outline));
+            var wheelMarkerRect = markerObject.GetComponent<RectTransform>();
+            wheelMarkerRect.SetParent(wheelRect, false);
+            wheelMarkerRect.sizeDelta = new Vector2(22f, 22f);
+            var markerImage = markerObject.GetComponent<Image>();
+            markerImage.sprite = BroadcastUi.Circle;
+            markerImage.color = Color.white;
+            markerImage.raycastTarget = false;
+            var markerOutline = markerObject.GetComponent<Outline>();
+            markerOutline.effectColor = new Color(0.04f, 0.04f, 0.07f, 1f);
+            markerOutline.effectDistance = new Vector2(2f, 2f);
+
+            _themeSliders = new Slider[1];
+            _themeSliderValues = new Text[1];
+            AddThemeSlider(page.transform, 3, english ? "BRIGHTNESS" : "LUMINOSIDADE", 0.20f);
+            var hexTitle = BroadcastUi.Label(page.transform, "HexColourTitle", english ? "HEX COLOUR" : "COR HEX",
+                10, UiTheme.Muted, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(hexTitle.rectTransform, 0.04f, 0.13f, 0.16f, 0.19f);
+            _themeHexInput = UiFactory.Input(page.transform, "#RRGGBB");
+            _themeHexInput.characterLimit = 7;
+            BroadcastUi.Place(_themeHexInput.GetComponent<RectTransform>(), 0.16f, 0.12f, 0.34f, 0.19f);
+            _themeHexInput.onEndEdit.AddListener(ApplyThemeHex);
+
+            var apply = BroadcastUi.Button(page.transform, "ApplyTheme", english ? "APPLY THEME" : "APLICAR TEMA",
+                ApplyThemeDraft, UiTheme.Accent, UiTheme.ButtonText, 12);
+            BroadcastUi.Place(apply.GetComponent<RectTransform>(), 0.35f, 0.12f, 0.49f, 0.19f);
+            var reset = BroadcastUi.Button(page.transform, "ResetTheme", english ? "RESTORE DEFAULT COLOURS" : "REPOR CORES PADRÃO",
+                ResetThemeDraft, UiTheme.PanelAlt, UiTheme.Text, 11);
+            BroadcastUi.Place(reset.GetComponent<RectTransform>(), 0.04f, 0.07f, 0.49f, 0.12f);
+            var previewButton = BroadcastUi.Button(page.transform, "PreviewHomeTheme",
+                english ? "PREVIEW HOME TAB" : "PRÉ-VISUALIZAR INÍCIO", OpenThemeHomePreview,
+                _themeDraft[2], ThemeButtonText(_themeDraft[2]), 15);
+            _themePreviewOpenButton = previewButton;
+            BroadcastUi.Place(previewButton.GetComponent<RectTransform>(), 0.56f, 0.42f, 0.95f, 0.56f);
+            var previewHelp = BroadcastUi.Label(page.transform, "PreviewHomeHelp",
+                english ? "See your current colours on the career home screen." : "Vê as cores escolhidas no ecrã inicial da carreira.",
+                14, UiTheme.Muted, TextAnchor.MiddleCenter);
+            BroadcastUi.Place(previewHelp.rectTransform, 0.56f, 0.32f, 0.95f, 0.41f);
+
+            RefreshThemeEditor();
+        }
+
+        void AddThemeSlider(Transform parent, int channel, string label, float y)
+        {
+            var row = BroadcastUi.Panel(parent, "ThemeChannel" + channel, new Color(1f, 1f, 1f, 0.045f));
+            BroadcastUi.Place(row.rectTransform, 0.035f, y, 0.49f, y + 0.105f);
+            var title = BroadcastUi.Label(row.transform, "ChannelName", label, 11, UiTheme.Text, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(title.rectTransform, 0.025f, 0.48f, 0.28f, 0.96f);
+            var value = BroadcastUi.Label(row.transform, "ChannelValue", "0", 11, UiTheme.Accent, TextAnchor.MiddleRight, FontStyle.Bold);
+            BroadcastUi.Place(value.rectTransform, 0.82f, 0.48f, 0.97f, 0.96f);
+            var sliderIndex = channel == 3 ? 0 : channel;
+            _themeSliderValues[sliderIndex] = value;
+
+            var sliderRoot = new GameObject("ChannelSlider", typeof(RectTransform), typeof(Slider));
+            var sliderRect = sliderRoot.GetComponent<RectTransform>();
+            sliderRect.SetParent(row.transform, false);
+            BroadcastUi.Place(sliderRect, 0.025f, 0.12f, 0.975f, 0.43f);
+            var track = BroadcastUi.Solid(sliderRoot.transform, "Track", new Color(1f, 1f, 1f, 0.18f));
+            track.sprite = BroadcastUi.Round;
+            track.type = Image.Type.Sliced;
+            BroadcastUi.Stretch(track.rectTransform);
+            var fill = BroadcastUi.Solid(sliderRoot.transform, "Fill", UiTheme.Accent);
+            fill.sprite = BroadcastUi.Round;
+            fill.type = Image.Type.Sliced;
+            fill.raycastTarget = false;
+            fill.rectTransform.anchorMin = Vector2.zero;
+            fill.rectTransform.anchorMax = new Vector2(0f, 1f);
+            fill.rectTransform.offsetMin = new Vector2(1f, 1f);
+            fill.rectTransform.offsetMax = new Vector2(-1f, -1f);
+            var handle = BroadcastUi.Solid(sliderRoot.transform, "Handle", UiTheme.Text, true);
+            handle.sprite = BroadcastUi.Circle;
+            handle.rectTransform.sizeDelta = new Vector2(18f, 18f);
+
+            var slider = sliderRoot.GetComponent<Slider>();
+            slider.direction = Slider.Direction.LeftToRight;
+            slider.minValue = 0f;
+            slider.maxValue = 1f;
+            slider.wholeNumbers = false;
+            slider.fillRect = fill.rectTransform;
+            slider.handleRect = handle.rectTransform;
+            slider.targetGraphic = handle;
+            slider.onValueChanged.AddListener(amount => SetThemeComponent(channel, amount));
+            _themeSliders[channel == 3 ? 0 : channel] = slider;
+        }
+
+        void SelectThemeRole(int role)
+        {
+            _selectedThemeRole = Mathf.Clamp(role, 0, _themeDraft.Length - 1);
+            RefreshThemeEditor();
+        }
+
+        void SetThemeComponent(int channel, float amount)
+        {
+            if (_themeDraft == null || _themeDraft.Length < 4)
+                return;
+            var color = _themeDraft[_selectedThemeRole];
+            Color.RGBToHSV(color, out var hue, out var saturation, out var value);
+            if (channel == 3) value = amount;
+            else if (channel == 0) color.r = amount;
+            else if (channel == 1) color.g = amount;
+            else color.b = amount;
+            if (channel == 3)
+                color = Color.HSVToRGB(hue, saturation, value);
+            color.a = 1f;
+            SetThemeDraftColor(color);
+        }
+
+        void SetThemeHueSaturation(float hue, float saturation)
+        {
+            if (_themeDraft == null || _themeDraft.Length < 4) return;
+            Color.RGBToHSV(_themeDraft[_selectedThemeRole], out _, out _, out var value);
+            SetThemeDraftColor(Color.HSVToRGB(hue, saturation, value));
+        }
+
+        void SetThemeDraftColor(Color color)
+        {
+            color.a = 1f;
+            _themeDraft[_selectedThemeRole] = color;
+            if (_themeColorChip != null) _themeColorChip.color = color;
+            if (_themeRoleButtons != null && _selectedThemeRole < _themeRoleButtons.Length && _themeRoleButtons[_selectedThemeRole] != null)
+            {
+                var roleButton = _themeRoleButtons[_selectedThemeRole];
+                roleButton.image.color = color;
+                var roleText = roleButton.GetComponentInChildren<Text>();
+                if (roleText != null) roleText.color = ThemeButtonText(color);
+            }
+            if (_themeHexInput != null && !_themeHexInput.isFocused)
+                _themeHexInput.SetTextWithoutNotify("#" + ColorUtility.ToHtmlStringRGB(color));
+            RefreshThemeEditor();
+        }
+
+        void ApplyThemeHex(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return;
+            value = value.Trim();
+            if (!value.StartsWith("#")) value = "#" + value;
+            if (ColorUtility.TryParseHtmlString(value, out var parsed))
+                SetThemeDraftColor(parsed);
+            else
+                RefreshThemeEditor();
+        }
+
+        void OpenThemeHomePreview()
+        {
+            if (_themePreviewModal != null)
+                Destroy(_themePreviewModal);
+            _themePreviewModal = new GameObject("ThemeHomePreviewModal", typeof(RectTransform));
+            _themePreviewModal.transform.SetParent(_root.transform, false);
+            var modalRect = _themePreviewModal.GetComponent<RectTransform>();
+            BroadcastUi.Stretch(modalRect);
+            var dim = BroadcastUi.Solid(modalRect, "PreviewBackdrop", new Color(0f, 0f, 0f, 0.76f), true);
+            BroadcastUi.Stretch(dim.rectTransform);
+            BroadcastUi.Catch(dim, CloseThemeHomePreview);
+
+            var screen = BroadcastUi.Panel(modalRect, "HomePreview", _themeDraft[0], true);
+            BroadcastUi.Place(screen.rectTransform, 0.075f, 0.105f, 0.925f, 0.895f);
+            _themePreviewBackground = screen;
+            var header = BroadcastUi.Panel(screen.transform, "PreviewHeader", UiTheme.Header);
+            BroadcastUi.Place(header.rectTransform, 0.025f, 0.84f, 0.975f, 0.965f);
+            _themePreviewHeader = header;
+            var crest = BroadcastUi.Panel(header.transform, "PreviewClubMark", _themeDraft[2]);
+            BroadcastUi.Place(crest.rectTransform, 0.02f, 0.17f, 0.09f, 0.83f);
+            _themePreviewAccentBar = crest;
+            var club = BroadcastUi.Label(header.transform, "PreviewClubName", "NORTHBRIDGE FC", 20, _themeDraft[3], TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(club.rectTransform, 0.11f, 0.17f, 0.54f, 0.83f);
+            var date = BroadcastUi.Label(header.transform, "PreviewDate",
+                LocalizationManager.Current == GameLanguage.English ? "Sunday, 12 September 2026  ·  Premier League 2026/27" : "domingo, 12 de setembro de 2026  ·  Premier League 2026/27",
+                12, UiTheme.Muted, TextAnchor.MiddleRight);
+            BroadcastUi.Place(date.rectTransform, 0.55f, 0.17f, 0.98f, 0.83f);
+
+            var title = BroadcastUi.Label(screen.transform, "PreviewTitle",
+                LocalizationManager.Current == GameLanguage.English ? "HOME  ·  CONTINUE CAREER" : "INÍCIO  ·  CONTINUAR CARREIRA",
+                18, _themeDraft[3], TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(title.rectTransform, 0.04f, 0.72f, 0.88f, 0.82f);
+            _themePreviewTitle = title;
+            var close = BroadcastUi.Button(screen.transform, "CloseHomePreview",
+                LocalizationManager.Current == GameLanguage.English ? "CLOSE" : "FECHAR", CloseThemeHomePreview,
+                UiTheme.PanelAlt, UiTheme.Text, 11);
+            BroadcastUi.Place(close.GetComponent<RectTransform>(), 0.88f, 0.72f, 0.96f, 0.82f);
+
+            var career = BroadcastUi.Panel(screen.transform, "ContinueCareerCard", _themeDraft[1]);
+            BroadcastUi.Place(career.rectTransform, 0.04f, 0.51f, 0.96f, 0.69f);
+            _themePreviewCard = career;
+            var careerText = BroadcastUi.Label(career.transform, "PreviewBody",
+                LocalizationManager.Current == GameLanguage.English
+                    ? "CONTINUE CAREER   ·   Northbridge FC\nGame date  ·  12 September 2026       Last saved today  ·  Play time 4 h 20 min"
+                    : "CONTINUAR CARREIRA   ·   Northbridge FC\nData do jogo  ·  12 de setembro de 2026       Guardado hoje  ·  Tempo de jogo 4 h 20 min",
+                14, _themeDraft[3], TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(careerText.rectTransform, 0.035f, 0.12f, 0.965f, 0.88f);
+            _themePreviewBody = careerText;
+
+            var news = BroadcastUi.Panel(screen.transform, "NewsCard", UiTheme.PanelAlt);
+            BroadcastUi.Place(news.rectTransform, 0.04f, 0.21f, 0.60f, 0.47f);
+            _themePreviewNewsCard = news;
+            var newsText = BroadcastUi.Label(news.transform, "NewsText",
+                LocalizationManager.Current == GameLanguage.English
+                    ? "LATEST NEWS\nThe academy's young winger earns his first senior start after a run of strong training sessions."
+                    : "ÚLTIMAS NOTÍCIAS\nO jovem extremo da academia estreia-se na equipa principal depois de uma série de bons treinos.",
+                14, _themeDraft[3], TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(newsText.rectTransform, 0.035f, 0.12f, 0.965f, 0.88f);
+
+            var fixtures = BroadcastUi.Panel(screen.transform, "NextFixtures", UiTheme.PanelAlt);
+            BroadcastUi.Place(fixtures.rectTransform, 0.62f, 0.21f, 0.96f, 0.47f);
+            var fixtureText = BroadcastUi.Label(fixtures.transform, "FixtureText",
+                LocalizationManager.Current == GameLanguage.English
+                    ? "UPCOMING FIXTURES\nSat 15:00  ·  Northbridge FC vs East Wharf\nWed 20:00  ·  Kingsport vs Northbridge FC"
+                    : "PRÓXIMOS JOGOS\nSáb 15:00  ·  Northbridge FC vs East Wharf\nQua 20:00  ·  Kingsport vs Northbridge FC",
+                13, _themeDraft[3], TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(fixtureText.rectTransform, 0.04f, 0.10f, 0.96f, 0.90f);
+
+            var secondary = BroadcastUi.Panel(screen.transform, "StatusCard", _themeDraft[1]);
+            BroadcastUi.Place(secondary.rectTransform, 0.04f, 0.08f, 0.60f, 0.17f);
+            _themePreviewSecondaryCard = secondary;
+            var statusText = BroadcastUi.Label(secondary.transform, "StatusText",
+                LocalizationManager.Current == GameLanguage.English ? "SQUAD  ·  Fitness good   ·   Next match in 3 days" : "PLANTEL  ·  Boa condição física   ·   Próximo jogo dentro de 3 dias",
+                12, _themeDraft[3], TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Stretch(statusText.rectTransform);
+            var action = BroadcastUi.Panel(screen.transform, "PreviewAction", _themeDraft[2]);
+            BroadcastUi.Place(action.rectTransform, 0.68f, 0.08f, 0.96f, 0.17f);
+            _themePreviewAction = action;
+            var actionText = BroadcastUi.Label(action.transform, "PreviewActionText",
+                LocalizationManager.Current == GameLanguage.English ? "OPEN INBOX" : "ABRIR NOTIFICAÇÕES",
+                12, ThemeButtonText(_themeDraft[2]), TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Stretch(actionText.rectTransform);
+            _themePreviewActionText = actionText;
+            _themePreviewTexts = new List<Text>(_themePreviewModal.GetComponentsInChildren<Text>(true));
+            RefreshThemePreview();
+            ControlChrome.FocusWithin(_themePreviewModal.transform);
+        }
+
+        void CloseThemeHomePreview()
+        {
+            if (_themePreviewModal != null)
+                Destroy(_themePreviewModal);
+            _themePreviewModal = null;
+            _themePreviewBackground = null;
+            _themePreviewHeader = null;
+            _themePreviewCard = null;
+            _themePreviewNewsCard = null;
+            _themePreviewSecondaryCard = null;
+            _themePreviewAccentBar = null;
+            _themePreviewAction = null;
+            _themePreviewTitle = null;
+            _themePreviewBody = null;
+            _themePreviewActionText = null;
+            _themePreviewTexts = null;
+            ControlChrome.FocusWithin(_root == null ? null : _root.transform);
+        }
+
+        void RefreshThemeEditor()
+        {
+            if (_themeDraft == null || _themeDraft.Length < 4)
+                return;
+            if (_themeRoleButtons != null)
+                for (var i = 0; i < _themeRoleButtons.Length; i++)
+                {
+                    var button = _themeRoleButtons[i];
+                    if (button == null) continue;
+                    button.image.color = _themeDraft[i];
+                    var label = button.GetComponentInChildren<Text>();
+                    if (label != null) label.color = ThemeButtonText(_themeDraft[i]);
+                    var outline = button.GetComponent<Outline>();
+                    if (outline != null) Destroy(outline);
+                    if (i == _selectedThemeRole)
+                    {
+                        outline = button.gameObject.AddComponent<Outline>();
+                        outline.effectColor = UiTheme.Text;
+                        outline.effectDistance = new Vector2(2f, 2f);
+                    }
+                }
+            if (_themeColorChip != null)
+                _themeColorChip.color = _themeDraft[_selectedThemeRole];
+            Color.RGBToHSV(_themeDraft[_selectedThemeRole], out var hue, out var saturation, out var brightness);
+            if (_themeSliders != null && _themeSliders.Length > 0 && _themeSliders[0] != null)
+                _themeSliders[0].SetValueWithoutNotify(brightness);
+            if (_themeSliderValues != null && _themeSliderValues.Length > 0 && _themeSliderValues[0] != null)
+                _themeSliderValues[0].text = Mathf.RoundToInt(brightness * 100f) + "%";
+            if (_themeWheel != null) _themeWheel.SetSelection(hue, saturation);
+            if (_themeHexInput != null && !_themeHexInput.isFocused)
+                _themeHexInput.SetTextWithoutNotify("#" + ColorUtility.ToHtmlStringRGB(_themeDraft[_selectedThemeRole]));
+            RefreshThemePreview();
+        }
+
+        void RefreshThemePreview()
+        {
+            if (_themeDraft == null || _themeDraft.Length < 4)
+                return;
+            var canvas = _themeDraft[0];
+            var panel = _themeDraft[1];
+            var accent = _themeDraft[2];
+            var text = _themeDraft[3];
+            if (_themePreviewBackground != null) _themePreviewBackground.color = canvas;
+            if (_themePreviewHeader != null) _themePreviewHeader.color = Color.Lerp(canvas, Color.black, 0.42f);
+            if (_themePreviewCard != null) _themePreviewCard.color = panel;
+            if (_themePreviewNewsCard != null) _themePreviewNewsCard.color = Color.Lerp(panel, Color.white, 0.12f);
+            if (_themePreviewSecondaryCard != null) _themePreviewSecondaryCard.color = Color.Lerp(panel, Color.white, 0.12f);
+            if (_themePreviewAccentBar != null) _themePreviewAccentBar.color = accent;
+            if (_themePreviewAction != null) _themePreviewAction.color = accent;
+            if (_themePreviewTexts != null)
+                for (var i = 0; i < _themePreviewTexts.Count; i++)
+                    if (_themePreviewTexts[i] != null)
+                        _themePreviewTexts[i].color = text;
+            if (_themePreviewTitle != null) _themePreviewTitle.color = text;
+            if (_themePreviewBody != null) _themePreviewBody.color = Color.Lerp(text, panel, 0.28f);
+            if (_themePreviewActionText != null) _themePreviewActionText.color = ThemeButtonText(accent);
+            if (_themePreviewOpenButton != null)
+            {
+                _themePreviewOpenButton.image.color = accent;
+                var label = _themePreviewOpenButton.GetComponentInChildren<Text>();
+                if (label != null) label.color = ThemeButtonText(accent);
+            }
+        }
+
+        void ApplyThemeDraft()
+        {
+            UiTheme.ApplyPalette(_themeDraft);
+            _themeDraft = UiTheme.EditablePalette();
+            PersistSettings();
+            RefreshThemeEditor();
+            if (_feedback != null)
+                _feedback.text = LocalizationManager.Current == GameLanguage.English
+                    ? "Theme colours saved and applied."
+                    : "Cores do tema guardadas e aplicadas.";
+        }
+
+        void ResetThemeDraft()
+        {
+            UiTheme.ApplyPalette(UiTheme.DefaultPalette());
+            _themeDraft = UiTheme.EditablePalette();
+            PersistSettings();
+            RefreshThemeEditor();
+            if (_feedback != null)
+                _feedback.text = LocalizationManager.Current == GameLanguage.English
+                    ? "Default theme colours restored and applied."
+                    : "Cores padrão do tema restauradas e aplicadas.";
+        }
+
+        static Color ThemeButtonText(Color background)
+        {
+            var brightness = background.r * 0.2126f + background.g * 0.7152f + background.b * 0.0722f;
+            return brightness > 0.58f ? Color.black : Color.white;
         }
 
         void ChooseModFolder()
@@ -623,7 +1037,8 @@ namespace CoachMaster.UI
                 case 5: return "Realism";
                 case 6: return "Career & saves";
                 case 7: return "Accessibility";
-                default: return "Mods & database";
+                case 8: return "Mods & database";
+                default: return "Theme & colours";
             }
         }
 
@@ -869,6 +1284,8 @@ namespace CoachMaster.UI
         {
             if (_root == null || !_root.activeSelf)
                 return;
+            if (_themePreviewModal != null)
+                CloseThemeHomePreview();
             if (_settingsSaveRoutine != null)
             {
                 StopCoroutine(_settingsSaveRoutine);
@@ -885,6 +1302,7 @@ namespace CoachMaster.UI
 
         public void CloseFromControl()
         {
+            if (_themePreviewModal != null) { CloseThemeHomePreview(); return; }
             if (_confirm != null) { Destroy(_confirm); return; }
             if (_saveManager != null) { Destroy(_saveManager); return; }
             if (_musicManager != null && _musicManager.activeSelf) { CloseMusicManager(); return; }
@@ -894,6 +1312,10 @@ namespace CoachMaster.UI
         void RestoreDefaults()
         {
             SettingsPrefs.RestoreDefaults();
+            UiTheme.ApplyPalette(UiTheme.DefaultPalette());
+            _themeDraft = UiTheme.EditablePalette();
+            if (_themeRoleButtons != null)
+                RefreshThemeEditor();
             var career = CurrentCareer();
             SettingsPrefs.ApplyRealismPreset(career, 1);
             GameRoot.ApplyUiScale();
@@ -1444,6 +1866,96 @@ namespace CoachMaster.UI
             Set(value);
             if (_changed != null)
                 _changed.Invoke(value);
+        }
+    }
+
+    public sealed class HueSaturationWheel : MaskableGraphic, IPointerDownHandler, IDragHandler
+    {
+        const int Segments = 72;
+        const int Rings = 14;
+        float _hue;
+        float _saturation;
+        RectTransform _marker;
+        System.Action<float, float> _changed;
+
+        public void SetColorChanged(System.Action<float, float> changed) => _changed = changed;
+
+        public void SetSelection(float hue, float saturation)
+        {
+            _hue = Mathf.Repeat(hue, 1f);
+            _saturation = Mathf.Clamp01(saturation);
+            if (_marker == null)
+                _marker = transform.Find("WheelSelection") as RectTransform;
+            if (_marker != null)
+            {
+                var radius = Mathf.Min(rectTransform.rect.width, rectTransform.rect.height) * 0.5f;
+                var angle = _hue * Mathf.PI * 2f;
+                _marker.anchoredPosition = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * (radius * _saturation);
+            }
+        }
+
+        protected override void OnPopulateMesh(VertexHelper vertices)
+        {
+            vertices.Clear();
+            var rect = rectTransform.rect;
+            var center = rect.center;
+            var radius = Mathf.Min(rect.width, rect.height) * 0.5f;
+            if (radius <= 0f)
+                return;
+            for (var ring = 0; ring < Rings; ring++)
+            {
+                var inner = radius * ring / Rings;
+                var outer = radius * (ring + 1) / Rings;
+                for (var segment = 0; segment < Segments; segment++)
+                {
+                    var a0 = segment * Mathf.PI * 2f / Segments;
+                    var a1 = (segment + 1) * Mathf.PI * 2f / Segments;
+                    var hue0 = segment / (float)Segments;
+                    var hue1 = (segment + 1f) / Segments;
+                    var sat0 = inner / radius;
+                    var sat1 = outer / radius;
+                    AddWheelQuad(vertices,
+                        center + new Vector2(Mathf.Cos(a0), Mathf.Sin(a0)) * inner,
+                        center + new Vector2(Mathf.Cos(a1), Mathf.Sin(a1)) * inner,
+                        center + new Vector2(Mathf.Cos(a1), Mathf.Sin(a1)) * outer,
+                        center + new Vector2(Mathf.Cos(a0), Mathf.Sin(a0)) * outer,
+                        Color.HSVToRGB(hue0, sat0, 1f), Color.HSVToRGB(hue1, sat0, 1f),
+                        Color.HSVToRGB(hue1, sat1, 1f), Color.HSVToRGB(hue0, sat1, 1f));
+                }
+            }
+        }
+
+        static void AddWheelQuad(VertexHelper vertices, Vector2 a, Vector2 b, Vector2 c, Vector2 d,
+            Color colorA, Color colorB, Color colorC, Color colorD)
+        {
+            var start = vertices.currentVertCount;
+            var va = UIVertex.simpleVert; va.position = a; va.color = colorA;
+            var vb = UIVertex.simpleVert; vb.position = b; vb.color = colorB;
+            var vc = UIVertex.simpleVert; vc.position = c; vc.color = colorC;
+            var vd = UIVertex.simpleVert; vd.position = d; vd.color = colorD;
+            vertices.AddVert(va); vertices.AddVert(vb); vertices.AddVert(vc); vertices.AddVert(vd);
+            vertices.AddTriangle(start, start + 1, start + 2);
+            vertices.AddTriangle(start, start + 2, start + 3);
+        }
+
+        public void OnPointerDown(PointerEventData eventData) => Pick(eventData);
+        public void OnDrag(PointerEventData eventData) => Pick(eventData);
+
+        void Pick(PointerEventData eventData)
+        {
+            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(rectTransform, eventData.position,
+                    eventData.pressEventCamera, out var local))
+                return;
+            var rect = rectTransform.rect;
+            var dx = local.x - rect.center.x;
+            var dy = local.y - rect.center.y;
+            var radius = Mathf.Min(rect.width, rect.height) * 0.5f;
+            if (radius <= 0f)
+                return;
+            _saturation = Mathf.Clamp01(Mathf.Sqrt(dx * dx + dy * dy) / radius);
+            _hue = Mathf.Repeat(Mathf.Atan2(dy, dx) / (Mathf.PI * 2f), 1f);
+            SetSelection(_hue, _saturation);
+            _changed?.Invoke(_hue, _saturation);
         }
     }
 }

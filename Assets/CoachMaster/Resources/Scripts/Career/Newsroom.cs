@@ -33,9 +33,36 @@ namespace CoachMaster.Career
 
         public static List<PaperStory> Edition(CareerState career)
         {
+            if (career == null)
+                return new List<PaperStory>();
             PurgeCareerMemoryStories(career);
             EnsureSeed(career);
+            RemoveDuplicateStories(career);
             return career.Press;
+        }
+
+        static void RemoveDuplicateStories(CareerState career)
+        {
+            if (career == null || career.Press == null)
+                return;
+            var seen = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+            for (var i = 0; i < career.Press.Count;)
+            {
+                var story = career.Press[i];
+                if (story == null)
+                {
+                    career.Press.RemoveAt(i);
+                    continue;
+                }
+                var key = (story.Paper ?? string.Empty).Trim() + "|"
+                    + (story.Headline ?? string.Empty).Trim();
+                if (!seen.Add(key))
+                {
+                    career.Press.RemoveAt(i);
+                    continue;
+                }
+                i++;
+            }
         }
 
         public static void PurgeCareerMemoryStories(CareerState career)
@@ -127,22 +154,28 @@ namespace CoachMaster.Career
             });
         }
 
-        public static string PublishPersonalIncident(CareerState career, CareerMoment moment, Player player, int choice)
+        public static string PublishPersonalIncident(CareerState career, CareerMoment moment, Player player)
         {
             if (career == null || moment == null || player == null)
                 return "";
 
             var type = (moment.IncidentType ?? "personal").ToUpperInvariant();
             var headline = PersonalHeadline(moment.IncidentType, player.FullName);
-            var response = moment.FollowUps != null && choice >= 0 && choice < moment.FollowUps.Length
-                ? moment.FollowUps[choice]
-                : "O clube acompanha a situação.";
+            var englishHeadline = PersonalHeadlineEnglish(moment.IncidentType, player.FullName);
+            var playerResponsePt = CareerMoments.IncidentPlayerResponse(player, moment.IncidentType, false);
+            var playerResponseEn = CareerMoments.IncidentPlayerResponse(player, moment.IncidentType, true);
+            var teamResponsePt = CareerMoments.IncidentTeamResponseForNews(career, player, moment.IncidentType, false);
+            var teamResponseEn = CareerMoments.IncidentTeamResponseForNews(career, player, moment.IncidentType, true);
+            var storyPt = PersonalIncidentFacts(moment.IncidentType, player.FullName, false);
+            var storyEn = PersonalIncidentFacts(moment.IncidentType, player.FullName, true);
             var story = new PaperStory
             {
                 Paper = "Bastidores do Futebol",
                 Headline = headline,
+                EnglishHeadline = englishHeadline,
                 Deck = "Vida para lá do relvado",
-                Body = moment.Body + "\n\n" + response + "\n\nO treinador respondeu à situação com atenção ao jogador e ao grupo.",
+                Body = storyPt + "\n\n" + playerResponsePt + "\n\n" + teamResponsePt,
+                EnglishBody = storyEn + "\n\n" + playerResponseEn + "\n\n" + teamResponseEn,
                 Kicker = "PERSONAL_" + type,
                 HomeClubId = career.Club.Id,
                 Motm = player.FullName
@@ -151,6 +184,74 @@ namespace CoachMaster.Career
             career.Press.Insert(0, story);
             TrimPress(career);
             return headline;
+        }
+
+        static string PersonalHeadlineEnglish(string incidentType, string playerName)
+        {
+            switch ((incidentType ?? "").ToLowerInvariant())
+            {
+                case "bereavement": return playerName + " receives the club's support after a family bereavement";
+                case "betting": return "Club reviews betting concern involving " + playerName;
+                case "drunk": return playerName + " apologises after arriving tired following a night out";
+                case "viral": return playerName + "'s 2-2-6 team sheet becomes a dressing-room joke";
+                case "family": return playerName + " welcomes a new arrival in the family";
+                case "charity": return playerName + " surprises local children with a charity visit";
+                default: return "Club supports " + playerName + " through a personal matter";
+            }
+        }
+
+        static string PersonalIncidentFacts(string incidentType, string playerName, bool english)
+        {
+            switch ((incidentType ?? "").ToLowerInvariant())
+            {
+                case "bereavement": return english
+                    ? playerName + " received news of a family bereavement on a matchday. The club gave the player time to be with family and adjusted the squad's plans."
+                    : playerName + " recebeu a notícia de uma perda familiar num dia de jogo. O clube deu-lhe tempo para estar com a família e ajustou os planos do plantel.";
+                case "betting": return english
+                    ? "An internal integrity review is examining a football betting concern involving " + playerName + ". The club has not reached a conclusion and is giving the player a fair process."
+                    : "Uma análise interna de integridade está a averiguar uma possível aposta em futebol que envolve " + playerName + ". O clube ainda não chegou a uma conclusão e está a garantir um processo justo.";
+                case "drunk": return english
+                    ? playerName + " arrived late and visibly tired after a night out. Staff checked the player's condition, adjusted the session and dealt with the matter privately."
+                    : playerName + " chegou atrasado e visivelmente cansado depois de uma noite fora. O staff avaliou o seu estado, ajustou o treino e tratou do assunto em privado.";
+                case "viral": return english
+                    ? "A joking 2-2-6 team sheet shared by " + playerName + " spread around the squad. The players had their laugh, then returned to work on the actual formation."
+                    : "Uma folha tática 2-2-6 partilhada por " + playerName + " espalhou-se pelo plantel. Os jogadores riram-se e depois voltaram ao trabalho na formação verdadeira.";
+                case "family": return english
+                    ? playerName + " welcomed a new baby. The club adjusted the day's workload so the player could be with family without disrupting the team's preparation."
+                    : playerName + " recebeu um novo bebé na família. O clube ajustou a carga do dia para que pudesse estar com a família sem prejudicar a preparação da equipa.";
+                case "charity": return english
+                    ? playerName + " made an unannounced visit to a local children's charity and brought equipment. Teammates have asked to join a future visit."
+                    : playerName + " visitou sem aviso uma associação local de apoio a crianças e levou equipamento. Os colegas já perguntaram se podem participar numa próxima visita.";
+                default: return english
+                    ? "The club is handling a personal matter involving " + playerName + " and has made support available."
+                    : "O clube está a acompanhar uma situação pessoal de " + playerName + " e disponibilizou apoio.";
+            }
+        }
+
+        public static string PersonalIncidentArticle(CareerState career, PaperStory story, bool english)
+        {
+            if (story == null)
+                return "";
+
+            var name = string.IsNullOrWhiteSpace(story.Motm)
+                ? (english ? "A player" : "Um jogador")
+                : story.Motm;
+            var type = story.Kicker != null && story.Kicker.StartsWith("PERSONAL_", System.StringComparison.Ordinal)
+                ? story.Kicker.Substring("PERSONAL_".Length).ToLowerInvariant()
+                : "personal";
+            var article = PersonalIncidentFacts(type, name, english);
+
+            Player player = null;
+            if (career != null && career.World != null && career.World.Players != null)
+                foreach (var candidate in career.World.Players.Values)
+                    if (candidate != null && candidate.FullName == name)
+                    {
+                        player = candidate;
+                        break;
+                    }
+
+            var squadReaction = CareerMoments.IncidentTeamResponseForNews(career, player, type, english);
+            return string.IsNullOrWhiteSpace(squadReaction) ? article : article + "\n\n" + squadReaction;
         }
 
         static string PersonalHeadline(string incidentType, string playerName)
@@ -534,11 +635,11 @@ namespace CoachMaster.Career
                 var league = career.World.Leagues.Find(item => item.Id == best.LeagueId);
                 var leagueName = league == null ? best.LeagueId : league.Name;
                 var englishLeagueName = CompetitionEnglish(best.LeagueId);
-                var snapshotPt = bestRow == null
+                var snapshotPt = bestRow == null || bestRow.Played <= 0
                     ? best.Name + " continua entre os clubes de maior reputação do futebol nacional."
                     : best.Name + " soma " + bestRow.Points + " pontos em " + bestRow.Played + " jogos, com " + bestRow.GoalsFor + " golos marcados e " + bestRow.GoalsAgainst + " sofridos."
                         + (bestPosition > 0 ? " Ocupa o " + bestPosition + ".º lugar de " + leagueName + "." : "");
-                var snapshotEn = bestRow == null
+                var snapshotEn = bestRow == null || bestRow.Played <= 0
                     ? best.Name + " remain among the country's highest-reputation clubs."
                     : best.Name + " have " + bestRow.Points + " points from " + bestRow.Played + " matches, scoring " + bestRow.GoalsFor + " and conceding " + bestRow.GoalsAgainst + "."
                         + (bestPosition > 0 ? " They sit " + Ordinal(bestPosition) + " in " + englishLeagueName + "." : "");
@@ -566,7 +667,7 @@ namespace CoachMaster.Career
             found = null;
             var rows = new List<LeagueTableRow>();
             foreach (var row in career.Table)
-                if (row != null && row.LeagueId == leagueId)
+                if (row != null && row.LeagueId == leagueId && row.Played > 0)
                     rows.Add(row);
             rows.Sort((a, b) =>
             {
@@ -588,7 +689,7 @@ namespace CoachMaster.Career
         static string TableContext(string home, int homePosition, LeagueTableRow homeRow,
             string away, int awayPosition, LeagueTableRow awayRow, bool english)
         {
-            if (homeRow == null || awayRow == null)
+            if (homeRow == null || awayRow == null || homeRow.Played <= 0 || awayRow.Played <= 0)
                 return "";
             if (english)
                 return home + " are " + Ordinal(homePosition) + " on " + homeRow.Points + " points; "
