@@ -1980,13 +1980,17 @@ namespace CoachMaster.UI.Scenes
             {
                 if (player.Position == PlayerPosition.Goalkeeper || seen.Contains(player.Id))
                     continue;
-                if (player.Personality != PersonalityTrait.Ambitious && player.Personality != PersonalityTrait.Outspoken)
-                    continue;
                 var benched = club.ManualLineup != null && club.ManualLineup.Count >= 11 && !club.ManualLineup.Contains(player.Id);
-                if (!benched && player.Morale >= 55)
+                var injured = player.Injury != null && player.Injury.IsInjured;
+                var needsConversation = injured || player.Morale < 66 || player.Fatigue >= 70
+                    || (benched && (player.Personality == PersonalityTrait.Ambitious
+                        || player.Personality == PersonalityTrait.Outspoken
+                        || player.Personality == PersonalityTrait.Temperamental));
+                if (!needsConversation)
                     continue;
                 AddPlayerNote(list, seen, player, PlayerVoice(player, club));
-                break;
+                if (seen.Count >= 8)
+                    break;
             }
 
             Club buyer = null;
@@ -3538,11 +3542,25 @@ namespace CoachMaster.UI.Scenes
         {
             if (_subs == null || _subsViewport == null)
                 return;
+            Canvas.ForceUpdateCanvases();
             var maxOffset = Mathf.Max(0f, _subs.rect.width - _subsViewport.rect.width);
             if (maxOffset <= 1f)
                 return;
-            var offset = Mathf.Clamp(-_subs.anchoredPosition.x + direction * _subsViewport.rect.width * 0.78f, 0f, maxOffset);
-            _subs.anchoredPosition = new Vector2(-offset, _subs.anchoredPosition.y);
+            var currentOffset = _subsScroll != null
+                ? _subsScroll.horizontalNormalizedPosition * maxOffset
+                : -_subs.anchoredPosition.x;
+            var offset = Mathf.Clamp(currentOffset + direction * _subsViewport.rect.width * 0.78f, 0f, maxOffset);
+            if (_subsScroll != null)
+            {
+                _subsScroll.StopMovement();
+                _subsScroll.horizontalNormalizedPosition = offset / maxOffset;
+            }
+            else
+                _subs.anchoredPosition = new Vector2(-offset, _subs.anchoredPosition.y);
+            if (_subsPrev != null)
+                _subsPrev.interactable = offset > 1f;
+            if (_subsNext != null)
+                _subsNext.interactable = offset < maxOffset - 1f;
         }
 
         void FillTeamRoster()
@@ -3572,6 +3590,71 @@ namespace CoachMaster.UI.Scenes
                 BroadcastUi.Place(profile.GetComponent<RectTransform>(), 0.68f, 0.18f, 0.82f, 0.82f);
                 var renew = BroadcastUi.Button(row.transform, "Renew", english ? "NEGOTIATE" : "NEGOCIAR", () => OpenRenewalNegotiation(captured), new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 12);
                 BroadcastUi.Place(renew.GetComponent<RectTransform>(), 0.835f, 0.18f, 0.98f, 0.82f);
+            }
+
+            var loanedPlayers = new List<string[]>();
+            foreach (var line in _career.Notebook)
+            {
+                if (string.IsNullOrEmpty(line)) continue;
+                var bits = line.Split('|');
+                if (bits.Length >= 8 && bits[0] == "job" && bits[1] == "active-loan" && bits[3] == _career.Club.Id
+                    && _career.World.Players.ContainsKey(bits[2]) && _career.World.Clubs.ContainsKey(bits[4]))
+                    loanedPlayers.Add(bits);
+            }
+            if (loanedPlayers.Count > 0)
+            {
+                var loanTitle = BroadcastUi.Label(_teamRosterHost, "LoanedOutTitle",
+                    english ? "LOANED OUT · RECALL AVAILABLE" : "EMPRESTADOS · REGRESSO DISPONÍVEL", 15, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+                BroadcastUi.Preferred(loanTitle, 30);
+                for (var i = 0; i < loanedPlayers.Count; i++)
+                {
+                    var bits = loanedPlayers[i];
+                    if (!_career.World.Players.TryGetValue(bits[2], out var player)
+                        || !_career.World.Clubs.TryGetValue(bits[4], out var destination))
+                        continue;
+                    var row = BroadcastUi.Panel(_teamRosterHost, "LoanedPlayer" + i, new Color(0.1f, 0.04f, 0.2f, 0.92f), true);
+                    BroadcastUi.Preferred(row, 62);
+                    var face = FaceImage(row.transform, player, 42f);
+                    face.rectTransform.anchorMin = face.rectTransform.anchorMax = new Vector2(0.035f, 0.5f);
+                    face.rectTransform.sizeDelta = new Vector2(42, 42);
+                    var returnDate = long.TryParse(bits[6], out var returnTicks) && returnTicks > 0 && returnTicks <= DateTime.MaxValue.Ticks
+                        ? LocalizationManager.FormatDate(new DateTime(returnTicks), "dd/MM/yyyy") : "—";
+                    var details = BroadcastUi.Label(row.transform, "Details", player.FullName + "  ·  "
+                        + (english ? "at " : "no ") + destination.Name + "  ·  "
+                        + (english ? "returns " : "regressa ") + returnDate, 14, Color.white, TextAnchor.MiddleLeft);
+                    details.resizeTextForBestFit = true;
+                    details.resizeTextMinSize = 10;
+                    details.resizeTextMaxSize = 14;
+                    BroadcastUi.Place(details.rectTransform, 0.075f, 0.12f, 0.61f, 0.88f);
+                    var captured = player;
+                    var profile = BroadcastUi.Button(row.transform, "Profile", english ? "PROFILE" : "FICHA",
+                        () => OpenPlayer(captured), UiTheme.Accent, UiTheme.ButtonText, 11);
+                    BroadcastUi.Place(profile.GetComponent<RectTransform>(), 0.625f, 0.18f, 0.765f, 0.82f);
+                    int.TryParse(bits[5], out var loanFee);
+                    int.TryParse(bits[7], out var savedWage);
+                    var fine = (int)Math.Min(int.MaxValue, Math.Max(25000L, Math.Max(0L, loanFee) / 4L + Math.Max(0L, savedWage) * 2L));
+                    var recall = BroadcastUi.Button(row.transform, "Recall", (english ? "RECALL · " : "REGRESSAR · ") + Euro(fine), () =>
+                    {
+                        if (GlobalTransferMarket.RecallLoan(_career, captured.Id, out var charged))
+                        {
+                            CareerStore.Save(_career);
+                            FillTeamRoster();
+                            var message = english ? captured.FullName + " has returned from " + destination.Name + ". Fine paid: " + Euro(charged) + "."
+                                : captured.FullName + " regressou do " + destination.Name + ". Compensação paga: " + Euro(charged) + ".";
+                            OpenModal(english ? "PLAYER RECALLED" : "JOGADOR REGRESSOU", "", false);
+                            AddBody(message);
+                        }
+                        else
+                        {
+                            var message = english ? "The club cannot recall this player. Available balance: " + Euro(_career.Club.Finance.Balance)
+                                + ". Required compensation: " + Euro(fine) + "." : "Não é possível chamar este jogador. Saldo disponível: "
+                                + Euro(_career.Club.Finance.Balance) + ". Compensação necessária: " + Euro(fine) + ".";
+                            OpenModal(english ? "RECALL NOT AVAILABLE" : "REGRESSO INDISPONÍVEL", "", false);
+                            AddBody(message);
+                        }
+                    }, new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 11);
+                    BroadcastUi.Place(recall.GetComponent<RectTransform>(), 0.775f, 0.18f, 0.98f, 0.82f);
+                }
             }
         }
 
@@ -5007,7 +5090,7 @@ namespace CoachMaster.UI.Scenes
 
         static string TacticSymbol(string key)
         {
-            if (key == "tempo") return "1×";
+            if (key == "tempo") return "◷";
             if (key == "width") return "↔";
             if (key == "press") return "↑";
             if (key == "line") return "—";
@@ -8152,8 +8235,8 @@ namespace CoachMaster.UI.Scenes
             var donutObject = new GameObject("IncomeExpenseDonut", typeof(RectTransform), typeof(CanvasRenderer), typeof(FinanceDonutGraphic));
             donutObject.transform.SetParent(chart.transform, false);
             var donutRect = donutObject.GetComponent<RectTransform>();
-            donutRect.anchorMin = donutRect.anchorMax = new Vector2(0.5f, 0.68f);
-            var donutSize = Mathf.Clamp(Screen.height * 0.13f, 100f, 130f);
+            donutRect.anchorMin = donutRect.anchorMax = new Vector2(0.5f, 0.72f);
+            var donutSize = Mathf.Clamp(Screen.height * 0.22f, 190f, 230f);
             donutRect.sizeDelta = new Vector2(donutSize, donutSize);
             var categoryNames = selectedMetric == 0
                 ? (english ? new[] { "Earnings", "Expenses" } : new[] { "Receitas", "Despesas" })
@@ -8395,7 +8478,7 @@ namespace CoachMaster.UI.Scenes
             ringObject.transform.SetParent(panel.transform, false);
             var ringRect = ringObject.GetComponent<RectTransform>();
             ringRect.anchorMin = ringRect.anchorMax = new Vector2(0.5f, 0.62f);
-            ringRect.sizeDelta = new Vector2(148f, 148f);
+            ringRect.sizeDelta = new Vector2(224f, 224f);
             ringObject.GetComponent<FinanceDonutGraphic>().SetValues(
                 new[] { (float)Math.Max(0, finance.TransferBudget), (float)Math.Max(0, finance.TransferSpentThisSeason) },
                 new[] { UiTheme.Fitness, UiTheme.Danger }, new Color(1f, 1f, 1f, 0.14f));
@@ -13301,6 +13384,13 @@ namespace CoachMaster.UI.Scenes
 
             PreparePlayerSheet();
             BuildPlayerSheet(player, keeper, fitness, reader);
+            if (back != null && _modalAction != null && _modalActionLabel != null)
+            {
+                _modalAction.gameObject.SetActive(true);
+                _modalActionLabel.text = LocalizationManager.Current == GameLanguage.English ? "BACK TO CLUB" : "VOLTAR AO CLUBE";
+                _modalAction.onClick.RemoveAllListeners();
+                _modalAction.onClick.AddListener(CloseModal);
+            }
         }
 
         void PreparePlayerSheet()

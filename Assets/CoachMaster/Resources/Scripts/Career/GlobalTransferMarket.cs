@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using CoachMaster.App;
 using CoachMaster.Domain;
 using UnityEngine;
 
@@ -161,6 +162,60 @@ namespace CoachMaster.Career
             career.Notebook.Add("job|loanmove|" + player.Id + "|" + borrower.Id + "|" + Math.Max(0, fee) + "|"
                 + arrival.Ticks + "|" + returned.Ticks + "|" + Math.Max(0, player.WeeklyWage));
             return true;
+        }
+
+        public static bool RecallLoan(CareerState career, string playerId, out int fine)
+        {
+            fine = 0;
+            if (career == null || career.Calendar == null || career.World == null || career.Coach == null
+                || string.IsNullOrEmpty(playerId) || !career.World.Clubs.TryGetValue(career.Coach.ClubId ?? "", out var userClub)
+                || userClub == null || userClub.Finance == null)
+                return false;
+
+            for (var i = career.Notebook.Count - 1; i >= 0; i--)
+            {
+                var line = career.Notebook[i];
+                if (line == null || !line.StartsWith("job|active-loan|" + playerId + "|", StringComparison.Ordinal))
+                    continue;
+                var bits = line.Split('|');
+                if (bits.Length < 8 || bits[3] != userClub.Id
+                    || !career.World.Players.TryGetValue(playerId, out var player)
+                    || !career.World.Clubs.TryGetValue(bits[4], out var borrower) || borrower == null || borrower.Finance == null)
+                    return false;
+
+                int.TryParse(bits[5], out var loanFee);
+                int.TryParse(bits[7], out var originalWage);
+                var compensation = Math.Max(25000L, Math.Max(0L, loanFee) / 4L + Math.Max(0L, originalWage) * 2L);
+                fine = (int)Math.Min(int.MaxValue, compensation);
+                if (userClub.Finance.Balance < fine || player.ClubId != borrower.Id)
+                    return false;
+
+                career.Notebook.RemoveAt(i);
+                borrower.PlayerIds.Remove(player.Id);
+                borrower.ManualLineup.Remove(player.Id);
+                borrower.ManualBenchOrder.Remove(player.Id);
+                if (!userClub.PlayerIds.Contains(player.Id))
+                    userClub.PlayerIds.Add(player.Id);
+                player.ClubId = userClub.Id;
+                player.WeeklyWage = Math.Max(0, originalWage);
+                userClub.Finance.Balance = (int)Math.Max(int.MinValue, (long)userClub.Finance.Balance - fine);
+                borrower.Finance.Balance = (int)Math.Min(int.MaxValue, (long)borrower.Finance.Balance + fine);
+                ClubFinanceLedger.Record(userClub, career.Calendar.CurrentDate, -fine, "loan-recall-fine",
+                    "Early loan recall · " + player.FullName, player.Id);
+                ClubFinanceLedger.Record(borrower, career.Calendar.CurrentDate, fine, "loan-recall-compensation",
+                    "Early loan recall · " + player.FullName, player.Id);
+                var english = LocalizationManager.Current == GameLanguage.English;
+                Desk(career, english
+                    ? "✉ " + player.FullName + " returned from " + borrower.Name + " early. Compensation paid: " + fine + " €."
+                    : "✉ " + player.FullName + " regressou ao " + userClub.Name + " após o fim antecipado do empréstimo ao " + borrower.Name + ". Compensação paga: " + fine + " €.");
+                Newsroom.Publish(career, english ? "Transfer Market" : "Mercado de Transferências",
+                    (english ? "Early loan recall · " : "Regresso antecipado · ") + player.FullName,
+                    english
+                        ? player.FullName + " returned to " + userClub.Name + " before the end of the loan at " + borrower.Name + "."
+                        : player.FullName + " regressou ao " + userClub.Name + " antes do fim do empréstimo ao " + borrower.Name + ".");
+                return true;
+            }
+            return false;
         }
 
         public static bool ScheduleMove(CareerState career, Player player, Club buyer, int fee, int years, int wage, string type, int days)

@@ -61,9 +61,6 @@ namespace CoachMaster.UI
         {
             if (root == null)
                 return;
-            var sprite = Principal();
-            if (sprite == null)
-                return;
             var imageTransform = root.Find("PrincipalArt");
             var image = imageTransform == null ? null : imageTransform.GetComponent<Image>();
             if (image == null)
@@ -72,13 +69,7 @@ namespace CoachMaster.UI
                 BroadcastUi.Stretch(image.rectTransform);
                 image.transform.SetSiblingIndex(BackgroundLayerIndex(root));
             }
-            image.sprite = sprite;
-            image.color = Color.white;
-            image.preserveAspect = false;
-            image.type = Image.Type.Simple;
-            image.raycastTarget = false;
-            if (sprite.texture != null)
-                sprite.texture.filterMode = FilterMode.Bilinear;
+            ApplyPrincipal(image);
 
             var shadeTransform = root.Find("PrincipalShade");
             var shade = shadeTransform == null ? null : shadeTransform.GetComponent<Image>();
@@ -90,6 +81,32 @@ namespace CoachMaster.UI
             shade.color = new Color(0.01f, 0.08f, 0.16f, 0.18f);
             shade.raycastTarget = false;
             shade.transform.SetSiblingIndex(image.transform.GetSiblingIndex() + 1);
+        }
+
+        static void ApplyPrincipal(Image image)
+        {
+            if (image == null)
+                return;
+            var chosen = BackgroundPrefs.SelectedLeagueId;
+            Sprite sprite = null;
+            if (chosen == BackgroundPrefs.UserMode)
+                sprite = BackgroundPrefs.UserSprite();
+            else if (!string.IsNullOrEmpty(chosen) && chosen != BackgroundPrefs.DefaultMode)
+                sprite = First(chosen);
+            if (sprite == null)
+                sprite = Principal();
+            if (sprite == null)
+                return;
+            image.sprite = sprite;
+            image.color = Color.white;
+            image.preserveAspect = false;
+            image.type = Image.Type.Simple;
+            image.raycastTarget = false;
+            var aspect = image.GetComponent<AspectRatioFitter>();
+            if (aspect != null)
+                aspect.enabled = false;
+            if (sprite.texture != null)
+                sprite.texture.filterMode = FilterMode.Bilinear;
         }
 
         static Sprite Principal()
@@ -229,21 +246,29 @@ namespace CoachMaster.UI
         public static void RefreshCurrentScene()
         {
             var images = Object.FindObjectsByType<Image>(FindObjectsSortMode.None);
-            var found = false;
+            var foundBackground = false;
             for (var i = 0; i < images.Length; i++)
             {
                 var image = images[i];
-                if (image == null || image.name != "LeagueArt")
+                if (image == null)
                     continue;
-                found = true;
-                FallbackIds.TryGetValue(image, out var fallbackId);
-                if (BackgroundPrefs.SelectedLeagueId == null && string.IsNullOrEmpty(fallbackId))
-                    RemoveLayer(image);
-                else
-                    Apply(image);
+                if (image.name == "PrincipalArt")
+                {
+                    foundBackground = true;
+                    ApplyPrincipal(image);
+                }
+                else if (image.name == "LeagueArt")
+                {
+                    foundBackground = true;
+                    FallbackIds.TryGetValue(image, out var fallbackId);
+                    if (BackgroundPrefs.SelectedLeagueId == null && string.IsNullOrEmpty(fallbackId))
+                        RemoveLayer(image);
+                    else
+                        Apply(image);
+                }
             }
 
-            if (found || BackgroundPrefs.SelectedLeagueId == null)
+            if (foundBackground || BackgroundPrefs.SelectedLeagueId == null)
                 return;
             var canvases = Object.FindObjectsByType<Canvas>(FindObjectsSortMode.None);
             var activeScene = SceneManager.GetActiveScene();
@@ -315,6 +340,11 @@ namespace CoachMaster.UI
         public static bool SetUserImage(string path)
         {
             if (string.IsNullOrEmpty(path) || !File.Exists(path))
+                return false;
+            var extension = Path.GetExtension(path);
+            if (!string.Equals(extension, ".png", System.StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(extension, ".jpg", System.StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(extension, ".jpeg", System.StringComparison.OrdinalIgnoreCase))
                 return false;
             try
             {
@@ -388,7 +418,10 @@ namespace CoachMaster.UI
                 var data = File.ReadAllBytes(path);
                 var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
                 if (!texture.LoadImage(data))
+                {
+                    Object.Destroy(texture);
                     return null;
+                }
                 texture.filterMode = FilterMode.Bilinear;
                 UserCached = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f);
                 return UserCached;

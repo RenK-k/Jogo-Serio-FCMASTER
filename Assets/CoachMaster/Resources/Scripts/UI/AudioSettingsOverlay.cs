@@ -534,7 +534,7 @@ namespace CoachMaster.UI
             BroadcastUi.Place(colorChip.rectTransform, 0.39f, 0.63f, 0.47f, 0.70f);
             _themeColorChip = colorChip;
 
-            var wheelObject = new GameObject("HueSaturationWheel", typeof(RectTransform), typeof(HueSaturationWheel));
+            var wheelObject = new GameObject("HueSaturationWheel", typeof(RectTransform), typeof(CanvasRenderer), typeof(HueSaturationWheel));
             var wheelRect = wheelObject.GetComponent<RectTransform>();
             wheelRect.SetParent(page.transform, false);
             wheelRect.anchorMin = wheelRect.anchorMax = new Vector2(0.26f, 0.465f);
@@ -1719,7 +1719,7 @@ namespace CoachMaster.UI
 
         public static string OpenImage()
         {
-            return OpenFiltered("Imagens\0*.png;*.jpg;*.jpeg;*.webp\0Todos os ficheiros\0*.*\0\0", "Escolher fundo", "png");
+            return OpenFiltered("Imagens\0*.png;*.jpg;*.jpeg\0Todos os ficheiros\0*.*\0\0", "Escolher fundo", "png");
         }
 
         public static string OpenImage(string title)
