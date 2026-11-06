@@ -15,9 +15,9 @@ namespace FStudio.MatchEngine.Input {
         private bool PauseInput(InputAction.CallbackContext ctx) {
             if (CareerTacticLock.Active) {
                 if (CoachMaster.UI.Scenes.SimulatorMatchHost.PitchVisible) {
-                    var root = CoachMaster.App.GameRoot.Instance;
-                    if (root != null)
-                        root.GetComponent<CoachMaster.UI.AudioSettingsOverlay>()?.Toggle();
+                    var day = UnityEngine.Object.FindAnyObjectByType<CoachMaster.UI.Scenes.MatchDayController>();
+                    if (day != null)
+                        day.ToggleFromInput();
                 }
                 return true;
             }

@@ -87,10 +87,12 @@ namespace FStudio.UI.MatchThemes {
 
             // update the details.
             var details = eventObject.details;
-            details.aiLevel = MatchSettingsPanel.AILEVEL;
+            details.userTeam = MatchSettingsPanel.SIDE;
+            details.aiLevel = details.userTeam == Shared.Responses.MatchCreateRequest.UserTeam.None
+                ? AILevel.Legendary
+                : MatchSettingsPanel.AILEVEL;
             if (!CareerTacticLock.CareerChoice)
                 details.dayTime = MatchSettingsPanel.DAYTIMES;
-            details.userTeam = MatchSettingsPanel.SIDE;
             eventObject.details = details;
             //
 

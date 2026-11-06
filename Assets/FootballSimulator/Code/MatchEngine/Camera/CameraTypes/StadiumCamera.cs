@@ -61,6 +61,13 @@ namespace FStudio.MatchEngine.Cameras {
             var yAdd = PositionOffsetCurve.Evaluate(zPerc) * PositionOffsetMultiplier;
 
             var newCameraPosition = new Vector3(cameraXPosition, YPositionOffset, ZPositionOffset) + yAdd;
+            var nearLine = Mathf.InverseLerp(24f, 0.5f, targetPosition.z);
+            var launch = Mathf.Clamp01((targetPosition.y - 1.1f) / 7f);
+            newCameraPosition.y -= nearLine * 11f + launch * 6.5f;
+            newCameraPosition.z -= nearLine * 10f + launch * 12f;
+            if (newCameraPosition.y < 9f)
+                newCameraPosition.y = 9f;
+            zoom += nearLine * 4f + launch * 8f;
 
             var targetRotation = Quaternion.LookRotation(targetPosition - newCameraPosition).eulerAngles;
 

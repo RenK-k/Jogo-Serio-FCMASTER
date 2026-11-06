@@ -724,7 +724,7 @@ namespace CoachMaster.Career
                 var hurt = player.Injury != null && player.Injury.IsInjured ? "1" : "0";
                 var days = player.Injury == null ? 0 : player.Injury.DaysRemaining;
                 var desc = player.Injury == null ? "" : player.Injury.Description;
-                lines.Add("player|" + player.Id + "|" + player.Morale + "|" + player.Fatigue + "|" + Esc(player.Duty) + "|" + (player.IsCaptain ? "1" : "0") + "|" + hurt + "|" + days + "|" + Esc(desc) + "|" + player.ClubId + "|" + player.Age + "|" + TraitCodes(player) + "|" + player.Form + "|" + player.Fitness + "|" + player.TrainingRating + "|" + player.HeightCm + "|" + player.WeightKg + "|" + player.WeakFootQuality + "|" + PlayerPositionProfile.Encode(player) + "|" + player.Reputation + "|" + player.WeeklyWage + "|" + player.ContractEndTicks + "|" + Esc(player.TrainingFocus) + "|" + player.TrainingProgress + "|" + player.TrainingIntensity + "|" + player.TrainingStreak + "|" + player.UnavailableUntilTicks);
+                lines.Add("player|" + player.Id + "|" + player.Morale + "|" + player.Fatigue + "|" + Esc(player.Duty) + "|" + (player.IsCaptain ? "1" : "0") + "|" + hurt + "|" + days + "|" + Esc(desc) + "|" + player.ClubId + "|" + player.Age + "|" + TraitCodes(player) + "|" + player.Form + "|" + player.Fitness + "|" + player.TrainingRating + "|" + player.HeightCm + "|" + player.WeightKg + "|" + player.WeakFootQuality + "|" + PlayerPositionProfile.Encode(player) + "|" + player.Reputation + "|" + player.WeeklyWage + "|" + player.ContractEndTicks + "|" + Esc(player.TrainingFocus) + "|" + player.TrainingProgress + "|" + player.TrainingIntensity + "|" + player.TrainingStreak + "|" + player.UnavailableUntilTicks + "|" + Esc(player.AbsenceKind) + "|" + Esc(player.YellowBook));
                 if (career.DatabaseCustomizationEnabled)
                 {
                     var a = player.Attributes ?? new PlayerAttributes();
@@ -1764,6 +1764,8 @@ namespace CoachMaster.Career
             else player.TrainingIntensity = 1;
             if (bits.Length > 25 && int.TryParse(bits[25], out var streak)) player.TrainingStreak = System.Math.Max(0, streak);
             if (bits.Length > 26 && long.TryParse(bits[26], NumberStyles.Integer, CultureInfo.InvariantCulture, out var unavailableUntil)) player.UnavailableUntilTicks = unavailableUntil;
+            if (bits.Length > 27) player.AbsenceKind = Un(bits[27]);
+            if (bits.Length > 28) player.YellowBook = Un(bits[28]);
             if (bits.Length > 11)
             {
                 player.Traits.Clear();

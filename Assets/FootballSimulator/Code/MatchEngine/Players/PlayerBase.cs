@@ -52,6 +52,7 @@ namespace FStudio.MatchEngine.Players {
 
         protected readonly IEnumerable<BaseBehaviour> baseBehaviours = new BaseBehaviour[] {
             new InputTackleBehaviour(),
+            new InputStandTackleBehaviour(),
             new InputCrossBehaviour(),
             new InputShortPassBehaviour(),
             new InputThroughtPassBehaviour(),
@@ -344,15 +345,36 @@ namespace FStudio.MatchEngine.Players {
             { AILevel.Legendary, 0 },
         };
 
+        bool WorldClass() {
+            if (MatchPlayer == null)
+                return false;
+            var mark = (MatchPlayer.ActualPassing + MatchPlayer.ActualBallControl
+                + MatchPlayer.ActualTopSpeed + MatchPlayer.ActualShooting + MatchPlayer.ActualTackling) / 5f;
+            return mark >= 76f;
+        }
+
         public void ProcessBehaviours (in float time) {
+            if (isInputControlled) {
+                foreach (var behaviour in Behaviours) {
+                    if (behaviour is IInputBehaviour pressed && pressed.IsTriggered) {
+                        ActiveBehaviour = behaviour;
+                        NextBehaviour = -1;
+                        behaviour.Behave(true);
+                        return;
+                    }
+                }
+            }
+
             // check animation block
             if (PlayerController.IsAnimationABlocker (in EngineOptions.EngineOptions_BallHitAnimations.Current.BlockBehavioursWhenThisClipsAreaPlaying)) {
                 return;
             }
 
-            var skipRate = difficultySkipRate[GameTeam.Team.AILevel];
+            var skipRate = isInputControlled ? 0f : difficultySkipRate[GameTeam.Team.AILevel];
+            if (WorldClass())
+                skipRate = 0f;
 
-            if (Random.Range (0, 100) < skipRate) {
+            if (UnityEngine.Random.Range(0, 100) < skipRate) {
                 return;
             }
 
@@ -1024,6 +1046,7 @@ namespace FStudio.MatchEngine.Players {
             }
 
             PlayerController.SetHeadLook(in deltaTime, headLookPosition, 1);
+            TryFlair(opponents);
 
             #region design issue
             /// We are resetting chaser target at the end of every frame.
@@ -1031,6 +1054,48 @@ namespace FStudio.MatchEngine.Players {
             chaserTarget = null;
             #endregion
             //
+        }
+
+        float _skillUntil;
+        float _flairUntil;
+        float _fakeUntil;
+
+        public bool HasFlair => MatchPlayer != null && MatchPlayer.Player != null && MatchPlayer.Player.Flair;
+
+        public void SkillMove(Vector3 worldDir) {
+            if (!IsHoldingBall)
+                return;
+            worldDir.y = 0f;
+            if (worldDir.sqrMagnitude < 0.01f)
+                return;
+            if (Time.time < _skillUntil)
+                return;
+            _skillUntil = Time.time + 0.65f;
+            PlayerController.Animator.SetTrigger(PlayerAnimatorVariable.Spin);
+            var step = Position + worldDir.normalized * 1.5f;
+            var stepTime = Time.deltaTime;
+            PlayerController.MoveTo(in stepTime, step, true, MovementType.BestHeCanDo);
+        }
+
+        void TryFlair(PlayerBase[] opponents) {
+            if (!IsHoldingBall || !HasFlair || opponents == null || Time.time < _flairUntil)
+                return;
+            if (ActiveBehaviour is IInputBehaviour)
+                return;
+            for (var i = 0; i < opponents.Length; i++) {
+                var other = opponents[i];
+                if (other == null)
+                    continue;
+                var gap = Position - other.Position;
+                if (gap.magnitude > 2.6f)
+                    continue;
+                if (Vector3.Dot(other.Velocity, gap) < 0.35f)
+                    continue;
+                _flairUntil = Time.time + 3.4f;
+                if (UnityEngine.Random.value < 0.45f)
+                    SkillMove(Vector3.Cross(Vector3.up, gap.sqrMagnitude < 0.01f ? Vector3.forward : gap.normalized));
+                return;
+            }
         }
 
         private void RandomizePositioningMistake (in float time) {
@@ -1106,6 +1171,9 @@ namespace FStudio.MatchEngine.Players {
             float impulse, 
             Ball ball) {
 
+            if (ball.HolderPlayer == null && touchHeight < 1.35f && impulse < 11f)
+                return true;
+
             if (ball.HolderPlayer != this) {
                 impulse = Mathf.Min (impulse, EngineSettings.Current.BallControlMaxBallImpulse);
 
@@ -1144,7 +1212,29 @@ namespace FStudio.MatchEngine.Players {
         }
 
 #region those will be called by anim events
+        public bool IsFakingShot => Time.time < _fakeUntil;
+
+        public void FakeShot() {
+            if (!IsHoldingBall)
+                return;
+            ballHitAnimationEvent = BallHitAnimationEvent.None;
+            _fakeUntil = Time.time + 0.9f;
+            PlayerController.Animator.SetTrigger(PlayerAnimatorVariable.Shoot_R);
+            var face = Direction;
+            face.y = 0f;
+            if (face.sqrMagnitude < 0.01f)
+                face = Rotation * Vector3.forward;
+            var step = Position + face.normalized * 0.7f;
+            var stepTime = Time.deltaTime;
+            PlayerController.MoveTo(in stepTime, step, true, MovementType.BestHeCanDo);
+        }
+
         public virtual void BallHitEvent () {
+            if (IsFakingShot) {
+                ballHitAnimationEvent = BallHitAnimationEvent.None;
+                return;
+            }
+
             if (MatchManager.Current.MatchFlags == MatchStatus.NotPlaying) {
                 return; // ignore.
             }
@@ -1200,7 +1290,10 @@ namespace FStudio.MatchEngine.Players {
 
             // trigger passing target if its not null.
             if (PassingTarget != null) {
-                PassingTarget.ActivateBehaviour("BallChasingWithoutCondition");
+                if (isInputControlled && !PassingTarget.IsGK)
+                    GameTeam.FollowPass(PassingTarget);
+                if (!PassingTarget.IsGK && Ball.Current.HolderPlayer != PassingTarget)
+                    PassingTarget.ActivateBehaviour("BallChasingWithoutCondition");
                 PassingTarget = null;
             }
 

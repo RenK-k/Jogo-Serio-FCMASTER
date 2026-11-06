@@ -90,7 +90,7 @@ namespace CoachMaster.MatchPlay
             entry.Name = player == null || string.IsNullOrEmpty(player.FullName) ? "Jogador " + (index + 1) : ShortName(player.FullName);
             entry.height = player == null || player.HeightCm < 150 ? 180 : Mathf.Clamp(player.HeightCm, 150, 210);
             entry.weight = player == null || player.WeightKg < 45 ? 76 : Mathf.Clamp(player.WeightKg, 45, 100);
-            entry.SkinColor = player != null && FaceBook.DarkSkin(player) ? SkinColor.Dark : SkinColor.LightBronze;
+            entry.SkinColor = SkinFromPortrait(player);
             var mix = Mix(entry.Name);
             var hair = new[]
             {
@@ -102,7 +102,7 @@ namespace CoachMaster.MatchPlay
                 HairStyles.BobMarley
             };
             entry.HairStyles = hair[mix % hair.Length];
-            entry.HairColor = entry.SkinColor == SkinColor.Dark || mix % 4 != 0 ? HairColors.Black : HairColors.DarkBrown;
+            entry.HairColor = entry.SkinColor == SkinColor.Dark || entry.SkinColor == SkinColor.SuperDark || mix % 4 != 0 ? HairColors.Black : HairColors.DarkBrown;
             entry.FacialHairColor = entry.HairColor;
             if (index > 0 && mix % 3 == 0)
                 entry.FacialHairStyles = (FacialHairStyles)(1 + ((mix / 3) % 3));
@@ -126,6 +126,7 @@ namespace CoachMaster.MatchPlay
                 pace = Lift(pace, 8);
             if (player.HasTrait(PlayerTrait.Driblador) || player.HasTrait(PlayerTrait.DribladorTecnico) || player.HasTrait(PlayerTrait.DribladorRapido) || player.HasTrait(PlayerTrait.Flair))
                 dribbling = Lift(dribbling, 8);
+            entry.Flair = player.HasTrait(PlayerTrait.Flair);
             if (player.HasTrait(PlayerTrait.Visionario) || player.HasTrait(PlayerTrait.CriadorDeJogo) || player.HasTrait(PlayerTrait.PasseDePrimeira))
                 passing = Lift(passing, 8);
             if (player.HasTrait(PlayerTrait.PassadorLongo) || player.HasTrait(PlayerTrait.Cruzador) || player.HasTrait(PlayerTrait.LancamentoLongo))
@@ -165,6 +166,24 @@ namespace CoachMaster.MatchPlay
             entry.reaction = player.Position == PlayerPosition.Goalkeeper ? Mean(reflexes, handling) : decisions;
             entry.ballControl = Mean(dribbling, composure);
             return entry;
+        }
+
+        static SkinColor SkinFromPortrait(Player player)
+        {
+            if (player == null)
+                return SkinColor.LightBronze;
+            var luma = FaceBook.PortraitLuma(player);
+            if (luma >= 0.72f)
+                return SkinColor.SuperBright;
+            if (luma >= 0.60f)
+                return SkinColor.Bright;
+            if (luma >= 0.48f)
+                return SkinColor.LightBronze;
+            if (luma >= 0.36f)
+                return SkinColor.Bronze;
+            if (luma >= 0.24f)
+                return SkinColor.Dark;
+            return SkinColor.SuperDark;
         }
 
         static void MatchOverall(PlayerEntry entry, Player player)

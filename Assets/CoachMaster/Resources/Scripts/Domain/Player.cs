@@ -33,6 +33,8 @@ namespace CoachMaster.Domain
         public int TrainingStreak { get; set; }
         public InjuryState Injury { get; set; } = new InjuryState();
         public long UnavailableUntilTicks { get; set; }
+        public string AbsenceKind { get; set; }
+        public string YellowBook { get; set; }
         public PersonalityTrait Personality { get; set; }
         public int Potential { get; set; }
         public List<PlayerPosition> AlternatePositions { get; set; } = new List<PlayerPosition>();

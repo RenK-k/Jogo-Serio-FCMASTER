@@ -27,11 +27,30 @@ namespace FStudio.MatchEngine {
 
             var dirErrorApplied = Ball.ApplyDirectionError(dir, skill);
 
-            // restore by distance
+            // restore by distance. Close shots used to lose every miss.
             var dist = Vector3.Distance(point.position, playerPosition);
-            dirErrorApplied = Vector3.Lerp(dirErrorApplied, dir, 
-                EngineSettings.Current.ShootErrorRemoveByDistance.Evaluate(dist));
-            // 
+            var remove = EngineSettings.Current.ShootErrorRemoveByDistance.Evaluate(dist);
+            var cap = Mathf.Lerp(0.38f, 0.16f, Mathf.Clamp01((dist - 6f) / 18f));
+            dirErrorApplied = Vector3.Lerp(dirErrorApplied, dir, Mathf.Clamp01(remove) * cap);
+
+            var keeper = OpponentKeeper(playerBase);
+            var keeping = keeper != null ? keeper.MatchPlayer.ActualReaction : 55;
+            var pressure = Mathf.Clamp01((keeping + 18f - Mathf.Clamp(skill, 1f, 100f)) / 90f);
+            var miss = Mathf.Lerp(4.6f, 9.2f, pressure);
+            if (dist < 16f)
+                miss += Mathf.Lerp(3.2f, 0f, dist / 16f);
+            else
+                miss += (dist - 16f) * 0.18f;
+            if (MatchManager.Current != null && playerBase.GameTeam != null)
+                miss *= CoachMaster.MatchPlay.PitchOrders.Miss(playerBase.GameTeam == MatchManager.Current.GameTeam1);
+            var side = UnityEngine.Random.value < 0.5f ? 1f : -1f;
+            dirErrorApplied = Quaternion.Euler(UnityEngine.Random.Range(-0.4f, 1.1f) * miss * 0.25f, side * miss, 0f) * dirErrorApplied;
+            if (keeper != null && UnityEngine.Random.value < 0.34f + pressure * 0.4f) {
+                var atKeeper = keeper.Position - playerPosition;
+                atKeeper.y = 0.55f;
+                if (atKeeper.sqrMagnitude > 0.01f)
+                    dirErrorApplied = Vector3.Lerp(dirErrorApplied, atKeeper.normalized * dirErrorApplied.magnitude, 0.32f + pressure * 0.22f);
+            } 
 
             var errorAppliedAngle = Mathf.Abs(Vector3.SignedAngle(dir, dirErrorApplied, Vector3.up));
 
@@ -67,6 +86,17 @@ namespace FStudio.MatchEngine {
             }
 
             return dirErrorApplied;
+        }
+
+        static PlayerBase OpponentKeeper(PlayerBase shooter) {
+            var players = MatchManager.AllPlayers;
+            if (players == null || shooter == null)
+                return null;
+            foreach (var player in players) {
+                if (player != null && player.IsGK && player.GameTeam != shooter.GameTeam)
+                    return player;
+            }
+            return null;
         }
 
         /// <summary>

@@ -99,110 +99,85 @@ namespace FStudio.MatchEngine.Players.Behaviours {
                 return true;
             }
 
-            if (ball.Velocity.magnitude < MIN_VEL_TO_CHASE_INSTEAD_OF_KEEP) {
-                // pass. chase the ball.
-                bool isChasing = base.Behave(false);
-
-                if (isChasing) {
-                    return true;// chasing activated.
-                }
-            }
- 
             var ballPositionStart = ball.transform.position;
             ballPositionStart.y = 0;
             var ballPositionEnd = ballPositionStart + ball.Velocity;
-            ballPositionStart.y = 0;
-
             var goalLineX = goalNet.Position.x + GOAL_KEEPING_X_DISTANCE * goalNet.Direction.x;
-
-            var goalLineStart = new Vector3(goalLineX, 0, 0);
-
-            var goalLineEnd = new Vector3(goalLineX, 0, fieldEndY);
-
             var ballS2F = new LineSegment2f(ballPositionStart, ballPositionEnd);
-            var goalLine2F = new LineSegment2f(goalLineStart, goalLineEnd);
-
+            var goalLine2F = new LineSegment2f(new Vector3(goalLineX, 0, 0), new Vector3(goalLineX, 0, fieldEndY));
             Vector3 goToPosition;
+            var comingIn = BallNeedsKeeper(ballPositionStart, ball.Velocity);
 
-            if (ballS2F.TryIntersect(goalLine2F, out var result, out var _, out var _)) {
+            if (ball.Velocity.magnitude < MIN_VEL_TO_CHASE_INSTEAD_OF_KEEP && comingIn) {
+                goToPosition = ballPositionStart;
+            } else if (ballS2F.TryIntersect(goalLine2F, out var result, out var _, out var _)) {
                 goToPosition = result;
-                // line intersected, we should catch the ball. (probably shooted)
-                            // check dot product.
-
-                if (!IsOnJump && 
-                ShouldIJump(goToPosition) && 
-                Player.IsFrontOfMe (ballPositionStart) && 
-                Vector3.Dot (goalNet.Direction.normalized, ball.Velocity.normalized) < MAX_DOT_PRODUCT_TO_JUMP) {
-                    // roll for reaction.
-                    if (Random.Range(0, 100) < REACTION_ROLL_RATE_BY_SKILL.Evaluate(Player.MatchPlayer.ActualReaction)) {
-                        // i need to jump to that point to catch, including mistake.
-                        var catchPoint = goToPosition;
-
-                        var jumpingMax = Random.Range(JUMPING_DISTANCE_BY_SKILL.Evaluate(Player.MatchPlayer.ActualJump), MAX_Z_DISTANCE_TO_JUMP);
-
-                        // clamp catch point by jumping skill.
-                        catchPoint = Player.Position + Vector3.ClampMagnitude(catchPoint - Player.Position, jumpingMax);
-
-                        var jumpSkill = Player.MatchPlayer.ActualJump / 100f;
-
-                        // jump activated.
-                        IsOnJump = true;
-                        jumpTarget = catchPoint;
-                        expireJump = time + JUMP_EXPIRE_TIME / jumpSkill;
-                        ForceBehaviour = true;
-                        // decide for anim. right or left.
-
-                        positionError = 1;
-
-                        var xVal = jumpTarget.z - Player.Position.z;
-
-                        var animParam = PlayerAnimatorVariable.GKJumpLeft;
-
-                        if (xVal < 0) {
-                            // jump to right if we are home.
-                            if (Player.toGoalXDirection > 0) {
-                                animParam = PlayerAnimatorVariable.GKJumpRight;
-                            }
-                        } else {
-                            if (Player.toGoalXDirection < 0) {
-                                animParam = PlayerAnimatorVariable.GKJumpRight;
-                            }
-                        }
-
-                        // activate animation.
-                        Player.PlayerController.Animator.SetTrigger(animParam);
-
-                        return true;
-                    }
+                if (!IsOnJump &&
+                    ShouldIJump(goToPosition) &&
+                    Player.IsFrontOfMe(ballPositionStart) &&
+                    Vector3.Dot(goalNet.Direction.normalized, ball.Velocity.normalized) < MAX_DOT_PRODUCT_TO_JUMP &&
+                    Random.Range(0, 100) < REACTION_ROLL_RATE_BY_SKILL.Evaluate(Player.MatchPlayer.ActualReaction)) {
+                    var catchPoint = Player.Position + Vector3.ClampMagnitude(
+                        goToPosition - Player.Position,
+                        Random.Range(JUMPING_DISTANCE_BY_SKILL.Evaluate(Player.MatchPlayer.ActualJump), MAX_Z_DISTANCE_TO_JUMP));
+                    var jumpSkill = Player.MatchPlayer.ActualJump / 100f;
+                    IsOnJump = true;
+                    jumpTarget = KeepKeeper(catchPoint, true);
+                    expireJump = time + JUMP_EXPIRE_TIME / Mathf.Max(0.2f, jumpSkill);
+                    ForceBehaviour = true;
+                    positionError = 1;
+                    var animParam = PlayerAnimatorVariable.GKJumpLeft;
+                    var xVal = jumpTarget.z - Player.Position.z;
+                    if (xVal < 0) {
+                        if (Player.toGoalXDirection > 0)
+                            animParam = PlayerAnimatorVariable.GKJumpRight;
+                    } else if (Player.toGoalXDirection < 0)
+                        animParam = PlayerAnimatorVariable.GKJumpRight;
+                    Player.PlayerController.Animator.SetTrigger(animParam);
+                    return true;
                 }
             } else {
-                // not shooted.
-                if (AmITheChaser().result != BallChasingResult.None) {
-                    base.Behave(isAlreadyActive); // base activation here. need to chase the ball.
-                    return true;
-                } else {
-                    goToPosition = ballPositionEnd;
-
-                    var shield = GKSettings.Current.GKPosition(
-                        goToPosition,
-                        Player.GameTeam.BallProgress,
-                        fieldEndY);
-
-                    goToPosition = new Vector3(goalNet.Position.x + shield.forward * goalNet.Direction.x, 0, shield.side);
-                }
+                var shield = GKSettings.Current.GKPosition(ballPositionEnd, Player.GameTeam.BallProgress, fieldEndY);
+                goToPosition = new Vector3(goalNet.Position.x + shield.forward * goalNet.Direction.x, 0, shield.side);
             }
 
             var distanceToBall = Vector3.Distance(ballPositionStart, Player.Position);
-
             goToPosition += Player.PositioningMistake * distanceToBall * POS_MISTAKE_BY_BALL_DIST * GK_POS_MISTAKE_MOD;
-
-            goToPosition.x = Mathf.Clamp(goToPosition.x, 0, fieldEndX);
-
+            goToPosition = KeepKeeper(goToPosition, comingIn);
             Player.FocusToBall(deltaTime, ball);
-
             Player.MoveTo(in deltaTime, goToPosition, false);
-
             return true;
+        }
+
+        bool BallNeedsKeeper(Vector3 ballPosition, Vector3 velocity) {
+            var towardGoal = Vector3.Dot(velocity, goalNet.Direction) < 0.35f;
+            return towardGoal && Inside(ballPosition, false);
+        }
+
+        bool Inside(Vector3 point, bool smallBox) {
+            var dir = goalNet.Direction.x >= 0f ? 1f : -1f;
+            var scaleX = fieldEndX / 105f;
+            var scaleZ = fieldEndY / 68f;
+            var depth = (smallBox ? 5.5f : 16.5f) * scaleX;
+            var half = (smallBox ? 9.16f : 20.16f) * scaleZ;
+            var mid = fieldEndY * 0.5f;
+            var along = (point.x - goalNet.Position.x) * dir;
+            return along >= -0.4f && along <= depth && Mathf.Abs(point.z - mid) <= half;
+        }
+
+        Vector3 KeepKeeper(Vector3 point, bool reason) {
+            var dir = goalNet.Direction.x >= 0f ? 1f : -1f;
+            var scaleX = fieldEndX / 105f;
+            var scaleZ = fieldEndY / 68f;
+            var depth = (reason ? 16.5f : 5.5f) * scaleX;
+            var half = (reason ? 20.16f : 9.16f) * scaleZ;
+            var mid = fieldEndY * 0.5f;
+            var front = goalNet.Position.x + dir * 0.75f;
+            var far = goalNet.Position.x + dir * Mathf.Max(depth, 2.2f);
+            point.x = dir > 0f ? Mathf.Clamp(point.x, front, far) : Mathf.Clamp(point.x, far, front);
+            point.z = Mathf.Clamp(point.z, mid - half, mid + half);
+            point.y = 0f;
+            return point;
         }
     }
 }

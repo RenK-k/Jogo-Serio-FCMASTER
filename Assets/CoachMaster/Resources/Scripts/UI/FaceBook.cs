@@ -404,6 +404,77 @@ namespace CoachMaster.UI
             return hits > 0 && dark * 2 >= hits;
         }
 
+        static readonly Dictionary<string, float> LumaByPlayer = new Dictionary<string, float>();
+
+        public static float PortraitLuma(Player player)
+        {
+            if (player == null)
+                return 0.55f;
+            if (!string.IsNullOrEmpty(player.Id) && LumaByPlayer.TryGetValue(player.Id, out var cached))
+                return cached;
+            var luma = 0.55f;
+            var sprite = For(player);
+            if (sprite != null && sprite.texture != null)
+                luma = ReadFaceLuma(sprite);
+            else if (DarkSkin(player))
+                luma = 0.22f;
+            if (!string.IsNullOrEmpty(player.Id))
+                LumaByPlayer[player.Id] = luma;
+            return luma;
+        }
+
+        static float ReadFaceLuma(Sprite sprite)
+        {
+            var source = sprite.texture;
+            var rect = sprite.textureRect;
+            Texture2D readable = null;
+            RenderTexture copy = null;
+            var previous = RenderTexture.active;
+            try
+            {
+                if (source.isReadable)
+                    return AverageFace(source, rect);
+                copy = RenderTexture.GetTemporary(source.width, source.height, 0, RenderTextureFormat.ARGB32);
+                Graphics.Blit(source, copy);
+                RenderTexture.active = copy;
+                readable = new Texture2D(8, 8, TextureFormat.RGBA32, false);
+                var x = Mathf.Clamp((int)(rect.x + rect.width * 0.38f), 0, Mathf.Max(0, copy.width - 8));
+                var y = Mathf.Clamp((int)(rect.y + rect.height * 0.34f), 0, Mathf.Max(0, copy.height - 8));
+                readable.ReadPixels(new Rect(x, y, 8, 8), 0, 0);
+                readable.Apply();
+                return AverageFace(readable, new Rect(0f, 0f, 8f, 8f));
+            }
+            finally
+            {
+                RenderTexture.active = previous;
+                if (copy != null)
+                    RenderTexture.ReleaseTemporary(copy);
+                if (readable != null)
+                    Object.Destroy(readable);
+            }
+        }
+
+        static float AverageFace(Texture2D texture, Rect rect)
+        {
+            var sum = 0f;
+            var count = 0;
+            for (var y = 0.25f; y <= 0.75f; y += 0.12f)
+            {
+                for (var x = 0.3f; x <= 0.7f; x += 0.12f)
+                {
+                    var pixel = texture.GetPixel((int)(rect.x + rect.width * x), (int)(rect.y + rect.height * y));
+                    if (pixel.a < 0.2f)
+                        continue;
+                    var luma = pixel.r * 0.3f + pixel.g * 0.5f + pixel.b * 0.2f;
+                    if (luma < 0.04f || luma > 0.96f)
+                        continue;
+                    sum += luma;
+                    count++;
+                }
+            }
+            return count == 0 ? 0.55f : sum / count;
+        }
+
         public static Sprite For(Player player)
         {
             if (player == null)

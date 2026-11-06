@@ -9,7 +9,7 @@ namespace FStudio.MatchEngine.Players.Behaviours {
 
         private Vector3 shootingDir;
 
-        public bool IsTriggered { private get; set; }
+        public bool IsTriggered { get; set; }
         public Vector3 InputDirection { set; private get; }
 
         public override bool Behave(bool isAlreadyActive) {
@@ -32,8 +32,9 @@ namespace FStudio.MatchEngine.Players.Behaviours {
                 return false;
             }
 
-            if (ball.HolderPlayer != Player) {
+            if (ball.HolderPlayer != Player || Player.IsFakingShot) {
                 IsTriggered = false;
+                shootingTarget = default;
                 return false;
             }
 

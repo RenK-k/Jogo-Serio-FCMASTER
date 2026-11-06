@@ -1038,6 +1038,8 @@ namespace CoachMaster.UI.Scenes
                     message = english ? "The manager asked the team to keep the ball and take time out of the game." : "O treinador pediu para manter a bola e controlar o ritmo.";
                     break;
             }
+            PitchOrders.Set(userHome, kind, _match.HomeGoals, _match.AwayGoals);
+            message += PitchOrders.FitLine(english, kind);
             ConsumeAdvice(message);
         }
 

@@ -282,6 +282,7 @@ namespace CoachMaster.Career
             }
 
             career.LastWorldNewsTicks = date.Ticks;
+            var called = CallNation(career, date);
             var nations = new[] { "Portugal", "Espanha", "França", "Inglaterra", "Alemanha", "Itália", "Brasil", "Argentina", "Países Baixos", "Bélgica" };
             var seed = date.Year * 100 + date.Month;
             var home = nations[seed % nations.Length];
@@ -296,10 +297,210 @@ namespace CoachMaster.Career
                 winner == "empate" ? home + " e " + away + " empatam em " + score : winner + " vence " + (winner == home ? away : home),
                 "Janela internacional. " + score + ". " + (winner == "empate"
                     ? "Nenhuma das seleções leva a vantagem para o regresso aos clubes."
-                    : winner + " fecha a jornada com o resultado do seu lado.") + " Os internacionais voltam aos clubes esta semana.");
+                    : winner + " fecha a jornada com o resultado do seu lado.") + " Os internacionais voltam aos clubes esta semana."
+                + called);
         }
 
-        static bool InternationalWindow(DateTime date)
+        static string CallNation(CareerState career, DateTime date)
+        {
+            if (career.Coach == null || career.World == null || string.IsNullOrEmpty(career.Coach.ClubId))
+                return "";
+            if (!career.World.Clubs.TryGetValue(career.Coach.ClubId, out var club) || club == null)
+                return "";
+            var nations = new HashSet<string>();
+            foreach (var id in club.PlayerIds)
+            {
+                if (!career.World.Players.TryGetValue(id, out var mine) || mine == null)
+                    continue;
+                if (!string.IsNullOrEmpty(mine.Nationality))
+                    nations.Add(mine.Nationality);
+            }
+            if (nations.Count == 0)
+                return "";
+            var pools = new Dictionary<string, List<Player>>();
+            foreach (var player in career.World.Players.Values)
+            {
+                if (player == null || string.IsNullOrEmpty(player.Nationality) || !nations.Contains(player.Nationality))
+                    continue;
+                if (!NationAvailable(player, date))
+                    continue;
+                if (!pools.TryGetValue(player.Nationality, out var pool))
+                {
+                    pool = new List<Player>();
+                    pools[player.Nationality] = pool;
+                }
+                pool.Add(player);
+            }
+            var called = new HashSet<string>();
+            foreach (var pool in pools.Values)
+                foreach (var pick in PickNation(pool))
+                    if (pick != null)
+                        called.Add(pick.Id);
+            var until = WindowEnd(date);
+            var names = new List<string>();
+            foreach (var id in club.PlayerIds)
+            {
+                if (!called.Contains(id) || !career.World.Players.TryGetValue(id, out var player) || player == null)
+                    continue;
+                player.UnavailableUntilTicks = until.Ticks;
+                player.AbsenceKind = "selecao";
+                names.Add(player.FullName + " (" + player.Nationality + ", " + NationSpot(player.Position) + ")");
+            }
+            if (names.Count == 0)
+                return " Nenhum jogador do plantel entrou na convocatória: as vagas da posição já estavam ocupadas por quem estava disponível.";
+            return " Convocados do plantel: " + string.Join(", ", names) + ".";
+        }
+
+        static bool NationAvailable(Player player, DateTime date)
+        {
+            if (player.Injury != null && player.Injury.IsInjured)
+                return false;
+            return player.AbsenceKind != "ban" || player.UnavailableUntilTicks < date.Date.Ticks;
+        }
+
+        static readonly PlayerPosition[] NationSlots =
+        {
+            PlayerPosition.Goalkeeper, PlayerPosition.Goalkeeper, PlayerPosition.Goalkeeper,
+            PlayerPosition.CentreBack, PlayerPosition.CentreBack, PlayerPosition.CentreBack, PlayerPosition.CentreBack,
+            PlayerPosition.LeftBack, PlayerPosition.LeftBack,
+            PlayerPosition.RightBack, PlayerPosition.RightBack,
+            PlayerPosition.DefensiveMidfielder, PlayerPosition.DefensiveMidfielder,
+            PlayerPosition.CentralMidfielder, PlayerPosition.CentralMidfielder, PlayerPosition.CentralMidfielder,
+            PlayerPosition.AttackingMidfielder, PlayerPosition.AttackingMidfielder,
+            PlayerPosition.LeftWinger, PlayerPosition.RightWinger,
+            PlayerPosition.Striker, PlayerPosition.Striker, PlayerPosition.Striker
+        };
+
+        static List<Player> PickNation(List<Player> pool)
+        {
+            var used = new HashSet<string>();
+            var squad = new List<Player>();
+            var open = new List<PlayerPosition>();
+            for (var i = 0; i < NationSlots.Length; i++)
+            {
+                var best = BestForNation(pool, NationSlots[i], used, 999);
+                if (best == null)
+                    open.Add(NationSlots[i]);
+                else
+                {
+                    used.Add(best.Id);
+                    squad.Add(best);
+                }
+            }
+            for (var i = 0; i < open.Count; i++)
+            {
+                var best = BestForNation(pool, open[i], used, -1);
+                if (best == null)
+                    continue;
+                used.Add(best.Id);
+                squad.Add(best);
+            }
+            return squad;
+        }
+
+        static Player BestForNation(List<Player> pool, PlayerPosition slot, HashSet<string> used, int minimum)
+        {
+            Player best = null;
+            var score = minimum;
+            for (var i = 0; i < pool.Count; i++)
+            {
+                var player = pool[i];
+                if (player == null || string.IsNullOrEmpty(player.Id) || used.Contains(player.Id))
+                    continue;
+                var fit = NationFit(player, slot);
+                if (fit <= score)
+                    continue;
+                score = fit;
+                best = player;
+            }
+            return best;
+        }
+
+        static int NationFit(Player player, PlayerPosition slot)
+        {
+            var keeper = player.Position == PlayerPosition.Goalkeeper
+                || (player.AlternatePositions != null && player.AlternatePositions.Contains(PlayerPosition.Goalkeeper));
+            if (slot == PlayerPosition.Goalkeeper && !keeper)
+                return -1;
+            if (slot != PlayerPosition.Goalkeeper && player.Position == PlayerPosition.Goalkeeper
+                && (player.AlternatePositions == null || !player.AlternatePositions.Contains(slot)))
+                return -1;
+            var overall = PlayerAttributes.CurrentOverallAtPosition(player, slot);
+            if (player.Position == slot)
+                return 3000 + overall;
+            if (player.AlternatePositions != null && player.AlternatePositions.Contains(slot))
+                return 2000 + overall;
+            if (NationSameSide(player.Position, slot))
+                return 1000 + overall;
+            if (NationLine(player.Position) == NationLine(slot))
+                return overall;
+            return -1;
+        }
+
+        static bool NationSameSide(PlayerPosition a, PlayerPosition b)
+        {
+            return (a == PlayerPosition.LeftBack && b == PlayerPosition.RightBack)
+                || (a == PlayerPosition.RightBack && b == PlayerPosition.LeftBack)
+                || (a == PlayerPosition.LeftWinger && b == PlayerPosition.RightWinger)
+                || (a == PlayerPosition.RightWinger && b == PlayerPosition.LeftWinger)
+                || (a == PlayerPosition.LeftMidfielder && b == PlayerPosition.RightMidfielder)
+                || (a == PlayerPosition.RightMidfielder && b == PlayerPosition.LeftMidfielder);
+        }
+
+        static int NationLine(PlayerPosition position)
+        {
+            switch (position)
+            {
+                case PlayerPosition.Goalkeeper:
+                    return 0;
+                case PlayerPosition.LeftBack:
+                case PlayerPosition.RightBack:
+                case PlayerPosition.CentreBack:
+                    return 1;
+                case PlayerPosition.DefensiveMidfielder:
+                case PlayerPosition.CentralMidfielder:
+                case PlayerPosition.AttackingMidfielder:
+                case PlayerPosition.LeftMidfielder:
+                case PlayerPosition.RightMidfielder:
+                    return 2;
+                default:
+                    return 3;
+            }
+        }
+
+        static string NationSpot(PlayerPosition position)
+        {
+            switch (position)
+            {
+                case PlayerPosition.Goalkeeper: return "GR";
+                case PlayerPosition.RightBack: return "LD";
+                case PlayerPosition.CentreBack: return "DC";
+                case PlayerPosition.LeftBack: return "LE";
+                case PlayerPosition.DefensiveMidfielder: return "MDC";
+                case PlayerPosition.CentralMidfielder: return "MC";
+                case PlayerPosition.AttackingMidfielder: return "MO";
+                case PlayerPosition.RightWinger: return "ED";
+                case PlayerPosition.LeftWinger: return "EE";
+                case PlayerPosition.RightMidfielder: return "MD";
+                case PlayerPosition.LeftMidfielder: return "ME";
+                case PlayerPosition.Striker: return "PL";
+                default: return "";
+            }
+        }
+
+        static DateTime WindowEnd(DateTime date)
+        {
+            var day = date.Month * 100 + date.Day;
+            if (day >= 901 && day <= 908)
+                return new DateTime(date.Year, 9, 8);
+            if (day >= 1006 && day <= 1014)
+                return new DateTime(date.Year, 10, 14);
+            if (day >= 1110 && day <= 1118)
+                return new DateTime(date.Year, 11, 18);
+            return new DateTime(date.Year, 3, 24);
+        }
+
+        public static bool InternationalWindow(DateTime date)
         {
             var day = date.Month * 100 + date.Day;
             return (day >= 901 && day <= 908)

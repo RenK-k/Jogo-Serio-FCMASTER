@@ -231,18 +231,14 @@ namespace CoachMaster.MatchPlay
 
         static void FillSquad(CareerState career, Club club, List<string> onField, List<string> bench, bool ignoreManualLineup)
         {
+            PlayerAvailability.Cover(career, club);
             var players = new List<Player>();
             foreach (var id in club.PlayerIds)
                 players.Add(career.World.Players[id]);
             var available = new List<Player>();
-            var hurt = new List<Player>();
             foreach (var player in players)
             {
-                if (career.Calendar != null && player.UnavailableUntilTicks >= career.Calendar.CurrentDate.Date.Ticks)
-                    continue;
-                else if (player.Injury != null && player.Injury.IsInjured)
-                    hurt.Add(player);
-                else
+                if (!PlayerAvailability.IsOut(player, career))
                     available.Add(player);
             }
 
@@ -252,17 +248,18 @@ namespace CoachMaster.MatchPlay
             foreach (var player in eleven)
                 onField.Add(player.Id);
             foreach (var player in rest)
+            {
+                if (PlayerAvailability.IsOut(player, career))
+                    continue;
                 bench.Add(player.Id);
-            foreach (var player in hurt)
-                bench.Add(player.Id);
+            }
             while (onField.Count < 11 && bench.Count > 0)
             {
                 var availableIndex = -1;
                 for (var i = 0; i < bench.Count; i++)
                 {
                     if (career.World.Players.TryGetValue(bench[i], out var candidate)
-                        && candidate != null && (candidate.Injury == null || !candidate.Injury.IsInjured)
-                        && (career.Calendar == null || candidate.UnavailableUntilTicks < career.Calendar.CurrentDate.Date.Ticks))
+                        && candidate != null && !PlayerAvailability.IsOut(candidate, career))
                     {
                         availableIndex = i;
                         break;

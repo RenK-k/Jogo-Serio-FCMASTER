@@ -14,6 +14,8 @@ namespace FStudio.Database {
 
         public string Name = "Unnamed";
 
+        public bool Flair;
+
         public virtual Positions Position {
             get {
                 var formation = team.Formation;
@@ -131,6 +133,7 @@ namespace FStudio.Database {
             clone.SkinColor = SkinColor;
             clone.SockAccessoryColor = SockAccessoryColor;
             clone.Name = Name;
+            clone.Flair = Flair;
 
             clone.tackling = tackling;
             clone.positioning = positioning;

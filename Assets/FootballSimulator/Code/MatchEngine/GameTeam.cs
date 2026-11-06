@@ -60,6 +60,15 @@ namespace FStudio.MatchEngine {
             return false;
         }
 
+        public void FollowPass(PlayerBase receiver) {
+            if (receiver == null)
+                return;
+            for (int i = 0; i < InputListener.MAX_CONTROLLER; i++) {
+                if (inputListeners[i] != null && inputListeners[i].ActivePlayer != null && inputListeners[i].ActivePlayer.isInputControlled)
+                    inputListeners[i].Receive(receiver);
+            }
+        }
+
         private void OnEnable() {
             EventManager.Subscribe<PlayerControlBallEvent>(OnBallHold);
         }

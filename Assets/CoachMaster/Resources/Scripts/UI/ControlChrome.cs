@@ -145,6 +145,12 @@ namespace CoachMaster.UI
             var back = UsingKeyboard
                 ? Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame && !SimulatorMatchHost.PitchVisible
                 : Gamepad.current != null && Gamepad.current.buttonEast.wasPressedThisFrame;
+            if (!UsingKeyboard && back)
+            {
+                var day = FindAnyObjectByType<MatchDayController>();
+                if (day != null && day.MatchLive && !day.MenuOpen)
+                    back = false;
+            }
             var confirm = UsingKeyboard
                 ? Keyboard.current != null && (Keyboard.current.enterKey.wasPressedThisFrame || Keyboard.current.spaceKey.wasPressedThisFrame)
                 : Gamepad.current != null && Gamepad.current.buttonSouth.wasPressedThisFrame;

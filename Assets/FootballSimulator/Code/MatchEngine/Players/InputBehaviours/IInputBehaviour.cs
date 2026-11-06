@@ -2,7 +2,7 @@
 
 namespace FStudio.MatchEngine.Players.InputBehaviours {
     public interface IInputBehaviour {
-        public bool IsTriggered { set; }
+        public bool IsTriggered { get; set; }
 
         public Vector3 InputDirection { set; }
     }

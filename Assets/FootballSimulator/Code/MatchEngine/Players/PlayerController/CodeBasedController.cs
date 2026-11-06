@@ -41,6 +41,10 @@ namespace FStudio.MatchEngine.Players.PlayerController {
 
                 rigidbody.isKinematic = !value;
                 collider.enabled = value;
+                if (_legs != null)
+                    for (var i = 0; i < _legs.Length; i++)
+                        if (_legs[i] != null)
+                            _legs[i].enabled = value;
             }
         }
 
@@ -63,6 +67,8 @@ namespace FStudio.MatchEngine.Players.PlayerController {
         [HideInInspector] [SerializeField] private new Rigidbody rigidbody;
 
         [HideInInspector] [SerializeField] private new CapsuleCollider collider;
+
+        CapsuleCollider[] _legs;
 
         public float Height => collider.height;
 
@@ -228,12 +234,51 @@ namespace FStudio.MatchEngine.Players.PlayerController {
             // set visual scale.
             transform.localScale = scale;
 
+            AddLegColliders();
+
 			Debug.Log ($"Height: {basePlayer.MatchPlayer.Player.height} - Weight {basePlayer.MatchPlayer.Player.weight}");
 
             playerAnimator.SetFloat(PlayerAnimatorVariable.Agility, basePlayer.MatchPlayer.ActualAgility / 100f);
 
             // take a shadow.
             shadow = ShadowRenderer.Current.Get();
+        }
+
+        void AddLegColliders() {
+            var anim = GetComponentInChildren<Animator>();
+            if (anim == null || !anim.isHuman)
+                return;
+            var built = new System.Collections.Generic.List<CapsuleCollider>();
+            void pair(HumanBodyBones from, HumanBodyBones to, float radius) {
+                var start = anim.GetBoneTransform(from);
+                var end = anim.GetBoneTransform(to);
+                if (start == null || end == null)
+                    return;
+                var piece = new GameObject("Leg");
+                piece.layer = gameObject.layer;
+                piece.transform.SetParent(start, false);
+                var localEnd = start.InverseTransformPoint(end.position);
+                var length = localEnd.magnitude;
+                if (length < 0.02f)
+                    return;
+                piece.transform.localPosition = localEnd * 0.5f;
+                piece.transform.localRotation = Quaternion.FromToRotation(Vector3.up, localEnd.normalized);
+                var cap = piece.AddComponent<CapsuleCollider>();
+                var scale = piece.transform.lossyScale;
+                var thick = Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.z));
+                cap.direction = 1;
+                cap.height = length;
+                cap.radius = thick > 0.001f ? radius / thick : radius;
+                cap.center = Vector3.zero;
+                built.Add(cap);
+            }
+            pair(HumanBodyBones.LeftUpperLeg, HumanBodyBones.LeftLowerLeg, 0.09f);
+            pair(HumanBodyBones.LeftLowerLeg, HumanBodyBones.LeftFoot, 0.07f);
+            pair(HumanBodyBones.LeftFoot, HumanBodyBones.LeftToes, 0.055f);
+            pair(HumanBodyBones.RightUpperLeg, HumanBodyBones.RightLowerLeg, 0.09f);
+            pair(HumanBodyBones.RightLowerLeg, HumanBodyBones.RightFoot, 0.07f);
+            pair(HumanBodyBones.RightFoot, HumanBodyBones.RightToes, 0.055f);
+            _legs = built.ToArray();
         }
 
         public bool MoveTo (
@@ -365,6 +410,8 @@ namespace FStudio.MatchEngine.Players.PlayerController {
             float finalSpeed = TargetMoveSpeed *
                 BasePlayer.MatchPlayer.GetTopSpeed() *
                 (BasePlayer.IsHoldingBall ? dribbleModifier : 1);
+            if (MatchManager.Current != null && BasePlayer.GameTeam != null)
+                finalSpeed *= CoachMaster.MatchPlay.PitchOrders.Speed(BasePlayer.GameTeam == MatchManager.Current.GameTeam1, BasePlayer.IsHoldingBall);
 
             bool shouldMove = finalSpeed > MoveSpeed;
 

@@ -1,3 +1,5 @@
+using CoachMaster.App;
+using CoachMaster.Career;
 using CoachMaster.Domain;
 using CoachMaster.Presentation;
 using UnityEngine;
@@ -53,13 +55,32 @@ namespace CoachMaster.UI
             {
                 var captainColor = player.IsCaptain ? new Color(0.96f, 0.72f, 0.18f, 0.98f) : new Color(0.62f, 0.72f, 0.86f, 0.98f);
                 var captainBadge = BroadcastUi.Panel(card.transform, "CaptainBadge", captainColor, false);
-                BroadcastUi.Place(captainBadge.rectTransform, 0.73f, 0.79f, 0.975f, 0.98f);
+                BroadcastUi.Place(captainBadge.rectTransform, 0.48f, 0.79f, 0.7f, 0.98f);
                 var captainLabel = BroadcastUi.Label(captainBadge.transform, "Mark", player.IsCaptain ? "C" : "VC", 10,
                     new Color(0.04f, 0.04f, 0.06f, 1f), TextAnchor.MiddleCenter, FontStyle.Bold);
                 captainLabel.resizeTextForBestFit = true;
                 captainLabel.resizeTextMinSize = 6;
                 captainLabel.resizeTextMaxSize = 10;
                 BroadcastUi.Stretch(captainLabel.rectTransform);
+            }
+
+            var reason = PlayerAvailability.Reason(player, Career());
+            if (!string.IsNullOrEmpty(reason))
+            {
+                var iconName = PlayerAvailability.IconResource(reason);
+                var sprites = string.IsNullOrEmpty(iconName) ? null : Resources.LoadAll<Sprite>(iconName);
+                if (sprites != null && sprites.Length > 0)
+                {
+                    var badge = BroadcastUi.Solid(card.transform, "Absence", Color.white);
+                    badge.sprite = sprites[0];
+                    badge.preserveAspect = true;
+                    badge.raycastTarget = false;
+                    BroadcastUi.Place(badge.rectTransform, 0.72f, 0.76f, 0.98f, 0.98f);
+                }
+                var fade = card.GetComponent<CanvasGroup>();
+                if (fade == null)
+                    fade = card.gameObject.AddComponent<CanvasGroup>();
+                fade.alpha = 0.42f;
             }
 
             var name = BroadcastUi.Label(card.transform, "Name", BroadcastUi.ShortName(player.FullName).ToUpperInvariant(),
@@ -81,7 +102,7 @@ namespace CoachMaster.UI
                 BroadcastUi.Place(mark.rectTransform, 0.72f, 0.84f, 0.98f, 0.98f);
             }
 
-            if (player.Injury != null && player.Injury.IsInjured)
+            if (player.Injury != null && player.Injury.IsInjured && string.IsNullOrEmpty(reason))
             {
                 var injury = BroadcastUi.Label(card.transform, "Injury", "+", 22,
                     new Color(0.92f, 0.16f, 0.18f), TextAnchor.MiddleCenter, FontStyle.Bold);
@@ -104,12 +125,12 @@ namespace CoachMaster.UI
             flag.raycastTarget = false;
             BroadcastUi.Place(flag.rectTransform, 0.34f, 0.058f, 0.66f, 0.258f);
 
-            var overall = BroadcastUi.Label(card.transform, "Overall",
-                PlayerAttributes.CurrentOverallAtPosition(player, position).ToString(), 13, Color.white,
+            var grade = PlayerGrade.Of(PlayerAttributes.CurrentOverallAtPosition(player, position));
+            var overall = BroadcastUi.Label(card.transform, "Overall", grade.Code, 16, grade.Tint,
                 TextAnchor.MiddleRight, FontStyle.Bold);
             overall.resizeTextForBestFit = true;
-            overall.resizeTextMinSize = 8;
-            overall.resizeTextMaxSize = 13;
+            overall.resizeTextMinSize = 10;
+            overall.resizeTextMaxSize = 18;
             overall.horizontalOverflow = HorizontalWrapMode.Overflow;
             overall.verticalOverflow = VerticalWrapMode.Overflow;
             BroadcastUi.Place(overall.rectTransform, 0.66f, 0.058f, 0.88f, 0.258f);
@@ -135,6 +156,12 @@ namespace CoachMaster.UI
             }
 
             return card;
+        }
+
+        static CareerState Career()
+        {
+            var root = App.GameRoot.Instance;
+            return root == null || root.Session == null ? null : root.Session.Career;
         }
     }
 }

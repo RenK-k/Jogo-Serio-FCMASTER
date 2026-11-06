@@ -265,7 +265,7 @@
                 {
                     "name": "",
                     "id": "ed71d1cd-c2a2-42d0-a2da-99835087d553",
-                    "path": "<XInputController>/buttonEast",
+                    "path": "<XInputController>/buttonWest",
                     "interactions": "",
                     "processors": "",
                     "groups": "XBoxController",
@@ -276,7 +276,7 @@
                 {
                     "name": "",
                     "id": "2257f9ba-6d1d-4a6d-9aaf-36f362520053",
-                    "path": "<Gamepad>/buttonEast",
+                    "path": "<Gamepad>/buttonWest",
                     "interactions": "",
                     "processors": "",
                     "groups": "Gamepad",
@@ -298,7 +298,7 @@
                 {
                     "name": "",
                     "id": "e4ea5432-e7e9-466e-8dd4-93ff7454b8a0",
-                    "path": "<XInputController>/buttonWest",
+                    "path": "<XInputController>/buttonEast",
                     "interactions": "",
                     "processors": "",
                     "groups": "",
@@ -309,7 +309,7 @@
                 {
                     "name": "",
                     "id": "01d2fe35-adcb-4d17-b437-a6b7d2f9d8ca",
-                    "path": "<Gamepad>/buttonWest",
+                    "path": "<Gamepad>/buttonEast",
                     "interactions": "",
                     "processors": "",
                     "groups": "",
@@ -430,7 +430,7 @@
                 {
                     "name": "",
                     "id": "b54cf1c6-274c-4876-8630-9273cd2c1d62",
-                    "path": "<Gamepad>/buttonEast",
+                    "path": "<Gamepad>/buttonWest",
                     "interactions": "",
                     "processors": "",
                     "groups": "",
@@ -441,7 +441,7 @@
                 {
                     "name": "",
                     "id": "79795dd5-f134-4eb0-ab05-4daf61e36319",
-                    "path": "<XInputController>/buttonEast",
+                    "path": "<XInputController>/buttonWest",
                     "interactions": "",
                     "processors": "",
                     "groups": "",

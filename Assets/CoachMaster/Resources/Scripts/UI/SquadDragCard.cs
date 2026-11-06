@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using CoachMaster.Career;
 using CoachMaster.Domain;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -103,7 +104,7 @@ namespace CoachMaster.UI
 
         public void OnBeginDrag(PointerEventData eventData)
         {
-            if (Player == null || (!Bench && FieldIndex < 0))
+            if (Player == null || (!Bench && FieldIndex < 0) || PlayerAvailability.IsOut(Player))
                 return;
             _dragging = true;
             _dragActive = true;

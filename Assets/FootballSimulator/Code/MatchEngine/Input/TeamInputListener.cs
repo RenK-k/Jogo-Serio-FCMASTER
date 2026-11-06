@@ -29,6 +29,8 @@ namespace FStudio.MatchEngine.Input {
 
         private const float MOVE_DEADZONE = 0.3f;
 
+        float _shootPressed;
+
         private PlayerBase m_ActivePlayer;
         public PlayerBase ActivePlayer { get => m_ActivePlayer; private set {
                 Debug.Log("Assigned active player: " + value);
@@ -39,6 +41,8 @@ namespace FStudio.MatchEngine.Input {
 
 
         private Vector3 m_lastValidDirection;
+        float _skillTime;
+        bool _rightFlick;
 
         /// <summary>
         /// Active direction
@@ -122,14 +126,17 @@ namespace FStudio.MatchEngine.Input {
         }
 
         private void ActivatePlayerBehaviour<T>() where T : BaseBehaviour, IInputBehaviour {
-            if (ActivePlayer.ActiveBehaviour is IInputBehaviour) {
-                return;
+            foreach (var behaviour in ActivePlayer.Behaviours) {
+                if (behaviour is IInputBehaviour other && behaviour is not T)
+                    other.IsTriggered = false;
             }
 
             var tBehaviour = ActivePlayer.Behaviours.
                 Where(x => x is T).
                 Select(x => (T)x).
-                First();
+                FirstOrDefault();
+            if (tBehaviour == null)
+                return;
 
             tBehaviour.IsTriggered = true;
 
@@ -144,7 +151,9 @@ namespace FStudio.MatchEngine.Input {
             var tBehaviour = ActivePlayer.Behaviours.
                 Where(x => x is T).
                 Select(x => (T)x).
-                First();
+                FirstOrDefault();
+            if (tBehaviour == null)
+                return;
 
             tBehaviour.IsTriggered = false;
 
@@ -164,6 +173,13 @@ namespace FStudio.MatchEngine.Input {
             }
 
             if (value == 1) {
+                if (ActivePlayer.IsHoldingBall && (Time.time - _shootPressed < 0.65f
+                    || ActivePlayer.ActiveBehaviour is InputShootBehaviour
+                    || ActivePlayer.ballHitAnimationEvent == BallHitAnimationEvent.Shoot)) {
+                    DectivatePlayerBehaviour<InputShootBehaviour>();
+                    ActivePlayer.FakeShot();
+                    return true;
+                }
                 ActivatePlayerBehaviour<InputShortPassBehaviour>();
             }
 
@@ -183,6 +199,11 @@ namespace FStudio.MatchEngine.Input {
             }
 
             if (value == 1) {
+                if (!ActivePlayer.IsHoldingBall) {
+                    ActivatePlayerBehaviour<InputStandTackleBehaviour>();
+                    return true;
+                }
+                _shootPressed = Time.time;
                 ActivatePlayerBehaviour<InputShootBehaviour>();
             }
 
@@ -269,14 +290,30 @@ namespace FStudio.MatchEngine.Input {
             return true;
         }
 
+        public void Receive(PlayerBase player) {
+            if (player != null && player.GameTeam == gameTeam)
+                ActivePlayer = player;
+        }
+
+        static bool Sprinting() {
+            var pad = Gamepad.current;
+            if (pad != null && pad.rightTrigger.ReadValue() > 0.45f)
+                return true;
+            var keys = Keyboard.current;
+            return keys != null && (keys.leftShiftKey.isPressed || keys.rightShiftKey.isPressed);
+        }
+
         private void AssignPlayer () {
             var currentBallHolder = Ball.Current.HolderPlayer;
+
+            if (currentBallHolder != null && !MatchManager.Alive(currentBallHolder))
+                currentBallHolder = null;
 
             if (currentBallHolder != null && ActivePlayer == currentBallHolder) {
                 return;// cannot select another player.
             }
 
-            var possibleTargets = gameTeam.GamePlayers.Where(x => !x.IsGK && x != ActivePlayer);
+            var possibleTargets = gameTeam.GamePlayers.Where(x => MatchManager.Alive(x) && !x.IsGK && x != ActivePlayer);
 
             if (currentBallHolder != null && currentBallHolder.GameTeam == gameTeam && !currentBallHolder.IsGK) {
                 ActivePlayer = currentBallHolder;
@@ -327,13 +364,17 @@ namespace FStudio.MatchEngine.Input {
         }
 
         public void Update (in float deltaTime) {
-            if (ActivePlayer == null) {
-                Debug.Log("[TeamInputListener] Input listener doesnt have a player. Looking for a player to control.");
-
+            if (ActivePlayer == null || !MatchManager.Alive(ActivePlayer)) {
+                ActivePlayer = null;
                 AssignPlayer();
             }
 
+            if (Ball.Current == null || !MatchManager.Alive(ActivePlayer))
+                return;
+
             var holderPlayer = Ball.Current.HolderPlayer;
+            if (holderPlayer != null && !MatchManager.Alive(holderPlayer))
+                holderPlayer = null;
 
             if (ActivePlayer != holderPlayer && holderPlayer != null && !holderPlayer.IsGK && holderPlayer.GameTeam == gameTeam) {
                 ActivePlayer = holderPlayer;
@@ -369,32 +410,66 @@ namespace FStudio.MatchEngine.Input {
 
 
             if (ActivePlayer.ActiveBehaviour is not IInputBehaviour) {
-                var length = direction.magnitude;
-
-                var activePosition = ActivePlayer.Position;
-                activePosition += direction.normalized * 2;
-
-                if (length < MOVE_DEADZONE) {
-                    ActivePlayer.Stop(in deltaTime);
+                TryRightStickSkill();
+                var loose = !ActivePlayer.IsHoldingBall && Ball.Current.HolderPlayer == null;
+                if (loose) {
+                    var point = Ball.Current.BallPosition(ActivePlayer);
+                    point.y = 0f;
+                    if (direction.magnitude > MOVE_DEADZONE)
+                        point += direction.normalized * 1.1f;
+                    ActivePlayer.MoveTo(in deltaTime, point, true, Sprinting() ? MovementType.BestHeCanDo : MovementType.Normal);
                 } else {
-                    MovementType movementType = MovementType.BestHeCanDo;
+                    var length = direction.magnitude;
 
-                    if (length < 0.5f) {
-                        movementType = MovementType.Relax;
-                    } else if (length < 0.75f) {
-                        movementType = MovementType.Normal;
+                    var activePosition = ActivePlayer.Position;
+                    activePosition += direction.normalized * 2;
+
+                    if (length < MOVE_DEADZONE) {
+                        ActivePlayer.Stop(in deltaTime);
+                    } else {
+                        var sprinting = Sprinting();
+                        ActivePlayer.MoveTo(in deltaTime, activePosition, true, sprinting ? MovementType.BestHeCanDo : MovementType.Relax);
+                        if (!sprinting && ActivePlayer.PlayerController is CodeBasedController body)
+                            body.TargetMoveSpeed = Mathf.Clamp(body.TargetMoveSpeed * 2.2f, 0f, 0.55f);
                     }
-
-                    ActivePlayer.MoveTo(in deltaTime, activePosition, true, movementType);
                 }
             }
 
             // reposition UI Input pointer.
+            var cam = Camera.main;
+            if (cam == null || inputPointerFollower == null)
+                return;
+
             var arrowIndicatorTransform =
-                GetArrowIndicatorPositionAndAngle(Camera.main.WorldToScreenPoint(ActivePlayer.Position + inputWorldOffset));
+                GetArrowIndicatorPositionAndAngle(cam.WorldToScreenPoint(ActivePlayer.Position + inputWorldOffset));
 
             inputPointerFollower.position = arrowIndicatorTransform.position;
             inputPointerFollower.rotation = arrowIndicatorTransform.rotation;
+        }
+
+        void TryRightStickSkill() {
+            if (ActivePlayer == null)
+                return;
+            var pad = Gamepad.current;
+            if (pad == null)
+                return;
+            var flick = pad.rightStick.ReadValue();
+            if (!ActivePlayer.IsHoldingBall) {
+                var pushed = flick.sqrMagnitude > 0.45f;
+                if (pushed && !_rightFlick)
+                    AssignPlayer();
+                _rightFlick = pushed;
+                return;
+            }
+            _rightFlick = false;
+            if (Time.time < _skillTime)
+                return;
+            if (flick.sqrMagnitude < 0.4f)
+                return;
+            _skillTime = Time.time + 0.7f;
+            var camMod = CameraSystem.Current != null ? CameraSystem.Current.transform.rotation : Quaternion.identity;
+            var world = Quaternion.Euler(0f, camMod.eulerAngles.y, 0f) * new Vector3(flick.x, 0f, flick.y);
+            ActivePlayer.SkillMove(world);
         }
 
         private (Vector2 position, Quaternion rotation) GetArrowIndicatorPositionAndAngle(

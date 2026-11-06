@@ -192,6 +192,7 @@ namespace CoachMaster.Career
                         unavailableUntil = Math.Max(unavailableUntil, nextFixture.Date.Date.Ticks);
                 }
                 player.UnavailableUntilTicks = unavailableUntil;
+                player.AbsenceKind = moment.IncidentType == "betting" ? "ban" : "pessoal";
             }
 
             var dutyChanged = At(moment.ToggleDuty, effect);

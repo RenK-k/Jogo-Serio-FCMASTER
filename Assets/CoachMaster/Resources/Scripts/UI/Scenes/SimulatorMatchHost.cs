@@ -20,6 +20,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 namespace CoachMaster.UI.Scenes
 {
@@ -36,6 +37,11 @@ namespace CoachMaster.UI.Scenes
         bool _stadiumCamera;
         float _dangerUntil;
         Camera _cover;
+        MatchMinimapGraphic _map;
+        float _sampleAt;
+        bool _feed;
+        MatchShotEvent _lastShot;
+        float _lastShotAt;
         string _homeClub = "";
         string _awayClub = "";
         bool _choiceStarted;
@@ -60,6 +66,7 @@ namespace CoachMaster.UI.Scenes
             if (MatchManager.Current == null)
                 return;
             UseMatchPipeline();
+            KeepOneEventSystem();
 
             var day = GetComponent<MatchDayController>();
             var paused = MatchPause.IsPaused || (day != null && day.IsPaused) || AudioSettingsOverlay.IsVisible;
@@ -69,10 +76,11 @@ namespace CoachMaster.UI.Scenes
             var live = PitchWanted;
             PitchVisible = live;
             var design = transform.Find("Design");
-            if (design != null && design.gameObject.activeSelf == live)
+            if (design != null && !paused && design.gameObject.activeSelf == live)
                 design.gameObject.SetActive(!live);
             ShowPitch(live);
             ShowScoreboard(live);
+            ShowMinimap(false);
             HideTacticBar();
         }
 
@@ -95,6 +103,7 @@ namespace CoachMaster.UI.Scenes
             CareerTacticLock.WatchSimulation = BeginSpectator;
             PlayerPrefs.SetInt("SETTING_SIDE", 0);
             StartCoroutine(Open());
+            Listen();
         }
 
         void BeginSpectator()
@@ -109,21 +118,154 @@ namespace CoachMaster.UI.Scenes
             HideMatchScreens();
             ShowPitch(true);
             RestoreEventSystem(gameObject.scene);
-            if (_shots)
+            Listen();
+        }
+
+        void Listen()
+        {
+            if (_feed)
                 return;
+            _feed = true;
+            _shots = true;
             EventManager.Subscribe<PlayerShootEvent>(NoteShot);
             EventManager.Subscribe<PlayerChipShootEvent>(NoteChip);
-            _shots = true;
+            EventManager.Subscribe<GoalEvent>(NoteGoal);
+            EventManager.Subscribe<PlayerPassEvent>(NotePass);
+            EventManager.Subscribe<CornerEvent>(NoteCorner);
+            EventManager.Subscribe<ThrowInEvent>(NoteThrow);
+            EventManager.Subscribe<KeeperSavesTheBallEvent>(NoteSave);
+            EventManager.Subscribe<BallHitTheWoodWorkEvent>(NoteWood);
         }
 
-        void NoteShot(PlayerShootEvent _)
+        void NoteShot(PlayerShootEvent shot)
         {
             _dangerUntil = Time.unscaledTime + 2.4f;
+            RecordShot(shot == null ? null : shot.Player);
         }
 
-        void NoteChip(PlayerChipShootEvent _)
+        void NoteChip(PlayerChipShootEvent shot)
         {
             _dangerUntil = Time.unscaledTime + 2.4f;
+            RecordShot(shot == null ? null : shot.Player);
+        }
+
+        void RecordShot(FStudio.MatchEngine.Players.PlayerBase player)
+        {
+            if (_match == null || player == null || MatchManager.Current == null)
+                return;
+            var home = player.GameTeam == MatchManager.Current.GameTeam1;
+            if (home)
+                _match.HomeShots++;
+            else
+                _match.AwayShots++;
+            var id = SquadId(player);
+            var spot = ToSlot(player.Position);
+            var depth = home ? spot.y : 1f - spot.y;
+            if (depth > 0.72f)
+            {
+                if (home)
+                    _match.HomeChances++;
+                else
+                    _match.AwayChances++;
+            }
+            _lastShot = _match.RecordShot(home, id, spot, spot, Mathf.Clamp01(0.08f + depth * 0.2f), "miss", false);
+            _lastShotAt = Time.unscaledTime;
+            var who = NameOf(id);
+            _match.AddNote(who + " remata.", "shot", id);
+        }
+
+        void NoteGoal(GoalEvent goal)
+        {
+            if (_match == null || goal == null)
+                return;
+            var home = !goal.HomeOrAway;
+            if (_lastShot != null && Time.unscaledTime - _lastShotAt < 5f)
+                _lastShot.Outcome = "goal";
+            var id = _lastShot != null && _lastShot.Home == home ? _lastShot.ShooterId : null;
+            if (!string.IsNullOrEmpty(id))
+            {
+                _match.GoalsScored.TryGetValue(id, out var scored);
+                _match.GoalsScored[id] = scored + 1;
+            }
+            var who = NameOf(id);
+            _match.AddNote(string.IsNullOrEmpty(who) ? "Golo." : "Golo de " + who + ".", "goal", id);
+        }
+
+        void NotePass(PlayerPassEvent pass)
+        {
+            if (_match == null || pass == null || pass.Player == null || MatchManager.Current == null)
+                return;
+            var home = pass.Player.GameTeam == MatchManager.Current.GameTeam1;
+            var id = SquadId(pass.Player);
+            _match.RecordPass(home, id, null, ToSlot(pass.Player.Position), ToSlot(pass.Player.Position), false);
+        }
+
+        void NoteCorner(CornerEvent _)
+        {
+            if (_match != null)
+                _match.AddNote("Canto.", "corner");
+        }
+
+        void NoteThrow(ThrowInEvent _)
+        {
+            if (_match != null)
+                _match.AddNote("Lançamento.", "throwin");
+        }
+
+        void NoteSave(KeeperSavesTheBallEvent save)
+        {
+            if (_match == null || save == null || save.Player == null)
+                return;
+            var id = SquadId(save.Player);
+            _match.AddNote(NameOf(id) + " defende.", "save", id);
+            if (_lastShot != null && Time.unscaledTime - _lastShotAt < 4f)
+                _lastShot.Outcome = "save";
+        }
+
+        void NoteWood(BallHitTheWoodWorkEvent _)
+        {
+            if (_match == null)
+                return;
+            _match.AddNote("A bola bate na trave.", "wood");
+            if (_lastShot != null && Time.unscaledTime - _lastShotAt < 4f)
+                _lastShot.Outcome = "woodwork";
+        }
+
+        public static void LiveFoul(FStudio.MatchEngine.Players.PlayerBase fouler, FStudio.MatchEngine.Players.PlayerBase victim)
+        {
+            var host = Object.FindAnyObjectByType<SimulatorMatchHost>();
+            if (host == null || host._match == null || victim == null)
+                return;
+            var id = host.SquadId(victim);
+            var who = host.NameOf(host.SquadId(fouler));
+            host._match.AddNote("Falta de " + who + ".", "foul", id);
+        }
+
+        string SquadId(FStudio.MatchEngine.Players.PlayerBase player)
+        {
+            var match = MatchManager.Current;
+            if (player == null || match == null || player.GameTeam == null || _match == null)
+                return null;
+            var home = player.GameTeam == match.GameTeam1;
+            var squad = home ? _match.HomeOnField : _match.AwayOnField;
+            var players = home ? match.GameTeam1.GamePlayers : match.GameTeam2.GamePlayers;
+            if (players == null)
+                return null;
+            for (var i = 0; i < players.Length && i < squad.Count; i++)
+            {
+                if (players[i] == player)
+                    return squad[i];
+            }
+            return null;
+        }
+
+        string NameOf(string id)
+        {
+            if (string.IsNullOrEmpty(id) || _match == null)
+                return "O jogador";
+            if (_match.Names.TryGetValue(id, out var name) && !string.IsNullOrEmpty(name))
+                return name;
+            return "O jogador";
         }
 
         public void Mirror(MatchSession session)
@@ -134,22 +276,62 @@ namespace CoachMaster.UI.Scenes
             session.HomeGoals = match.homeTeamScore;
             session.AwayGoals = match.awayTeamScore;
             session.Minute = match.minutes;
+            PitchOrders.SyncScore(session.HomeGoals, session.AwayGoals);
             var ball = Ball.Current;
             var holder = ball == null ? null : ball.HolderPlayer;
-            if (holder == null || holder.GameTeam == null)
-                return;
-            var home = holder.GameTeam == match.GameTeam1;
-            session.HomeHasBall = home;
-            var players = home ? match.GameTeam1.GamePlayers : match.GameTeam2.GamePlayers;
-            if (players == null)
-                return;
-            for (var i = 0; i < players.Length; i++)
+            if (holder != null && holder.GameTeam != null)
             {
-                if (players[i] != holder)
-                    continue;
-                session.BallHolder = i;
-                break;
+                var home = holder.GameTeam == match.GameTeam1;
+                session.HomeHasBall = home;
+                if (home)
+                    session.HomePossession += Time.deltaTime;
+                else
+                    session.AwayPossession += Time.deltaTime;
+                var players = home ? match.GameTeam1.GamePlayers : match.GameTeam2.GamePlayers;
+                if (players != null)
+                {
+                    for (var i = 0; i < players.Length; i++)
+                    {
+                        if (players[i] != holder)
+                            continue;
+                        session.BallHolder = i;
+                        break;
+                    }
+                }
             }
+            if (Time.unscaledTime >= _sampleAt)
+            {
+                _sampleAt = Time.unscaledTime + 12f;
+                SamplePositions(session, match);
+            }
+        }
+
+        void SamplePositions(MatchSession session, MatchManager match)
+        {
+            var home = Slots(match.GameTeam1);
+            var away = Slots(match.GameTeam2);
+            if (home == null || away == null || session.HomeOnField.Count < home.Length || session.AwayOnField.Count < away.Length)
+                return;
+            var homeIds = new string[home.Length];
+            var awayIds = new string[away.Length];
+            for (var i = 0; i < homeIds.Length; i++)
+                homeIds[i] = session.HomeOnField[i];
+            for (var i = 0; i < awayIds.Length; i++)
+                awayIds[i] = session.AwayOnField[i];
+            session.CapturePositions(session.Minute, home, away, homeIds, awayIds);
+        }
+
+        static Vector2[] Slots(GameTeam team)
+        {
+            if (team == null || team.GamePlayers == null)
+                return null;
+            var slots = new Vector2[team.GamePlayers.Length];
+            for (var i = 0; i < slots.Length; i++)
+            {
+                var player = team.GamePlayers[i];
+                slots[i] = player == null ? new Vector2(0.5f, 0.5f) : ToSlot(player.Position);
+            }
+            return slots;
         }
 
         public bool AttackMoment()
@@ -260,7 +442,7 @@ namespace CoachMaster.UI.Scenes
         static FStudio.MatchEngine.Players.PlayerBase PlayerAt(bool home, int index)
         {
             var match = MatchManager.Current;
-            if (!Spectating || match == null)
+            if (!Running || match == null)
                 return null;
             var team = home ? match.GameTeam1 : match.GameTeam2;
             if (team == null || team.GamePlayers == null || index < 0 || index >= team.GamePlayers.Length)
@@ -340,6 +522,30 @@ namespace CoachMaster.UI.Scenes
                 board.WriteScore(match.homeTeamScore, match.awayTeamScore);
         }
 
+        void ShowMinimap(bool show)
+        {
+            if (_map == null)
+            {
+                var canvas = GetComponentInParent<Canvas>();
+                if (canvas == null)
+                    return;
+                var mapObject = new GameObject("MatchMinimap", typeof(RectTransform), typeof(CanvasRenderer), typeof(MatchMinimapGraphic));
+                mapObject.transform.SetParent(canvas.transform, false);
+                var rect = mapObject.GetComponent<RectTransform>();
+                rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0f);
+                rect.pivot = new Vector2(0.5f, 0f);
+                rect.anchoredPosition = new Vector2(0f, 16f);
+                rect.sizeDelta = new Vector2(300f, 176f);
+                _map = mapObject.GetComponent<MatchMinimapGraphic>();
+                _map.raycastTarget = false;
+            }
+
+            if (_map.gameObject.activeSelf != show)
+                _map.gameObject.SetActive(show);
+            if (show)
+                _map.SetVerticesDirty();
+        }
+
         static void HideTacticBar()
         {
             var tactics = Object.FindAnyObjectByType<FStudio.MatchEngine.UI.TeamTacticsUI>(FindObjectsInactive.Include);
@@ -362,7 +568,23 @@ namespace CoachMaster.UI.Scenes
 
         void ShowPitch(bool show)
         {
+            var career = gameObject.scene;
             var view = MatchView();
+            if (!show)
+            {
+                if (view != null && view.gameObject.scene != career)
+                    view.enabled = false;
+                var cameras = Object.FindObjectsByType<Camera>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+                for (var i = 0; i < cameras.Length; i++)
+                {
+                    if (cameras[i] != null && cameras[i].gameObject.scene == career && cameras[i] != _cover)
+                        cameras[i].enabled = true;
+                }
+                if (_cover != null)
+                    _cover.enabled = false;
+                return;
+            }
+
             if (view != null)
             {
                 var node = view.transform;
@@ -379,6 +601,15 @@ namespace CoachMaster.UI.Scenes
                 view.depth = 20;
                 if (_cover != null)
                     _cover.enabled = false;
+                if (view.gameObject.scene != career)
+                {
+                    var cameras = Object.FindObjectsByType<Camera>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+                    for (var i = 0; i < cameras.Length; i++)
+                    {
+                        if (cameras[i] != null && cameras[i].gameObject.scene == career)
+                            cameras[i].enabled = false;
+                    }
+                }
                 if (!_stadiumCamera && CameraSystem.Current != null)
                 {
                     _stadiumCamera = true;
@@ -394,6 +625,27 @@ namespace CoachMaster.UI.Scenes
             cover.targetTexture = null;
             cover.targetDisplay = 0;
             cover.enabled = true;
+        }
+
+        void KeepOneEventSystem()
+        {
+            var all = Object.FindObjectsByType<EventSystem>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            EventSystem keep = null;
+            for (var i = 0; i < all.Length; i++)
+            {
+                if (all[i] != null && all[i].gameObject.scene == gameObject.scene)
+                {
+                    keep = all[i];
+                    break;
+                }
+            }
+            if (keep == null && all.Length > 0)
+                keep = all[0];
+            for (var i = 0; i < all.Length; i++)
+            {
+                if (all[i] != null)
+                    all[i].enabled = all[i] == keep;
+            }
         }
 
         static Camera MatchView()
@@ -610,7 +862,7 @@ namespace CoachMaster.UI.Scenes
         {
             var career = gameObject.scene;
             HandOff<AudioListener>(career);
-            HandOff<EventSystem>(career);
+            KeepOneEventSystem();
             var cameras = Object.FindObjectsByType<Camera>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             var stadiumCamera = false;
             for (var i = 0; i < cameras.Length; i++)
@@ -710,17 +962,102 @@ namespace CoachMaster.UI.Scenes
         {
             if (_hooked)
                 EventManager.UnSubscribe<MatchCompleteEvent>(Complete);
-            if (_shots)
+            if (_feed)
             {
                 EventManager.UnSubscribe<PlayerShootEvent>(NoteShot);
                 EventManager.UnSubscribe<PlayerChipShootEvent>(NoteChip);
+                EventManager.UnSubscribe<GoalEvent>(NoteGoal);
+                EventManager.UnSubscribe<PlayerPassEvent>(NotePass);
+                EventManager.UnSubscribe<CornerEvent>(NoteCorner);
+                EventManager.UnSubscribe<ThrowInEvent>(NoteThrow);
+                EventManager.UnSubscribe<KeeperSavesTheBallEvent>(NoteSave);
+                EventManager.UnSubscribe<BallHitTheWoodWorkEvent>(NoteWood);
             }
             Spectating = false;
             Running = false;
             PitchVisible = false;
+            if (_map != null)
+                _map.gameObject.SetActive(false);
             _pin = ViewPin.Auto;
             RestoreMenuPipeline();
             Time.timeScale = 1f;
+        }
+    }
+
+    public sealed class MatchMinimapGraphic : Graphic
+    {
+        protected override void OnPopulateMesh(VertexHelper helper)
+        {
+            helper.Clear();
+            var area = rectTransform.rect;
+            AddRect(helper, area, new Color(0.02f, 0.08f, 0.05f, 0.82f));
+            var match = MatchManager.Current;
+            if (match == null)
+                return;
+            var size = match.SizeOfField;
+            if (size.x < 1f || size.y < 1f)
+                return;
+            var flip = match.UserTeam != null && match.UserTeam == match.GameTeam2;
+            var pad = 12f;
+            Vector2 Map(float x, float z)
+            {
+                var nx = Mathf.Clamp01(x / size.x);
+                if (flip)
+                    nx = 1f - nx;
+                var nz = Mathf.Clamp01(z / size.y);
+                return new Vector2(
+                    Mathf.Lerp(area.xMin + pad, area.xMax - pad, nx),
+                    Mathf.Lerp(area.yMin + pad, area.yMax - pad, nz));
+            }
+
+            var line = new Color(1f, 1f, 1f, 0.55f);
+            var corner = Map(0f, 0f);
+            var far = Map(size.x, size.y);
+            AddRect(helper, Rect.MinMaxRect(corner.x, corner.y, far.x, corner.y + 1.5f), line);
+            AddRect(helper, Rect.MinMaxRect(corner.x, far.y - 1.5f, far.x, far.y), line);
+            AddRect(helper, Rect.MinMaxRect(corner.x, corner.y, corner.x + 1.5f, far.y), line);
+            AddRect(helper, Rect.MinMaxRect(far.x - 1.5f, corner.y, far.x, far.y), line);
+            var mid = Map(size.x * 0.5f, 0f);
+            AddRect(helper, Rect.MinMaxRect(mid.x - 0.8f, corner.y, mid.x + 0.8f, far.y), line);
+            var centre = Map(size.x * 0.5f, size.y * 0.5f);
+            AddDot(helper, centre, 10f, line);
+
+            void dots(GameTeam team, Color color)
+            {
+                if (team == null || team.GamePlayers == null)
+                    return;
+                for (var i = 0; i < team.GamePlayers.Length; i++)
+                {
+                    var player = team.GamePlayers[i];
+                    if (player == null)
+                        continue;
+                    var at = Map(player.Position.x, player.Position.z);
+                    var mine = player.isInputControlled;
+                    AddDot(helper, at, mine ? 7.5f : 4.6f, mine ? new Color(1f, 0.86f, 0.15f, 1f) : color);
+                }
+            }
+
+            dots(match.GameTeam1, Color.white);
+            dots(match.GameTeam2, new Color(0.25f, 0.62f, 1f, 1f));
+            var ball = Ball.Current;
+            if (ball != null)
+                AddDot(helper, Map(ball.transform.position.x, ball.transform.position.z), 3.4f, new Color(1f, 0.95f, 0.4f, 1f));
+        }
+
+        static void AddRect(VertexHelper helper, Rect rect, Color color)
+        {
+            var i = helper.currentVertCount;
+            helper.AddVert(new Vector3(rect.xMin, rect.yMin), color, Vector2.zero);
+            helper.AddVert(new Vector3(rect.xMin, rect.yMax), color, Vector2.zero);
+            helper.AddVert(new Vector3(rect.xMax, rect.yMax), color, Vector2.zero);
+            helper.AddVert(new Vector3(rect.xMax, rect.yMin), color, Vector2.zero);
+            helper.AddTriangle(i, i + 1, i + 2);
+            helper.AddTriangle(i, i + 2, i + 3);
+        }
+
+        static void AddDot(VertexHelper helper, Vector2 centre, float radius, Color color)
+        {
+            AddRect(helper, new Rect(centre.x - radius, centre.y - radius, radius * 2f, radius * 2f), color);
         }
     }
 }

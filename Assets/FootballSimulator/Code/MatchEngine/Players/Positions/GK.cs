@@ -5,6 +5,7 @@ using FStudio.MatchEngine.Tactics;
 
 using System.Collections.Generic;
 using FStudio.MatchEngine.Players.Behaviours;
+using FStudio.MatchEngine.Players.InputBehaviours;
 using System.Linq;
 using FStudio.MatchEngine.FieldPositions;
 using FStudio.MatchEngine.Players.PlayerController;
@@ -45,6 +46,10 @@ namespace FStudio.MatchEngine.Players.Positions {
         private Rect secureAreaRect;
 
         private readonly IEnumerable<BaseBehaviour> m_behaviours = new BaseBehaviour[] {
+            new InputShortPassBehaviour(),
+            new InputThroughtPassBehaviour(),
+            new InputCrossBehaviour(),
+            new InputShootBehaviour(),
 
             new GKGoalKick (),
             new GKBallHoldStay (),
@@ -114,6 +119,13 @@ namespace FStudio.MatchEngine.Players.Positions {
                 targetGoalNet,
                 in teammates,
                 in opponents);
+
+            var facing = goalNet.Direction.x >= 0f ? 1f : -1f;
+            var inFront = goalNet.Position.x + facing * 0.75f;
+            var spot = Position;
+            var behindGoal = facing > 0f ? spot.x < inFront : spot.x > inFront;
+            if (behindGoal)
+                PlayerController.SetInstantPosition(new Vector3(inFront, spot.y, spot.z));
 
             // calculate if we can secure the ball.
             if (goalNet.Direction.x > 0) {

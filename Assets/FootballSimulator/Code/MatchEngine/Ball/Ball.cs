@@ -122,6 +122,8 @@ namespace FStudio.MatchEngine.Balls {
         protected override void OnEnable () {
             if (Application.isPlaying) {
                 EventManager.Subscribe<GoalEvent>(OnGoal);
+                if (rigidbody != null && !rigidbody.isKinematic)
+                    rigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
             }
         }
 
@@ -158,8 +160,22 @@ namespace FStudio.MatchEngine.Balls {
             ballVel.y = Mathf.Clamp(ballVel.y, -MAX_VELOCTIY_POW, MAX_VELOCTIY_POW);
             ballVel.z = Mathf.Clamp(ballVel.z, -MAX_VELOCTIY_POW, MAX_VELOCTIY_POW);
 
-            if (rigidbody != null && !rigidbody.isKinematic)
+            if (rigidbody != null && !rigidbody.isKinematic) {
+                if (HolderPlayer == null && ballPos.y < 0.55f) {
+                    var flat = new Vector3(ballVel.x, 0f, ballVel.z);
+                    var speed = flat.magnitude;
+                    if (speed < 0.55f && Mathf.Abs(ballVel.y) < 1.1f) {
+                        ballVel = Vector3.zero;
+                        rigidbody.angularVelocity = Vector3.zero;
+                    } else if (speed < 9f) {
+                        var brake = Mathf.Lerp(4.2f, 1.4f, speed / 9f) * Time.deltaTime;
+                        flat = Vector3.MoveTowards(flat, Vector3.zero, brake);
+                        ballVel = new Vector3(flat.x, ballVel.y, flat.z);
+                        rigidbody.angularVelocity = Vector3.MoveTowards(rigidbody.angularVelocity, Vector3.zero, 10f * Time.deltaTime);
+                    }
+                }
                 rigidbody.linearVelocity = ballVel;
+            }
 
             if (ballShadow != null) {
                 var grounded = ballPos;
@@ -171,6 +187,45 @@ namespace FStudio.MatchEngine.Balls {
             float heightPow = Mathf.Max (0, 0.6f - height);
             if (shadowMaterial != null)
                 shadowMaterial.SetFloat(BALL_SHADOW_POWER, heightPow);
+
+            TakeLooseBall();
+        }
+
+        void TakeLooseBall() {
+            if (HolderPlayer != null || rigidbody == null || rigidbody.isKinematic)
+                return;
+            if (MatchManager.Current == null || !MatchManager.Current.MatchFlags.HasFlag(Enums.MatchStatus.Playing))
+                return;
+            if (transform.position.y > 1.2f)
+                return;
+            var flat = Velocity;
+            flat.y = 0f;
+            if (flat.magnitude > 11f)
+                return;
+            var players = MatchManager.AllPlayers;
+            if (players == null)
+                return;
+            PlayerBase closest = null;
+            var closestDistance = 1.25f;
+            foreach (var player in players) {
+                if (player == null || player.CaughtInOffside)
+                    continue;
+                if (holdBlocker != null && player == LastHolder)
+                    continue;
+                var gap = player.Position - transform.position;
+                gap.y = 0f;
+                var distance = gap.magnitude;
+                if (!player.PlayerController.IsPhysicsEnabled && distance > 0.9f)
+                    continue;
+                if (distance < closestDistance) {
+                    closestDistance = distance;
+                    closest = player;
+                }
+            }
+            if (closest == null)
+                return;
+            closest.PlayerController.IsPhysicsEnabled = true;
+            Hold(closest);
         }
 
         /// <summary>
@@ -207,6 +262,7 @@ namespace FStudio.MatchEngine.Balls {
         /// </summary>
         public void Release() {
             rigidbody.isKinematic = false;
+            rigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
             Collider.enabled = true;
 
             if (HolderPlayer != null) {
@@ -359,10 +415,21 @@ namespace FStudio.MatchEngine.Balls {
             var longBallPercentage = 
                 EngineSettings.Current.LongBallSkillPercentageAtDistance(distance);
 
-            var longBallSkill = longBallPercentage * hitter.MatchPlayer.ActualPassing;
-            var passingSkill = (1 - longBallPercentage) * hitter.MatchPlayer.ActualLongBall;
+            var skill = (1f - longBallPercentage) * hitter.MatchPlayer.ActualPassing
+                + longBallPercentage * hitter.MatchPlayer.ActualLongBall;
 
-            ApplyError (ref target, longBallSkill + passingSkill);
+            var asked = target;
+            ApplyError (ref target, skill);
+            if (hitter.isInputControlled)
+                target = Vector3.Lerp(target, asked, 0.94f);
+            var aim = Mathf.InverseLerp(32f, 88f, skill);
+            var miss = hitter.isInputControlled ? 0.2f : Mathf.Lerp(6.5f, 0.15f, aim);
+            if (miss > 0.25f) {
+                var flat = target - transform.position;
+                flat.y = 0f;
+                var side = Vector3.Cross(Vector3.up, flat.sqrMagnitude < 0.01f ? Vector3.forward : flat.normalized);
+                target += side * UnityEngine.Random.Range(-miss, miss);
+            }
 
             var size = MatchManager.Current.SizeOfField;
             target.x = Mathf.Clamp(target.x, 3f, size.x - 3f);
@@ -502,7 +569,9 @@ namespace FStudio.MatchEngine.Balls {
         }
 
         private bool CheckPlayerTouch (Collision collision) {
-            var player = collision.collider.GetComponent<IPlayerController>();
+            var player = collision.collider.GetComponentInParent<IPlayerController>();
+            if (player == null)
+                return false;
             if (!player.IsPhysicsEnabled) {
                 return false;
             }

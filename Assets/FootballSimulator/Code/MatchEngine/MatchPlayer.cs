@@ -69,8 +69,8 @@ namespace FStudio.MatchEngine {
 
         #region GET FUNCTIONS with MODIFIERS, for in game match.
         public float GetStrength() => ActualStrength * EngineSettings.Current.StrengthModifier;
-        public float GetAcceleration() => ActualAcceleration * EngineSettings.Current.AccerelationModifier;
-        public float GetTopSpeed() => ActualTopSpeed * EngineSettings.Current.TopSpeedModifier;
+        public float GetAcceleration() => ActualAcceleration * EngineSettings.Current.AccerelationModifier * Mathf.Lerp(0.85f, PaceSpread(), 0.7f);
+        public float GetTopSpeed() => ActualTopSpeed * EngineSettings.Current.TopSpeedModifier * PaceSpread();
         public float GetDribbleSpeed() => ActualDribbleSpeed * EngineSettings.Current.DribbleModifier;
         public float GetLongBall() => ActualLongBall * EngineSettings.Current.PassingModifier;
         public float GetAgility() => ActualAgility * EngineSettings.Current.AgilityModifier;
@@ -82,6 +82,11 @@ namespace FStudio.MatchEngine {
             dribbleModifier = 0.75f + dribbleModifier / 4;
 
             return dribbleModifier;
+        }
+
+        float PaceSpread() {
+            var pace = Mathf.Clamp(Mathf.Max(Player.topSpeed, ActualTopSpeed), 1, 99);
+            return Mathf.Lerp(0.68f, 1.9f, Mathf.Pow(pace / 99f, 2.1f));
         }
     }
 }

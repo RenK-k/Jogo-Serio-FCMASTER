@@ -45,6 +45,16 @@ namespace CoachMaster.UI.Scenes
         Text _clock;
         Text _ticker;
         RectTransform _pitch;
+        Transform _pitchHome;
+        Vector2 _pitchMin;
+        Vector2 _pitchMax;
+        Vector2 _pitchPivot;
+        Vector2 _pitchAnchored;
+        Vector2 _pitchSize;
+        Vector2 _pitchOffMin;
+        Vector2 _pitchOffMax;
+        bool _pitchDocked;
+        float _statPulse;
         RawImage _liveView;
         Text _liveScore;
         Text _liveMinute;
@@ -289,10 +299,10 @@ namespace CoachMaster.UI.Scenes
             _fullTime.SetActive(false);
             if (SimulatorMatchHost.Running)
             {
-                if (SimulatorMatchHost.Spectating)
-                    FollowSimulator();
+                FollowSimulator();
                 return;
             }
+            DockCirclePitch(false);
             _footer.SetActive(true);
             var overlay = (_pause != null && _pause.activeSelf) || (_tactics != null && _tactics.activeSelf) || (_subsMenu != null && _subsMenu.activeSelf);
             if (_paused && !overlay)
@@ -1538,6 +1548,14 @@ namespace CoachMaster.UI.Scenes
                 return;
             _pauseOnLive = _liveView != null && _liveView.gameObject.activeSelf;
             _paused = true;
+            var design = transform.Find("Design");
+            if (_pause != null && design != null && _pause.transform.parent == design)
+            {
+                _pause.transform.SetParent(design.parent, false);
+                var pauseRect = _pause.GetComponent<RectTransform>();
+                if (pauseRect != null)
+                    BroadcastUi.Stretch(pauseRect);
+            }
             if (_tactics != null)
                 _tactics.SetActive(false);
             if (_subsMenu != null)
@@ -1579,6 +1597,22 @@ namespace CoachMaster.UI.Scenes
 
         public bool IsPaused => _paused;
 
+        public bool MenuOpen
+        {
+            get
+            {
+                if (_pause != null && _pause.activeSelf) return true;
+                if (_tactics != null && _tactics.activeSelf) return true;
+                if (_subsMenu != null && _subsMenu.activeSelf) return true;
+                if (_shape != null && _shape.activeSelf) return true;
+                if (_analysis != null && _analysis.IsVisible) return true;
+                if (_presetConfirm != null && _presetConfirm.activeSelf) return true;
+                if (_halfTime != null && _halfTime.activeSelf) return true;
+                if (_fullTime != null && _fullTime.activeSelf) return true;
+                return false;
+            }
+        }
+
         public bool CareerBoardOpen
         {
             get
@@ -1588,6 +1622,23 @@ namespace CoachMaster.UI.Scenes
                 var design = transform.Find("Design");
                 return design != null && design.gameObject.activeInHierarchy;
             }
+        }
+
+        public void ToggleFromInput()
+        {
+            if (_match == null)
+                return;
+            if (AudioSettingsOverlay.IsVisible)
+            {
+                var root = GameRoot.Instance;
+                if (root != null)
+                    root.GetComponent<AudioSettingsOverlay>()?.Toggle();
+                return;
+            }
+            if (_paused)
+                ResumeMatch();
+            else
+                OpenPause();
         }
 
         public void OpenFromPad()
@@ -2775,11 +2826,68 @@ namespace CoachMaster.UI.Scenes
             if (host == null)
                 return;
             host.Mirror(_match);
-            host.SetAttack(host.AttackMoment());
+            if (SimulatorMatchHost.Spectating)
+                host.SetAttack(host.AttackMoment());
             if (_footer != null)
-                _footer.SetActive(!host.AttackMoment());
+                _footer.SetActive(!SimulatorMatchHost.PitchVisible);
             PlaceTokens();
+            DockCirclePitch(SimulatorMatchHost.PitchVisible);
             RefreshHud();
+            _statPulse -= Time.deltaTime;
+            if (_statPulse <= 0f)
+            {
+                _statPulse = 0.4f;
+                RefreshStats();
+            }
+        }
+
+        void DockCirclePitch(bool live)
+        {
+            if (_pitch == null)
+                return;
+            if (!live)
+            {
+                if (!_pitchDocked || _pitchHome == null)
+                    return;
+                _pitch.SetParent(_pitchHome, false);
+                _pitch.anchorMin = _pitchMin;
+                _pitch.anchorMax = _pitchMax;
+                _pitch.pivot = _pitchPivot;
+                _pitch.anchoredPosition = _pitchAnchored;
+                _pitch.sizeDelta = _pitchSize;
+                _pitch.offsetMin = _pitchOffMin;
+                _pitch.offsetMax = _pitchOffMax;
+                _pitchDocked = false;
+                return;
+            }
+
+            var canvas = GetComponentInParent<Canvas>();
+            if (canvas == null)
+                return;
+            if (!_pitchDocked)
+            {
+                _pitchHome = _pitch.parent;
+                _pitchMin = _pitch.anchorMin;
+                _pitchMax = _pitch.anchorMax;
+                _pitchPivot = _pitch.pivot;
+                _pitchAnchored = _pitch.anchoredPosition;
+                _pitchSize = _pitch.sizeDelta;
+                _pitchOffMin = _pitch.offsetMin;
+                _pitchOffMax = _pitch.offsetMax;
+                _pitchDocked = true;
+            }
+            if (_pitch.parent != canvas.transform)
+            {
+                _pitch.SetParent(canvas.transform, false);
+                _pitch.SetAsLastSibling();
+            }
+            _pitch.anchorMin = _pitch.anchorMax = new Vector2(0.5f, 0f);
+            _pitch.pivot = new Vector2(0.5f, 0f);
+            _pitch.anchoredPosition = new Vector2(0f, 16f);
+            _pitch.sizeDelta = new Vector2(360f, 214f);
+            _pitch.offsetMin = _pitch.offsetMax = Vector2.zero;
+            if (!_pitch.gameObject.activeSelf)
+                _pitch.gameObject.SetActive(true);
         }
 
         void LateUpdate()
@@ -2955,14 +3063,14 @@ namespace CoachMaster.UI.Scenes
             drag.Player = player;
             drag.Bench = bench;
             drag.FieldIndex = index;
-            var injured = player.Injury != null && player.Injury.IsInjured;
             var sentOff = _match.SentOffPlayers.Contains(player.Id);
-            if ((bench && injured) || sentOff)
+            var blocked = PlayerAvailability.IsOut(player);
+            if (blocked || sentOff)
                 drag.enabled = false;
             BroadcastUi.Hit(card, () => OnSubCardClicked(player, bench, index));
-            if (sentOff || (injured && !bench))
+            if (sentOff && !blocked)
             {
-                var red = BroadcastUi.Label(card.transform, sentOff ? "SentOff" : "Injured", "×", 22, new Color(1f, 0.18f, 0.2f), TextAnchor.MiddleCenter, FontStyle.Bold);
+                var red = BroadcastUi.Label(card.transform, "SentOff", "×", 22, new Color(1f, 0.18f, 0.2f), TextAnchor.MiddleCenter, FontStyle.Bold);
                 red.rectTransform.anchorMin = red.rectTransform.anchorMax = new Vector2(0.88f, 0.86f);
                 red.rectTransform.sizeDelta = new Vector2(22f, 22f);
             }
@@ -2975,7 +3083,7 @@ namespace CoachMaster.UI.Scenes
                 return;
             if (bench)
             {
-                if (player.Injury != null && player.Injury.IsInjured || _match.SentOffPlayers.Contains(player.Id))
+                if (PlayerAvailability.IsOut(player) || _match.SentOffPlayers.Contains(player.Id))
                     return;
                 _selectedSubPlayerId = _selectedSubPlayerId == player.Id ? null : player.Id;
                 DrawSubPitch();
@@ -2995,9 +3103,9 @@ namespace CoachMaster.UI.Scenes
         {
             if (incoming == null)
                 return;
-            if (incoming.Injury != null && incoming.Injury.IsInjured)
+            if (PlayerAvailability.IsOut(incoming))
             {
-                _match.LastEvent = incoming.FullName + " está lesionado e não pode entrar.";
+                _match.LastEvent = incoming.FullName + " está indisponível e não pode entrar.";
                 return;
             }
             var home = UserHome();
@@ -3128,6 +3236,7 @@ namespace CoachMaster.UI.Scenes
             played.HomeGoals = _match.HomeGoals;
             played.AwayGoals = _match.AwayGoals;
             SeasonSchedule.ApplyResult(career, played);
+            PlayerAvailability.NoteCards(career, _match);
             SeasonSchedule.SimulateOthers(career, played.Date, played);
             var userHome = _match.Home.Id == career.Coach.ClubId;
             string motm = null;
@@ -3500,7 +3609,7 @@ namespace CoachMaster.UI.Scenes
 
         float MarkerLift()
         {
-            if (SimulatorMatchHost.Spectating)
+            if (SimulatorMatchHost.Running)
                 return SimulatorMatchHost.BallLift;
             return _engine == null ? 0f : Mathf.Clamp01(_engine.BallHeight);
         }

@@ -20,7 +20,7 @@ namespace CoachMaster.UI
     {
         static readonly string[] Categories =
         {
-            "Ecrã e gráficos", "Jogabilidade", "Dia de jogo", "Notificações", "Som", "Realismo", "Carreira e saves", "Acessibilidade", "Mods e dados", "Tema e cores"
+            "Ecrã e gráficos", "Jogabilidade", "Dia de jogo", "Notificações", "Som", "Realismo", "Carreira e saves", "Acessibilidade", "Mods e dados", "Tema e cores", "Legal"
         };
 
         static readonly string[] PageNotes =
@@ -34,7 +34,8 @@ namespace CoachMaster.UI
             "O jogo guarda cada carreira neste computador. O gestor abre o último save manual ou o automático.",
             "Escala do interface, movimento e idioma.",
             "Importa pastas de mods, consulta os formatos aceites e cria ficheiros modelo.",
-            "Personaliza as cores principais e pré-visualiza a página inicial."
+            "Personaliza as cores principais e pré-visualiza a página inicial.",
+            "Termos, licenças, regras de modding e avisos. Nada disto altera a carreira."
         };
         static readonly string[] EnglishPageNotes =
         {
@@ -47,7 +48,8 @@ namespace CoachMaster.UI
             "Each career is saved on this computer. Manage manual and automatic saves.",
             "Interface scale, motion and language.",
             "Import mod folders, read the accepted formats and create templates.",
-            "Choose the main interface colours and preview the home screen."
+            "Choose the main interface colours and preview the home screen.",
+            "Terms, licences, modding rules and notices. None of this changes the career."
         };
 
         GameObject _root;
@@ -92,6 +94,12 @@ namespace CoachMaster.UI
         Button _themePreviewOpenButton;
         List<Text> _themePreviewTexts;
         HueSaturationWheel _themeWheel;
+        int _legalDoc;
+        Text _legalPageTitle;
+        Text _legalPageNote;
+        Text _legalHeading;
+        Text _legalBody;
+        Button[] _legalTabs;
         InputField _themeHexInput;
         GameObject _themePreviewModal;
         Image _themePreviewBackground;
@@ -185,13 +193,22 @@ namespace CoachMaster.UI
 
             _tabs = new Button[Categories.Length];
             _pages = new GameObject[Categories.Length];
+            var tabStep = 0.90f / Categories.Length;
+            var tabHeight = tabStep - 0.012f;
             for (var i = 0; i < Categories.Length; i++)
             {
                 var index = i;
-                var y = 0.895f - i * 0.075f;
+                var top = 0.96f - i * tabStep;
                 _tabs[i] = BroadcastUi.Button(side.transform, "Category" + i, CategoryName(i), () => SelectPage(index),
-                    new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 14);
-                BroadcastUi.Place(_tabs[i].GetComponent<RectTransform>(), 0.055f, y - 0.07f, 0.945f, y);
+                    new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 12);
+                BroadcastUi.Place(_tabs[i].GetComponent<RectTransform>(), 0.055f, top - tabHeight, 0.945f, top);
+                var tabLabel = _tabs[i].GetComponentInChildren<Text>();
+                if (tabLabel != null)
+                {
+                    tabLabel.resizeTextForBestFit = true;
+                    tabLabel.resizeTextMinSize = 9;
+                    tabLabel.resizeTextMaxSize = 13;
+                }
             }
 
             BuildDisplayPage(content.transform);
@@ -204,6 +221,7 @@ namespace CoachMaster.UI
             BuildAccessibilityPage(content.transform);
             BuildModsPage(content.transform);
             BuildThemePage(content.transform);
+            BuildLegalPage(content.transform);
 
             _feedback = BroadcastUi.Label(card.transform, "SettingsFeedback", "", 12, UiTheme.Muted, TextAnchor.MiddleLeft);
             BroadcastUi.Place(_feedback.rectTransform, 0.27f, 0.105f, 0.95f, 0.145f);
@@ -1016,6 +1034,216 @@ namespace CoachMaster.UI
 #endif
         }
 
+        void BuildLegalPage(Transform parent)
+        {
+            var page = Page(parent, 10, "LEGAL");
+            _legalPageTitle = page.transform.Find("PageTitle").GetComponent<Text>();
+            _legalPageNote = page.transform.Find("PageNote").GetComponent<Text>();
+            DropLocalizer(_legalPageTitle);
+            DropLocalizer(_legalPageNote);
+
+            var names = LegalTabNames(false);
+            _legalTabs = new Button[names.Length];
+            for (var i = 0; i < names.Length; i++)
+            {
+                var index = i;
+                var x0 = 0.035f + i * 0.19f;
+                _legalTabs[i] = BroadcastUi.Button(page.transform, "LegalTab" + i, names[i], () => ShowLegal(index),
+                    new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 12);
+                BroadcastUi.Place(_legalTabs[i].GetComponent<RectTransform>(), x0, 0.755f, x0 + 0.175f, 0.835f);
+                DropLocalizer(_legalTabs[i].GetComponentInChildren<Text>());
+            }
+
+            _legalHeading = BroadcastUi.Label(page.transform, "LegalHeading", "", 16, UiTheme.Accent, TextAnchor.MiddleLeft, FontStyle.Bold);
+            DropLocalizer(_legalHeading);
+            BroadcastUi.Place(_legalHeading.rectTransform, 0.04f, 0.68f, 0.96f, 0.745f);
+
+            var scroll = BroadcastUi.Scroll(page.transform, "LegalScroll", out var content);
+            BroadcastUi.Place(scroll.GetComponent<RectTransform>(), 0.03f, 0.02f, 0.97f, 0.67f);
+            var paper = BroadcastUi.Panel(content, "LegalPaper", new Color(1f, 1f, 1f, 0.035f));
+            _legalBody = BroadcastUi.Label(paper.transform, "LegalBody", "", 14, Color.white, TextAnchor.UpperLeft);
+            _legalBody.lineSpacing = 1.05f;
+            DropLocalizer(_legalBody);
+            BroadcastUi.Stretch(_legalBody.rectTransform);
+            _legalBody.rectTransform.offsetMin = new Vector2(16f, 14f);
+            _legalBody.rectTransform.offsetMax = new Vector2(-16f, -14f);
+            ShowLegal(0);
+        }
+
+        static void DropLocalizer(Text label)
+        {
+            if (label == null)
+                return;
+            var localizer = label.GetComponent<LocalizedText>();
+            if (localizer == null)
+                return;
+            localizer.enabled = false;
+            UnityEngine.Object.Destroy(localizer);
+        }
+
+        void ShowLegal(int index)
+        {
+            _legalDoc = Mathf.Clamp(index, 0, 4);
+            PaintLegal(true);
+        }
+
+        void PaintLegal()
+        {
+            PaintLegal(false);
+        }
+
+        void PaintLegal(bool jump)
+        {
+            if (_legalBody == null)
+                return;
+            var english = LocalizationManager.Current == GameLanguage.English;
+            if (_legalPageTitle != null)
+                _legalPageTitle.text = "LEGAL";
+            if (_legalPageNote != null)
+                _legalPageNote.text = english ? EnglishPageNotes[10] : PageNotes[10];
+            var names = LegalTabNames(english);
+            var headings = LegalHeadings(english);
+            for (var i = 0; i < _legalTabs.Length; i++)
+            {
+                var active = i == _legalDoc;
+                _legalTabs[i].GetComponent<Image>().color = active ? UiTheme.Accent : new Color(0.22f, 0.12f, 0.38f, 1f);
+                var label = _legalTabs[i].GetComponentInChildren<Text>();
+                if (label == null)
+                    continue;
+                label.text = names[i];
+                label.color = active ? UiTheme.ButtonText : Color.white;
+            }
+            _legalHeading.text = headings[_legalDoc];
+            var body = LegalBody(english, _legalDoc);
+            BroadcastUi.SetWrapped(_legalBody, body, 280f);
+            var paper = _legalBody.transform.parent.GetComponent<LayoutElement>();
+            if (paper == null)
+                paper = _legalBody.transform.parent.gameObject.AddComponent<LayoutElement>();
+            paper.preferredHeight = Mathf.Max(320f, _legalBody.preferredHeight + 36f);
+            paper.minHeight = paper.preferredHeight;
+            if (!jump)
+                return;
+            var scroll = _legalBody.GetComponentInParent<ScrollRect>();
+            if (scroll != null)
+                scroll.verticalNormalizedPosition = 1f;
+        }
+
+        static string[] LegalTabNames(bool english)
+        {
+            return english
+                ? new[] { "TERMS", "LICENCES", "MODDING", "NOTICES", "PRIVACY" }
+                : new[] { "TERMOS", "LICENÇAS", "MODDING", "AVISOS", "PRIVACIDADE" };
+        }
+
+        static string[] LegalHeadings(bool english)
+        {
+            return english
+                ? new[] { "Terms of use", "Licences", "Modding guidelines", "Disclaimers", "Privacy" }
+                : new[] { "Termos de uso", "Licenças", "Regras de modding", "Avisos", "Privacidade" };
+        }
+
+        static string LegalBody(bool english, int index)
+        {
+            switch (index)
+            {
+                case 0: return english ? TermsEnglish() : TermsPortuguese();
+                case 1: return english ? LicencesEnglish() : LicencesPortuguese();
+                case 2: return english ? ModdingEnglish() : ModdingPortuguese();
+                case 3: return english ? NoticesEnglish() : NoticesPortuguese();
+                default: return english ? PrivacyEnglish() : PrivacyPortuguese();
+            }
+        }
+
+        static string TermsPortuguese()
+        {
+            return "O Coach Master é um jogo de carreira de futebol feito para jogar neste computador. Abrir as definições e continuar a jogar significa que aceitas estes termos.\n\n"
+                + "O jogo é para uso pessoal. Podes jogar, guardar carreiras e mudar a apresentação. Não podes vender o jogo, apresentá-lo como produto oficial de uma liga, de um clube ou de outra marca, nem distribuir a pasta do projeto como se fosse tua.\n\n"
+                + "Cada carreira fica neste computador. O save manual e o automático podem substituir um ficheiro anterior. Antes de importar um mod ou de apagar uma carreira, faz uma cópia se quiseres ficar com aquele percurso.\n\n"
+                + "Não há garantia de que uma carreira, um mod ou um resultado se mantenham iguais depois de uma atualização. O jogo é fornecido como está. Lesões, transferências, despedimentos e resultados fazem parte da simulação.\n\n"
+                + "Música, fundos e mods que adicionas têm de ser ficheiros que tens direito a usar. O jogo não verifica esses direitos por ti.";
+        }
+
+        static string TermsEnglish()
+        {
+            return "Coach Master is a football career game meant to be played on this computer. Opening settings and carrying on means you accept these terms.\n\n"
+                + "The game is for personal use. You may play, keep careers and change the presentation. You may not sell the game, present it as an official product of a league, a club or another brand, or pass the project folder off as your own.\n\n"
+                + "Each career stays on this computer. A manual or automatic save can replace an older file. Copy a career before importing a mod or deleting it if you want to keep that run.\n\n"
+                + "A career, a mod or a result may change after an update. The game is provided as it is. Injuries, transfers, sackings and results are part of the simulation.\n\n"
+                + "Music, backgrounds and mods you add must be files you have the right to use. The game does not check those rights for you.";
+        }
+
+        static string LicencesPortuguese()
+        {
+            return "O Coach Master corre em Unity. Unity é uma marca da Unity Technologies. Este jogo não é feito, patrocinado nem aprovado pela Unity. Os pacotes do motor, incluindo o render e o sistema de input, continuam sujeitos às licenças da Unity.\n\n"
+                + "A simulação de campo em 3D inclui código e arte de terceiros que já vinham com essa parte do projeto. Esses ficheiros mantêm a licença de origem. Esta página não passa esses direitos para outra pessoa.\n\n"
+                + "A chuva usa o pacote Rainy VFX, de AIKStudio. Pode seguir dentro de uma build do jogo. Os ficheiros soltos desse pacote não podem ser revendidos nem redistribuídos como asset à parte.\n\n"
+                + "A interface, a carreira, os textos e as regras de gestão feitos neste projeto são a camada do Coach Master. Isso não apaga as licenças das partes de terceiros.\n\n"
+                + "Faixas de música e imagens de fundo que importas continuam a ser tuas, ou de quem te deu autorização. O jogo só as lê neste computador.";
+        }
+
+        static string LicencesEnglish()
+        {
+            return "Coach Master runs on Unity. Unity is a trademark of Unity Technologies. This game is not made, sponsored or approved by Unity. Engine packages, including the renderer and the input system, stay under Unity's own licences.\n\n"
+                + "The 3D pitch simulation includes third-party code and art that already belonged to that part of the project. Those files keep their original licence. This page does not pass those rights on to anyone else.\n\n"
+                + "Rain uses the Rainy VFX package by AIKStudio. It may ship inside a build of the game. The loose files of that package may not be resold or redistributed as a separate asset.\n\n"
+                + "The interface, career, writing and management rules made in this project are the Coach Master layer. That does not erase third-party licences.\n\n"
+                + "Music tracks and background images you import remain yours, or remain with whoever gave you permission. The game only reads them on this computer.";
+        }
+
+        static string ModdingPortuguese()
+        {
+            return "Um mod é uma pasta com ficheiros de texto e imagens. A importação copia o que o jogo reconhece para a pasta Mods deste computador. Um ficheiro com o mesmo nome é substituído. O resto fica como está.\n\n"
+                + "Ficheiros lidos: equipas.txt ou clubs.txt, jogadores.txt ou players.txt, treinadores.txt ou managers.txt, staff.txt e sponsors.txt. Imagens em PNG, JPG ou JPEG, nas pastas caras ou faces, emblemas, badges ou crests, e patrocinadores ou sponsors. O nome do ficheiro é a chave do rosto, do emblema ou do logótipo.\n\n"
+                + "Cada linha é um registo em UTF-8. Os campos separam-se com |. Uma linha que começa por # é um comentário. A ordem dos campos é a do guia MODS-LEIA-ME.txt. Um campo opcional vazio mantém o valor que já existia. IDs da pré-visualização da base de dados são a forma segura de apontar a um clube ou a um jogador. O nome atual também pode servir.\n\n"
+                + "Não juntes executáveis, instaladores nem ficheiros que o jogo não pediu. Não publiques a pasta inteira do jogo como se fosse o teu mod. Se partilhares um mod, descreve o que muda e inclui só os ficheiros novos.\n\n"
+                + "Nomes, caras, emblemas, equipamentos e músicas reais são responsabilidade de quem cria o mod. Só os uses se tiveres esse direito. Importa primeiro numa cópia da carreira: um mod pode mudar plantéis, contratos e a leitura dos dados.";
+        }
+
+        static string ModdingEnglish()
+        {
+            return "A mod is a folder of text files and images. Import copies what the game recognises into the Mods folder on this computer. A file with the same name is replaced. Everything else stays as it was.\n\n"
+                + "Files read: clubs.txt or equipas.txt, players.txt or jogadores.txt, managers.txt or treinadores.txt, staff.txt and sponsors.txt. Images in PNG, JPG or JPEG, in faces or caras, badges, crests or emblemas, and sponsors or patrocinadores. The file name is the key for the face, crest or logo.\n\n"
+                + "Each line is one UTF-8 record. Fields are separated by |. A line that starts with # is a comment. Field order is the one in MODS-LEIA-ME.txt. An empty optional field keeps the value already there. IDs from the database preview are the safe way to point at a club or a player. The current name can also work.\n\n"
+                + "Do not add executables, installers or files the game did not ask for. Do not publish the whole game folder as if it were your mod. If you share a mod, say what it changes and include only the new files.\n\n"
+                + "Real names, faces, crests, kits and music are the mod author's responsibility. Use them only when you have that right. Import into a copy of the career first: a mod can change squads, contracts and how the data is read.";
+        }
+
+        static string NoticesPortuguese()
+        {
+            return "O Coach Master não é FIFA, EA SPORTS FC, PES, Football Manager, nem um jogo da FIFA, da UEFA, de uma liga ou de um clube. Não há afiliação, patrocínio nem licença oficial dessas marcas.\n\n"
+                + "Nomes, caras, cores e emblemas podem ser fictícios ou ter sido trazidos por um mod ou por uma imagem tua. Uma parecença com uma pessoa ou um clube real não significa que essa pessoa ou esse clube participem no jogo.\n\n"
+                + "Resultados, lesões, mercado, moral e classificações são regras de jogo. Não são previsões, scouting real nem aconselhamento. A classe do jogador, de Histórico a Profissional em Desenvolvimento, lê o overall atual e mexe-se com a forma. Não é um certificado.\n\n"
+                + "A sala online partilha a carreira na rede local, entre computadores que tu abres. Não é um serviço oficial, não cria uma conta e não guarda a carreira num servidor do jogo.\n\n"
+                + "Se alguma destas frases estiver em conflito com a licença de um pacote de terceiros, vale a licença desse pacote para os ficheiros dele.";
+        }
+
+        static string NoticesEnglish()
+        {
+            return "Coach Master is not FIFA, EA SPORTS FC, PES, Football Manager, or a game from FIFA, UEFA, a league or a club. There is no affiliation, sponsorship or official licence from those brands.\n\n"
+                + "Names, faces, colours and crests may be fictional or may have arrived through a mod or an image you added. A resemblance to a real person or club does not mean that person or club takes part in the game.\n\n"
+                + "Results, injuries, the market, morale and tables are game rules. They are not predictions, real scouting or advice. A player's class, from Historic down to Developing Professional, reads the current overall and moves with form. It is not a certificate.\n\n"
+                + "The online room shares a career on the local network, between computers you open. It is not an official service, it does not create an account, and it does not store the career on a game server.\n\n"
+                + "If one of these lines conflicts with a third-party package licence, that package's licence applies to its own files.";
+        }
+
+        static string PrivacyPortuguese()
+        {
+            return "Não há conta de jogador. O Coach Master não pede nome, email nem uma palavra-passe para entrar.\n\n"
+                + "As carreiras, a pasta Mods, a música importada e os fundos que escolhes ficam no disco deste computador. As definições de ecrã, som, idioma e controlos também ficam neste computador.\n\n"
+                + "A sala online só comunica com a rede local enquanto a tens aberta. Não envia a carreira para um servidor do jogo. Quem estiver nessa rede pode receber o que a sala partilhar, por isso abre-a só com as pessoas que queres.\n\n"
+                + "Apagar uma carreira remove esse save neste computador. Apagar um fundo ou uma faixa tira-os das definições. O jogo não mantém uma cópia na nuvem.\n\n"
+                + "Imagens de jogadores são lidas para o retrato e, no jogo em 3D, para aproximar o tom de pele do modelo. Esse cálculo fica na partida. Não é enviado para lado nenhum.";
+        }
+
+        static string PrivacyEnglish()
+        {
+            return "There is no player account. Coach Master does not ask for a name, an email or a password to start.\n\n"
+                + "Careers, the Mods folder, imported music and backgrounds you choose stay on this computer's disk. Display, audio, language and control settings stay on this computer too.\n\n"
+                + "The online room only talks to the local network while you have it open. It does not send the career to a game server. Anyone on that network can receive what the room shares, so open it only with the people you want.\n\n"
+                + "Deleting a career removes that save on this computer. Deleting a background or a track removes it from settings. The game does not keep a cloud copy.\n\n"
+                + "Player photos are read for the portrait and, in the 3D match, to approximate the model's skin tone. That stays inside the match. It is not sent anywhere.";
+        }
+
         GameObject Page(Transform parent, int index, string heading)
         {
             var page = BroadcastUi.Panel(parent, "SettingsPage" + index, new Color(0f, 0f, 0f, 0.001f));
@@ -1043,7 +1271,8 @@ namespace CoachMaster.UI
                 case 6: return "Career & saves";
                 case 7: return "Accessibility";
                 case 8: return "Mods & database";
-                default: return "Theme & colours";
+                case 9: return "Theme & colours";
+                default: return "Legal";
             }
         }
 
@@ -1186,6 +1415,16 @@ namespace CoachMaster.UI
                 _refreshValues[i]();
             if (_now != null)
                 _now.text = GameAudio.Repeat ? "A repetir  ·  " + GameAudio.CurrentTrackName() : "A tocar  ·  " + GameAudio.CurrentTrackName();
+            if (_tabs != null)
+            {
+                for (var i = 0; i < _tabs.Length; i++)
+                {
+                    var tabLabel = _tabs[i] == null ? null : _tabs[i].GetComponentInChildren<Text>();
+                    if (tabLabel != null)
+                        tabLabel.text = CategoryName(i);
+                }
+            }
+            PaintLegal();
             ApplyCareerButtons();
             MatchDayController.RefreshSettings();
         }

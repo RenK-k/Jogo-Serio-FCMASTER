@@ -27,7 +27,7 @@ namespace FStudio.MatchEngine.Players.InputBehaviours {
 
         private PassTarget passTarget;
 
-        public bool IsTriggered { private get; set; }
+        public bool IsTriggered { get; set; }
 
         public override bool Behave(bool isAlreadyActive) {
             if (!IsTriggered && !isAlreadyActive) {
@@ -133,21 +133,38 @@ namespace FStudio.MatchEngine.Players.InputBehaviours {
 
                 Player.Stop(in deltaTime);
 
-                if (Player.LookTo(in deltaTime, passTarget._Position - Player.Position)) {
+                PreferTeammateInFront();
+
+                var point = passTarget._Position;
+                if (passType == PassType.ShortPass && passTarget._ActualTarget != null)
+                    point = passTarget._ActualTarget.Position;
+                else if (passType == PassType.ThroughtPass && passTarget._ActualTarget != null)
+                {
+                    var runner = passTarget._ActualTarget;
+                    var lead = targetGoalNet.Position - runner.Position;
+                    lead.y = 0f;
+                    var pace = runner.Velocity;
+                    pace.y = 0f;
+                    if (lead.sqrMagnitude > 1f)
+                        point = runner.Position + lead.normalized * Mathf.Clamp(8f + pace.magnitude * 0.6f, 8f, 18f) + pace * 0.35f;
+                    point.y = 0f;
+                }
+
+                if (Player.LookTo(in deltaTime, point - Player.Position)) {
                     // set pass target. after pass target player will behave with BallChasingBehaviour.
                     Player.PassingTarget = passTarget._ActualTarget;
 
                     float speedMod = Player.SpeedModForPassing();
 
                     if (passType == PassType.LongPass) {
-                        var dir = passTarget._Position - Player.Position;
+                        var dir = point - Player.Position;
                         var add = EngineSettings.Current.CrossTargetAdditionNormalByDistance.Evaluate(dir.magnitude);
 
                         var crossAddition = dir.normalized * add * passTarget._PassPower;
 
-                        Player.Cross(passTarget._Position + crossAddition);
+                        Player.Cross(point + crossAddition);
                     } else {
-                        Player.Pass(passTarget._Position, speedMod * passTarget._PassPower);
+                        Player.Pass(point, speedMod * passTarget._PassPower);
                     }
 
                     passTarget = default; // reset target.
@@ -157,6 +174,53 @@ namespace FStudio.MatchEngine.Players.InputBehaviours {
             }
 
             return false;
+        }
+
+        void PreferTeammateInFront() {
+            if (passType == PassType.ThroughtPass || passTarget._ActualTarget == null)
+                return;
+            var origin = Player.Position;
+            var target = passTarget._ActualTarget.Position;
+            var toTarget = target - origin;
+            toTarget.y = 0f;
+            var distance = toTarget.magnitude;
+            if (distance < 4f)
+                return;
+            var dir = toTarget / distance;
+            PlayerBase front = null;
+            var frontAlong = distance;
+            foreach (var mate in teammates) {
+                if (mate == null || mate == Player || mate == passTarget._ActualTarget || mate.IsGK)
+                    continue;
+                var toMate = mate.Position - origin;
+                toMate.y = 0f;
+                var along = Vector3.Dot(toMate, dir);
+                if (along < 2f || along > distance - 2f)
+                    continue;
+                if ((toMate - dir * along).magnitude > 2.4f)
+                    continue;
+                var opponentBehind = false;
+                foreach (var opponent in opponents) {
+                    if (opponent == null)
+                        continue;
+                    var toOpponent = opponent.Position - origin;
+                    toOpponent.y = 0f;
+                    var opponentAlong = Vector3.Dot(toOpponent, dir);
+                    if (opponentAlong < along + 0.6f || opponentAlong > distance - 0.4f)
+                        continue;
+                    if ((toOpponent - dir * opponentAlong).magnitude < 2.2f) {
+                        opponentBehind = true;
+                        break;
+                    }
+                }
+                if (!opponentBehind || along >= frontAlong)
+                    continue;
+                frontAlong = along;
+                front = mate;
+            }
+            if (front == null)
+                return;
+            passTarget = new PassTarget(passTarget._PassType, passTarget._OptionName, front.Position, front, passTarget._PassPower);
         }
     }
 }
