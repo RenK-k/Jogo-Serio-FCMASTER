@@ -1,0 +1,45 @@
+{
+  "name": "phaser-simple-soccer",
+  "version": "1.0.0",
+  "description": "Phaser Simple Soccer",
+  "main": "src/js/index.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "webpack serve --mode development",
+    "build": "webpack --mode production",
+    "deploy": "npm run build && gh-pages -d dist"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sebsowter/phaser-simple-soccer.git"
+  },
+  "author": "Seb Sowter",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/sebsowter/phaser-simple-soccer/issues"
+  },
+  "babel": {
+    "presets": [
+      "@babel/preset-env"
+    ]
+  },
+  "homepage": "https://github.com/sebsowter/phaser-simple-soccer#readme",
+  "devDependencies": {
+    "@babel/core": "^7.13.15",
+    "@babel/preset-env": "^7.13.15",
+    "babel-loader": "^8.2.2",
+    "copy-webpack-plugin": "^8.1.1",
+    "file-loader": "^6.2.0",
+    "html-webpack-plugin": "^5.3.1",
+    "json-loader": "^0.5.7",
+    "phaser": "^3.54.0",
+    "ts-loader": "^7.0.5",
+    "typescript": "^3.9.9",
+    "webpack": "^5.33.2",
+    "webpack-cli": "^4.6.0",
+    "webpack-dev-server": "^3.11.2"
+  },
+  "dependencies": {
+    "gh-pages": "^3.2.3"
+  }
+}

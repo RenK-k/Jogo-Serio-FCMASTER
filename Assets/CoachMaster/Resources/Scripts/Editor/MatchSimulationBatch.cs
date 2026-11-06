@@ -97,7 +97,7 @@ namespace CoachMaster.EditorTools
             var career = BuildCareer(scenario, seed);
             var fixture = career.Fixtures[0];
             var match = MatchSession.Create(career, fixture);
-            var engine = new MatchEngine(match, career.Coach.ClubId, 1f, 1f, StableSeed(fixture.Id));
+            var engine = new CoachMaster.MatchPlay.MatchEngine(match, career.Coach.ClubId, 1f, 1f, StableSeed(fixture.Id));
             var row = new MatchRow
             {
                 Scenario = scenario.Name,
@@ -153,7 +153,7 @@ namespace CoachMaster.EditorTools
             return row;
         }
 
-        static void Observe(MatchEngine engine, MatchSession match, MatchRow row, ref Vector2[] homePrevious, ref Vector2[] awayPrevious, ref bool havePrevious)
+        static void Observe(CoachMaster.MatchPlay.MatchEngine engine, MatchSession match, MatchRow row, ref Vector2[] homePrevious, ref Vector2[] awayPrevious, ref bool havePrevious)
         {
             if (!IsFinite(engine.Ball))
                 row.InvalidCoordinates++;

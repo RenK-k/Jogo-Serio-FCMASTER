@@ -8,6 +8,7 @@ using CoachMaster.Career;
 using CoachMaster.Data;
 using CoachMaster.Domain;
 using CoachMaster.MatchPlay;
+using CoachMaster.MatchPlay.Spatial;
 using UnityEditor;
 using UnityEngine;
 
@@ -28,6 +29,7 @@ namespace CoachMaster.EditorTools
                 failures += Lan(report);
                 failures += Ball(report);
                 failures += Mods(report);
+                failures += SpatialContact(report);
             }
             catch (Exception error)
             {
@@ -240,13 +242,49 @@ namespace CoachMaster.EditorTools
             }
         }
 
+        static int SpatialContact(StringBuilder report)
+        {
+            var failed = 0;
+            var elite = new AttributeScale
+            {
+                Passing = 85f, Vision = 80f, Composure = 78f, FirstTouch = 80f, Crossing = 70f,
+                Finishing = 84f, Dribbling = 70f, Tackling = 40f, Anticipation = 60f, Strength = 70f,
+                Agility = 72f, Marking = 40f, Aggression = 40f, Reflexes = 40f, Handling = 40f, Positioning = 70f
+            };
+            var average = elite;
+            average.Passing = 50f;
+            average.Vision = 50f;
+            average.Composure = 50f;
+            average.Finishing = 50f;
+            var keeper = new AttributeScale { Reflexes = 70f, Handling = 70f, Positioning = 68f };
+            var shortPass = ContactModel.PassMissChance(elite, 12f, 0.1f, false, false, false);
+            var longPass = ContactModel.PassMissChance(average, 42f, 0.85f, true, true, false);
+            failed += Expect(report, "passe curto falha menos que o longo pressionado", shortPass < longPass);
+            failed += Expect(report, "passe curto ainda pode falhar", shortPass >= 0.02f && shortPass < 0.12f);
+            var close = ContactModel.ShotChance(new Vector2(0.5f, 0.9f), true, 0, 2f, elite, keeper, 0.1f);
+            var far = ContactModel.ShotChance(new Vector2(0.2f, 0.62f), true, 2, 1f, average, keeper, 0.7f);
+            failed += Expect(report, "remate perto vale mais que remate de longe", close > far);
+            failed += Expect(report, "xG de um remate cabe no modelo", close > 0.04f && close < 0.62f && far > 0.005f && far < close);
+            var rngA = new System.Random(42);
+            var rngB = new System.Random(42);
+            var strong = new AttributeScale { Tackling = 85f, Anticipation = 80f, Strength = 82f, Marking = 80f, Aggression = 40f };
+            var weak = new AttributeScale { Dribbling = 35f, Composure = 40f, Agility = 40f, Strength = 45f };
+            var one = ContactModel.Duel(rngA, strong, weak, false);
+            var two = ContactModel.Duel(rngB, strong, weak, false);
+            failed += Expect(report, "duelo com a mesma semente repete", one == two);
+            failed += Expect(report, "duelo devolve um resultado", one == "won" || one == "foul" || one == "none");
+            var lane = ContactModel.PointSegmentMeters(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.2f), new Vector2(0.5f, 0.8f));
+            failed += Expect(report, "bola na linha do passe está ao alcance", lane < 0.2f);
+            return failed;
+        }
+
         static int Ball(StringBuilder report)
         {
             try
             {
                 var career = PitchCareer();
                 var match = MatchSession.Create(career, career.Fixtures[0]);
-                var engine = new MatchEngine(match, career.Coach.ClubId, 1f, 1f, 24681357);
+                var engine = new CoachMaster.MatchPlay.MatchEngine(match, career.Coach.ClubId, 1f, 1f, 24681357);
                 var previous = engine.Ball;
                 var ballMetres = 0f;
                 var playerMetres = 0f;

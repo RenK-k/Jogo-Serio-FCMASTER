@@ -39,6 +39,7 @@ namespace CoachMaster.UI
         public static Color Stripe { get; private set; }
         public static Color StripeAlt { get; private set; }
         public static Color Footer { get; private set; }
+        public static Color BackdropShade { get; private set; }
         public static Color Pitch { get; private set; }
         public static Color PitchLine { get; private set; }
 
@@ -90,9 +91,11 @@ namespace CoachMaster.UI
             Line = _text;
             ButtonText = Luminance(_accent) > 0.58f ? Color.black : Color.white;
             Score = _accent;
-            Stripe = Color.Lerp(_canvas, _panel, 0.42f);
-            StripeAlt = Color.Lerp(_canvas, Color.black, 0.30f);
-            Footer = Color.Lerp(_canvas, Color.black, 0.78f);
+            var nearWhiteCanvas = _canvas.r >= 0.92f && _canvas.g >= 0.92f && _canvas.b >= 0.92f;
+            Stripe = nearWhiteCanvas ? _canvas : Color.Lerp(_canvas, _panel, 0.42f);
+            StripeAlt = nearWhiteCanvas ? _canvas : Color.Lerp(_canvas, Color.black, 0.30f);
+            Footer = nearWhiteCanvas ? _canvas : Color.Lerp(_canvas, Color.black, 0.78f);
+            BackdropShade = nearWhiteCanvas ? Color.clear : new Color(0.05f, 0.02f, 0.1f, 0.28f);
             Pitch = _panel;
             PitchLine = Hex("F4F1FF");
         }
@@ -125,6 +128,11 @@ namespace CoachMaster.UI
 
                 if (!(graphic is Image image))
                     continue;
+                if (image.name == "TopShade")
+                {
+                    image.color = BackdropShade;
+                    continue;
+                }
                 var imageTarget = RemapImage(image, previous);
                 if (imageTarget.HasValue)
                     image.color = WithAlpha(imageTarget.Value, image.color.a);

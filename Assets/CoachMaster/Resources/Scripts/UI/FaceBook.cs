@@ -359,6 +359,51 @@ namespace CoachMaster.UI
             }
         }
 
+        public static bool DarkSkin(Player player)
+        {
+            if (player == null)
+                return false;
+            var nation = (player.Nationality ?? "").ToLowerInvariant();
+            if (nation.Contains("senegal") || nation.Contains("nigéria") || nation.Contains("nigeria")
+                || nation.Contains("gana") || nation.Contains("ghana") || nation.Contains("congo")
+                || nation.Contains("camarões") || nation.Contains("camero") || nation.Contains("mali")
+                || nation.Contains("angola") || nation.Contains("guiné") || nation.Contains("guine")
+                || nation.Contains("moçambique") || nation.Contains("mozambique") || nation.Contains("costa do marfim"))
+                return true;
+            var sprite = For(player);
+            var folder = "";
+            if (sprite != null)
+                FolderBySprite.TryGetValue(sprite, out folder);
+            var path = ((player.PortraitPath ?? "") + " " + folder).ToLowerInvariant();
+            var north = path.Contains("north african") || path.Contains("arab") || path.Contains("morocco") || path.Contains("marrocos");
+            if (!north && (path.Contains("africa") || path.Contains("senegal") || path.Contains("nigeria") || path.Contains("ghana") || path.Contains("congo")))
+                return true;
+            return PortraitDark(sprite);
+        }
+
+        static bool PortraitDark(Sprite sprite)
+        {
+            if (sprite == null || sprite.texture == null || !sprite.texture.isReadable)
+                return false;
+            var texture = sprite.texture;
+            var rect = sprite.textureRect;
+            var hits = 0;
+            var dark = 0;
+            for (var y = 0.3f; y <= 0.7f; y += 0.1f)
+            {
+                for (var x = 0.35f; x <= 0.65f; x += 0.1f)
+                {
+                    var pixel = texture.GetPixel((int)(rect.x + rect.width * x), (int)(rect.y + rect.height * y));
+                    hits++;
+                    var luma = pixel.r * 0.3f + pixel.g * 0.5f + pixel.b * 0.2f;
+                    if (luma < 0.42f && pixel.r < 0.62f)
+                        dark++;
+                }
+            }
+
+            return hits > 0 && dark * 2 >= hits;
+        }
+
         public static Sprite For(Player player)
         {
             if (player == null)

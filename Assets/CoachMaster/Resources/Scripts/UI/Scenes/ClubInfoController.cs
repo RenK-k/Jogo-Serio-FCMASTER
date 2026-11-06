@@ -139,7 +139,7 @@ namespace CoachMaster.UI.Scenes
                 var player = eleven[index];
                 var position = index < slotPositions.Length ? slotPositions[index] : player.Position;
                 var card = PlayerCardView.Create(host, "P" + player.SquadNumber, player, club, position, true);
-                card.rectTransform.anchorMin = card.rectTransform.anchorMax = MatchEngine.Slot(true, index, club.Tactics.Formation);
+                card.rectTransform.anchorMin = card.rectTransform.anchorMax = CoachMaster.MatchPlay.MatchEngine.Slot(true, index, club.Tactics.Formation);
                 card.rectTransform.sizeDelta = new Vector2(88, 100);
             }
         }

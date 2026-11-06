@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using CoachMaster.Career;
 using CoachMaster.Domain;
+using CoachMaster.MatchPlay.Spatial;
 using CoachMaster.Presentation;
 using CoachMaster.UI;
 using UnityEngine;
@@ -91,6 +92,9 @@ namespace CoachMaster.MatchPlay
         string _shotActorId;
         bool _shotActorHome;
         string _pieceKind = "";
+        float _duelShield;
+        bool _interceptArmed;
+        bool _safeDelivery;
         float _flightApex;
         Vector2 _flightFrom;
         float _flightSpan;
@@ -127,7 +131,7 @@ namespace CoachMaster.MatchPlay
                 return;
             if (!IsFinite(minutesPerSecond) || minutesPerSecond <= 0f)
                 minutesPerSecond = ReferenceMatchSpeed;
-            MovementSpeedScale = Mathf.Clamp(minutesPerSecond / ReferenceMatchSpeed, 0.25f, 8f);
+            MovementSpeedScale = Mathf.Clamp(minutesPerSecond / ReferenceMatchSpeed, 0.25f, 28f);
 
             _stepAccumulator = Mathf.Min(_stepAccumulator + Mathf.Min(dt, MaxFrameDelta), MaxFrameDelta);
             var steps = 0;
@@ -173,6 +177,8 @@ namespace CoachMaster.MatchPlay
             }
 
             var dt = elapsed * MovementSpeedScale;
+            if (_duelShield > 0f)
+                _duelShield = Mathf.Max(0f, _duelShield - dt);
             _match.Minute += elapsed * minutesPerSecond;
             var targetDelta = ToMeters(BallTarget - Ball);
             var targetDistance = targetDelta.magnitude;
@@ -189,9 +195,17 @@ namespace CoachMaster.MatchPlay
                 _ballVelocity = _ballVelocity.normalized * maxSpeed;
             if (targetDistance <= 0.02f || maxSpeed <= 0.01f)
                 _ballVelocity = Vector2.zero;
+            else
+            {
+                var next = Ball + FromMeters(_ballVelocity * dt);
+                if (Vector2.Dot(BallTarget - next, BallTarget - Ball) <= 0f)
+                    next = BallTarget;
+                Ball = next;
+            }
 
-            // AI determines the intended runs, while the isolated Rigidbody2D world
-            // integrates player and ball motion and resolves body contacts.
+            // Players keep their spacing in the physics world. The ball follows the
+            // pass, shot and carry that the match already chose, so a collision
+            // cannot fling it from one side of the pitch to the other.
             Glide(dt);
             if (!IsFinite(Ball))
             {
@@ -267,10 +281,13 @@ namespace CoachMaster.MatchPlay
                 }
             }
 
-            if (TryIntercept(dt))
+            var restart = _pieceLive
+                || ActionKind == "throwin" || ActionKind == "corner" || ActionKind == "goalkick"
+                || ActionKind == "freekick" || ActionKind == "penalty" || ActionKind == "kickoff";
+            if (!restart && TryIntercept(dt))
                 return;
 
-            if (Contest(dt))
+            if (!restart && Contest(dt))
                 return;
             if (DistanceMeters(Ball, BallTarget) > 0.6f)
                 return;
@@ -335,6 +352,9 @@ namespace CoachMaster.MatchPlay
                         var controlTime = Mathf.Clamp01((control + decisions / 20f + composure / 20f) / 3f);
                         _settle = Mathf.Lerp(0.4f, 0.14f, controlTime);
                         ActionKind = "touch";
+                        _interceptArmed = false;
+                        if (_duelShield < 1.1f)
+                            _duelShield = 1.1f;
                         return;
                     }
 
@@ -447,6 +467,8 @@ namespace CoachMaster.MatchPlay
 
             var shape = home ? _match.HomeTactics : _match.AwayTactics;
             PackBlock(ref raw, attacking, shape);
+            if (index > 0)
+                raw.x = Mathf.Clamp(Mathf.Lerp(raw.x, Ball.x, attacking ? 0.05f : 0.1f), 0.06f, 0.94f);
             var ballOwnX = home ? Ball.x : 1f - Ball.x;
             var ballOwnY = home ? Ball.y : 1f - Ball.y;
             var wing = raw.x < 0.34f || raw.x > 0.66f;
@@ -923,10 +945,9 @@ namespace CoachMaster.MatchPlay
             GlideSide(false, _awayMotion, step);
             if (_physicsWorld == null)
                 _physicsWorld = new MatchPhysicsWorld(_homeMotion, _awayMotion, Ball);
-            _physicsWorld.Simulate(step, _homeStride, _awayStride, _ballVelocity, BallHeight > 0.35f,
-                _homeMotion, _awayMotion, out var ballPosition, out var resolvedBallVelocity);
+            _physicsWorld.Simulate(step, _homeStride, _awayStride, _homeMotion, _awayMotion, Ball,
+                out var ballPosition, out _);
             Ball = ballPosition;
-            _ballVelocity = resolvedBallVelocity;
         }
 
         void GlideSide(bool home, Vector2[] motion, float dt)
@@ -1264,9 +1285,15 @@ namespace CoachMaster.MatchPlay
                 if (i == _match.BallHolder || IsPlayerInjured(squad[i]))
                     continue;
                 var player = Person(home, i);
-                var score = Vector2.Distance(KickoffSpot(home, i), new Vector2(0.5f, 0.5f));
-                if (player != null && (player.Position == PlayerPosition.CentreBack || player.Position == PlayerPosition.DefensiveMidfielder || player.Position == PlayerPosition.CentralMidfielder))
-                    score -= 0.045f;
+                if (player != null && player.Position == PlayerPosition.Goalkeeper)
+                    continue;
+                var spot = KickoffSpot(home, i);
+                var behind = home ? spot.y < 0.47f && spot.y > 0.24f : spot.y > 0.53f && spot.y < 0.76f;
+                if (!behind)
+                    continue;
+                var score = Vector2.Distance(spot, new Vector2(0.5f, home ? 0.42f : 0.58f));
+                if (player != null && (player.Position == PlayerPosition.CentralMidfielder || player.Position == PlayerPosition.DefensiveMidfielder))
+                    score -= 0.06f;
                 if (score < bestScore)
                 {
                     selected = i;
@@ -1699,6 +1726,8 @@ namespace CoachMaster.MatchPlay
                 shoot = -2f;
                 wing -= 0.2f;
                 through += direct ? 0.15f : 0.05f;
+                if (room < 0.09f)
+                    through += 0.28f;
             }
 
             var angle = 1f - Mathf.Abs(Ball.x - 0.5f) * 1.7f;
@@ -1740,34 +1769,36 @@ namespace CoachMaster.MatchPlay
                 shoot = pass + urge;
             }
 
-            var noise = (float)_rng.NextDouble() * 0.18f;
+            var mental = attr == null ? 0.5f : attr.Decisions / 20f;
+            var fresh = carrier == null ? 1f : Mathf.Clamp01(1f - carrier.Fatigue / 110f);
+            float Noise() => ContactModel.DecisionNoise(_rng, mental, fresh);
             var best = "pass";
-            var score = pass;
-            if (through + noise * 0.3f > score)
+            var score = pass + Noise();
+            if (through + Noise() > score)
             {
                 best = "through";
                 score = through;
             }
 
-            if (dribble + noise * 0.4f > score)
+            if (dribble + Noise() > score)
             {
                 best = "dribble";
                 score = dribble;
             }
 
-            if (wing + noise * 0.3f > score)
+            if (wing + Noise() > score)
             {
                 best = "cross";
                 score = wing;
             }
 
-            if (carry + noise * 0.2f > score)
+            if (carry + Noise() > score)
             {
                 best = "carry";
                 score = carry;
             }
 
-            if (shoot + noise * 0.15f > score)
+            if (shoot + Noise() > score)
                 best = "shoot";
             return best;
         }
@@ -1946,14 +1977,18 @@ namespace CoachMaster.MatchPlay
                 foulChance *= 1.45f;
             if (_match.Minute < _quietCards)
                 foulChance *= 0.25f;
-            var roll = _rng.NextDouble();
-            if (roll < foulChance)
+            if (_duelShield > 0f)
+                return false;
+            var ownBox = home ? Ball.y > 0.84f : Ball.y < 0.16f;
+            var duel = ContactModel.Duel(_rng, AttributeScale.From(defender), AttributeScale.From(attacker), ownBox);
+            _duelShield = 2.6f;
+            if (duel == "foul" || (divingTackle && _rng.NextDouble() < foulChance * 0.35f && duel != "won"))
             {
                 Foul(home, who);
                 return true;
             }
 
-            if (roll < 0.22 + (tack - keep) * 0.018)
+            if (duel == "won")
             {
                 Turnover(home, who);
                 Bump(defenders[who], 0.08f);
@@ -2036,42 +2071,38 @@ namespace CoachMaster.MatchPlay
                 return;
             }
             var toName = Name(squad[next]);
+            if (kickoffPass && (next <= 0 || Person(home, next) != null && Person(home, next).Position == PlayerPosition.Goalkeeper))
+            {
+                next = KickoffReceiver(home);
+                if (next <= 0)
+                    next = from == 1 ? 2 : 1;
+            }
             _match.BallHolder = next;
             _match.HomeHasBall = home;
             BallTarget = ReceivePoint(home, next);
+            if (kickoffPass)
+            {
+                BallTarget = home
+                    ? new Vector2(Mathf.Clamp(BallTarget.x, 0.32f, 0.68f), Mathf.Clamp(BallTarget.y, 0.30f, 0.46f))
+                    : new Vector2(Mathf.Clamp(BallTarget.x, 0.32f, 0.68f), Mathf.Clamp(BallTarget.y, 0.54f, 0.70f));
+            }
+            else if (from == 0)
+            {
+                BallTarget = home
+                    ? new Vector2(Mathf.Clamp(BallTarget.x, 0.18f, 0.82f), Mathf.Clamp(Mathf.Max(BallTarget.y, Ball.y + 0.12f), 0.2f, 0.72f))
+                    : new Vector2(Mathf.Clamp(BallTarget.x, 0.18f, 0.82f), Mathf.Clamp(Mathf.Min(BallTarget.y, Ball.y - 0.12f), 0.28f, 0.8f));
+            }
             var hop = Vector2.Distance(Ball, BallTarget);
             var oneTouch = ActionKind == "touch";
             var passer = 10;
             var fail = 0.22f;
             Player passerPlayer = null;
             if (_match.People.TryGetValue(squad[from], out passerPlayer) && passerPlayer.Attributes != null)
-            {
                 passer = PlayerAttributes.CurrentValue(passerPlayer, "Passe");
-                if (passerPlayer.HasTrait(PlayerTrait.Visionario))
-                    passer += 4;
-                if (passerPlayer.HasTrait(PlayerTrait.ImuneAPressao))
-                    passer += 2;
-                if (PlayerAttributes.CurrentValue(passerPlayer, "Decisão") <= 8)
-                    passer -= 2;
-                var overall = CurrentRoleOverall(passerPlayer);
-                fail = Mathf.Clamp((16f - passer) / 32f, 0.02f, 0.22f);
-                if (hop > 0.32f)
-                    fail += 0.06f;
-                if (hop < 0.16f)
-                    fail *= 0.3f;
-                if (overall >= 80)
-                    fail *= 0.65f;
-                if (overall <= 64)
-                    fail *= 1.15f;
-                if (fail > 0.28f)
-                    fail = 0.28f;
-            }
             var attackShape = home ? _match.HomeTactics : _match.AwayTactics;
             var forward = home ? BallTarget.y - Ball.y : Ball.y - BallTarget.y;
             var visionary = passerPlayer != null && (passerPlayer.HasTrait(PlayerTrait.Visionario) || passer >= 15);
             var through = runner >= 0 || (forward > 0.1f && hop > 0.2f && !TikiPlan(attackShape) && (DirectPlan(attackShape) || (visionary && _rng.NextDouble() < 0.45)));
-            if (through && passerPlayer != null && passerPlayer.Attributes != null)
-                fail += Mathf.Clamp((14f - passer) * 0.012f, 0f, 0.12f);
             if (through)
             {
                 var extra = (home ? 1f : -1f) * Mathf.Lerp(0.09f, 0.025f, ControlOf(home, next));
@@ -2080,36 +2111,26 @@ namespace CoachMaster.MatchPlay
             }
             var laneBlocked = PassLaneBlocked(home, Ball, BallTarget);
             var flairPass = !through && laneBlocked && passerPlayer != null && passerPlayer.HasTrait(PlayerTrait.Flair) && _rng.NextDouble() < 0.34;
-            if (passerPlayer != null)
-            {
-                if (oneTouch && hop < 0.24f && passerPlayer.HasTrait(PlayerTrait.PasseDePrimeira))
-                    fail *= 0.48f;
-                if (flairPass)
-                    fail *= 0.68f;
-                if (passerPlayer.HasTrait(PlayerTrait.PassadorLongo) && forward > 0.06f && hop > 0.22f)
-                    fail *= 0.9f;
-            }
-            if (laneBlocked && !flairPass)
-                fail += 0.09f;
-            var pressure = MarkerGap(home, from);
-            if (pressure < 0.055f)
-                fail += 0.07f;
-            else if (pressure < 0.09f)
-                fail += 0.035f;
-            if (kickoffPass)
+            var pressure = ContactModel.Pressure(MarkerGap(home, from));
+            var targetDepth = home ? BallTarget.y : 1f - BallTarget.y;
+            var crossPass = (Ball.x < 0.22f || Ball.x > 0.78f) && targetDepth > 0.78f && Mathf.Abs(BallTarget.x - 0.5f) < 0.28f;
+            fail = ContactModel.PassMissChance(AttributeScale.From(passerPlayer), ContactModel.Meters(Ball, BallTarget), pressure, laneBlocked && !flairPass, through, crossPass);
+            if (oneTouch && hop < 0.24f && passerPlayer != null && passerPlayer.HasTrait(PlayerTrait.PasseDePrimeira))
+                fail *= 0.72f;
+            if (passerPlayer != null && passerPlayer.HasTrait(PlayerTrait.PassadorLongo) && forward > 0.06f && hop > 0.22f)
+                fail *= 0.9f;
+            if (kickoffPass || _safeDelivery)
                 fail = Mathf.Min(fail, 0.04f);
-            if (fail > 0.42f)
-                fail = 0.42f;
             ResolvePendingPass(false, false, null);
             var passEvent = _match.RecordPass(home, squad[from], squad[next], passOrigin, BallTarget, through);
             var miss = _rng.NextDouble() < fail;
             if (miss)
             {
-                var loose = Vector2.Lerp(Ball, BallTarget, 0.65f);
-                loose.x += (float)(_rng.NextDouble() - 0.5f) * 0.1f;
-                loose.y += (float)(_rng.NextDouble() - 0.5f) * 0.06f;
-                var nearTouch = BallTarget.x < 0.1f || BallTarget.x > 0.9f || BallTarget.y < 0.08f || BallTarget.y > 0.92f;
-                if (nearTouch && _rng.NextDouble() < 0.28)
+                var loose = Vector2.Lerp(Ball, BallTarget, 0.94f);
+                loose.x += (float)(_rng.NextDouble() - 0.5f) * 0.035f;
+                loose.y += (float)(_rng.NextDouble() - 0.5f) * 0.02f;
+                var nearTouch = !_safeDelivery && (BallTarget.x < 0.1f || BallTarget.x > 0.9f || BallTarget.y < 0.08f || BallTarget.y > 0.92f);
+                if (nearTouch && _rng.NextDouble() < 0.08)
                 {
                     if (BallTarget.y > 0.9f || BallTarget.y < 0.1f)
                         BallTarget = new Vector2(Mathf.Clamp(BallTarget.x, 0.2f, 0.8f), home ? 1.02f : -0.02f);
@@ -2132,7 +2153,7 @@ namespace CoachMaster.MatchPlay
             _lastPasser = squad[from];
             _lastPasserHome = home;
             NotePass(home, next);
-            Travel = Mathf.Lerp(0.1f, 0.22f, Mathf.Clamp01(hop / 0.45f));
+            Travel = kickoffPass ? 0.3f : from == 0 ? 0.46f : Mathf.Lerp(0.42f, 0.68f, Mathf.Clamp01(hop / 0.45f));
             ActionKind = "pass";
             _curl = passerPlayer != null && passerPlayer.HasTrait(PlayerTrait.Efeito) && !through && hop > 0.08f && hop < 0.38f
                 ? (_rng.NextDouble() < 0.5 ? -0.55f : 0.55f) : 0f;
@@ -2294,9 +2315,17 @@ namespace CoachMaster.MatchPlay
             var direct = DirectPlan(tactics);
             for (var i = 0; i < squad.Count && i < 11; i++)
             {
-                if (i != from && IsPlayerInjured(squad[i]))
+                if (i == from || IsPlayerInjured(squad[i]))
+                    continue;
+                if (i == 0)
                     continue;
                 var spot = PlayerSpot(home, i);
+                if (from == 0)
+                {
+                    var ahead = home ? spot.y - fromSpot.y : fromSpot.y - spot.y;
+                    if (ahead < 0.1f)
+                        continue;
+                }
                 var forward = home ? spot.y - fromSpot.y : fromSpot.y - spot.y;
                 var distance = Vector2.Distance(fromSpot, spot);
                 var score = forward * 1.1f - distance * (safe != null && safe.Contains("arriscado") ? 4.2f : 7.4f) + (float)(_rng.NextDouble() * 0.08);
@@ -2395,7 +2424,7 @@ namespace CoachMaster.MatchPlay
                 var nearestDistance = 99f;
                 for (var i = 0; i < squad.Count && i < 11; i++)
                 {
-                    if (i == from)
+                    if (i == from || i == 0)
                         continue;
                     var distance = Vector2.Distance(fromSpot, MotionOf(home, i));
                     if (distance < nearestDistance)
@@ -2546,7 +2575,6 @@ namespace CoachMaster.MatchPlay
             if (shooterPlayer != null && shooterPlayer.Attributes != null)
             {
                 personal += (PlayerAttributes.CurrentValue(shooterPlayer, "Finalização") - 10) * 0.016;
-                personal += (CurrentRoleOverall(shooterPlayer) - 74) * 0.004;
                 personal += (PlayerAttributes.CurrentValue(shooterPlayer, "Frieza") - 10) * 0.004;
                 if (PlayerAttributes.CurrentValue(shooterPlayer, "Finalização") <= 8)
                     aim -= 0.2;
@@ -2601,14 +2629,8 @@ namespace CoachMaster.MatchPlay
             var central = 1f - Mathf.Abs(Ball.x - 0.5f) * 1.5f;
             if (central < 0.18f)
                 central = 0.18f;
-            var closeness = depth >= 0.88f ? 1f : depth >= 0.8f ? 0.72f : depth >= 0.74f ? 0.4f : 0.22f;
-            if (header)
-                closeness *= shooterPlayer != null && shooterPlayer.HasTrait(PlayerTrait.Cabeceador) ? 0.9f : 0.62f;
-            var chance = 0.018 + closeness * central * 0.15 + personal * 0.38 + boost * 0.12 - wall * 0.25 - save * 0.1 + quality * 0.015;
-            if (chance < 0.01)
-                chance = 0.01;
-            if (chance > 0.3)
-                chance = 0.3;
+            double chance;
+            float onTargetLine;
             if (penalty)
             {
                 var finishing = shooterPlayer == null || shooterPlayer.Attributes == null ? 10 : PlayerAttributes.CurrentValue(shooterPlayer, "Finalização");
@@ -2620,6 +2642,21 @@ namespace CoachMaster.MatchPlay
                 if (shooterPlayer != null && shooterPlayer.HasTrait(PlayerTrait.Frieza))
                     chance += 0.015;
                 chance = Mathf.Clamp((float)chance, 0.62f, 0.86f);
+                onTargetLine = Mathf.Min(0.97f, (float)chance + 0.1f);
+            }
+            else
+            {
+                var gap = MarkerGap(home, index);
+                var keeperSpot = MotionOf(!home, 0);
+                var keeperOff = Mathf.Abs(keeperSpot.y - (home ? 1f : 0f)) * ContactModel.PitchLength;
+                chance = ContactModel.ShotChance(shotOrigin, home, ContactModel.BodiesOnShot(gap), keeperOff, AttributeScale.From(shooterPlayer), AttributeScale.From(keeper), ContactModel.Pressure(gap));
+                if (header)
+                    chance *= shooterPlayer != null && shooterPlayer.HasTrait(PlayerTrait.Cabeceador) ? 1.08 : 0.72;
+                chance *= 1.0 + boost * 0.12 - wall * 0.1 + (quality - save) * 0.03;
+                chance = Mathf.Clamp((float)chance, 0.01f, 0.62f);
+                onTargetLine = ContactModel.OnTargetChance((float)chance, AttributeScale.From(shooterPlayer), ContactModel.Pressure(gap));
+                chance *= 1.0 + System.Math.Max(-0.12, System.Math.Min(0.12, personal));
+                chance = Mathf.Clamp((float)chance, 0.01f, 0.62f);
             }
 
             var shotRoll = _rng.NextDouble();
@@ -2630,9 +2667,7 @@ namespace CoachMaster.MatchPlay
                 ? _lastPasser : null;
             _lastPasser = null;
             var post = !goal && !penalty && shotRoll < chance + 0.08 && central > 0.5f && depth > 0.74f;
-            var onTarget = goal || (!post && (penalty
-                ? shotRoll < chance + 0.15
-                : shotRoll < chance + 0.22 + aim * 0.25));
+            var onTarget = goal || (!post && shotRoll < onTargetLine);
             var placement = Mathf.Clamp01(((float)aim - 0.35f) / 0.65f);
             var lateralSpread = Mathf.Lerp(0.065f, 0.025f, placement);
             var oppositeSideBias = Mathf.Clamp((0.5f - Ball.x) * 0.08f, -0.012f, 0.012f);
@@ -2920,6 +2955,15 @@ namespace CoachMaster.MatchPlay
             _match.FlashSerial++;
         }
 
+        public void FinishPendingGoal()
+        {
+            if (!_pendingGoal)
+                return;
+            Ball = BallTarget;
+            SnapBallVisual();
+            CompleteGoal();
+        }
+
         void CompleteGoal()
         {
             if (!_pendingGoal)
@@ -3063,11 +3107,15 @@ namespace CoachMaster.MatchPlay
 
         bool TryIntercept(float dt)
         {
-            if (ActionKind == "shot" || ActionKind == "goal" || ActionKind == "kickoff" || ActionKind == "solo")
+            if (!_interceptArmed)
+                return false;
+            if (ActionKind != "pass" && ActionKind != "cross" && ActionKind != "loose")
                 return false;
             if (BallHeight > 0.38f)
                 return false;
-            if (DistanceMeters(Ball, BallTarget) < 0.8f)
+            var total = DistanceMeters(_flightFrom, BallTarget);
+            var travelled = DistanceMeters(_flightFrom, Ball);
+            if (total < 6f || travelled < total * 0.35f)
                 return false;
             var attackHome = _match.HomeHasBall;
             var count = attackHome ? _match.AwayOnField.Count : _match.HomeOnField.Count;
@@ -3078,41 +3126,34 @@ namespace CoachMaster.MatchPlay
                 var defending = attackHome ? _match.AwayOnField : _match.HomeOnField;
                 if (IsPlayerInjured(defending[i]))
                     continue;
-                var distance = DistanceMeters(Ball, MotionOf(!attackHome, i));
-                if (distance < best)
+                var lane = ContactModel.PointSegmentMeters(MotionOf(!attackHome, i), _flightFrom, BallTarget);
+                if (lane < best)
                 {
-                    best = distance;
+                    best = lane;
                     who = i;
                 }
             }
 
-            var reach = Travel > 0.62f ? 2.6f : 1.5f;
-            if (who < 0 || best > reach)
+            if (who < 0 || best > 2.4f)
                 return false;
-            var chance = (Travel > 0.62f ? 1.6f : 0.35f) * dt;
-            var attackSquadEarly = attackHome ? _match.HomeOnField : _match.AwayOnField;
-            if (_match.BallHolder >= 0 && _match.BallHolder < attackSquadEarly.Count && _match.People.TryGetValue(attackSquadEarly[_match.BallHolder], out var passer))
-            {
-                if (passer.HasTrait(PlayerTrait.Visionario))
-                    chance *= 0.62f;
-                if (passer.HasTrait(PlayerTrait.ImuneAPressao))
-                    chance *= 0.78f;
-            }
+            _interceptArmed = false;
+            var attackSquad = attackHome ? _match.HomeOnField : _match.AwayOnField;
             var defendSquad = attackHome ? _match.AwayOnField : _match.HomeOnField;
-            if (who < defendSquad.Count && _match.People.TryGetValue(defendSquad[who], out var cutter))
-            {
-                if (cutter.HasTrait(PlayerTrait.Marcador) || cutter.HasTrait(PlayerTrait.Trabalhador))
-                    chance *= 1.35f;
-            }
+            Player passer = null;
+            Player cutter = null;
+            if (_match.BallHolder >= 0 && _match.BallHolder < attackSquad.Count)
+                _match.People.TryGetValue(attackSquad[_match.BallHolder], out passer);
+            if (who < defendSquad.Count)
+                _match.People.TryGetValue(defendSquad[who], out cutter);
+            var chance = ContactModel.InterceptChance(AttributeScale.From(cutter), AttributeScale.From(passer), best);
             if (_rng.NextDouble() > chance)
                 return false;
             ResolvePendingPass(false, true, null);
             Turnover(attackHome, who);
-            _match.LastEvent = "Interceção. " + Name((attackHome ? _match.AwayOnField : _match.HomeOnField)[who]) + " corta o passe.";
-            var attackSquad = attackHome ? _match.HomeOnField : _match.AwayOnField;
+            _match.LastEvent = "Interceção. " + Name(defendSquad[who]) + " corta o passe.";
             if (_match.BallHolder >= 0 && _match.BallHolder < attackSquad.Count)
                 Bump(attackSquad[_match.BallHolder], -0.08f);
-            Bump((attackHome ? _match.AwayOnField : _match.HomeOnField)[who], 0.1f);
+            Bump(defendSquad[who], 0.1f);
             return true;
         }
 
@@ -3138,47 +3179,45 @@ namespace CoachMaster.MatchPlay
                 }
             }
 
-            if (best > 1.2f)
+            if (best > 1.2f || _duelShield > 0f)
                 return false;
             ActionTime = 0.55f;
-            var press = PressAmount(attackHome ? _match.AwayTactics : _match.HomeTactics);
-            var resist = 0f;
-            var attackSquad = attackHome ? _match.HomeOnField : _match.AwayOnField;
-            var holder = Mathf.Clamp(_match.BallHolder, 0, Mathf.Max(0, attackSquad.Count - 1));
-            if (attackSquad.Count > 0 && _match.People.TryGetValue(attackSquad[holder], out var pressed))
-            {
-                if (pressed.HasTrait(PlayerTrait.ImuneAPressao))
-                    resist += 0.2f;
-                if (pressed.Attributes != null && PlayerAttributes.CurrentValue(pressed, "Frieza") >= 15)
-                    resist += 0.06f;
-                if (pressed.Attributes != null && PlayerAttributes.CurrentValue(pressed, "Frieza") <= 8)
-                    resist -= 0.08f;
-            }
-            if (who >= 0 && who < (attackHome ? _match.AwayOnField.Count : _match.HomeOnField.Count))
-            {
-                var markerId = (attackHome ? _match.AwayOnField : _match.HomeOnField)[who];
-                if (_match.People.TryGetValue(markerId, out var marker))
-                {
-                    if (marker.HasTrait(PlayerTrait.Marcador))
-                        resist -= 0.08f;
-                    if (marker.HasTrait(PlayerTrait.Trabalhador))
-                        resist -= 0.05f;
-                }
-            }
-            if (_rng.NextDouble() > 0.22f + press - resist)
-                return false;
             var squad = attackHome ? _match.AwayOnField : _match.HomeOnField;
             if (who >= 0 && who < squad.Count && _match.People.TryGetValue(squad[who], out var tackler))
             {
                 if (RegisterCollisionInjury(tackler, squad[who]))
+                {
+                    _duelShield = 2.6f;
                     return true;
+                }
             }
 
             var carrierSquad = attackHome ? _match.HomeOnField : _match.AwayOnField;
+            var holder = Mathf.Clamp(_match.BallHolder, 0, Mathf.Max(0, carrierSquad.Count - 1));
             if (holder >= 0 && holder < carrierSquad.Count && _match.People.TryGetValue(carrierSquad[holder], out var carrier)
                 && RegisterCollisionInjury(carrier, carrierSquad[holder]))
+            {
+                _duelShield = 2.6f;
                 return true;
+            }
 
+            Player marker = null;
+            Player pressed = null;
+            if (who >= 0 && who < squad.Count)
+                _match.People.TryGetValue(squad[who], out marker);
+            if (holder >= 0 && holder < carrierSquad.Count)
+                _match.People.TryGetValue(carrierSquad[holder], out pressed);
+            var ownBox = attackHome ? Ball.y > 0.84f : Ball.y < 0.16f;
+            var duel = ContactModel.Duel(_rng, AttributeScale.From(marker), AttributeScale.From(pressed), ownBox);
+            _duelShield = 2.6f;
+            if (duel == "foul")
+            {
+                Foul(attackHome, who);
+                return true;
+            }
+
+            if (duel != "won")
+                return false;
             Turnover(attackHome, who);
             return true;
         }
@@ -3505,6 +3544,7 @@ namespace CoachMaster.MatchPlay
             _flightApex = _flightSpan < 0.03f ? 0f : Mathf.Clamp01(apex);
             if (_flightApex <= 0f)
                 BallHeight = 0f;
+            _interceptArmed = ActionKind == "pass" || ActionKind == "cross" || ActionKind == "loose";
         }
 
         void SnapBallVisual()
@@ -3585,6 +3625,8 @@ namespace CoachMaster.MatchPlay
             _match.HomeHasBall = home;
             _match.BallHolder = taker;
             ActionKind = kind;
+            _interceptArmed = false;
+            _safeDelivery = false;
             var run = Vector2.Distance(FormationSpot(home, taker), spot);
             Hold = Mathf.Clamp(1.25f + run / 0.24f, 1.7f, 4.8f);
         }
@@ -3932,7 +3974,9 @@ namespace CoachMaster.MatchPlay
             if (best < 0)
             {
                 // A player cannot be penalised for being offside directly from a throw-in.
+                _safeDelivery = true;
                 Pass(home, true);
+                _safeDelivery = false;
                 _match.LastEvent = "Lançamento de " + fromName + ".";
                 return;
             }

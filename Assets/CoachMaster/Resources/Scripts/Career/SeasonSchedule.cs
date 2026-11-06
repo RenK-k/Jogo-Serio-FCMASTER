@@ -35,7 +35,7 @@ namespace CoachMaster.Career
             }
 
             AddChampions(career, invited);
-            career.Fixtures.Sort((a, b) => a.Date.CompareTo(b.Date));
+            SpreadCalendar(career);
         }
 
         static void AddChampions(CareerState career, List<Club> invited)
@@ -631,26 +631,169 @@ namespace CoachMaster.Career
         static DateTime OpenDate(CareerState career, string home, string away, DateTime date)
         {
             var guard = 0;
-            while (guard++ < 21)
+            while (guard++ < 18)
             {
-                var busy = false;
-                foreach (var fixture in career.Fixtures)
-                {
-                    if (fixture.Walkover || fixture.Date.Date != date.Date)
-                        continue;
-                    if (fixture.Involves(home) || fixture.Involves(away))
-                    {
-                        busy = true;
-                        break;
-                    }
-                }
-
-                if (!busy)
+                if (Rested(career, home, away, date, null))
                     return date;
                 date = date.AddDays(1);
             }
 
             return date;
+        }
+
+        public static void SpreadCalendar(CareerState career)
+        {
+            if (career == null || career.Fixtures == null)
+                return;
+            var today = career.Calendar != null ? career.Calendar.CurrentDate.Date : DateTime.MinValue;
+            foreach (var fixture in career.Fixtures)
+            {
+                if (fixture == null || fixture.Played || fixture.Walkover || fixture.HomeClubId == fixture.AwayClubId)
+                    continue;
+                if (fixture.Date.Date < today)
+                    continue;
+                var slots = KickSlots(fixture.LeagueId);
+                var slot = slots[Mix(fixture.Id, 11) % slots.Length];
+                var day = WeekSaturday(fixture.Date).AddDays(slot.Day);
+                if (day < today)
+                    day = today;
+                fixture.Date = new DateTime(day.Year, day.Month, day.Day, slot.Hour, slot.Minute, 0);
+            }
+
+            for (var pass = 0; pass < 8; pass++)
+            {
+                var moved = false;
+                foreach (var fixture in career.Fixtures)
+                {
+                    if (fixture == null || fixture.Played || fixture.Walkover || fixture.HomeClubId == fixture.AwayClubId)
+                        continue;
+                    if (fixture.Date.Date < today)
+                        continue;
+                    var guard = 0;
+                    while (guard++ < 10 && !Rested(career, fixture.HomeClubId, fixture.AwayClubId, fixture.Date, fixture))
+                    {
+                        var slots = KickSlots(fixture.LeagueId);
+                        var slot = slots[Mix(fixture.Id, 40 + guard) % slots.Length];
+                        var day = fixture.Date.Date.AddDays(1);
+                        fixture.Date = new DateTime(day.Year, day.Month, day.Day, slot.Hour, slot.Minute, 0);
+                        moved = true;
+                    }
+                }
+
+                if (!moved)
+                    break;
+            }
+
+            career.Fixtures.Sort((a, b) => a.Date.CompareTo(b.Date));
+        }
+
+        static bool Rested(CareerState career, string home, string away, DateTime date, Fixture self)
+        {
+            foreach (var fixture in career.Fixtures)
+            {
+                if (fixture == null || fixture == self || fixture.Walkover || fixture.HomeClubId == fixture.AwayClubId)
+                    continue;
+                if (!fixture.Involves(home) && !fixture.Involves(away))
+                    continue;
+                if (Math.Abs((fixture.Date.Date - date.Date).TotalDays) < 3)
+                    return false;
+            }
+
+            return true;
+        }
+
+        static DateTime WeekSaturday(DateTime date)
+        {
+            var sinceSaturday = ((int)date.DayOfWeek + 1) % 7;
+            return date.Date.AddDays(-sinceSaturday);
+        }
+
+        struct KickSlot
+        {
+            public int Day;
+            public int Hour;
+            public int Minute;
+
+            public KickSlot(int day, int hour, int minute)
+            {
+                Day = day;
+                Hour = hour;
+                Minute = minute;
+            }
+        }
+
+        static KickSlot[] KickSlots(string leagueId)
+        {
+            var id = leagueId ?? "";
+            if (id.StartsWith("cup:") || id.Contains("campeoes"))
+            {
+                return new[]
+                {
+                    new KickSlot(3, 19, 45), new KickSlot(4, 19, 45), new KickSlot(3, 20, 0), new KickSlot(4, 21, 0)
+                };
+            }
+
+            if (id.Contains("inglesa"))
+            {
+                return new[]
+                {
+                    new KickSlot(0, 12, 30), new KickSlot(0, 15, 0), new KickSlot(0, 15, 0), new KickSlot(0, 17, 30),
+                    new KickSlot(1, 14, 0), new KickSlot(1, 16, 30), new KickSlot(2, 20, 0)
+                };
+            }
+
+            if (id.Contains("espanhola"))
+            {
+                return new[]
+                {
+                    new KickSlot(0, 14, 0), new KickSlot(0, 16, 15), new KickSlot(0, 18, 30), new KickSlot(0, 21, 0),
+                    new KickSlot(1, 14, 0), new KickSlot(1, 16, 15), new KickSlot(1, 18, 30), new KickSlot(1, 21, 0),
+                    new KickSlot(2, 21, 0)
+                };
+            }
+
+            if (id.Contains("bundesliga"))
+            {
+                return new[]
+                {
+                    new KickSlot(-1, 20, 30), new KickSlot(0, 15, 30), new KickSlot(0, 15, 30), new KickSlot(0, 18, 30),
+                    new KickSlot(1, 15, 30), new KickSlot(1, 17, 30)
+                };
+            }
+
+            if (id.Contains("francesa"))
+            {
+                return new[]
+                {
+                    new KickSlot(-1, 20, 45), new KickSlot(0, 17, 0), new KickSlot(0, 21, 0),
+                    new KickSlot(1, 13, 0), new KickSlot(1, 15, 0), new KickSlot(1, 17, 0), new KickSlot(1, 20, 45)
+                };
+            }
+
+            if (id.Contains("eredivisie"))
+            {
+                return new[]
+                {
+                    new KickSlot(0, 16, 30), new KickSlot(0, 18, 45), new KickSlot(0, 20, 0), new KickSlot(0, 21, 0),
+                    new KickSlot(1, 12, 15), new KickSlot(1, 14, 30), new KickSlot(1, 16, 45)
+                };
+            }
+
+            if (id.Contains("brasileira"))
+            {
+                return new[]
+                {
+                    new KickSlot(4, 16, 0), new KickSlot(4, 18, 30), new KickSlot(4, 21, 0),
+                    new KickSlot(0, 16, 30), new KickSlot(0, 19, 0), new KickSlot(0, 21, 30),
+                    new KickSlot(1, 16, 0), new KickSlot(1, 18, 30), new KickSlot(1, 20, 0)
+                };
+            }
+
+            return new[]
+            {
+                new KickSlot(-1, 20, 15), new KickSlot(0, 15, 30), new KickSlot(0, 18, 0), new KickSlot(0, 20, 30),
+                new KickSlot(1, 15, 30), new KickSlot(1, 18, 0), new KickSlot(1, 20, 30)
+            };
         }
 
         static bool RoundComplete(CareerState career, string cupId, int round)

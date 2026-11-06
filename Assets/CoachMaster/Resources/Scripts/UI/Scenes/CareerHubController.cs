@@ -3333,7 +3333,7 @@ namespace CoachMaster.UI.Scenes
                 BroadcastUi.Place(_paneTabs[i].GetComponent<RectTransform>(), 0.45f, y1 - 0.068f, 0.98f, y1);
             }
 
-            _sheet = BroadcastUi.Zone(page.transform, "Sheet", 0.45f, 0.02f, 0.98f, 0.6f);
+            _sheet = BroadcastUi.Zone(page.transform, "Sheet", 0.45f, 0.02f, 0.98f, 0.76f);
             _tacticsBody = BroadcastUi.Zone(page.transform, "Tactics", 0.45f, 0.02f, 0.98f, 0.6f);
             _tacHost = _tacticsBody.gameObject;
             _tacHost.SetActive(false);
@@ -3479,12 +3479,25 @@ namespace CoachMaster.UI.Scenes
                 viewport.gameObject.AddComponent<RectMask2D>();
 
             if (content == null)
+                content = viewport.Find("SubsContent") as RectTransform;
+            if (content == null)
+                content = page.Find("SubsContent") as RectTransform;
+            if (content == null)
+                content = page.Find("Subs") as RectTransform;
+            if (content == null)
             {
                 var contentObject = new GameObject("SubsContent", typeof(RectTransform));
                 content = contentObject.GetComponent<RectTransform>();
             }
             content.name = "SubsContent";
             content.SetParent(viewport, false);
+            for (var child = viewport.childCount - 1; child >= 0; child--)
+            {
+                var extra = viewport.GetChild(child);
+                if (extra != content)
+                    Destroy(extra.gameObject);
+            }
+            Clear(content);
             content.anchorMin = new Vector2(0f, 0f);
             content.anchorMax = new Vector2(0f, 1f);
             content.pivot = new Vector2(0f, 0.5f);
@@ -5051,10 +5064,11 @@ namespace CoachMaster.UI.Scenes
             {
                 var body = BroadcastUi.Label(host, "Description", LocalizationManager.Translate(description), 11, Color.white, TextAnchor.UpperLeft);
                 body.horizontalOverflow = HorizontalWrapMode.Wrap;
+                body.verticalOverflow = VerticalWrapMode.Truncate;
                 body.resizeTextForBestFit = true;
                 body.resizeTextMinSize = 8;
                 body.resizeTextMaxSize = 11;
-                BroadcastUi.Place(body.rectTransform, 0.06f, 0.34f, 0.94f, string.IsNullOrEmpty(value) ? 0.82f : 0.68f);
+                BroadcastUi.Place(body.rectTransform, 0.06f, 0.3f, 0.94f, string.IsNullOrEmpty(value) ? 0.82f : 0.68f);
             }
             else if (t != null)
             {
@@ -5150,7 +5164,7 @@ namespace CoachMaster.UI.Scenes
             var push = TacticPush(tactics);
             for (var i = 0; i < 11; i++)
             {
-                var slot = MatchEngine.Slot(true, i, formation);
+                var slot = CoachMaster.MatchPlay.MatchEngine.Slot(true, i, formation);
                 slot.y = Mathf.Clamp(slot.y + push, 0.04f, 0.9f);
                 var duty = i < eleven.Count && eleven[i] != null ? eleven[i].Duty : "";
                 var position = i < eleven.Count && eleven[i] != null ? eleven[i].Position : PlayerPosition.CentralMidfielder;
@@ -5290,6 +5304,11 @@ namespace CoachMaster.UI.Scenes
 
         void SaveCurrentTactic()
         {
+            SaveCurrentTactic(true);
+        }
+
+        void SaveCurrentTactic(bool reopenSheet)
+        {
             if (_career == null || _career.Club == null || _career.Club.Tactics == null)
                 return;
             if (_career.SavedTactics.Count >= 5)
@@ -5297,13 +5316,36 @@ namespace CoachMaster.UI.Scenes
             var english = LocalizationManager.Current == GameLanguage.English;
             var savedTactic = CopyTactic(_career.Club.Tactics);
             savedTactic.Preset = TacticPresets.CustomName;
+            var eleven = new List<Player>();
+            var bench = new List<Player>();
+            StartingShape.Resolve(Squad(_career.Club), _career.Club, eleven, bench);
+            var duties = new List<string>();
+            string captain = "";
+            for (var i = 0; i < eleven.Count; i++)
+            {
+                if (eleven[i] == null)
+                    continue;
+                if (eleven[i].IsCaptain)
+                    captain = eleven[i].Id;
+                if (!string.IsNullOrEmpty(eleven[i].Duty))
+                    duties.Add(eleven[i].Id + "=" + eleven[i].Duty);
+            }
             _career.SavedTactics.Add(new CareerSavedTactic
             {
-                Name = (english ? "Custom " : "Personalizada ") + (_career.SavedTactics.Count + 1),
-                Tactics = savedTactic
+                Name = (english ? "Squad " : "Plantel ") + (_career.SavedTactics.Count + 1),
+                Tactics = savedTactic,
+                Lineup = eleven.ConvertAll(player => player == null ? "" : player.Id),
+                Bench = bench.ConvertAll(player => player == null ? "" : player.Id),
+                CaptainId = captain,
+                PenaltyTakerId = _career.Club.PenaltyTakerId,
+                CornerTakerId = _career.Club.CornerTakerId,
+                FreeKickTakerId = _career.Club.FreeKickTakerId,
+                Duties = string.Join(";", duties)
             });
             CareerStore.Save(_career);
-            OpenTacticsSheet();
+            if (reopenSheet && transform.Find("TacticsSheet") != null)
+                OpenTacticsSheet();
+            FillTeam();
         }
 
         void ApplySavedTactic(int index)
@@ -5315,9 +5357,38 @@ namespace CoachMaster.UI.Scenes
                 return;
             _career.Club.Tactics = CopyTactic(saved.Tactics);
             _career.Club.Tactics.Preset = TacticPresets.CustomName;
+            if (saved.Lineup != null && saved.Lineup.Count > 0)
+            {
+                _career.Club.ManualLineup = new List<string>(saved.Lineup);
+                _career.Club.ManualBenchOrder = saved.Bench == null ? new List<string>() : new List<string>(saved.Bench);
+            }
+            if (!string.IsNullOrEmpty(saved.PenaltyTakerId))
+                _career.Club.PenaltyTakerId = saved.PenaltyTakerId;
+            if (!string.IsNullOrEmpty(saved.CornerTakerId))
+                _career.Club.CornerTakerId = saved.CornerTakerId;
+            if (!string.IsNullOrEmpty(saved.FreeKickTakerId))
+                _career.Club.FreeKickTakerId = saved.FreeKickTakerId;
+            if (!string.IsNullOrEmpty(saved.Duties))
+            {
+                var parts = saved.Duties.Split(';');
+                for (var i = 0; i < parts.Length; i++)
+                {
+                    var pair = parts[i].Split(new[] { '=' }, 2);
+                    if (pair.Length < 2 || !_career.World.Players.TryGetValue(pair[0], out var player))
+                        continue;
+                    player.Duty = pair[1];
+                }
+            }
+            if (!string.IsNullOrEmpty(saved.CaptainId))
+            {
+                foreach (var player in Squad(_career.Club))
+                    player.IsCaptain = player.Id == saved.CaptainId;
+            }
             _tacticSelection = "home";
             CareerStore.Save(_career);
-            OpenTacticsSheet();
+            if (transform.Find("TacticsSheet") != null)
+                OpenTacticsSheet();
+            FillTeam();
         }
 
         static TacticalIdentity CopyTactic(TacticalIdentity source)
@@ -8235,8 +8306,8 @@ namespace CoachMaster.UI.Scenes
             var donutObject = new GameObject("IncomeExpenseDonut", typeof(RectTransform), typeof(CanvasRenderer), typeof(FinanceDonutGraphic));
             donutObject.transform.SetParent(chart.transform, false);
             var donutRect = donutObject.GetComponent<RectTransform>();
-            donutRect.anchorMin = donutRect.anchorMax = new Vector2(0.5f, 0.72f);
-            var donutSize = Mathf.Clamp(Screen.height * 0.22f, 190f, 230f);
+            donutRect.anchorMin = donutRect.anchorMax = new Vector2(0.5f, 0.6f);
+            var donutSize = Mathf.Clamp(Screen.height * 0.2f, 170f, 210f);
             donutRect.sizeDelta = new Vector2(donutSize, donutSize);
             var categoryNames = selectedMetric == 0
                 ? (english ? new[] { "Earnings", "Expenses" } : new[] { "Receitas", "Despesas" })
@@ -8256,10 +8327,10 @@ namespace CoachMaster.UI.Scenes
             donutObject.GetComponent<FinanceDonutGraphic>().SetValues(categoryValues, categoryColors, new Color(1f, 1f, 1f, 0.12f));
             var selectedTotal = selectedMetric == 0 ? net : selectedMetric == 1 ? income : -expenses;
             var centerValue = BroadcastUi.Label(chart.transform, "NetValue", Euro((int)Math.Max(int.MinValue, Math.Min(int.MaxValue, selectedTotal))), 20, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
-            BroadcastUi.Place(centerValue.rectTransform, 0.37f, 0.55f, 0.63f, 0.67f);
+            BroadcastUi.Place(centerValue.rectTransform, 0.34f, 0.52f, 0.66f, 0.62f);
             var centerTitle = BroadcastUi.Label(chart.transform, "NetTitle", selectedMetric == 0 ? (english ? "PROFIT" : "LUCRO")
                 : selectedMetric == 1 ? (english ? "EARNINGS" : "RECEITAS") : (english ? "EXPENSES" : "DESPESAS"), 10, UiTheme.Muted, TextAnchor.MiddleCenter, FontStyle.Bold);
-            BroadcastUi.Place(centerTitle.rectTransform, 0.37f, 0.67f, 0.63f, 0.75f);
+            BroadcastUi.Place(centerTitle.rectTransform, 0.34f, 0.62f, 0.66f, 0.7f);
             for (var i = 0; i < categoryNames.Length; i++)
             {
                 var x0 = 0.025f + i * (0.95f / categoryNames.Length);
@@ -8477,15 +8548,15 @@ namespace CoachMaster.UI.Scenes
             var ringObject = new GameObject("BudgetDonut", typeof(RectTransform), typeof(CanvasRenderer), typeof(FinanceDonutGraphic));
             ringObject.transform.SetParent(panel.transform, false);
             var ringRect = ringObject.GetComponent<RectTransform>();
-            ringRect.anchorMin = ringRect.anchorMax = new Vector2(0.5f, 0.62f);
-            ringRect.sizeDelta = new Vector2(224f, 224f);
+            ringRect.anchorMin = ringRect.anchorMax = new Vector2(0.5f, 0.6f);
+            ringRect.sizeDelta = new Vector2(188f, 188f);
             ringObject.GetComponent<FinanceDonutGraphic>().SetValues(
                 new[] { (float)Math.Max(0, finance.TransferBudget), (float)Math.Max(0, finance.TransferSpentThisSeason) },
                 new[] { UiTheme.Fitness, UiTheme.Danger }, new Color(1f, 1f, 1f, 0.14f));
             var centerTitle = BroadcastUi.Label(panel.transform, "TotalTitle", english ? "AVAILABLE" : "DISPONÍVEL", 12, UiTheme.Muted, TextAnchor.MiddleCenter, FontStyle.Bold);
-            BroadcastUi.Place(centerTitle.rectTransform, 0.4f, 0.68f, 0.6f, 0.76f);
-            var center = BroadcastUi.Label(panel.transform, "Total", Euro(finance.TransferBudget), 20, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
-            BroadcastUi.Place(center.rectTransform, 0.38f, 0.56f, 0.62f, 0.68f);
+            BroadcastUi.Place(centerTitle.rectTransform, 0.4f, 0.62f, 0.6f, 0.7f);
+            var center = BroadcastUi.Label(panel.transform, "Total", Euro(finance.TransferBudget), 18, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(center.rectTransform, 0.36f, 0.52f, 0.64f, 0.62f);
             var currentTitle = BroadcastUi.Label(panel.transform, "CurrentTitle", english ? "SEASON" : "ÉPOCA", 14, UiTheme.Fitness, TextAnchor.MiddleCenter, FontStyle.Bold);
             BroadcastUi.Place(currentTitle.rectTransform, 0.02f, 0.66f, 0.28f, 0.76f);
             var current = BroadcastUi.Label(panel.transform, "Current", Euro((int)Math.Min(int.MaxValue, total)), 20, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
@@ -9144,7 +9215,7 @@ namespace CoachMaster.UI.Scenes
             {
                 var player = eleven[index];
                 var position = index < slotPositions.Length ? slotPositions[index] : player.Position;
-                var slot = MatchEngine.Slot(true, index, formation);
+                var slot = CoachMaster.MatchPlay.MatchEngine.Slot(true, index, formation);
                 slot.x = Mathf.Clamp(slot.x, padX, 1f - padX);
                 slot.y = Mathf.Clamp(slot.y, padY, 1f - padY);
                 var interactive = club.Id == _career.Club.Id;
@@ -9407,6 +9478,12 @@ namespace CoachMaster.UI.Scenes
             _subs.pivot = new Vector2(0f, 0.5f);
             _subs.sizeDelta = new Vector2(contentWidth, 0f);
             _subs.anchoredPosition = Vector2.zero;
+            var subsLayout = _subs.GetComponent<LayoutGroup>();
+            if (subsLayout != null)
+                Destroy(subsLayout);
+            var subsFitter = _subs.GetComponent<ContentSizeFitter>();
+            if (subsFitter != null)
+                Destroy(subsFitter);
             if (_subsScroll != null)
             {
                 _subsScroll.StopMovement();
@@ -9415,9 +9492,25 @@ namespace CoachMaster.UI.Scenes
             for (var i = 0; i < shown.Count; i++)
             {
                 var card = PersonCard(_subs, shown[i], _career.Club, true, -1, true, cardWidth, cardHeight);
+                var scaleLock = card.GetComponent<UiScaleInvariant>();
+                if (scaleLock != null)
+                    Destroy(scaleLock);
+                card.localScale = Vector3.one;
                 var x = sidePadding + cardWidth * 0.5f + i * (cardWidth + cardGap);
-                card.anchorMin = card.anchorMax = new Vector2(x / contentWidth, 0.5f);
+                card.anchorMin = card.anchorMax = new Vector2(0f, 0.5f);
+                card.pivot = new Vector2(0.5f, 0.5f);
+                card.anchoredPosition = new Vector2(x, 0f);
                 card.sizeDelta = new Vector2(cardWidth, cardHeight);
+                var cardName = card.Find("Name");
+                if (cardName != null)
+                {
+                    var nameText = cardName.GetComponent<Text>();
+                    if (nameText != null)
+                    {
+                        nameText.horizontalOverflow = HorizontalWrapMode.Wrap;
+                        nameText.verticalOverflow = VerticalWrapMode.Truncate;
+                    }
+                }
             }
 
             var canScrollSubs = contentWidth > viewportWidth + 1f;
@@ -9509,13 +9602,46 @@ namespace CoachMaster.UI.Scenes
 
         void SheetRoles()
         {
+            var english = LocalizationManager.Current == GameLanguage.English;
             var squad = Squad(_career.Club);
-            ArmButton("CAPITÃO", "captain", Who(CaptainOf(Eleven())), 0.78f);
-            ArmButton("PENÁLTIS", "penalty", Who(PlayerById(squad, _career.Club.PenaltyTakerId) ?? Best(squad, p => p.Attributes.Finishing)), 0.58f);
-            ArmButton("CANTOS", "corner", Who(PlayerById(squad, _career.Club.CornerTakerId) ?? Best(squad, p => p.Attributes.Crossing)), 0.38f);
-            ArmButton("LIVRES", "freekick", Who(PlayerById(squad, _career.Club.FreeKickTakerId) ?? Best(squad, p => p.Attributes.Passing + p.Attributes.Composure)), 0.18f);
-            var hint = BroadcastUi.Label(_sheet, "Hint", _arm == null ? "Clica numa função e depois num titular." : "Agora clica num jogador do 11 inicial.", 14, Color.white, TextAnchor.MiddleLeft);
-            BroadcastUi.Place(hint.rectTransform, 0.04f, 0.02f, 0.96f, 0.16f);
+            var save = BroadcastUi.Button(_sheet, "SaveSquad", english ? "SAVE SQUAD" : "GUARDAR PLANTEL", () => SaveCurrentTactic(false),
+                UiTheme.Accent, UiTheme.ButtonText, 13);
+            BroadcastUi.Place(save.GetComponent<RectTransform>(), 0.04f, 0.9f, 0.96f, 0.98f);
+            var savedCount = _career.SavedTactics == null ? 0 : Mathf.Min(4, _career.SavedTactics.Count);
+            for (var i = 0; i < savedCount; i++)
+            {
+                var savedIndex = i;
+                var saved = _career.SavedTactics[i];
+                if (saved == null)
+                    continue;
+                var label = string.IsNullOrEmpty(saved.Name) ? (english ? "Squad " : "Plantel ") + (i + 1) : saved.Name;
+                if (saved.Tactics != null && !string.IsNullOrEmpty(saved.Tactics.Formation))
+                    label += "  ·  " + saved.Tactics.Formation;
+                var x0 = 0.04f + (i % 2) * 0.48f;
+                var y1 = 0.88f - (i / 2) * 0.09f;
+                var chip = BroadcastUi.Button(_sheet, "SquadPreset" + i, label, () => ApplySavedTactic(savedIndex),
+                    new Color(1f, 1f, 1f, 0.08f), Color.white, 12);
+                var chipText = chip.GetComponentInChildren<Text>();
+                if (chipText != null)
+                {
+                    chipText.resizeTextForBestFit = true;
+                    chipText.resizeTextMinSize = 9;
+                    chipText.resizeTextMaxSize = 12;
+                    chipText.horizontalOverflow = HorizontalWrapMode.Wrap;
+                    chipText.verticalOverflow = VerticalWrapMode.Truncate;
+                }
+                BroadcastUi.Place(chip.GetComponent<RectTransform>(), x0, y1 - 0.08f, x0 + 0.44f, y1);
+            }
+            ArmButton(english ? "CAPTAIN" : "CAPITÃO", "captain", Who(CaptainOf(Eleven())), 0.56f);
+            ArmButton(english ? "PENALTIES" : "PENÁLTIS", "penalty", Who(PlayerById(squad, _career.Club.PenaltyTakerId) ?? Best(squad, p => p.Attributes.Finishing)), 0.42f);
+            ArmButton(english ? "CORNERS" : "CANTOS", "corner", Who(PlayerById(squad, _career.Club.CornerTakerId) ?? Best(squad, p => p.Attributes.Crossing)), 0.28f);
+            ArmButton(english ? "FREE KICKS" : "LIVRES", "freekick", Who(PlayerById(squad, _career.Club.FreeKickTakerId) ?? Best(squad, p => p.Attributes.Passing + p.Attributes.Composure)), 0.14f);
+            var hint = BroadcastUi.Label(_sheet, "Hint", _arm == null
+                ? (english ? "Click a role, then a starter. Presets keep the tactic and the chosen players." : "Clica numa função e depois num titular. Os presets guardam a tática e os jogadores escolhidos.")
+                : (english ? "Now click a starter." : "Agora clica num jogador do 11 inicial."), 13, Color.white, TextAnchor.MiddleLeft);
+            hint.horizontalOverflow = HorizontalWrapMode.Wrap;
+            hint.verticalOverflow = VerticalWrapMode.Truncate;
+            BroadcastUi.Place(hint.rectTransform, 0.04f, 0.01f, 0.96f, 0.15f);
         }
 
         void ArmButton(string title, string key, string who, float y)
@@ -9526,7 +9652,7 @@ namespace CoachMaster.UI.Scenes
                 _arm = key;
                 FillSheet();
             }, on ? UiTheme.Accent : new Color(1f, 1f, 1f, 0.08f), on ? UiTheme.ButtonText : Color.white, 16);
-            BroadcastUi.Place(button.GetComponent<RectTransform>(), 0.04f, y, 0.96f, y + 0.16f);
+            BroadcastUi.Place(button.GetComponent<RectTransform>(), 0.04f, y, 0.96f, y + 0.12f);
         }
 
         List<Player> Eleven()
@@ -9816,7 +9942,7 @@ namespace CoachMaster.UI.Scenes
             for (var index = 0; index < eleven.Count && index < 11; index++)
             {
                 var card = PersonCard(host, eleven[index], club, fatigue, index, false, width, height);
-                card.anchorMin = card.anchorMax = MatchEngine.Slot(true, index, formation);
+                card.anchorMin = card.anchorMax = CoachMaster.MatchPlay.MatchEngine.Slot(true, index, formation);
                 card.sizeDelta = new Vector2(width, height);
             }
         }
@@ -9839,7 +9965,7 @@ namespace CoachMaster.UI.Scenes
             for (var index = 0; index < eleven.Count && index < 11; index++)
             {
                 var card = PersonCard(host, eleven[index], _career.Club, true, index, false, width, height);
-                var slot = MatchEngine.Slot(true, index, _career.Club.Tactics.Formation);
+                var slot = CoachMaster.MatchPlay.MatchEngine.Slot(true, index, _career.Club.Tactics.Formation);
                 slot.x = Mathf.Clamp(slot.x, padX, 1f - padX);
                 slot.y = Mathf.Clamp(slot.y, padY, 1f - padY);
                 card.anchorMin = card.anchorMax = slot;
@@ -10101,7 +10227,7 @@ namespace CoachMaster.UI.Scenes
             _pitchBg = SceneBind.Get<Image>(team, "PitchBg");
             _pitch = team.Find("Pitch") as RectTransform;
             ConfigureTeamPitch();
-            _subs = team.Find("Subs") as RectTransform;
+            _subs = team.Find("Subs") as RectTransform ?? team.Find("SubsViewport/SubsContent") as RectTransform;
             _sheet = team.Find("Sheet") as RectTransform;
             _tacticsBody = team.Find("Tactics") as RectTransform;
             _tacHost = _tacticsBody.gameObject;
@@ -10137,7 +10263,7 @@ namespace CoachMaster.UI.Scenes
                 if (extra != null && ( _paneTabs[0] == null || extra != _paneTabs[0].transform) && (_paneTabs[1] == null || extra != _paneTabs[1].transform))
                     extra.gameObject.SetActive(false);
             }
-            if (_sheet != null) BroadcastUi.Place(_sheet, 0.45f, 0.02f, 0.98f, 0.6f);
+            if (_sheet != null) BroadcastUi.Place(_sheet, 0.45f, 0.02f, 0.98f, 0.76f);
             if (_tacticsBody != null) BroadcastUi.Place(_tacticsBody, 0.45f, 0.02f, 0.98f, 0.6f);
             ConfigureTeamSubstitutes(team, _subs);
 
@@ -10985,7 +11111,7 @@ namespace CoachMaster.UI.Scenes
             var positions = StartingShape.SlotPositions(formation);
             for (var i = 0; i < eleven.Count && i < 11; i++)
             {
-                var slot = MatchEngine.Slot(true, i, formation);
+                var slot = CoachMaster.MatchPlay.MatchEngine.Slot(true, i, formation);
                 slot.x = Mathf.Clamp(slot.x, padX, 1f - padX);
                 slot.y = Mathf.Clamp(slot.y, padY, 1f - padY);
                 var position = i < positions.Length ? positions[i] : eleven[i].Position;
@@ -12918,7 +13044,7 @@ namespace CoachMaster.UI.Scenes
                 var id = ids[i].Trim();
                 if (!_career.World.Players.TryGetValue(id, out var player))
                     continue;
-                var slot = MatchEngine.Slot(true, i, formation);
+                var slot = CoachMaster.MatchPlay.MatchEngine.Slot(true, i, formation);
                 var dot = BroadcastUi.Solid(pitch, "P" + i, color);
                 dot.sprite = BroadcastUi.Circle;
                 dot.rectTransform.anchorMin = dot.rectTransform.anchorMax = new Vector2(slot.x, slot.y);
@@ -14273,7 +14399,7 @@ void OpenContractSheet(Player player, string page)
             var slots = StartingShape.SlotPositions(formation);
             for (var i = 0; i < 11; i++)
             {
-                var spot = MatchEngine.Slot(true, i, formation);
+                var spot = CoachMaster.MatchPlay.MatchEngine.Slot(true, i, formation);
                 var role = slots != null && i < slots.Length ? slots[i] : PlayerPosition.CentralMidfielder;
                 var here = role == player.Position;
                 var dot = BroadcastUi.Solid(pitch, "Dot" + i, here ? UiTheme.Accent : new Color(0.85f, 0.88f, 0.92f, 0.85f));

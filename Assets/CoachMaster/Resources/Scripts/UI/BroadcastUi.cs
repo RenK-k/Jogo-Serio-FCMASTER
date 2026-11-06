@@ -237,7 +237,7 @@ namespace CoachMaster.UI
             if (BackgroundPrefs.SelectedLeagueId != null)
                 LeagueBackdrop.Paint(parent, null);
 
-            var shade = Solid(parent, "TopShade", new Color(0.05f, 0.02f, 0.1f, 0.28f));
+            var shade = Solid(parent, "TopShade", UiTheme.BackdropShade);
             Place(shade.rectTransform, 0f, 0.9f, 1f, 1f);
             var floor = Solid(parent, "Floor", UiTheme.Footer, true);
             Place(floor.rectTransform, 0f, 0f, 1f, 0.055f);

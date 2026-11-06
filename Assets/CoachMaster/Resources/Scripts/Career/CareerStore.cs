@@ -702,7 +702,11 @@ namespace CoachMaster.Career
             {
                 var savedTactics = saved == null ? null : saved.Tactics;
                 if (savedTactics == null) continue;
-                lines.Add("savedtactic|" + Esc(saved.Name) + "|" + Esc(savedTactics.Formation) + "|" + Esc(savedTactics.Pressing) + "|" + Esc(savedTactics.BuildUp) + "|" + Esc(savedTactics.FullBacks) + "|" + Esc(savedTactics.DefensiveLine) + "|" + Esc(savedTactics.Width) + "|" + Esc(savedTactics.Tempo) + "|" + Esc(savedTactics.PassingStyle) + "|" + Esc(savedTactics.AttackIdea) + "|" + Esc(savedTactics.Marking));
+                lines.Add("savedtactic|" + Esc(saved.Name) + "|" + Esc(savedTactics.Formation) + "|" + Esc(savedTactics.Pressing) + "|" + Esc(savedTactics.BuildUp) + "|" + Esc(savedTactics.FullBacks) + "|" + Esc(savedTactics.DefensiveLine) + "|" + Esc(savedTactics.Width) + "|" + Esc(savedTactics.Tempo) + "|" + Esc(savedTactics.PassingStyle) + "|" + Esc(savedTactics.AttackIdea) + "|" + Esc(savedTactics.Marking)
+                    + "|" + string.Join(",", saved.Lineup ?? new System.Collections.Generic.List<string>())
+                    + "|" + string.Join(",", saved.Bench ?? new System.Collections.Generic.List<string>())
+                    + "|" + saved.CaptainId + "|" + saved.PenaltyTakerId + "|" + saved.CornerTakerId + "|" + saved.FreeKickTakerId
+                    + "|" + Esc(saved.Duties));
             }
             lines.Add("roles|" + career.Club.PenaltyTakerId + "|" + career.Club.CornerTakerId + "|" + career.Club.FreeKickTakerId);
             lines.Add("lineup|" + string.Join(",", career.Club.ManualLineup));
@@ -1106,7 +1110,7 @@ namespace CoachMaster.Career
                     case "savedtactic":
                         if (bits.Length > 11)
                         {
-                            career.SavedTactics.Add(new CareerSavedTactic
+                            var savedTactic = new CareerSavedTactic
                             {
                                 Name = Un(bits[1]),
                                 Tactics = new TacticalIdentity
@@ -1116,7 +1120,17 @@ namespace CoachMaster.Career
                                     Tempo = Un(bits[8]), PassingStyle = Un(bits[9]), AttackIdea = Un(bits[10]), Marking = Un(bits[11]),
                                     Preset = TacticPresets.CustomName
                                 }
-                            });
+                            };
+                            if (bits.Length > 12 && !string.IsNullOrEmpty(bits[12]))
+                                savedTactic.Lineup.AddRange(bits[12].Split(','));
+                            if (bits.Length > 13 && !string.IsNullOrEmpty(bits[13]))
+                                savedTactic.Bench.AddRange(bits[13].Split(','));
+                            if (bits.Length > 14) savedTactic.CaptainId = bits[14];
+                            if (bits.Length > 15) savedTactic.PenaltyTakerId = bits[15];
+                            if (bits.Length > 16) savedTactic.CornerTakerId = bits[16];
+                            if (bits.Length > 17) savedTactic.FreeKickTakerId = bits[17];
+                            if (bits.Length > 18) savedTactic.Duties = Un(bits[18]);
+                            career.SavedTactics.Add(savedTactic);
                         }
                         break;
                     case "academysquadorder":
@@ -1541,6 +1555,7 @@ namespace CoachMaster.Career
             career.Upcoming.Clear();
             CareerMoments.Continue(career);
             SeasonSchedule.RebuildTable(career);
+            SeasonSchedule.SpreadCalendar(career);
             SeasonBook.Backfill(career);
             SeasonBook.ReconcileCurrentSeason(career);
             session.Restore(career);

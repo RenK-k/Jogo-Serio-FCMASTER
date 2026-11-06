@@ -64,6 +64,12 @@ namespace CoachMaster.UI
         {
             if (_visual != null)
                 return;
+            var stale = parent.Find("MatchAnalysis");
+            if (stale != null)
+                DestroyImmediate(stale.gameObject);
+            var staleBack = parent.Find("MatchAnalysisBackdrop");
+            if (staleBack != null)
+                DestroyImmediate(staleBack.gameObject);
             _parentRect = parent as RectTransform;
             _backdrop = BroadcastUi.Solid(parent, "MatchAnalysisBackdrop", new Color(0.015f, 0.01f, 0.045f, 0.88f), true);
             BroadcastUi.Stretch(_backdrop.rectTransform);
@@ -131,6 +137,8 @@ namespace CoachMaster.UI
             BroadcastUi.Place(_closeButton.GetComponent<RectTransform>(), 0.94f, 0.925f, 0.99f, 0.99f);
             _dragHandle = header.gameObject.AddComponent<MatchAnalysisWindowDrag>();
             _dragHandle.Initialize(_cardRect, _parentRect);
+            var cardDrag = card.gameObject.AddComponent<MatchAnalysisWindowDrag>();
+            cardDrag.Initialize(_cardRect, _parentRect);
             AddResizeHandle(card.transform, "ResizeLeft", new Vector2(0f, 0.04f), new Vector2(0f, 0.96f), new Vector2(18f, 0f), true, false, false, false);
             AddResizeHandle(card.transform, "ResizeRight", new Vector2(1f, 0.04f), new Vector2(1f, 0.96f), new Vector2(18f, 0f), false, true, false, false);
             AddResizeHandle(card.transform, "ResizeBottom", new Vector2(0.04f, 0f), new Vector2(0.96f, 0f), new Vector2(0f, 18f), false, false, true, false);
@@ -374,6 +382,22 @@ namespace CoachMaster.UI
             Refresh();
         }
 
+        void FitLiveWindow()
+        {
+            if (_finalMode || _cardRect == null || _parentRect == null)
+                return;
+            var bounds = _parentRect.rect.size;
+            if (bounds.x < 80f || bounds.y < 80f)
+                return;
+            var width = Mathf.Clamp(_cardRect.sizeDelta.x, 420f, bounds.x * 0.62f);
+            var height = Mathf.Clamp(_cardRect.sizeDelta.y, 280f, bounds.y * 0.62f);
+            _cardRect.sizeDelta = new Vector2(width, height);
+            var maxX = Mathf.Max(24f, (bounds.x - width) * 0.5f);
+            var maxY = Mathf.Max(24f, (bounds.y - height) * 0.5f);
+            var position = _cardRect.anchoredPosition;
+            _cardRect.anchoredPosition = new Vector2(Mathf.Clamp(position.x, -maxX, maxX), Mathf.Clamp(position.y, -maxY, maxY));
+        }
+
         void FitChrome()
         {
             if (_cardRect == null)
@@ -403,10 +427,26 @@ namespace CoachMaster.UI
             {
                 _cardRect.gameObject.SetActive(visible);
                 if (visible)
-                    _cardRect.SetAsLastSibling();
+                    BringForward();
             }
             if (_backdrop != null)
                 _backdrop.color = new Color(0f, 0f, 0f, 0f);
+        }
+
+        void BringForward()
+        {
+            if (_cardRect == null)
+                return;
+            var canvas = _cardRect.GetComponent<Canvas>();
+            if (canvas == null)
+            {
+                canvas = _cardRect.gameObject.AddComponent<Canvas>();
+                _cardRect.gameObject.AddComponent<GraphicRaycaster>();
+            }
+
+            canvas.overrideSorting = true;
+            canvas.sortingOrder = 45;
+            _cardRect.SetAsLastSibling();
         }
 
         public void SetDismissAction(System.Action action) => _dismissAction = action;
@@ -481,6 +521,8 @@ namespace CoachMaster.UI
         {
             PickingPlayer = false;
             _playerId = playerId;
+            if (_cardRect != null)
+                _cardRect.SetAsLastSibling();
             if (_match != null && !string.IsNullOrEmpty(playerId) && _match.People.TryGetValue(playerId, out var player) && player != null)
             {
                 if (_match.Home != null && player.ClubId == _match.Home.Id)
@@ -1014,25 +1056,28 @@ namespace CoachMaster.UI
 
         public void OnBeginDrag(PointerEventData eventData)
         {
-            _dragging = _window != null && _bounds != null;
+            var press = eventData.pointerPress;
+            var onButton = press != null && press.GetComponentInParent<Button>() != null;
+            var onResize = press != null && press.GetComponentInParent<MatchAnalysisWindowResize>() != null;
+            _dragging = _window != null && !onButton && !onResize;
         }
 
         public void OnDrag(PointerEventData eventData)
         {
-            if (!_dragging || _window == null || _bounds == null)
+            if (!_dragging || _window == null)
                 return;
-            var parent = _window.parent as RectTransform;
-            if (parent == null)
-                return;
-            var camera = eventData.pressEventCamera;
-            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, eventData.position, camera, out var now))
-                return;
-            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, eventData.position - eventData.delta, camera, out var before))
-                return;
-            var position = _window.anchoredPosition + (now - before);
-            var maxX = Mathf.Max(0f, (_bounds.rect.width - _window.rect.width) * 0.5f);
-            var maxY = Mathf.Max(0f, (_bounds.rect.height - _window.rect.height) * 0.5f);
-            _window.anchoredPosition = new Vector2(Mathf.Clamp(position.x, -maxX, maxX), Mathf.Clamp(position.y, -maxY, maxY));
+            var canvas = _window.GetComponentInParent<Canvas>();
+            var scale = canvas == null || canvas.scaleFactor < 0.01f ? 1f : canvas.scaleFactor;
+            var position = _window.anchoredPosition + eventData.delta / scale;
+            if (_bounds != null)
+            {
+                var maxX = Mathf.Max(48f, (_bounds.rect.width - _window.rect.width) * 0.5f);
+                var maxY = Mathf.Max(48f, (_bounds.rect.height - _window.rect.height) * 0.5f);
+                position.x = Mathf.Clamp(position.x, -maxX, maxX);
+                position.y = Mathf.Clamp(position.y, -maxY, maxY);
+            }
+
+            _window.anchoredPosition = position;
         }
 
         public void OnEndDrag(PointerEventData eventData)

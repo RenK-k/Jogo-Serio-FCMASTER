@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using CoachMaster.App;
 using CoachMaster.Domain;
+using CoachMaster.UI;
 using UnityEngine;
 
 namespace CoachMaster.Career

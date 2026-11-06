@@ -537,15 +537,15 @@ namespace CoachMaster.UI
             var wheelObject = new GameObject("HueSaturationWheel", typeof(RectTransform), typeof(CanvasRenderer), typeof(HueSaturationWheel));
             var wheelRect = wheelObject.GetComponent<RectTransform>();
             wheelRect.SetParent(page.transform, false);
-            wheelRect.anchorMin = wheelRect.anchorMax = new Vector2(0.26f, 0.465f);
+            wheelRect.anchorMin = wheelRect.anchorMax = new Vector2(0.26f, 0.51f);
             wheelRect.pivot = new Vector2(0.5f, 0.5f);
-            wheelRect.sizeDelta = new Vector2(300f, 300f);
+            wheelRect.sizeDelta = new Vector2(200f, 200f);
             _themeWheel = wheelObject.GetComponent<HueSaturationWheel>();
             _themeWheel.SetColorChanged(SetThemeHueSaturation);
             var markerObject = new GameObject("WheelSelection", typeof(RectTransform), typeof(Image), typeof(Outline));
             var wheelMarkerRect = markerObject.GetComponent<RectTransform>();
             wheelMarkerRect.SetParent(wheelRect, false);
-            wheelMarkerRect.sizeDelta = new Vector2(22f, 22f);
+            wheelMarkerRect.sizeDelta = new Vector2(18f, 18f);
             var markerImage = markerObject.GetComponent<Image>();
             markerImage.sprite = BroadcastUi.Circle;
             markerImage.color = Color.white;

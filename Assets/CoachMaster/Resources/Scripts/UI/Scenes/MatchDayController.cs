@@ -24,7 +24,7 @@ namespace CoachMaster.UI.Scenes
         }
 
         MatchSession _match;
-        MatchEngine _engine;
+        CoachMaster.MatchPlay.MatchEngine _engine;
         CareerState _career;
         bool _paused;
         float _speed = 0.68f;
@@ -45,6 +45,11 @@ namespace CoachMaster.UI.Scenes
         Text _clock;
         Text _ticker;
         RectTransform _pitch;
+        RawImage _liveView;
+        Text _liveScore;
+        Text _liveMinute;
+        Image _liveHomeMark;
+        Image _liveAwayMark;
         RectTransform _ball;
         Image _ballImage;
         Image _ballShadow;
@@ -82,7 +87,17 @@ namespace CoachMaster.UI.Scenes
         bool _matchFinalized;
         bool _analysisAtHalfTime;
         bool _analysisAtFullTime;
-        bool _liveAnalysisDismissed;
+        bool _liveAnalysisDismissed = true;
+        int _seenLiveGoals;
+        int _heardCommentary = -1;
+        string _heardCommentaryLine;
+        bool _continuousPitch;
+        bool _pauseOnLive;
+        bool _liveMoment;
+        float _liveDangerUntil;
+        RawImage _pitchLive;
+        GameObject _liveSky;
+        Button _viewMode;
         bool _pauseAfterEvent;
         bool _subsAfterEvent;
         GameObject _tactics;
@@ -144,7 +159,7 @@ namespace CoachMaster.UI.Scenes
 
             _career = GameRoot.Instance.Session.Career;
             _speed = SettingsPrefs.MatchSpeed;
-            _engine = new MatchEngine(_match,
+            _engine = new CoachMaster.MatchPlay.MatchEngine(_match,
                 _career != null && _career.Coach != null ? _career.Coach.ClubId : null,
                 _career == null ? 1f : SettingsPrefs.InjuryMultiplier(_career.InjuryFrequency),
                 _career == null ? 1f : SettingsPrefs.RefereeMultiplier(_career.RefereeStrictness));
@@ -157,13 +172,30 @@ namespace CoachMaster.UI.Scenes
                 BindMatch(design);
                 Show(BoardTab.Fitness);
                 MatchBroadcastView.Attach(design, _match, _career, _pitch, OpenPause, CycleSpeed, () => OpenSubs(false), OpenLiveAnalysis);
-                OpenLiveAnalysis();
+                AttachLive();
                 return;
             }
 
             Build();
             MatchBroadcastView.Attach(transform.Find("Design"), _match, _career, _pitch, OpenPause, CycleSpeed, () => OpenSubs(false), OpenLiveAnalysis);
-            OpenLiveAnalysis();
+            AttachLive();
+        }
+
+        public void ResumeSimulation()
+        {
+            var design = transform.Find("Design");
+            if (design != null)
+                design.gameObject.SetActive(true);
+        }
+
+        void AttachLive()
+        {
+            if (SimulatorMatchHost.Running || _match == null)
+                return;
+            var host = gameObject.GetComponent<SimulatorMatchHost>();
+            if (host == null)
+                host = gameObject.AddComponent<SimulatorMatchHost>();
+            host.Begin(_match);
         }
 
         public void BakeDesign(CareerState career, MatchSession match)
@@ -257,6 +289,12 @@ namespace CoachMaster.UI.Scenes
 
             _halfTime.SetActive(false);
             _fullTime.SetActive(false);
+            if (SimulatorMatchHost.Running)
+            {
+                if (SimulatorMatchHost.Spectating)
+                    FollowSimulator();
+                return;
+            }
             _footer.SetActive(true);
             var overlay = (_pause != null && _pause.activeSelf) || (_tactics != null && _tactics.activeSelf) || (_subsMenu != null && _subsMenu.activeSelf);
             if (_paused && !overlay)
@@ -267,8 +305,12 @@ namespace CoachMaster.UI.Scenes
 
             if (_paused && _pause != null && _pause.activeSelf)
                 _pause.transform.SetAsLastSibling();
-            if (!_paused && !_watchEvent && !AudioSettingsOverlay.IsVisible)
-                _engine.Tick(Time.deltaTime, _speed);
+            if (!_paused && !_watchEvent && !AudioSettingsOverlay.IsVisible && !GameRoot.IsLoading)
+            {
+                NoteLiveMoment();
+                var rate = SettingsPrefs.MatchSpeedIndex > 1 && _liveMoment ? 1f / 60f : _speed;
+                _engine.Tick(Time.deltaTime, rate);
+            }
             TryQueuedSub();
 
             PlaceTokens();
@@ -374,6 +416,7 @@ namespace CoachMaster.UI.Scenes
             _ticker = SceneBind.Get<Text>(root, "Ticker");
             _flash = SceneBind.Get<Text>(root, "Flash");
             _eventCard = root.Find("EventCard").gameObject;
+            _eventCard.SetActive(false);
             _eventFace = SceneBind.Get<Image>(root, "EventCard/EventFace");
             _eventStrip = SceneBind.Get<Image>(root, "EventCard/Strip");
             _eventWho = SceneBind.Get<Text>(root, "EventCard/Who");
@@ -1144,6 +1187,8 @@ namespace CoachMaster.UI.Scenes
             BroadcastUi.Place(_pauseBody.rectTransform, 0.08f, 0.46f, 0.92f, 0.76f);
             _pauseBody.verticalOverflow = VerticalWrapMode.Truncate;
             _pauseBody.horizontalOverflow = HorizontalWrapMode.Wrap;
+            _viewMode = BroadcastUi.Button(card, "Vista", "MOMENTOS ATACANTES", TogglePitchView, new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 15);
+            BroadcastUi.Place(_viewMode.GetComponent<RectTransform>(), 0.12f, 0.46f, 0.88f, 0.56f);
             var resume = BroadcastUi.Button(card, "Resume", "RETOMAR", ResumeMatch, UiTheme.Accent, UiTheme.ButtonText, 18);
             BroadcastUi.Place(resume.GetComponent<RectTransform>(), 0.12f, 0.055f, 0.88f, 0.16f);
             var tactics = BroadcastUi.Button(card, "OpenTactics", "TÁTICAS", OpenTactics, new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 16);
@@ -1165,7 +1210,7 @@ namespace CoachMaster.UI.Scenes
                 _pauseBody.verticalOverflow = VerticalWrapMode.Truncate;
                 _pauseBody.horizontalOverflow = HorizontalWrapMode.Wrap;
                 _pauseBody.raycastTarget = false;
-                BroadcastUi.Place(_pauseBody.rectTransform, 0.08f, 0.46f, 0.92f, 0.76f);
+                BroadcastUi.Place(_pauseBody.rectTransform, 0.08f, 0.58f, 0.92f, 0.76f);
             }
 
             var card = _pause == null ? null : _pause.transform.Find("Card");
@@ -1269,7 +1314,7 @@ namespace CoachMaster.UI.Scenes
                     continue;
                 if (player.Id == _tacticFocus)
                     focus = player;
-                var slot = MatchEngine.Slot(home, i, formation);
+                var slot = CoachMaster.MatchPlay.MatchEngine.Slot(home, i, formation);
                 TacticSpot(_tacticPitch, player, slot, player.Id == _tacticFocus);
             }
 
@@ -1397,15 +1442,38 @@ namespace CoachMaster.UI.Scenes
             ResumeMatch();
         }
 
+        void TogglePitchView()
+        {
+            _continuousPitch = !_continuousPitch;
+            var label = _viewMode == null ? null : _viewMode.GetComponentInChildren<Text>();
+            if (label != null)
+                label.text = _continuousPitch ? "MOSTRA CONTÍNUA" : "MOMENTOS ATACANTES";
+        }
+
+        void RaisePause()
+        {
+            if (_pause == null)
+                return;
+            var canvas = _pause.GetComponent<Canvas>();
+            if (canvas == null)
+                canvas = _pause.AddComponent<Canvas>();
+            canvas.overrideSorting = true;
+            canvas.sortingOrder = 200;
+            if (_pause.GetComponent<GraphicRaycaster>() == null)
+                _pause.AddComponent<GraphicRaycaster>();
+        }
+
         void OpenPause()
         {
             if (_match.Phase == MatchPhase.HalfTime || _match.Phase == MatchPhase.FullTime)
                 return;
+            _pauseOnLive = _liveView != null && _liveView.gameObject.activeSelf;
             _paused = true;
             if (_tactics != null)
                 _tactics.SetActive(false);
             if (_subsMenu != null)
                 _subsMenu.SetActive(false);
+            RaisePause();
             _pause.SetActive(true);
             if (_analysis != null)
                 _analysis.SetVisible(false);
@@ -1419,6 +1487,7 @@ namespace CoachMaster.UI.Scenes
         void ResumeMatch()
         {
             _paused = false;
+            _pauseOnLive = false;
             if (_pause != null)
                 _pause.SetActive(false);
             if (_tactics != null)
@@ -1601,7 +1670,7 @@ namespace CoachMaster.UI.Scenes
             var shape = UserTactics().Formation;
             for (var i = 0; i < field.Count && i < 11; i++)
             {
-                var slot = MatchEngine.Slot(true, i, shape);
+                var slot = CoachMaster.MatchPlay.MatchEngine.Slot(true, i, shape);
                 var player = PlayerOf(field[i]);
                 var anchor = slot;
                 var faceGo = new GameObject("Face" + i, typeof(RectTransform), typeof(Image));
@@ -2609,11 +2678,94 @@ namespace CoachMaster.UI.Scenes
                 controller.HideMatchEventPopups();
         }
 
+        void FollowSimulator()
+        {
+            var host = GetComponent<SimulatorMatchHost>();
+            if (host == null)
+                return;
+            host.Mirror(_match);
+            host.SetAttack(host.AttackMoment());
+            if (_footer != null)
+                _footer.SetActive(!host.AttackMoment());
+            PlaceTokens();
+            RefreshHud();
+        }
+
         void LateUpdate()
         {
+            FrameLivePitch();
             if (_match == null || !SquadDragCard.ConsumeSwap(out var incoming, out var fieldIndex, out var fromField))
                 return;
             ApplyDragSub(incoming, fieldIndex, fromField);
+        }
+
+        void FrameLivePitch()
+        {
+        }
+
+        void BuildLiveBoard()
+        {
+            var skyObject = new GameObject("LiveSky", typeof(RectTransform), typeof(Canvas), typeof(Image));
+            skyObject.transform.SetParent(transform, false);
+            var skyLayer = skyObject.GetComponent<Canvas>();
+            skyLayer.overrideSorting = true;
+            skyLayer.sortingOrder = 79;
+            var sky = skyObject.GetComponent<Image>();
+            sky.color = new Color(0.62f, 0.74f, 0.86f, 1f);
+            sky.raycastTarget = false;
+            BroadcastUi.Stretch(sky.rectTransform);
+            _liveSky = skyObject;
+            skyObject.SetActive(false);
+
+            var viewObject = new GameObject("Live3D", typeof(RectTransform), typeof(Canvas), typeof(GraphicRaycaster), typeof(RawImage));
+            viewObject.transform.SetParent(transform, false);
+            var layer = viewObject.GetComponent<Canvas>();
+            layer.overrideSorting = true;
+            layer.sortingOrder = 80;
+            _liveView = viewObject.GetComponent<RawImage>();
+            _liveView.raycastTarget = true;
+            _liveView.color = Color.white;
+            BroadcastUi.Stretch(_liveView.rectTransform);
+
+            var bar = BroadcastUi.Solid(viewObject.transform, "Placar3D", new Color(0.04f, 0.06f, 0.09f, 0.86f));
+            BroadcastUi.Place(bar.rectTransform, 0.33f, 0.9f, 0.67f, 0.985f);
+            _liveHomeMark = BroadcastUi.Solid(bar.transform, "Casa", Color.white);
+            _liveHomeMark.preserveAspect = true;
+            BroadcastUi.Place(_liveHomeMark.rectTransform, 0.03f, 0.14f, 0.16f, 0.86f);
+            _liveScore = BroadcastUi.Label(bar.transform, "Marcador", "0 - 0", 30, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(_liveScore.rectTransform, 0.18f, 0.34f, 0.62f, 0.92f);
+            _liveMinute = BroadcastUi.Label(bar.transform, "Minuto", "0:00", 16, new Color(0.78f, 0.84f, 0.9f), TextAnchor.MiddleCenter);
+            BroadcastUi.Place(_liveMinute.rectTransform, 0.18f, 0.06f, 0.62f, 0.4f);
+            _liveAwayMark = BroadcastUi.Solid(bar.transform, "Fora", Color.white);
+            _liveAwayMark.preserveAspect = true;
+            BroadcastUi.Place(_liveAwayMark.rectTransform, 0.64f, 0.14f, 0.77f, 0.86f);
+            var pause = BroadcastUi.Button(bar.transform, "Pausa", "", OpenPause, new Color(1f, 1f, 1f, 0.08f), Color.white, 16);
+            BroadcastUi.Place(pause.GetComponent<RectTransform>(), 0.8f, 0.18f, 0.96f, 0.82f);
+            var left = BroadcastUi.Solid(pause.transform, "TracoA", Color.white);
+            BroadcastUi.Place(left.rectTransform, 0.28f, 0.22f, 0.42f, 0.78f);
+            var right = BroadcastUi.Solid(pause.transform, "TracoB", Color.white);
+            BroadcastUi.Place(right.rectTransform, 0.58f, 0.22f, 0.72f, 0.78f);
+        }
+
+        void PaintLiveBoard()
+        {
+            if (_match == null || _liveScore == null)
+                return;
+            _liveScore.text = _match.HomeGoals + "  -  " + _match.AwayGoals;
+            _liveMinute.text = Clock(_match.Minute);
+            var home = CrestStudio.For(_match.Home);
+            var away = CrestStudio.For(_match.Away);
+            if (home != null)
+            {
+                _liveHomeMark.sprite = home;
+                _liveHomeMark.color = Color.white;
+            }
+
+            if (away != null)
+            {
+                _liveAwayMark.sprite = away;
+                _liveAwayMark.color = Color.white;
+            }
         }
 
         void OpenSubs(bool fromPause)
@@ -2679,7 +2831,7 @@ namespace CoachMaster.UI.Scenes
                 if (player != null)
                 {
                     var card = SubCard(_subPitch, player, club, false, index);
-                    card.anchorMin = card.anchorMax = MatchEngine.Slot(true, index, formation);
+                    card.anchorMin = card.anchorMax = CoachMaster.MatchPlay.MatchEngine.Slot(true, index, formation);
                     card.sizeDelta = new Vector2(90, 82);
                 }
             }
@@ -2987,9 +3139,8 @@ namespace CoachMaster.UI.Scenes
                 _clock.text = Clock(_match.Minute);
             }
 
-            var translatedEvent = LocalizationManager.Translate(_match.LastEvent);
-            if (_ticker.text != translatedEvent)
-                _ticker.text = translatedEvent;
+            if (_ticker != null && _ticker.text != "")
+                _ticker.text = "";
             if (_heard != _match.LastEvent)
             {
                 _heard = _match.LastEvent;
@@ -2999,62 +3150,19 @@ namespace CoachMaster.UI.Scenes
             if (_match.FlashSerial != _flashSeen)
             {
                 _flashSeen = _match.FlashSerial;
-                var text = _match.Flash ?? "";
-                var eventText = text.ToUpperInvariant();
-                var person = EventSubject(eventText);
-                var isGoal = eventText.Contains("GOLO") || eventText.Contains("GOAL");
-                var isShotResult = eventText.Contains("POSTE") || eventText.Contains("FALHADO") || eventText.Contains("DEFESA") || eventText.Contains("SAVE");
-                var isRed = eventText.Contains("VERMELHO") || eventText.Contains("RED CARD");
-                var isInjury = eventText.Contains("LES") || eventText.Contains("INJUR");
-                var isPenalty = eventText.Contains("PENÁLTI") || eventText.Contains("PENALTI") || eventText.Contains("PENALTY");
-                var isKeyEvent = isGoal || isRed || isInjury || isPenalty;
-                var isExtended = isKeyEvent || isShotResult || eventText.Contains("AMARELO") || eventText.Contains("YELLOW CARD")
-                    || eventText.Contains("FALTA") || eventText.Contains("FOUL") || eventText.Contains("CANTO") || eventText.Contains("CORNER");
-                var highlightMode = SettingsPrefs.MatchHighlights;
-                var selectedByHighlights = highlightMode == 0 || (highlightMode == 1 && isExtended) || (highlightMode == 2 && isKeyEvent) || (highlightMode == 3 && isGoal);
-                var important = SettingsPrefs.MatchSpeedIndex == 4 && selectedByHighlights;
-                var roll = isKeyEvent || isShotResult || eventText.Contains("CHILENA") || eventText.Contains("BICYCLE") || eventText.Contains("DEFESA") || eventText.Contains("SAVE");
-                _watchEvent = important && !isShotResult;
-                _flashLeft = isGoal ? 2.65f : _watchEvent ? 3.4f : 2.4f;
-                GameAudio.ForFlash(_match.Flash);
-                var userPlayerInjured = isInjury && person != null && _career?.Coach != null
-                    && person.ClubId == _career.Coach.ClubId;
-                _subsAfterEvent = userPlayerInjured;
-                _pauseAfterEvent = !isInjury && ((isGoal && SettingsPrefs.PauseOnGoal) || (isRed && SettingsPrefs.PauseOnRedCard));
-                if (roll && important)
-                {
+                _watchEvent = false;
+                _pauseAfterEvent = false;
+                _subsAfterEvent = false;
+                _flashLeft = 0f;
+                if (_eventCard != null)
                     _eventCard.SetActive(false);
+                if (_flash != null)
                     _flash.gameObject.SetActive(false);
-                    var buildUp = BuildUp(text);
-                    for (var line = 0; line < buildUp.Length; line++)
-                        buildUp[line] = LocalizationManager.Translate(buildUp[line]);
-                    MomentRoll.Play(transform, person, LocalizationManager.Translate(text), buildUp, EventCrest(person));
-                }
-                else
-                {
-                    _flash.transform.SetParent(_eventCard.transform, false);
-                    _eventCard.SetActive(important);
-                    if (important)
-                    {
-                        _eventCard.transform.SetAsLastSibling();
-                        PositionEventPopup(person != null, text);
-                        _eventFace.gameObject.SetActive(person != null);
-                        if (person != null)
-                        {
-                            _eventFace.sprite = FaceBook.For(person);
-                            _eventWho.text = person.SquadNumber + "   " + person.FullName;
-                        }
-                        else
-                            _eventWho.text = "";
-                        ShowEventCrest(person);
-                        var card = text.Contains("VERMELHO") || text.Contains("AMARELO");
-                        _eventStrip.gameObject.SetActive(card);
-                        _eventStrip.color = text.Contains("VERMELHO") ? new Color(0.82f, 0.1f, 0.12f) : new Color(0.95f, 0.82f, 0.12f);
-                        _flash.text = LocalizationManager.Translate(text);
-                        _flash.gameObject.SetActive(true);
-                        PlaceEventText(person != null);
-                    }
-                }
+                if (_eventStrip != null)
+                    _eventStrip.gameObject.SetActive(false);
+                var momentRoll = transform.Find("MomentRoll");
+                if (momentRoll != null)
+                    momentRoll.gameObject.SetActive(false);
             }
 
             if (_flashLeft > 0f && !AudioSettingsOverlay.IsVisible)
@@ -3156,23 +3264,68 @@ namespace CoachMaster.UI.Scenes
             BroadcastUi.Place(_flash.rectTransform, hasPlayer ? 0.27f : 0.06f, 0.08f, 0.96f, 0.5f);
         }
 
+        void NoteLiveMoment()
+        {
+            if (EngineDanger())
+                _liveDangerUntil = Time.unscaledTime + 1.5f;
+            _liveMoment = EngineDanger() || Time.unscaledTime < _liveDangerUntil;
+        }
+
+        bool EngineDanger()
+        {
+            if (_engine == null || _match == null)
+                return false;
+            var kind = _engine.ActionKind ?? "";
+            var ball = _engine.ShownBall();
+            if (kind == "goal" || kind == "corner" || kind == "penalty")
+                return true;
+            if (kind == "shot")
+                return _engine.Hold > 0f || _engine.BallHeight > 0.04f || ball.y > 0.82f || ball.y < 0.18f;
+            if (_match.HomeHasBall && ball.y > 0.84f)
+                return true;
+            return !_match.HomeHasBall && ball.y < 0.16f;
+        }
+
+        void EnsurePitchLive()
+        {
+            if (_pitchLive != null || _pitch == null)
+                return;
+            var picture = new GameObject("PitchLive", typeof(RectTransform), typeof(RawImage));
+            picture.transform.SetParent(_pitch, false);
+            _pitchLive = picture.GetComponent<RawImage>();
+            _pitchLive.raycastTarget = false;
+            _pitchLive.color = Color.white;
+            BroadcastUi.Stretch(_pitchLive.rectTransform);
+            picture.SetActive(false);
+        }
+
         void PlaceTokens()
         {
+            EnsurePitchLive();
+            var picture = false;
+            if (_pitchLive != null)
+            {
+                _pitchLive.gameObject.SetActive(false);
+            }
+            if (_ball != null)
+                _ball.gameObject.SetActive(!picture);
+            if (_ballShadow != null)
+                _ballShadow.gameObject.SetActive(!picture);
             for (var i = 0; i < 11; i++)
             {
                 var homeOn = i < _match.HomeOnField.Count;
                 var awayOn = i < _match.AwayOnField.Count;
                 var homeToken = _homeTokens[i];
                 var awayToken = _awayTokens[i];
-                if (homeToken.Rect.gameObject.activeSelf != homeOn)
-                    homeToken.Rect.gameObject.SetActive(homeOn);
-                if (awayToken.Rect.gameObject.activeSelf != awayOn)
-                    awayToken.Rect.gameObject.SetActive(awayOn);
+                if (homeToken.Rect.gameObject.activeSelf != (homeOn && !picture))
+                    homeToken.Rect.gameObject.SetActive(homeOn && !picture);
+                if (awayToken.Rect.gameObject.activeSelf != (awayOn && !picture))
+                    awayToken.Rect.gameObject.SetActive(awayOn && !picture);
                 if (homeOn)
                 {
                     var playerId = _match.HomeOnField[i];
-                    var slot = _engine.ShownMotionOf(true, i);
-                    Move(homeToken, ToPitch(slot), _match.HomeHasBall && i == _match.BallHolder, Jumping(true, i), _engine.LookTarget(true, i));
+                    var slot = Motion(true, i);
+                    Move(homeToken, ToPitch(slot), Possess(true) && i == Holder(), Jumping(true, i), Look(true, i));
                     if (homeToken.PlayerId != playerId)
                     {
                         homeToken.PlayerId = playerId;
@@ -3187,8 +3340,8 @@ namespace CoachMaster.UI.Scenes
                 if (awayOn)
                 {
                     var playerId = _match.AwayOnField[i];
-                    var slot = _engine.ShownMotionOf(false, i);
-                    Move(awayToken, ToPitch(slot), !_match.HomeHasBall && i == _match.BallHolder, Jumping(false, i), _engine.LookTarget(false, i));
+                    var slot = Motion(false, i);
+                    Move(awayToken, ToPitch(slot), Possess(false) && i == Holder(), Jumping(false, i), Look(false, i));
                     if (awayToken.PlayerId != playerId)
                     {
                         awayToken.PlayerId = playerId;
@@ -3201,10 +3354,10 @@ namespace CoachMaster.UI.Scenes
                 }
             }
 
-            var ball = ToPitch(_engine.ShownBall());
+            var ball = ToPitch(BallSpot());
             _ball.anchorMin = ball;
             _ball.anchorMax = ball;
-            var lift = Mathf.Clamp01(_engine.BallHeight);
+            var lift = MarkerLift();
             var visualSize = Mathf.Lerp(14f, 28f, lift);
             _ball.sizeDelta = new Vector2(visualSize, visualSize);
             _ball.localScale = Vector3.one;
@@ -3221,6 +3374,44 @@ namespace CoachMaster.UI.Scenes
             if (_ballImage != null)
                 _ballImage.color = Color.white;
             HighlightLineupPicks();
+        }
+
+        Vector2 Motion(bool home, int index)
+        {
+            if (SimulatorMatchHost.TrySlot(home, index, out var live))
+                return live;
+            return _engine.ShownMotionOf(home, index);
+        }
+
+        Vector2 BallSpot()
+        {
+            if (SimulatorMatchHost.TryBall(out var live))
+                return live;
+            return _engine.ShownBall();
+        }
+
+        bool Possess(bool home)
+        {
+            return home ? _match.HomeHasBall : !_match.HomeHasBall;
+        }
+
+        int Holder()
+        {
+            return _match.BallHolder;
+        }
+
+        Vector2 Look(bool home, int index)
+        {
+            if (SimulatorMatchHost.TryLook(home, index, out var live))
+                return live;
+            return _engine.LookTarget(home, index);
+        }
+
+        float MarkerLift()
+        {
+            if (SimulatorMatchHost.Spectating)
+                return SimulatorMatchHost.BallLift;
+            return _engine == null ? 0f : Mathf.Clamp01(_engine.BallHeight);
         }
 
         static Vector2 ToPitch(Vector2 slot)
@@ -3248,11 +3439,11 @@ namespace CoachMaster.UI.Scenes
 
         void Move(Token token, Vector2 anchor, bool hasBall, bool jumping, Vector2 logicalLookTarget)
         {
-            // MatchEngine.ShownMotionOf already interpolates its fixed-step simulation state.
+            // CoachMaster.MatchPlay.MatchEngine.ShownMotionOf already interpolates its fixed-step simulation state.
             // A second render-time lerp made player markers trail their actual movement.
             token.Rect.anchorMin = anchor;
             token.Rect.anchorMax = anchor;
-            var lift = _engine == null ? 0f : Mathf.Clamp01(_engine.BallHeight);
+            var lift = MarkerLift();
             var swell = jumping ? lift * lift : 0f;
             token.Rect.anchoredPosition = new Vector2(0f, swell * 22f);
             var scale = hasBall ? 1.12f : 1f;

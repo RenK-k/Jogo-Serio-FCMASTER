@@ -1,0 +1,9 @@
+{
+  "projectName": "FootySim",
+  "entries": [
+    { "triggers": ["simulate a match", "run locally", "start footysim"], "type": "command", "action": "python example.py" },
+    { "triggers": ["run tests", "test project"], "type": "command", "action": "python -m pytest tests/ -q" },
+    { "triggers": ["git status", "show changes"], "type": "command", "action": "git status --short" },
+    { "triggers": ["what is the app", "describe project"], "type": "answer", "response": "A spatial agent-based football match engine (no server/UI). `python example.py` simulates a full 90-minute match and writes match_output.json; there's also \"Play FootySim.bat\" which offers the same choice interactively (simulate a match or run the test suite)." }
+  ]
+}

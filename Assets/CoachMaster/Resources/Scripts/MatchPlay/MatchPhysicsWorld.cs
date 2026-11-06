@@ -71,13 +71,14 @@ namespace CoachMaster.MatchPlay
         }
 
         public void Simulate(float deltaTime, Vector2[] homeVelocity, Vector2[] awayVelocity,
-            Vector2 ballVelocity, bool ballAerial, Vector2[] homePosition, Vector2[] awayPosition,
+            Vector2[] homePosition, Vector2[] awayPosition, Vector2 ball,
             out Vector2 ballPosition, out Vector2 resolvedBallVelocity)
         {
-            _ballCollider.enabled = !ballAerial;
-            // MatchEngine keeps the ball velocity in metres per second already;
-            // player steering velocities are stored in normalized pitch units.
-            _ball.linearVelocity = ballVelocity;
+            _ballCollider.enabled = false;
+            _ball.position = ToMeters(ball);
+            _ball.linearVelocity = Vector2.zero;
+            // Player steering velocities are stored in normalized pitch units.
+            // The match moves the ball itself; a body contact was launching it across the pitch.
             for (var i = 0; i < 11; i++)
             {
                 _players[i].linearVelocity = ToMeters(homeVelocity[i]);

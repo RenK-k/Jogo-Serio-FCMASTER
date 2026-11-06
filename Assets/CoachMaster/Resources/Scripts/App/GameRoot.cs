@@ -23,18 +23,12 @@ namespace CoachMaster.App
         CanvasGroup _loadingGroup;
         RawImage _loadingBackdrop;
         RawImage _loadingLogo;
-        RawImage _loadingLogoBlend;
-        Texture2D _loadingAnimation;
         Texture2D _loadingFallback;
         Coroutine _loadRoutine;
         string _loadingTarget;
         string _queuedScene;
+        int _loadingUsers;
         float _careerSaveClock;
-        const float LoadingScreenDelay = 0.32f;
-        const float LoadingFrameSeconds = 0.05f;
-        const int LoadingFrameColumns = 8;
-        const int LoadingFrameRows = 8;
-        const int LoadingFrameCount = 48;
 
         void Awake()
         {
@@ -80,6 +74,7 @@ namespace CoachMaster.App
 
         void Update()
         {
+            PulseLoadingLogo();
             var career = Session == null ? null : Session.Career;
             if (career == null || SceneManager.GetActiveScene().name == SceneNames.MainMenu)
                 return;
@@ -206,9 +201,8 @@ namespace CoachMaster.App
             backdropRect.offsetMax = Vector2.zero;
             _loadingBackdrop = backdropObject.GetComponent<RawImage>();
             _loadingBackdrop.raycastTarget = false;
-            _loadingBackdrop.color = new Color(0.02f, 0.012f, 0.04f, 1f);
+            _loadingBackdrop.color = new Color(0f, 0f, 0f, 0.42f);
 
-            _loadingAnimation = Resources.Load<Texture2D>("fcmasterGIFAnimated");
             _loadingFallback = Resources.Load<Texture2D>("fcmasterGIF");
             if (_loadingFallback == null)
                 _loadingFallback = BroadcastUi.BrandTexture;
@@ -216,117 +210,81 @@ namespace CoachMaster.App
             var logoObject = new GameObject("LoadingMark", typeof(RectTransform), typeof(RawImage));
             logoObject.transform.SetParent(canvasObject.transform, false);
             var logoRect = logoObject.GetComponent<RectTransform>();
-            logoRect.anchorMin = logoRect.anchorMax = new Vector2(0.5f, 0.12f);
-            logoRect.sizeDelta = new Vector2(180f, 180f);
+            logoRect.anchorMin = logoRect.anchorMax = new Vector2(0.5f, 0.08f);
+            logoRect.pivot = new Vector2(0.5f, 0.5f);
             _loadingLogo = logoObject.GetComponent<RawImage>();
             _loadingLogo.raycastTarget = false;
-
-            var blendObject = new GameObject("LoadingMarkBlend", typeof(RectTransform), typeof(RawImage));
-            blendObject.transform.SetParent(canvasObject.transform, false);
-            var blendRect = blendObject.GetComponent<RectTransform>();
-            blendRect.anchorMin = blendRect.anchorMax = new Vector2(0.5f, 0.12f);
-            blendRect.sizeDelta = logoRect.sizeDelta;
-            _loadingLogoBlend = blendObject.GetComponent<RawImage>();
-            _loadingLogoBlend.raycastTarget = false;
-            _loadingLogoBlend.color = new Color(1f, 1f, 1f, 0f);
-            SetLoadingFrame(0, 0f);
+            ApplyLoadingLogo();
             canvasObject.SetActive(false);
+        }
+
+        public void PresentLoading()
+        {
+            BuildLoadingOverlay();
+            _loadingUsers++;
+            IsLoading = true;
+            _loadingBackdrop.color = new Color(0f, 0f, 0f, 0.42f);
+            _loadingBackdrop.texture = null;
+            ApplyLoadingLogo();
+            if (!_loadingCanvas.gameObject.activeSelf)
+                _loadingCanvas.gameObject.SetActive(true);
+            _loadingGroup.alpha = 1f;
+            _loadingGroup.blocksRaycasts = true;
+        }
+
+        public IEnumerator DismissLoading()
+        {
+            _loadingUsers = Mathf.Max(0, _loadingUsers - 1);
+            if (_loadingUsers > 0)
+                yield break;
+            yield return FadeLoadingOut();
+        }
+
+        void ApplyLoadingLogo()
+        {
+            if (_loadingLogo == null)
+                return;
+            _loadingLogo.rectTransform.anchorMin = _loadingLogo.rectTransform.anchorMax = new Vector2(0.5f, 0.08f);
+            _loadingLogo.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+            BroadcastUi.ApplyBrand(_loadingLogo);
+            if (_loadingLogo.texture == null)
+                _loadingLogo.texture = _loadingFallback;
+            BroadcastUi.FitBrand(_loadingLogo, 280f, 96f);
+        }
+
+        void PulseLoadingLogo()
+        {
+            if (_loadingLogo == null || _loadingCanvas == null || !_loadingCanvas.gameObject.activeSelf)
+                return;
+            var pulse = 1f + Mathf.Sin(Time.unscaledTime * 3.1f) * 0.08f;
+            _loadingLogo.rectTransform.localScale = new Vector3(pulse, pulse, 1f);
         }
 
         IEnumerator LoadScene(AsyncOperation operation)
         {
-            // Let short scene changes finish without showing a loading flash.
-            yield return null;
-            var waited = 0f;
-            while (!operation.isDone && waited < LoadingScreenDelay)
-            {
-                waited += Time.unscaledDeltaTime;
-                yield return null;
-            }
-
-            var showLoadingScreen = !operation.isDone;
-            if (showLoadingScreen)
-            {
-                _loadingBackdrop.texture = null;
-                _loadingCanvas.gameObject.SetActive(true);
+            PresentLoading();
+            if (_loadingGroup != null)
                 _loadingGroup.alpha = 0f;
-                SetLoadingFrame(0, 0f);
-
-                var fadeIn = 0f;
-                while (fadeIn < 1f)
-                {
-                    fadeIn += Time.unscaledDeltaTime / (SettingsPrefs.ReduceMotion ? 0.06f : 0.18f);
-                    _loadingGroup.alpha = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(fadeIn));
-                    yield return null;
-                }
-            }
-
-            var animationElapsed = 0f;
-            while (!operation.isDone)
+            var shown = 0f;
+            var fadeIn = SettingsPrefs.ReduceMotion ? 0.05f : 0.16f;
+            while (!operation.isDone || shown < 0.42f)
             {
-                var delta = Time.unscaledDeltaTime;
-                if (showLoadingScreen)
-                {
-                    if (SettingsPrefs.ReduceMotion)
-                        SetLoadingFrame(0);
-                    else
-                    {
-                        animationElapsed = (animationElapsed + delta) % (LoadingFrameSeconds * LoadingFrameCount);
-                        var framePosition = animationElapsed / LoadingFrameSeconds;
-                        var frameIndex = Mathf.FloorToInt(framePosition);
-                        SetLoadingFrame(frameIndex, framePosition - frameIndex);
-                    }
-                }
+                shown += Time.unscaledDeltaTime;
+                if (_loadingGroup != null)
+                    _loadingGroup.alpha = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(shown / fadeIn));
+                if (operation.isDone && shown >= 0.42f)
+                    break;
                 yield return null;
             }
 
-            if (showLoadingScreen)
-                yield return FadeLoadingOut();
-            IsLoading = false;
+            yield return DismissLoading();
+            IsLoading = _loadingUsers > 0;
             _loadRoutine = null;
             _loadingTarget = null;
             var queuedScene = _queuedScene;
             _queuedScene = null;
             if (!string.IsNullOrEmpty(queuedScene))
                 Open(queuedScene);
-        }
-
-        void SetLoadingFrame(int index, float blend = 0f)
-        {
-            if (_loadingLogo == null)
-                return;
-            if (_loadingAnimation != null)
-            {
-                var frame = ((index % LoadingFrameCount) + LoadingFrameCount) % LoadingFrameCount;
-                SetAtlasFrame(_loadingLogo, frame, 1f - Mathf.Clamp01(blend));
-                if (_loadingLogoBlend != null)
-                    SetAtlasFrame(_loadingLogoBlend, (frame + 1) % LoadingFrameCount, Mathf.Clamp01(blend));
-                return;
-            }
-
-            _loadingLogo.texture = _loadingFallback;
-            _loadingLogo.uvRect = new Rect(0f, 0f, 1f, 1f);
-            _loadingLogo.color = Color.white;
-            if (_loadingLogoBlend != null)
-                _loadingLogoBlend.color = new Color(1f, 1f, 1f, 0f);
-        }
-
-        void SetAtlasFrame(RawImage image, int index, float alpha)
-        {
-            if (image == null)
-                return;
-            image.texture = _loadingAnimation;
-            var column = index % LoadingFrameColumns;
-            var row = index / LoadingFrameColumns;
-            var cellWidth = 1f / LoadingFrameColumns;
-            var cellHeight = 1f / LoadingFrameRows;
-            var insetX = 0.5f / _loadingAnimation.width;
-            var insetY = 0.5f / _loadingAnimation.height;
-            image.uvRect = new Rect(column * cellWidth + insetX,
-                1f - (row + 1) * cellHeight + insetY,
-                cellWidth - insetX * 2f,
-                cellHeight - insetY * 2f);
-            image.color = new Color(1f, 1f, 1f, alpha);
         }
 
         IEnumerator FadeLoadingOut()

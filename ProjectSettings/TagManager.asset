@@ -3,24 +3,30 @@
 --- !u!78 &1
 TagManager:
   serializedVersion: 2
-  tags: []
+  tags:
+  - GoalNet
+  - GoalOut
+  - Woodwork
+  - GoalAction
+  - OutAction
+  - ThrowInAction
   layers:
   - Default
   - TransparentFX
   - Ignore Raycast
-  - 
+  - Player
   - Water
   - UI
+  - Stadium
+  - Field
+  - Ball
+  - GoalNet
+  - StadiumPaintable
+  - StadiumPainted
   - 
   - 
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
+  - EventShadow
+  - EventDirt 
   - 
   - 
   - 

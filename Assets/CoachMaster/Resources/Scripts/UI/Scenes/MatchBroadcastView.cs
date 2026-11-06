@@ -377,6 +377,26 @@ namespace CoachMaster.UI.Scenes
         }
 
         float _next;
+        readonly List<string> _spoken = new List<string>();
+
+        public void Narrate(int minute, string line)
+        {
+            if (string.IsNullOrEmpty(line))
+                return;
+            if (_commentary != null)
+            {
+                _commentary.text = line;
+                var bar = _commentary.transform.parent;
+                bar.gameObject.SetActive(true);
+                bar.SetAsLastSibling();
+            }
+            var row = minute + "'  " + line;
+            if (_spoken.Count > 0 && _spoken[_spoken.Count - 1] == row)
+                return;
+            _spoken.Add(row);
+            if (_spoken.Count > 8)
+                _spoken.RemoveAt(0);
+        }
 
         void Paint()
         {
@@ -392,7 +412,8 @@ namespace CoachMaster.UI.Scenes
             PaintScores();
             PaintMomentum();
             PaintAdvice(english);
-            _commentary.text = string.IsNullOrEmpty(_match.LastEvent) ? "" : LocalizationManager.Translate(_match.LastEvent);
+            if (_commentary != null && _spoken.Count == 0)
+                _commentary.transform.parent.gameObject.SetActive(false);
             PaintXg(english);
         }
 
@@ -406,7 +427,7 @@ namespace CoachMaster.UI.Scenes
             var names = home ? _homeNames : _awayNames;
             for (var i = 0; i < 11; i++)
             {
-                var spot = MatchEngine.Slot(true, i, formation);
+                var spot = CoachMaster.MatchPlay.MatchEngine.Slot(true, i, formation);
                 var shown = i < squad.Count;
                 marks[i].gameObject.SetActive(shown);
                 names[i].gameObject.SetActive(shown);
@@ -544,7 +565,7 @@ namespace CoachMaster.UI.Scenes
             for (var i = _match.Notes.Count - 1; i >= 0 && shown < RowCount; i--)
             {
                 var note = _match.Notes[i];
-                if (note.Kind == "touch" || note.Kind == "pass" || note.Kind == "solo" || note.Kind == "half" || note.Kind == "full")
+                if (note.Kind != "goal" && note.Kind != "yellow" && note.Kind != "red" && note.Kind != "injury" && note.Kind != "sub" && note.Kind != "penalty")
                     continue;
                 var row = _events[shown];
                 row.Root.SetActive(true);
@@ -579,7 +600,6 @@ namespace CoachMaster.UI.Scenes
                 case "sub": return "S";
                 case "injury": return "+";
                 case "corner": return "C";
-                case "foul": return "F";
                 default: return "•";
             }
         }
@@ -594,7 +614,6 @@ namespace CoachMaster.UI.Scenes
                 case "sub": return new Color(0.35f, 0.7f, 1f);
                 case "injury": return new Color(1f, 0.45f, 0.2f);
                 case "corner": return new Color(0.4f, 0.85f, 0.55f);
-                case "foul": return new Color(0.85f, 0.85f, 0.9f);
                 default: return new Color(0.55f, 0.6f, 0.7f);
             }
         }

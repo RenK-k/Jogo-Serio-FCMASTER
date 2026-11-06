@@ -155,5 +155,12 @@ namespace CoachMaster.Career
     {
         public string Name { get; set; }
         public TacticalIdentity Tactics { get; set; }
+        public List<string> Lineup { get; set; } = new List<string>();
+        public List<string> Bench { get; set; } = new List<string>();
+        public string CaptainId { get; set; }
+        public string PenaltyTakerId { get; set; }
+        public string CornerTakerId { get; set; }
+        public string FreeKickTakerId { get; set; }
+        public string Duties { get; set; }
     }
 }
