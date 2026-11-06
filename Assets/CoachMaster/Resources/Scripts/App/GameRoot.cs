@@ -94,6 +94,7 @@ namespace CoachMaster.App
             ControlChrome.DisableAutomaticNavigation();
             ControlChrome.ResetForScene();
             LocalizationManager.ApplyScene();
+            ControlBindings.Apply();
         }
 
         public static void ApplyUiScale()
@@ -128,7 +129,7 @@ namespace CoachMaster.App
                 var created = new GameObject("EventSystem");
                 created.AddComponent<EventSystem>();
                 created.AddComponent<InputSystemUIInputModule>();
-                return;
+                systems = FindObjectsByType<EventSystem>(FindObjectsSortMode.None);
             }
 
             foreach (var system in systems)
@@ -142,6 +143,7 @@ namespace CoachMaster.App
                 if (module.actionsAsset == null)
                     module.AssignDefaultActions();
             }
+            ControlBindings.Apply();
         }
 
         public static GameRoot Require()

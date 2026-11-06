@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   cameraName: 
   ZPositionOffset: -43.4
-  YPositionOffset: 15.9
+  YPositionOffset: 23
   MinXRotation: -28.9
   MaxXRotation: 61
   XRotationCurve:

@@ -21,6 +21,12 @@ namespace FStudio.UI.MatchThemes {
         /// </summary>
         private bool[] kits = new bool[2];
 
+        protected override void OnEnable() {
+            base.OnEnable();
+            if (canvasGroup != null && !IsActive)
+                canvasGroup.alpha = 0f;
+        }
+
         protected override async void OnEventCalled(UpcomingMatchEvent eventObject) {
             this.eventObject = eventObject;
 
@@ -28,6 +34,9 @@ namespace FStudio.UI.MatchThemes {
                 Disappear();
                 return;
             }
+
+            if (canvasGroup != null)
+                canvasGroup.alpha = 0f;
 
             Debug.Log("Upcoming match");
 
@@ -47,6 +56,13 @@ namespace FStudio.UI.MatchThemes {
             kits[1] = true; // set away teams kit to side kit.
 
             UpdateKits();
+            teams[0].SetCrest(CareerTacticLock.HomeCrest);
+            teams[1].SetCrest(CareerTacticLock.AwayCrest);
+            if (CareerTacticLock.Portuguese)
+                Translate(transform);
+            if (CareerTacticLock.CareerChoice && MatchSettingsPanel.SIDE != Shared.Responses.MatchCreateRequest.UserTeam.None
+                && MatchSettingsPanel.SIDE != CareerTacticLock.OwnSide)
+                MatchSettingsPanel.SIDE = Shared.Responses.MatchCreateRequest.UserTeam.None;
 
             Appear();
 
@@ -72,7 +88,8 @@ namespace FStudio.UI.MatchThemes {
             // update the details.
             var details = eventObject.details;
             details.aiLevel = MatchSettingsPanel.AILEVEL;
-            details.dayTime = MatchSettingsPanel.DAYTIMES;
+            if (!CareerTacticLock.CareerChoice)
+                details.dayTime = MatchSettingsPanel.DAYTIMES;
             details.userTeam = MatchSettingsPanel.SIDE;
             eventObject.details = details;
             //
@@ -95,6 +112,17 @@ namespace FStudio.UI.MatchThemes {
             kits[index] = !kits[index];
 
             UpdateKits();
+        }
+
+        static void Translate(Transform root) {
+            var labels = root.GetComponentsInChildren<TMPro.TextMeshProUGUI>(true);
+            for (var i = 0; i < labels.Length; i++) {
+                var text = labels[i].text;
+                if (text == "Line up")
+                    labels[i].text = "Escalação";
+                else if (text == "START MATCH")
+                    labels[i].text = "COMEÇAR PARTIDA";
+            }
         }
     }
 }

@@ -1,5 +1,7 @@
 ﻿using FStudio.Data;
 using FStudio.MatchEngine.Enums;
+using FStudio.MatchEngine.Tactics;
+using Shared.Responses;
 using TMPro;
 using UnityEngine;
 
@@ -11,7 +13,7 @@ namespace FStudio.UI.Panels {
 
         public static DayTimes DAYTIMES { private set; get; }
         public static AILevel AILEVEL { private set; get; }
-        public static Shared.Responses.MatchCreateRequest.UserTeam SIDE {  private set; get; }
+        public static Shared.Responses.MatchCreateRequest.UserTeam SIDE { get; internal set; }
 
 
         [SerializeField] private TextMeshProUGUI 
@@ -44,10 +46,16 @@ namespace FStudio.UI.Panels {
             };
 
             sideSelector.OnSelectionUpdate += (val) => {
-                SIDE = (Shared.Responses.MatchCreateRequest.UserTeam) val;
+                var picked = (MatchCreateRequest.UserTeam)val;
+                if (CareerTacticLock.CareerChoice && CareerTacticLock.OwnSide != MatchCreateRequest.UserTeam.None) {
+                    if (sideSelector.Max == 2)
+                        picked = val == 0 ? MatchCreateRequest.UserTeam.None : CareerTacticLock.OwnSide;
+                    else if (picked != MatchCreateRequest.UserTeam.None && picked != CareerTacticLock.OwnSide)
+                        picked = MatchCreateRequest.UserTeam.None;
+                }
+                SIDE = picked;
                 sideText.text = SIDE.ToString();
-
-                PlayerPrefs.SetInt(SETTING_SIDE, val);
+                PlayerPrefs.SetInt(SETTING_SIDE, (int)SIDE);
             };
 
             var aiLevelSetting = PlayerPrefs.GetInt(SETTING_AILEVEL, 4);
@@ -59,6 +67,13 @@ namespace FStudio.UI.Panels {
             dayTimeSelector.SetSelected(dayTimeSetting);
 
             gameObject.SetActive(false);
+        }
+
+        void OnEnable() {
+            if (!CareerTacticLock.CareerChoice || sideSelector == null || sideSelector.Max == 2)
+                return;
+            sideSelector.Max = 2;
+            sideSelector.SetSelected(0);
         }
     }
 }

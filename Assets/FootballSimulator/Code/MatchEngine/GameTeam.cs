@@ -295,7 +295,7 @@ namespace FStudio.MatchEngine {
             if (m_nextName < time) {
                 m_nextName = time + NAME_TIMER_DELAYER;
 
-                var orderByCloser = GamePlayers.
+                var orderByCloser = GamePlayers.Where(MatchManager.Alive).
                     OrderBy(x => Vector3.Distance(x.Position, ball.BallPosition (x)));
 
                 var showName = orderByCloser.Take(2);
@@ -313,8 +313,8 @@ namespace FStudio.MatchEngine {
                 UpdateMarkings(opponents);
             }
 
-            for (int i=0; i < 11; i++) {
-                if (GamePlayers[i] != null) {
+            for (int i=0; i < GamePlayers.Length; i++) {
+                if (MatchManager.Alive(GamePlayers[i])) {
 
                     var isInputControlled = IsPlayerInputControlled(GamePlayers[i]);
 
@@ -372,7 +372,7 @@ namespace FStudio.MatchEngine {
                     }
 
                     GamePlayers[i].ProcessBehaviours(in time);
-                } else {
+                } else if (GamePlayers[i] == null) {
                     Debug.LogError("Player is null.");
                 }
             }

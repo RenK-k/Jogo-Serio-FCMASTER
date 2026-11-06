@@ -248,7 +248,9 @@ namespace FStudio.MatchEngine.Players {
         }
 
         public void Dispose () {
-            Object.Destroy(PlayerController.UnityObject);
+            var body = PlayerController as UnityEngine.Object;
+            if (body != null)
+                Object.Destroy(PlayerController.UnityObject);
         }
 
         private void OnCollisionEnter (Collision collision) {
@@ -1105,8 +1107,6 @@ namespace FStudio.MatchEngine.Players {
             Ball ball) {
 
             if (ball.HolderPlayer != this) {
-                Debug.Log("Ball control: impulse:" + impulse + ", height:" + touchHeight);
-
                 impulse = Mathf.Min (impulse, EngineSettings.Current.BallControlMaxBallImpulse);
 
                 var heightMod = EngineSettings.Current.BallControlHeightMultiplierCurve.Evaluate(touchHeight);

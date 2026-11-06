@@ -53,6 +53,10 @@ namespace CoachMaster.UI
         GameObject _root;
         GameObject _confirm;
         GameObject _saveManager;
+        GameObject _controls;
+        int _controlTab;
+        InputActionRebindingExtensions.RebindingOperation _rebind;
+        Text _rebindStatus;
         GameObject _musicManager;
         InputField _saveName;
         InputField _musicPath;
@@ -119,9 +123,6 @@ namespace CoachMaster.UI
                     Refresh();
             }
 
-            if (!Keyboard.current.mKey.wasPressedThisFrame || EventSystemTyping())
-                return;
-            Toggle();
         }
 
         public void Toggle()
@@ -206,10 +207,10 @@ namespace CoachMaster.UI
 
             _feedback = BroadcastUi.Label(card.transform, "SettingsFeedback", "", 12, UiTheme.Muted, TextAnchor.MiddleLeft);
             BroadcastUi.Place(_feedback.rectTransform, 0.27f, 0.105f, 0.95f, 0.145f);
-            _apply = FooterButton(card.transform, "CloseSettings", "FECHAR", ApplyAndClose, 0.025f, 0.025f, 0.19f, 0.09f, UiTheme.Accent, UiTheme.ButtonText);
+            _menu = FooterButton(card.transform, "MainMenu", "MENU", LeaveToMenu, 0.025f, 0.025f, 0.19f, 0.09f, new Color(0.22f, 0.12f, 0.38f, 1f), Color.white);
             _defaults = FooterButton(card.transform, "Defaults", "REPOR PADRÃO", RestoreDefaults, 0.205f, 0.025f, 0.4f, 0.09f, new Color(0.22f, 0.12f, 0.38f, 1f), Color.white);
             _saveCareer = FooterButton(card.transform, "SaveCareer", "GUARDAR CARREIRA", SaveCareer, 0.415f, 0.025f, 0.7f, 0.09f, new Color(0.22f, 0.12f, 0.38f, 1f), Color.white);
-            _menu = FooterButton(card.transform, "MainMenu", "MENU", LeaveToMenu, 0.82f, 0.025f, 0.975f, 0.09f, new Color(0.22f, 0.12f, 0.38f, 1f), Color.white);
+            _apply = FooterButton(card.transform, "CloseSettings", "FECHAR", ApplyAndClose, 0.82f, 0.025f, 0.975f, 0.09f, UiTheme.Accent, UiTheme.ButtonText);
             GameRoot.ApplyUiScale();
             _root.SetActive(false);
             ApplyCareerButtons();
@@ -223,7 +224,9 @@ namespace CoachMaster.UI
             AddOption(page.transform, "VSync", "Sincronização vertical", "Reduz rasgos de imagem; pode limitar os FPS à frequência do ecrã.", () => DisplayPrefs.VsyncLabel, DisplayPrefs.ToggleVsync, 0.54f);
             AddOption(page.transform, "FPS", "Limite de fotogramas", "30, 60, 120, 144, 165, 240 ou sem limite.", () => DisplayPrefs.FrameRateLabel, DisplayPrefs.CycleFrameRate, 0.43f);
             AddOption(page.transform, "Quality", "Qualidade", "Usa os níveis de qualidade disponíveis neste projeto Unity.", () => DisplayPrefs.QualityLabel, DisplayPrefs.CycleQuality, 0.32f);
-            AddOption(page.transform, "Background", "Imagem de fundo", "Automático, fundo principal, uma liga, ou um ficheiro teu.", () => BackgroundPrefs.Label, () => { BackgroundPrefs.Cycle(); Refresh(); }, 0.21f);
+            AddOption(page.transform, "Background", "Imagem de fundo", "Automático, fundo principal, uma liga, ou um ficheiro teu. O ficheiro tem de ser PNG, JPG ou JPEG.", () => BackgroundPrefs.Label, () => { BackgroundPrefs.Cycle(); Refresh(); }, 0.21f);
+            var format = BroadcastUi.Label(page.transform, "BackgroundFormat", LocalizationManager.Current == GameLanguage.English ? "PNG, JPG or JPEG." : "PNG, JPG ou JPEG.", 12, UiTheme.Muted, TextAnchor.MiddleLeft);
+            BroadcastUi.Place(format.rectTransform, 0.04f, 0.08f, 0.5f, 0.16f);
             var own = BroadcastUi.Button(page.transform, "OwnBackground", LocalizationManager.Current == GameLanguage.English ? "ADD BACKGROUND" : "ADICIONAR FUNDO", ChooseUserBackground, UiTheme.Accent, UiTheme.ButtonText, 13);
             BroadcastUi.Place(own.GetComponent<RectTransform>(), 0.52f, 0.08f, 0.75f, 0.16f);
             var remove = BroadcastUi.Button(page.transform, "RemoveBackground", LocalizationManager.Current == GameLanguage.English ? "DELETE MY BACKGROUND" : "APAGAR O MEU FUNDO", DeleteUserBackground,
@@ -244,7 +247,9 @@ namespace CoachMaster.UI
             AddOption(page.transform, "Highlights", english ? "Match event cards" : "Momentos apresentados",
                 english ? "Choose which event cards appear at 8×; this does not change the match result." : "Escolhe que cartões de acontecimentos aparecem a 8×; não altera o resultado da partida.",
                 () => SettingsPrefs.MatchHighlightsLabel, () => SettingsPrefs.MatchHighlights = (SettingsPrefs.MatchHighlights + 1) % 4, 0.37f);
-            AddText(page.transform, "MatchSpeedHelp", "O ritmo e os momentos escolhidos aplicam-se à apresentação; não alteram o resultado matemático da partida.", 15, UiTheme.Muted, 0.10f, 0.24f);
+            AddText(page.transform, "MatchSpeedHelp", "O ritmo e os momentos escolhidos aplicam-se à apresentação; não alteram o resultado matemático da partida.", 15, UiTheme.Muted, 0.12f, 0.22f);
+            var commands = BroadcastUi.Button(page.transform, "Commands", english ? "CONTROLS" : "CONTROLOS", OpenControls, UiTheme.Accent, UiTheme.ButtonText, 14);
+            BroadcastUi.Place(commands.GetComponent<RectTransform>(), 0.04f, 0.02f, 0.48f, 0.11f);
         }
 
         void CycleMatchSpeed()
@@ -1282,6 +1287,7 @@ namespace CoachMaster.UI
 
         void ApplyAndClose()
         {
+            CloseControls();
             if (_root == null || !_root.activeSelf)
                 return;
             if (_themePreviewModal != null)
@@ -1304,6 +1310,7 @@ namespace CoachMaster.UI
         {
             if (_themePreviewModal != null) { CloseThemeHomePreview(); return; }
             if (_confirm != null) { Destroy(_confirm); return; }
+            if (_controls != null) { CloseControls(); return; }
             if (_saveManager != null) { Destroy(_saveManager); return; }
             if (_musicManager != null && _musicManager.activeSelf) { CloseMusicManager(); return; }
             ApplyAndClose();
@@ -1365,7 +1372,7 @@ namespace CoachMaster.UI
             if (!BackgroundPrefs.SetUserImage(path))
             {
                 if (_feedback != null)
-                    _feedback.text = LocalizationManager.Current == GameLanguage.English ? "That image could not be used." : "Essa imagem não pôde ser usada.";
+                    _feedback.text = LocalizationManager.Current == GameLanguage.English ? "Use a PNG, JPG or JPEG image." : "Usa uma imagem PNG, JPG ou JPEG.";
                 return;
             }
             Refresh();
@@ -1594,15 +1601,173 @@ namespace CoachMaster.UI
                 UnityEngine.Debug.LogWarning("O save foi carregado, mas não foi possível atualizar a gravação principal.");
         }
 
+        void OpenControls()
+        {
+            CloseControls();
+            if (_root == null)
+                return;
+            var english = LocalizationManager.Current == GameLanguage.English;
+            _controls = new GameObject("ControlsPage", typeof(RectTransform));
+            _controls.transform.SetParent(_root.transform, false);
+            BroadcastUi.Stretch(_controls.GetComponent<RectTransform>());
+            var dim = BroadcastUi.Solid(_controls.transform, "Dim", new Color(0.03f, 0.02f, 0.06f, 1f), true);
+            BroadcastUi.Stretch(dim.rectTransform);
+            var title = BroadcastUi.Label(_controls.transform, "Title", english ? "CONTROLS" : "CONTROLOS", 28, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+            BroadcastUi.Place(title.rectTransform, 0.06f, 0.9f, 0.7f, 0.97f);
+            _rebindStatus = BroadcastUi.Label(_controls.transform, "Status", english ? "Press a key or a button. Escape cancels." : "Carrega numa tecla ou num botão. Escape cancela.", 14, UiTheme.Muted, TextAnchor.MiddleLeft);
+            BroadcastUi.Place(_rebindStatus.rectTransform, 0.06f, 0.845f, 0.7f, 0.895f);
+            var reset = BroadcastUi.Button(_controls.transform, "ResetControls", english ? "DEFAULTS" : "PADRÃO", () =>
+            {
+                CancelRebind();
+                ControlBindings.ResetAll();
+                OpenControls();
+            }, new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 14);
+            BroadcastUi.Place(reset.GetComponent<RectTransform>(), 0.72f, 0.9f, 0.86f, 0.96f);
+            var close = BroadcastUi.Button(_controls.transform, "CloseControls", english ? "BACK" : "VOLTAR", CloseControls, UiTheme.Accent, UiTheme.ButtonText, 14);
+            BroadcastUi.Place(close.GetComponent<RectTransform>(), 0.87f, 0.9f, 0.96f, 0.96f);
+
+            var tabNames = english
+                ? new[] { "MOVEMENT", "MATCH", "MENUS" }
+                : new[] { "MOVIMENTO", "PARTIDA", "MENUS" };
+            for (var t = 0; t < tabNames.Length; t++)
+            {
+                var index = t;
+                var tab = BroadcastUi.Button(_controls.transform, "ControlTab" + t, tabNames[t], () =>
+                {
+                    CancelRebind();
+                    _controlTab = index;
+                    OpenControls();
+                }, _controlTab == t ? UiTheme.Accent : new Color(0.22f, 0.12f, 0.38f, 1f), _controlTab == t ? UiTheme.ButtonText : Color.white, 14);
+                var x0 = 0.06f + t * 0.22f;
+                BroadcastUi.Place(tab.GetComponent<RectTransform>(), x0, 0.77f, x0 + 0.2f, 0.835f);
+            }
+
+            var padHead = BroadcastUi.Label(_controls.transform, "PadHead", english ? "CONTROLLER" : "COMANDO", 13, UiTheme.Muted, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(padHead.rectTransform, 0.34f, 0.72f, 0.62f, 0.765f);
+            var keyHead = BroadcastUi.Label(_controls.transform, "KeyHead", english ? "KEYBOARD" : "TECLADO", 13, UiTheme.Muted, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BroadcastUi.Place(keyHead.rectTransform, 0.66f, 0.72f, 0.96f, 0.765f);
+
+            var list = new GameObject("List", typeof(RectTransform), typeof(VerticalLayoutGroup));
+            list.transform.SetParent(_controls.transform, false);
+            var listRect = list.GetComponent<RectTransform>();
+            BroadcastUi.Place(listRect, 0.05f, 0.04f, 0.95f, 0.71f);
+            var layout = list.GetComponent<VerticalLayoutGroup>();
+            layout.spacing = 6f;
+            layout.childAlignment = TextAnchor.UpperCenter;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandHeight = false;
+            layout.childForceExpandWidth = true;
+            FillControlRows(list.transform, english);
+        }
+
+        void FillControlRows(Transform parent, bool english)
+        {
+            var tabs = new[] { "move", "match", "menu" };
+            var selected = tabs[Mathf.Clamp(_controlTab, 0, tabs.Length - 1)];
+            var pairs = ControlBindings.Pairs();
+            var shown = 0;
+            for (var i = 0; i < pairs.Count; i++)
+            {
+                var pair = pairs[i];
+                if (pair.Tab != selected)
+                    continue;
+                var line = new GameObject("Row" + shown, typeof(RectTransform), typeof(LayoutElement));
+                line.transform.SetParent(parent, false);
+                line.GetComponent<LayoutElement>().preferredHeight = 44f;
+                var label = BroadcastUi.Label(line.transform, "Name", pair.Title, 16, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
+                BroadcastUi.Place(label.rectTransform, 0.02f, 0.08f, 0.32f, 0.92f);
+                PlaceBind(line.transform, pair.Pad, pair.Pads, 0.34f, english ? "CONTROLLER" : "COMANDO");
+                if (pair.Keys.Count == 0)
+                    PlaceBind(line.transform, null, null, 0.66f, english ? "KEYBOARD" : "TECLADO");
+                else if (pair.Keys.Count == 1)
+                    PlaceBind(line.transform, pair.Keys[0], null, 0.66f, pair.Keys[0].Title);
+                else
+                {
+                    var span = 0.3f / pair.Keys.Count;
+                    for (var k = 0; k < pair.Keys.Count; k++)
+                        PlaceBind(line.transform, pair.Keys[k], null, 0.66f + k * span, pair.Keys[k].Title, span - 0.008f);
+                }
+                shown++;
+            }
+        }
+
+        void PlaceBind(Transform line, ControlBindings.BindingRow row, System.Collections.Generic.List<ControlBindings.BindingRow> mirrors, float x, string waiting, float width = 0.28f)
+        {
+            var current = row == null || row.Action == null ? "—" : row.Action.GetBindingDisplayString(row.BindingIndex);
+            var captured = row;
+            var extra = mirrors;
+            var button = BroadcastUi.Button(line, "Bind" + x, string.IsNullOrEmpty(current) ? "—" : current, () => StartRebind(captured, extra, waiting), new Color(1f, 1f, 1f, 0.12f), Color.white, 14);
+            BroadcastUi.Place(button.GetComponent<RectTransform>(), x, 0.08f, x + width, 0.92f);
+        }
+
+        void StartRebind(ControlBindings.BindingRow row, System.Collections.Generic.List<ControlBindings.BindingRow> mirrors, string waiting)
+        {
+            if (row == null || row.Action == null)
+                return;
+            CancelRebind();
+            if (_rebindStatus != null)
+                _rebindStatus.text = LocalizationManager.Current == GameLanguage.English
+                    ? "Waiting for " + waiting
+                    : "À espera de " + waiting;
+            var operation = row.Action.PerformInteractiveRebinding(row.BindingIndex)
+                .WithControlsExcluding("<Mouse>")
+                .WithControlsExcluding("<Pen>")
+                .WithControlsExcluding("<Touchscreen>")
+                .WithCancelingThrough("<Keyboard>/escape");
+            if (row.Keyboard)
+                operation.WithControlsExcluding("<Gamepad>").WithControlsExcluding("<XInputController>");
+            else
+                operation.WithControlsExcluding("<Keyboard>");
+            _rebind = operation.OnComplete(finished =>
+            {
+                finished.Dispose();
+                _rebind = null;
+                ControlBindings.MirrorPad(row, mirrors);
+                if (row.Gameplay)
+                    ControlBindings.SaveGame(row.Asset);
+                else
+                    ControlBindings.SaveUi(row.Asset);
+                OpenControls();
+            }).OnCancel(finished =>
+            {
+                finished.Dispose();
+                _rebind = null;
+                if (_rebindStatus != null)
+                    _rebindStatus.text = LocalizationManager.Current == GameLanguage.English ? "Cancelled." : "Cancelado.";
+            }).Start();
+        }
+
+        void CancelRebind()
+        {
+            if (_rebind == null)
+                return;
+            _rebind.Cancel();
+            _rebind.Dispose();
+            _rebind = null;
+        }
+
+        void CloseControls()
+        {
+            CancelRebind();
+            if (_controls != null)
+                Destroy(_controls);
+            _controls = null;
+            _rebindStatus = null;
+        }
+
         void LeaveToMenu()
         {
             ApplyAndClose();
             if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == SceneNames.MainMenu)
             {
-                MainMenuController.LeaveGame();
+                var menu = UnityEngine.Object.FindAnyObjectByType<MainMenuController>();
+                if (menu != null)
+                    menu.RefreshAfterDelete();
                 return;
             }
-            GameRoot.Instance.Open(SceneNames.MainMenu);
+            if (GameRoot.Instance != null)
+                GameRoot.Instance.Open(SceneNames.MainMenu);
         }
 
         void ConfirmRestoreAutoSave()

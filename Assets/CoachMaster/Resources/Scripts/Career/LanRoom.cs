@@ -12,6 +12,7 @@ namespace CoachMaster.Career
     {
         static readonly object Gate = new object();
         static readonly Queue<string> Inbox = new Queue<string>();
+        static readonly Queue<string> Hold = new Queue<string>();
         static readonly Dictionary<int, StreamWriter> Writers = new Dictionary<int, StreamWriter>();
         static readonly Dictionary<int, string> Clubs = new Dictionary<int, string>();
         static readonly List<TcpClient> Clients = new List<TcpClient>();
@@ -181,6 +182,11 @@ namespace CoachMaster.Career
         {
             lock (Gate)
             {
+                if (Hold.Count > 0)
+                {
+                    line = Hold.Dequeue();
+                    return true;
+                }
                 if (Inbox.Count == 0)
                 {
                     line = null;
@@ -189,6 +195,14 @@ namespace CoachMaster.Career
                 line = Inbox.Dequeue();
                 return true;
             }
+        }
+
+        public static void Postpone(string line)
+        {
+            if (string.IsNullOrEmpty(line))
+                return;
+            lock (Gate)
+                Hold.Enqueue(line);
         }
 
         public static void Stop()
@@ -211,6 +225,7 @@ namespace CoachMaster.Career
                 Writers.Clear();
                 Clubs.Clear();
                 Inbox.Clear();
+                Hold.Clear();
             }
             for (var i = 0; i < clients.Count; i++)
             {

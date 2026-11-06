@@ -42,8 +42,11 @@ namespace AudioManager.Public {
             int clipsLength = clips.Length;
 
             for (int i=0; i<clipsLength; i++) {
+                if (clips[i] == null || !clips[i].OperationHandle.IsValid())
+                    continue;
                 clips[i].ReleaseAsset();
             }
+            IsLoaded = false;
         }
 
         public async Task Load () {

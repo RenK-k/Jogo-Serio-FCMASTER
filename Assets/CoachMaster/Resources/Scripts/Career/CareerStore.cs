@@ -389,6 +389,14 @@ namespace CoachMaster.Career
                 for (var i = 0; i < paths.Length; i++)
                     if (File.Exists(paths[i]))
                         File.Delete(paths[i]);
+                for (var slot = 1; slot <= 5; slot++)
+                {
+                    var auto = AutoSavePath(slot);
+                    if (ReadCareerFileId(auto) == id && File.Exists(auto))
+                        File.Delete(auto);
+                }
+                if (ReadCareerFileId(PathFile) == id && File.Exists(PathFile))
+                    File.Delete(PathFile);
             }
             catch (Exception error)
             {

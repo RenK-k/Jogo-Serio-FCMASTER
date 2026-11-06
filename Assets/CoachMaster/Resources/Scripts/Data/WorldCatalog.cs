@@ -1266,8 +1266,18 @@ namespace CoachMaster.Data
                 var suffix = slug == "inglesa-championship" ? "Town" : "United";
                 for (var i = 0; i < count; i++)
                     names[i] = towns[i] + " " + suffix;
-                if (slug == "inglesa-championship" && names.Length > 0)
-                    names[0] = "Bristol United FC";
+                if (slug == "inglesa-championship")
+                {
+                    var branded = new[]
+                    {
+                        "Sheffield City FC", "Southampton FC", "Queens Town Rangers", "Birmingham Borough",
+                        "Norwich Athletic", "Bristol United FC", "Bromwich FC", "Middlesbrough FC",
+                        "Swansea FC", "Portsmouth Sporting FC", "Blackburn Athletic", "Millwall FC",
+                        "East Ham FC", "Preston FC", "Bolton City", "Cambridge United FC", "Lincoln FC"
+                    };
+                    for (var i = 0; i < branded.Length && i < names.Length; i++)
+                        names[i] = branded[i];
+                }
                 else if (slug == "inglesa-league-one" && names.Length > 1)
                 {
                     names[0] = "Leyton Orient FC";
@@ -1322,8 +1332,13 @@ namespace CoachMaster.Data
                 names[0] = "Auxerre FC";
                 names[1] = "Paris Athletic FC";
             }
-            else if (slug == "bundesliga" && names.Length > 0)
+            else if (slug == "bundesliga" && names.Length > 1)
+            {
                 names[0] = "Bavaria Munich FC";
+                names[1] = "Hanover FC";
+            }
+            else if (slug == "eredivisie" && names.Length > 0)
+                names[0] = "ASV FC";
             else if (slug == "espanhola" && names.Length > 1)
             {
                 names[0] = "Real Football Madrid";
@@ -1587,6 +1602,78 @@ namespace CoachMaster.Data
                     "#132257", "#D71920", "#FFFFFF", KitPattern.VerticalStripes, "Clubes/franca 1/paris athletic Fc",
                     "Paris Athletic quer afirmar-se entre os clubes da primeira divisão francesa.",
                     "Clube de Ligue 1. Quer crescer e aproximar-se da metade superior."),
+                Brand("Hanover FC", "Hanover", "Hanover", "Estádio de Hanover", 1985, 76,
+                    "#0C2340", "#F4F1E8", "#FFFFFF", KitPattern.Solid, "Clubes/alemanha 1/Hanover FC",
+                    "Fundado em 1985. Capital da Baixa Saxónia, clube da Bundesliga sem o peso de Munique.",
+                    "Clube estabelecido da primeira alemã. A Europa é ambição, não obrigação."),
+                Brand("ASV FC", "ASV", "Amesterdão", "Estádio do ASV", 1996, 78,
+                    "#E10600", "#0057B8", "#111111", KitPattern.Halves, "Clubes/holanda/ASV FC",
+                    "Fundado em 1996 em Amesterdão. Clube jovem da capital, já na Eredivisie, ainda sem a história dos gigantes.",
+                    "Clube da capital. Quer a metade de cima e uma taça."),
+                Brand("Sheffield City FC", "Sheffield", "Sheffield", "Estádio do Veado", 1889, 65,
+                    "#0E4D5C", "#D4A84B", "#0E4D5C", KitPattern.Solid, "Clubes/Inglaterra 2/SHEFFIELD CITY FC",
+                    "O clube da cidade do aço, fundado em 1889. Sheffield é grande demais para o Championship e o distintivo lembra isso.",
+                    "O maior do Championship. A subida é a exigência da cidade."),
+                Brand("Southampton FC", "Southampton", "Southampton", "Estádio da Árvore", 1923, 64,
+                    "#F4F1E8", "#C4A35A", "#3D4F1F", KitPattern.Solid, "Clubes/Inglaterra 2/southampton fc",
+                    "Fundado em 1923. Porto do sul, clube habituado a discutir a primeira divisão.",
+                    "Clube grande do sul. O Championship é uma paragem, não a casa."),
+                Brand("Queens Town Rangers", "QTR", "Londres", "Estádio da Coroa", 1828, 64,
+                    "#7EB6E0", "#FFFFFF", "#C4A35A", KitPattern.VerticalStripes, "Clubes/Inglaterra 2/Queens town rangers",
+                    "O mais antigo destes clubes, de 1828, no oeste de Londres. A cidade pesa, a divisão ainda não.",
+                    "Clube londrino. A subida é o mandato."),
+                Brand("Birmingham Borough", "Borough", "Birmingham", "Estádio do Touro", 1995, 63,
+                    "#0C2340", "#FFFFFF", "#0C2340", KitPattern.Solid, "Clubes/Inglaterra 2/Birmingham Borough",
+                    "Fundado em 1995. A segunda força de Birmingham, cidade grande, clube ainda a construir nome.",
+                    "Clube de uma grande cidade. Quer chegar à primeira."),
+                Brand("Norwich Athletic", "Norwich", "Norwich", "Estádio do Canário", 1902, 62,
+                    "#111111", "#C6A43A", "#FFFFFF", KitPattern.Solid, "Clubes/Inglaterra 2/Norwich Athletic",
+                    "O canário de Norwich, desde 1902. Capital regional, sem o cofre de Londres.",
+                    "Clube estabelecido. A subida é realista."),
+                Brand("Bromwich FC", "Bromwich", "West Bromwich", "Estádio das Riscas", 1878, 60,
+                    "#7A1F32", "#FFFFFF", "#111111", KitPattern.VerticalStripes, "Clubes/Inglaterra 2/Bromwich fc",
+                    "Fundado em 1878 em West Bromwich, à sombra de Birmingham. Tradição de riscas e de subir e descer.",
+                    "Clube tradicional. Quer voltar à primeira."),
+                Brand("Middlesbrough FC", "Middlesbrough", "Middlesbrough", "Estádio do Tigre", 1978, 60,
+                    "#E10600", "#FFFFFF", "#111111", KitPattern.Solid, "Clubes/Inglaterra 2/Middlesbrough FC",
+                    "O tigre do Tees, fundado em 1978. Cidade industrial do Nordeste, clube de Championship.",
+                    "Clube do Norte. A subida é o plano."),
+                Brand("Swansea FC", "Swansea", "Swansea", "Estádio do Cisne", 1912, 59,
+                    "#FFFFFF", "#FF4FA3", "#111111", KitPattern.Solid, "Clubes/Inglaterra 2/Swansea Fc",
+                    "O cisne de Swansea, desde 1912. Cidade do sul do País de Gales, já conheceu a primeira divisão.",
+                    "Clube galês. Quer regressar ao convívio dos grandes."),
+                Brand("Portsmouth Sporting FC", "Portsmouth", "Portsmouth", "Estádio do Navio", 1898, 58,
+                    "#1B2A6B", "#F4EBD0", "#1B2A6B", KitPattern.Solid, "Clubes/Inglaterra 2/Portsmouth SFC",
+                    "O navio de Portsmouth, desde 1898. Cidade naval, clube com história e orçamento curto.",
+                    "Clube histórico da costa. A metade de cima do Championship chega."),
+                Brand("Blackburn Athletic", "Blackburn", "Blackburn", "Estádio do Moinho", 1915, 57,
+                    "#1B2A8A", "#9B1B3A", "#FFFFFF", KitPattern.Halves, "Clubes/Inglaterra 2/blackburn athletic",
+                    "Fundado em 1915 numa cidade de moinhos. Já foi grande e agora reconstrói no Championship.",
+                    "Clube de Lancashire. Quer voltar a ser conversa."),
+                Brand("Millwall FC", "Millwall", "Londres", "O Covil", 1885, 57,
+                    "#FF6A00", "#111111", "#FF6A00", KitPattern.Solid, "Clubes/Inglaterra 2/Millwall Fc",
+                    "O leão do sudeste de Londres, desde 1885. Bairro, não império, com uma bancada que pesa.",
+                    "Clube de bairro londrino. Cada época no Championship é uma luta."),
+                Brand("East Ham FC", "East Ham", "Londres", "A Torre", 1900, 55,
+                    "#0057B8", "#FFFFFF", "#0057B8", KitPattern.Solid, "Clubes/Inglaterra 2/East Ham",
+                    "O clube de East Ham, a leste de Londres, desde 1900. A cidade é enorme, o bairro é o que o clube consegue carregar.",
+                    "Clube local de Londres. Manter-se no Championship já é época boa."),
+                Brand("Preston FC", "Preston", "Preston", "Estádio do Urso", 1880, 55,
+                    "#111111", "#FFFFFF", "#C4A35A", KitPattern.Solid, "Clubes/Inglaterra 2/Preston FC",
+                    "Preston desde 1880. Cidade pequena de Lancashire, com um dos clubes mais antigos do campeonato.",
+                    "Clube histórico de cidade pequena. A estabilidade no Championship é o plano."),
+                Brand("Bolton City", "Bolton", "Bolton", "Estádio do Elefante", 1898, 54,
+                    "#4A4A4A", "#FFFFFF", "#111111", KitPattern.Solid, "Clubes/Inglaterra 2/Bolton City",
+                    "Fundado em 1898. Cidade industrial a norte de Manchester, sem o dinheiro dos vizinhos.",
+                    "Clube de cidade média. Pontuar e sonhar com a subida."),
+                Brand("Cambridge United FC", "Cambridge", "Cambridge", "Estádio da Universidade", 1912, 52,
+                    "#FF6A00", "#111111", "#FFFFFF", KitPattern.HorizontalHoops, "Clubes/Inglaterra 2/Cambridge united fc",
+                    "Cambridge desde 1912. Cidade universitária, futebol de bancada curta para o tamanho do nome.",
+                    "O mais pequeno destes clubes de cidade. Estar no Championship já é acima do esperado."),
+                Brand("Lincoln FC", "Lincoln", "Lincoln", "Estádio da Catedral", 1884, 50,
+                    "#0B7A3B", "#FFFFFF", "#C8102E", KitPattern.Solid, "Clubes/Inglaterra 2/Lincoln FC",
+                    "O leão de Lincoln, desde 1884. Cidade pequena do leste, o clube com menos peso desta lista.",
+                    "Clube modesto. Sobreviver no Championship é o mandato."),
             };
         }
 

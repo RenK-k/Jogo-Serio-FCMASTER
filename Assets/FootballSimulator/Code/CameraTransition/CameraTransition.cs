@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 using UnityEngine.UI;
 
 using FStudio.Utilities;
@@ -14,6 +15,10 @@ namespace FStudio {
         [SerializeField] private float fadeOutSpeed = default;
 
         public void StartTransition (Action onCompleted = null) {
+            if (Camera.main == null || rawImage == null) {
+                onCompleted?.Invoke();
+                return;
+            }
             TakePicture();
             SetFloat(1);
 
@@ -24,12 +29,24 @@ namespace FStudio {
         }
 
         private void TakePicture () {
-            RenderTexture renderTexture = new RenderTexture(Screen.width, Screen.height, 8);
-            Camera.main.targetTexture = renderTexture;
+            var camera = Camera.main;
+            if (camera == null || rawImage == null)
+                return;
+            var description = new RenderTextureDescriptor(Mathf.Max(8, Screen.width), Mathf.Max(8, Screen.height), RenderTextureFormat.ARGB32, 16);
+            description.depthStencilFormat = GraphicsFormat.D16_UNorm;
+            RenderTexture renderTexture = new RenderTexture(description);
+            var previous = camera.targetTexture;
+            camera.targetTexture = renderTexture;
+            var previousActive = RenderTexture.active;
             RenderTexture.active = renderTexture;
-            Camera.main.Render();
-            Camera.main.targetTexture = null;
-            rawImage.texture = renderTexture;
+            try {
+                camera.Render();
+                rawImage.texture = renderTexture;
+            }
+            finally {
+                camera.targetTexture = previous;
+                RenderTexture.active = previousActive;
+            }
         }
 
         public float GetFloat() {

@@ -12438,6 +12438,11 @@ namespace CoachMaster.UI.Scenes
 
         static Sprite _settingsMark;
 
+        public static Sprite SettingsIcon()
+        {
+            return SettingsMark();
+        }
+
         static Sprite SettingsMark()
         {
             if (_settingsMark != null)

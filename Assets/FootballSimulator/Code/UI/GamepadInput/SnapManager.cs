@@ -45,7 +45,8 @@ namespace FStudio.UI.GamepadInput {
             get => m_isEnabled;
             private set {
                 m_isEnabled = value;
-                gamepadCursorPanel.SetActive(value);
+                if (gamepadCursorPanel != null)
+                    gamepadCursorPanel.SetActive(false);
             }
         }
 

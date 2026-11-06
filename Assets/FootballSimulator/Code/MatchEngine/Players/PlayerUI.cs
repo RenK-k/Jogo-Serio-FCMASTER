@@ -9,6 +9,7 @@ namespace FStudio.MatchEngine.Players {
     public class PlayerUI : MonoBehaviour {
         public enum UIAnimatorVariable {
             ShowName,
+            ShowSlider,
             ShowOffside,
             ParameterCount // Parameter count of the animator.
         }

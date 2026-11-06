@@ -1,8 +1,7 @@
 ﻿
+using FStudio.MatchEngine;
 using FStudio.MatchEngine.Enums;
-
 using UnityEngine;
-
 using System.Linq;
 
 namespace FStudio.MatchEngine.Players.Behaviours {
@@ -19,21 +18,33 @@ namespace FStudio.MatchEngine.Players.Behaviours {
             }
 
             if (!isAlreadyActive) {
-                // find a player and pass.
-                teammateToPass = 
-                    teammates.Where (x=>x!= Player). // from all teammates
-                    OrderBy (x=>Vector3.Distance (x.Position, Player.Position)). // order by position
-                    Take (4). // take first 4
-                    OrderBy (x=>System.Guid.NewGuid ()).FirstOrDefault(); // pick randomly.
+                var field = MatchManager.Current.SizeOfField;
+                var forward = Player.toGoalXDirection;
+                teammateToPass = teammates.Where(x =>
+                    x != Player &&
+                    !x.IsGK &&
+                    (x.Position.x - Player.Position.x) * forward > 3f &&
+                    x.Position.z > field.y * 0.32f &&
+                    x.Position.z < field.y * 0.68f &&
+                    Vector3.Distance(x.Position, Player.Position) < 22f).
+                    OrderBy(x => Vector3.Distance(x.Position, Player.Position)).
+                    FirstOrDefault();
+
+                if (teammateToPass == null) {
+                    teammateToPass = teammates.Where(x => x != Player && !x.IsGK).
+                        OrderBy(x => Mathf.Abs(x.Position.z - field.y * 0.5f)).
+                        FirstOrDefault();
+                }
 
                 if (teammateToPass != null) {
                     isAlreadyActive = true;
                 }
             }
 
-            if (isAlreadyActive) {
-                if (Player.PassToTarget(in deltaTime, teammateToPass.Position)) {
-                    // set pass target. after pass target player will behave with BallChasingBehaviour.
+            if (isAlreadyActive && teammateToPass != null) {
+                var point = Vector3.Lerp(Player.Position, teammateToPass.Position, 0.82f);
+                point.y = 0f;
+                if (Player.PassToTarget(in deltaTime, point)) {
                     Player.PassingTarget = teammateToPass;
                 }
             }

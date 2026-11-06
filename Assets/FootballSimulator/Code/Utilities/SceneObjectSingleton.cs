@@ -6,7 +6,7 @@ namespace FStudio.Utilities {
         public static T Current {
             get {
                 if (_Current == null) {
-                    _Current = Object.FindObjectOfType<T>();
+                    _Current = Object.FindFirstObjectByType<T>();
                 }
 
                 return _Current;

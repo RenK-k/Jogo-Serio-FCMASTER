@@ -475,7 +475,12 @@ namespace FStudio.MatchEngine.Players.PlayerController {
         }
 
         private void LateUpdate () {
-            shadow.position = Position;
+            if (shadow == null)
+                return;
+            var grounded = Position;
+            grounded.y = 0.04f;
+            shadow.position = grounded;
+            shadow.rotation = Quaternion.Euler(90f, 0f, 0f);
         }
 
         public bool HitBall (

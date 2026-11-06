@@ -215,6 +215,11 @@ namespace CoachMaster.Career
         {
             if (career == null || HasPendingUser(career))
                 return false;
+            if (DueToClose(career))
+            {
+                ForceClose(career);
+                return true;
+            }
 
             var guard = 0;
             while (guard++ < 16)
@@ -235,6 +240,72 @@ namespace CoachMaster.Career
             }
 
             return false;
+        }
+
+        public static bool DueToClose(CareerState career)
+        {
+            if (career == null || career.Calendar == null)
+                return false;
+            var date = career.Calendar.CurrentDate;
+            var endYear = GameCalendar.SeasonStart.Year + career.CompletedSeasons + 1;
+            return date.Date >= new DateTime(endYear, 6, 2);
+        }
+
+        public static void ForceClose(CareerState career)
+        {
+            if (career == null)
+                return;
+            var guard = 0;
+            while (guard++ < 16)
+            {
+                var before = career.Fixtures.Count;
+                SimulateRest(career);
+                AdvanceCups(career);
+                if (career.Fixtures.Count == before)
+                    break;
+            }
+            CloseSeason(career);
+        }
+
+        public static void NoteInternationals(CareerState career)
+        {
+            if (career == null || career.Calendar == null)
+                return;
+            var date = career.Calendar.CurrentDate;
+            if (!InternationalWindow(date))
+                return;
+            if (career.LastWorldNewsTicks > 0)
+            {
+                var previous = new DateTime(career.LastWorldNewsTicks);
+                if (previous.Year == date.Year && previous.Month == date.Month)
+                    return;
+            }
+
+            career.LastWorldNewsTicks = date.Ticks;
+            var nations = new[] { "Portugal", "Espanha", "França", "Inglaterra", "Alemanha", "Itália", "Brasil", "Argentina", "Países Baixos", "Bélgica" };
+            var seed = date.Year * 100 + date.Month;
+            var home = nations[seed % nations.Length];
+            var away = nations[(seed / 3 + 4) % nations.Length];
+            if (home == away)
+                away = nations[(seed + 1) % nations.Length];
+            var homeGoals = 1 + (seed % 3);
+            var awayGoals = seed % 5 == 0 ? homeGoals : (seed / 2) % 3;
+            var winner = homeGoals == awayGoals ? "empate" : homeGoals > awayGoals ? home : away;
+            var score = home + " " + homeGoals + "–" + awayGoals + " " + away;
+            Newsroom.Publish(career, "Mundo da Bola",
+                winner == "empate" ? home + " e " + away + " empatam em " + score : winner + " vence " + (winner == home ? away : home),
+                "Janela internacional. " + score + ". " + (winner == "empate"
+                    ? "Nenhuma das seleções leva a vantagem para o regresso aos clubes."
+                    : winner + " fecha a jornada com o resultado do seu lado.") + " Os internacionais voltam aos clubes esta semana.");
+        }
+
+        static bool InternationalWindow(DateTime date)
+        {
+            var day = date.Month * 100 + date.Day;
+            return (day >= 901 && day <= 908)
+                || (day >= 1006 && day <= 1014)
+                || (day >= 1110 && day <= 1118)
+                || (day >= 316 && day <= 324);
         }
 
         public static string Competition(string leagueId)
@@ -309,6 +380,10 @@ namespace CoachMaster.Career
 
         static void CloseSeason(CareerState career)
         {
+            var seasonYear = GameCalendar.SeasonStart.Year + career.CompletedSeasons;
+            var closing = new DateTime(seasonYear + 1, 6, 2, 9, 0, 0);
+            if (career.Calendar.CurrentDate > closing)
+                career.Calendar.SetInstant(closing);
             PublishAwards(career);
             career.CompletedSeasons++;
             foreach (var club in career.World.Clubs.Values)
@@ -323,7 +398,7 @@ namespace CoachMaster.Career
             CareerJobOffers.Generate(career);
             Promote(career);
             RestSquads(career);
-            var next = NextSeasonStart(career);
+            var next = new DateTime(seasonYear + 1, 7, 13, 8, 0, 0);
             career.Calendar.SetInstant(next);
             career.Season.Clear();
             Build(career);
@@ -435,6 +510,87 @@ namespace CoachMaster.Career
             var moves = PromotionText(career);
             if (!string.IsNullOrEmpty(moves))
                 Newsroom.Publish(career, "Diário da Liga", "Sobe e desce fechado", moves);
+
+            PublishCompetitionPrizes(career);
+            PublishInternationalFinal(career);
+            var closed = career.Calendar.CurrentDate;
+            Newsroom.Publish(career, "A Gazeta do Relvado", "Época encerrada a " + closed.Day + " de junho",
+                "Chegou o dia de fecho. Os jogos que faltavam foram resolvidos, os títulos ficam nos clubes e o calendário volta a zero a 13 de julho.");
+        }
+
+        static void PublishCompetitionPrizes(CareerState career)
+        {
+            var boots = new Dictionary<string, SeasonLine>();
+            var stars = new Dictionary<string, SeasonLine>();
+            SeasonLine keeper = null;
+            foreach (var line in career.Season)
+            {
+                if (line == null || string.IsNullOrEmpty(line.CompetitionId) || line.Apps < 3)
+                    continue;
+                if (!boots.TryGetValue(line.CompetitionId, out var boot) || line.Goals > boot.Goals)
+                    boots[line.CompetitionId] = line;
+                if (line.Rated >= 5 && (!stars.TryGetValue(line.CompetitionId, out var star) || Rate(line) > Rate(star)))
+                    stars[line.CompetitionId] = line;
+                if (!career.World.Players.TryGetValue(line.PlayerId, out var person) || person.Position != PlayerPosition.Goalkeeper)
+                    continue;
+                if (line.Rated >= 8 && (keeper == null || Rate(line) > Rate(keeper)))
+                    keeper = line;
+            }
+
+            foreach (var pair in boots)
+            {
+                if (pair.Value.Goals <= 0)
+                    continue;
+                var who = PrizeName(career, pair.Value.PlayerId, out var club);
+                var title = Competition(pair.Key);
+                Newsroom.Publish(career, "Diário da Liga", "Melhor marcador da " + title + ": " + who,
+                    who + (string.IsNullOrEmpty(club) ? "" : ", do " + club + ",") + " fecha a " + title + " com " + pair.Value.Goals + " golos.");
+            }
+
+            foreach (var pair in stars)
+            {
+                var who = PrizeName(career, pair.Value.PlayerId, out var club);
+                var title = Competition(pair.Key);
+                Newsroom.Publish(career, "A Gazeta do Relvado", "Jogador da " + title + ": " + who,
+                    who + (string.IsNullOrEmpty(club) ? "" : " (" + club + ")") + " termina com média " + Rate(pair.Value).ToString("0.00") + " na " + title + ".");
+            }
+
+            if (keeper != null)
+            {
+                var who = PrizeName(career, keeper.PlayerId, out var club);
+                Newsroom.Publish(career, "A Gazeta do Relvado", "Melhor guarda-redes: " + who,
+                    who + (string.IsNullOrEmpty(club) ? "" : ", do " + club + ",") + " fecha a época com média " + Rate(keeper).ToString("0.00") + ".");
+            }
+        }
+
+        static void PublishInternationalFinal(CareerState career)
+        {
+            var year = career.Calendar.CurrentDate.Year;
+            var name = year % 4 == 2 ? "Campeonato do Mundo" : year % 4 == 0 ? "Europeu" : "Liga das Nações";
+            var nations = new[] { "Portugal", "Espanha", "França", "Inglaterra", "Alemanha", "Itália", "Brasil", "Argentina", "Países Baixos", "Bélgica" };
+            var seed = year * 13 + career.CompletedSeasons;
+            var winner = nations[Math.Abs(seed) % nations.Length];
+            var runner = nations[Math.Abs(seed + 3) % nations.Length];
+            if (winner == runner)
+                runner = nations[Math.Abs(seed + 1) % nations.Length];
+            var winnerGoals = 1 + Math.Abs(seed) % 3;
+            var runnerGoals = Math.Abs(seed) % 2;
+            Newsroom.Publish(career, "Mundo da Bola", winner + " vence o " + name,
+                "Final do " + name + ": " + winner + " " + winnerGoals + "–" + runnerGoals + " " + runner + ". " + winner + " leva o troféu e os internacionais regressam aos clubes para a época nova.");
+        }
+
+        static float Rate(SeasonLine line)
+        {
+            return line == null || line.Rated <= 0 ? 0f : line.RatingSum / line.Rated;
+        }
+
+        static string PrizeName(CareerState career, string playerId, out string club)
+        {
+            club = "";
+            if (career == null || string.IsNullOrEmpty(playerId) || !career.World.Players.TryGetValue(playerId, out var player) || player == null)
+                return "O premiado";
+            club = ClubName(career, player.ClubId);
+            return player.FullName;
         }
 
         static void Promote(CareerState career)
@@ -1005,15 +1161,8 @@ namespace CoachMaster.Career
         static DateTime SeasonAnchor(CareerState career)
         {
             var date = career != null && career.Calendar != null ? career.Calendar.CurrentDate : GameCalendar.SeasonStart;
-            var year = date.Month >= 6 ? date.Year : date.Year - 1;
+            var year = date.Month >= 7 ? date.Year : date.Year - 1;
             return new DateTime(year, 7, 13);
-        }
-
-        static DateTime NextSeasonStart(CareerState career)
-        {
-            var date = career.Calendar.CurrentDate;
-            var year = date.Month >= 6 ? date.Year + 1 : date.Year;
-            return new DateTime(year, 7, 13, 8, 0, 0);
         }
 
         static string Slug(string leagueId)

@@ -89,8 +89,6 @@ namespace CoachMaster.UI.Scenes
         bool _analysisAtFullTime;
         bool _liveAnalysisDismissed = true;
         int _seenLiveGoals;
-        int _heardCommentary = -1;
-        string _heardCommentaryLine;
         bool _continuousPitch;
         bool _pauseOnLive;
         bool _liveMoment;
@@ -1182,14 +1180,14 @@ namespace CoachMaster.UI.Scenes
                 shade.color = new Color(0f, 0f, 0f, 0f);
             }
             var title = BroadcastUi.Label(card, "Title", "JOGO EM PAUSA", 28, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
-            BroadcastUi.Place(title.rectTransform, 0.08f, 0.78f, 0.92f, 0.95f);
+            BroadcastUi.Place(title.rectTransform, 0.08f, 0.78f, 0.8f, 0.95f);
             _pauseBody = BroadcastUi.Label(card, "Tactics", "", 16, Color.white, TextAnchor.UpperLeft);
             BroadcastUi.Place(_pauseBody.rectTransform, 0.08f, 0.46f, 0.92f, 0.76f);
             _pauseBody.verticalOverflow = VerticalWrapMode.Truncate;
             _pauseBody.horizontalOverflow = HorizontalWrapMode.Wrap;
             _viewMode = BroadcastUi.Button(card, "Vista", "MOMENTOS ATACANTES", TogglePitchView, new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 15);
             BroadcastUi.Place(_viewMode.GetComponent<RectTransform>(), 0.12f, 0.46f, 0.88f, 0.56f);
-            var resume = BroadcastUi.Button(card, "Resume", "RETOMAR", ResumeMatch, UiTheme.Accent, UiTheme.ButtonText, 18);
+            var resume = BroadcastUi.Button(card, "Resume", "VER EM 3D", ToggleWatch, UiTheme.Accent, UiTheme.ButtonText, 18);
             BroadcastUi.Place(resume.GetComponent<RectTransform>(), 0.12f, 0.055f, 0.88f, 0.16f);
             var tactics = BroadcastUi.Button(card, "OpenTactics", "TÁTICAS", OpenTactics, new Color(0.22f, 0.12f, 0.38f, 1f), Color.white, 16);
             BroadcastUi.Place(tactics.GetComponent<RectTransform>(), 0.12f, 0.31f, 0.48f, 0.43f);
@@ -1217,6 +1215,77 @@ namespace CoachMaster.UI.Scenes
             var image = card == null ? null : card.GetComponent<Image>();
             if (image != null)
                 image.color = new Color(0.07f, 0.03f, 0.14f, 0.98f);
+            EnsurePauseSettings(card);
+            EnsureWatchButton(card);
+        }
+
+        void EnsureWatchButton(Transform card)
+        {
+            var resume = card == null ? null : card.Find("Resume");
+            if (resume == null)
+                return;
+            SceneBind.Wire(resume, ToggleWatch);
+            var label = resume.GetComponentInChildren<Text>();
+            if (label == null)
+                return;
+            var host = GetComponent<SimulatorMatchHost>();
+            var onBoard = host == null || host.BoardVisible;
+            label.text = onBoard ? "VER EM 3D" : "VER ESTATÍSTICAS";
+        }
+
+        void ToggleWatch()
+        {
+            var host = GetComponent<SimulatorMatchHost>();
+            if (host != null && SimulatorMatchHost.Running)
+                host.ShowBoard(!host.BoardVisible);
+            ResumeMatch();
+        }
+
+        void EnsurePauseSettings(Transform card)
+        {
+            if (card == null)
+                return;
+            var existing = card.Find("MatchSettings");
+            var gear = existing != null ? existing.GetComponent<Button>() : null;
+            if (gear == null)
+                gear = BroadcastUi.Button(card, "MatchSettings", "", OpenMatchSettings, new Color(1f, 1f, 1f, 0.12f), Color.white, 22);
+            var caption = gear.GetComponentInChildren<Text>();
+            if (caption != null)
+                caption.text = "";
+            var mark = gear.transform.Find("Gear");
+            Image image;
+            if (mark == null)
+            {
+                var icon = new GameObject("Gear", typeof(RectTransform), typeof(Image));
+                icon.transform.SetParent(gear.transform, false);
+                image = icon.GetComponent<Image>();
+                var iconRect = icon.GetComponent<RectTransform>();
+                iconRect.anchorMin = new Vector2(0.16f, 0.16f);
+                iconRect.anchorMax = new Vector2(0.84f, 0.84f);
+                iconRect.offsetMin = Vector2.zero;
+                iconRect.offsetMax = Vector2.zero;
+            }
+            else
+                image = mark.GetComponent<Image>();
+            var plate = gear.GetComponent<Image>();
+            if (plate != null)
+                plate.color = Color.clear;
+            if (image != null)
+            {
+                image.sprite = CareerHubController.SettingsIcon();
+                image.preserveAspect = true;
+                image.raycastTarget = false;
+                image.color = Color.white;
+            }
+            BroadcastUi.Place(gear.GetComponent<RectTransform>(), 0.72f, 0.84f, 0.84f, 0.96f);
+        }
+
+        void OpenMatchSettings()
+        {
+            var root = GameRoot.Instance;
+            if (root == null)
+                return;
+            root.GetComponent<AudioSettingsOverlay>()?.Toggle();
         }
 
         void BuildTactics(Transform root)
@@ -1504,6 +1573,28 @@ namespace CoachMaster.UI.Scenes
                 return;
             foreach (var button in _footer.GetComponentsInChildren<Button>(true))
                 button.interactable = on;
+        }
+
+        public bool MatchLive => _match != null;
+
+        public bool IsPaused => _paused;
+
+        public bool CareerBoardOpen
+        {
+            get
+            {
+                if (_match == null)
+                    return false;
+                var design = transform.Find("Design");
+                return design != null && design.gameObject.activeInHierarchy;
+            }
+        }
+
+        public void OpenFromPad()
+        {
+            if (_match == null || _paused)
+                return;
+            OpenPause();
         }
 
         void TogglePause()

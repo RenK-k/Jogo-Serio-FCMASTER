@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using CoachMaster.App;
+using CoachMaster.UI.Scenes;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
@@ -96,11 +97,25 @@ namespace CoachMaster.UI
             }
 
             DetectDevice();
-            if (!UsingKeyboard && Gamepad.current != null && Gamepad.current.startButton.wasPressedThisFrame)
+            if (Gamepad.current != null && Gamepad.current.startButton.wasPressedThisFrame)
             {
                 var gameRoot = GameRoot.Instance;
-                if (gameRoot != null)
-                    gameRoot.GetComponent<AudioSettingsOverlay>()?.Toggle();
+                var settings = gameRoot == null ? null : gameRoot.GetComponent<AudioSettingsOverlay>();
+                if (settings != null && AudioSettingsOverlay.IsVisible)
+                {
+                    settings.Toggle();
+                    return;
+                }
+                var day = FindAnyObjectByType<MatchDayController>();
+                if (day != null && day.CareerBoardOpen)
+                {
+                    day.OpenFromPad();
+                    return;
+                }
+                if (day != null && day.MatchLive)
+                    return;
+                if (settings != null)
+                    settings.Toggle();
                 return;
             }
             if (Time.unscaledTime >= _nextScan)
@@ -128,7 +143,7 @@ namespace CoachMaster.UI
             TryMouse();
 
             var back = UsingKeyboard
-                ? Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame
+                ? Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame && !SimulatorMatchHost.PitchVisible
                 : Gamepad.current != null && Gamepad.current.buttonEast.wasPressedThisFrame;
             var confirm = UsingKeyboard
                 ? Keyboard.current != null && (Keyboard.current.enterKey.wasPressedThisFrame || Keyboard.current.spaceKey.wasPressedThisFrame)

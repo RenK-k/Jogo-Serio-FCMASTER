@@ -35,12 +35,21 @@ namespace FStudio.UI.MatchThemes {
             overallFiller.FillTo(result);
             overallText.text = overall.ToString();
 
-            logoImage.gameObject.SetActive(false);
-            logoImage.material = TeamLogoMaterial.Current.GetColoredMaterial(teamEntry.TeamLogo);
-            logoImage.gameObject.SetActive(true);
+            if (logoImage != null)
+                logoImage.gameObject.SetActive(false);
 
             var squadPlayers = TeamSquadPresentation.PlayersToSquadMembers(players, formation, teamEntry);
             await squadPresentation.SetSquadMembers(squadPlayers);
+        }
+
+        public void SetCrest(Sprite crest) {
+            if (logoImage == null || crest == null)
+                return;
+            logoImage.sprite = crest;
+            logoImage.material = null;
+            logoImage.color = Color.white;
+            logoImage.preserveAspect = true;
+            logoImage.gameObject.SetActive(true);
         }
     }
 }

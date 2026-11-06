@@ -188,7 +188,58 @@ namespace CoachMaster.Domain
             // A strong match-day rating should be visible in the effective attributes too.
             change += ConditionOverallChange(player) * 0.25f;
 
-            return UnityEngine.Mathf.Clamp(value + UnityEngine.Mathf.RoundToInt(change), 1, 20);
+            var raw = UnityEngine.Mathf.Clamp(value + UnityEngine.Mathf.RoundToInt(change), 1, 20);
+            raw = UnityEngine.Mathf.Clamp(UnityEngine.Mathf.RoundToInt(raw * Role(player.Position, key)), 1, 20);
+            var overall = Overall(player);
+            var mean = (overall - 42f) / 52f * 20f;
+            var cap = UnityEngine.Mathf.Clamp(UnityEngine.Mathf.RoundToInt(mean + 2.5f), 12, 20);
+            return UnityEngine.Mathf.Min(raw, cap);
+        }
+
+        static float Role(PlayerPosition position, string key)
+        {
+            switch (position)
+            {
+                case PlayerPosition.Striker:
+                    if (key == "Desarme" || key == "Cruzamento") return 0.4f;
+                    if (key == "Passe") return 0.72f;
+                    return 1f;
+                case PlayerPosition.LeftWinger:
+                case PlayerPosition.RightWinger:
+                    if (key == "Desarme") return 0.42f;
+                    if (key == "Força") return 0.75f;
+                    return 1f;
+                case PlayerPosition.LeftMidfielder:
+                case PlayerPosition.RightMidfielder:
+                    if (key == "Desarme") return 0.55f;
+                    if (key == "Finalização") return 0.7f;
+                    return 1f;
+                case PlayerPosition.AttackingMidfielder:
+                    if (key == "Desarme") return 0.45f;
+                    if (key == "Cruzamento") return 0.7f;
+                    return 1f;
+                case PlayerPosition.CentralMidfielder:
+                    if (key == "Finalização") return 0.62f;
+                    if (key == "Cruzamento") return 0.7f;
+                    return 1f;
+                case PlayerPosition.DefensiveMidfielder:
+                    if (key == "Finalização" || key == "Cruzamento") return 0.45f;
+                    if (key == "Drible") return 0.7f;
+                    return 1f;
+                case PlayerPosition.CentreBack:
+                    if (key == "Finalização" || key == "Cruzamento" || key == "Drible") return 0.4f;
+                    return 1f;
+                case PlayerPosition.LeftBack:
+                case PlayerPosition.RightBack:
+                    if (key == "Finalização") return 0.4f;
+                    if (key == "Drible") return 0.7f;
+                    return 1f;
+                case PlayerPosition.Goalkeeper:
+                    if (key == "Finalização" || key == "Desarme" || key == "Cruzamento" || key == "Drible" || key == "Passe") return 0.35f;
+                    return 1f;
+                default:
+                    return 1f;
+            }
         }
 
         public static PlayerAttributes Current(Player player)

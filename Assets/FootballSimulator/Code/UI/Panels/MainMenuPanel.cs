@@ -8,6 +8,12 @@ namespace FStudio.UI.Panels {
     public class MainMenuPanel : EventPanel<MainMenuEvent> {
         [SerializeField] private TeamSelectionTeam homeTeam, awayTeam;
 
+        protected override void OnEnable() {
+            base.OnEnable();
+            if (canvasGroup != null && !IsActive)
+                canvasGroup.alpha = 0f;
+        }
+
         protected override void OnEventCalled(MainMenuEvent eventObject) {
             if (eventObject == null) {
                 Disappear();

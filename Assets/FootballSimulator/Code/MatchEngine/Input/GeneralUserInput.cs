@@ -1,4 +1,5 @@
 ﻿using FStudio.Input;
+using FStudio.MatchEngine.Tactics;
 using UnityEngine.InputSystem;
 
 namespace FStudio.MatchEngine.Input {
@@ -12,8 +13,16 @@ namespace FStudio.MatchEngine.Input {
         }
 
         private bool PauseInput(InputAction.CallbackContext ctx) {
-            MatchPause.Pause();
+            if (CareerTacticLock.Active) {
+                if (CoachMaster.UI.Scenes.SimulatorMatchHost.PitchVisible) {
+                    var root = CoachMaster.App.GameRoot.Instance;
+                    if (root != null)
+                        root.GetComponent<CoachMaster.UI.AudioSettingsOverlay>()?.Toggle();
+                }
+                return true;
+            }
 
+            MatchPause.Pause();
             return true;
         }
     }

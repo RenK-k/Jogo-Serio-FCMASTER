@@ -1,4 +1,5 @@
 ﻿using FStudio.Events;
+using FStudio.MatchEngine.Tactics;
 using FStudio.Graphics;
 using FStudio.Loaders;
 using FStudio.Graphics.TimeOfDay;
@@ -114,36 +115,46 @@ namespace FStudio.MatchEngine {
 
         public async Task UnloadMatch () {
             if (MatchManager.Current == null) {
-                Debug.LogWarning($"Match is not loaded to unload.");
+                if (CareerTacticLock.Active)
+                    await SceneLoader.UnloadMatchScene();
+                isLoaded = false;
+                isLoading = false;
                 return;
             }
 
-            // skybox mode off.
-            MainCamera.Current.Camera.clearFlags = CameraClearFlags.SolidColor;
+            try {
+                if (MainCamera.Current != null && MainCamera.Current.Camera != null)
+                    MainCamera.Current.Camera.clearFlags = CameraClearFlags.SolidColor;
 
-            // close all UI.
-            EventManager.Trigger(new CloseAllPanelsEvent());
+                EventManager.Trigger(new CloseAllPanelsEvent());
 
-            var template = GraphicLoaders.Current;
+                var template = GraphicLoaders.Current;
+                if (template != null && template.ballLoader != null)
+                    template.ballLoader.UnloadBall();
 
-            // unload ball & stadium.
-            template.ballLoader.UnloadBall();
-            template.stadiumLoader.Unload();
-            // 
+                SnapManager.Clear();
 
-            SnapManager.Clear();
+                if (UILoader.Current != null && UILoader.Current.MatchUILoader != null)
+                    UILoader.Current.MatchUILoader.Unload();
 
-            UILoader.Current.MatchUILoader.Unload();
+                if (MatchManager.Current != null)
+                    MatchManager.Current.ClearMatch();
 
-            MatchManager.Current.ClearMatch(); // clear field.
+                loader.Unload();
 
-            loader.Unload(); // clear match manager prefab.
+                if (CareerTacticLock.Active)
+                    await SceneLoader.UnloadMatchScene();
+                else if (template != null && template.stadiumLoader != null)
+                    template.stadiumLoader.Unload();
 
-            await UILoader.Current.GeneralUILoader.Load();
-
-            GameInput.SwitchToUI();
-
-            isLoaded = false;
+                if (!CareerTacticLock.Active && UILoader.Current != null && UILoader.Current.GeneralUILoader != null) {
+                    await UILoader.Current.GeneralUILoader.Load();
+                    GameInput.SwitchToUI();
+                }
+            } finally {
+                isLoaded = false;
+                isLoading = false;
+            }
         }
     }
 }

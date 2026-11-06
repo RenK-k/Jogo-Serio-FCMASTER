@@ -131,14 +131,13 @@ namespace FStudio.MatchEngine.Players.PlayerController {
                 if (bone == null)
                     return;
 
-                var pos = bone.position;
-                target.position = bone.position + bone.forward * footShadowForwardOffset;
-                target.rotation = Quaternion.Euler (90, bone.rotation.eulerAngles.y, 0);
+                var grounded = bone.position + bone.forward * footShadowForwardOffset;
+                grounded.y = 0.04f;
+                target.position = grounded;
+                target.rotation = Quaternion.Euler(90f, 0f, 0f);
 
-                // ball shadow power.
-                float height = pos.y;
-                pos.y = 0;
-                float heightPow = Mathf.Max (0, 0.15f - height);
+                float height = bone.position.y;
+                float heightPow = Mathf.Max(0f, 0.15f - height);
                 material.SetFloat(SHADOW_POWER, heightPow);
             }
 

@@ -4,6 +4,9 @@ using CoachMaster.Domain;
 using CoachMaster.UI;
 using FStudio.Data;
 using FStudio.Database;
+using FStudio.Events;
+using FStudio.MatchEngine;
+using FStudio.MatchEngine.Events;
 using FStudio.MatchEngine.Tactics;
 using UnityEngine;
 
@@ -17,8 +20,35 @@ namespace CoachMaster.MatchPlay
         public static void Prepare(MatchSession match)
         {
             CareerTacticLock.Active = match != null;
+            CareerTacticLock.Portuguese = LocalizationManager.Current == GameLanguage.Portuguese;
+            CareerTacticLock.HomeCrest = match == null || match.Home == null ? null : CrestStudio.For(match.Home);
+            CareerTacticLock.AwayCrest = match == null || match.Away == null ? null : CrestStudio.For(match.Away);
             CareerTacticLock.Home = Tactic(match == null ? null : match.HomeTactics);
             CareerTacticLock.Away = Tactic(match == null ? null : match.AwayTactics);
+            Rain = RollRain(match);
+        }
+
+        public static bool Rain { get; private set; }
+
+        public static DayTimes KickoffLight(MatchSession match)
+        {
+            var hour = match != null && match.Fixture != null ? match.Fixture.Date.Hour : 15;
+            if (hour >= 18 || hour < 6)
+                return DayTimes.Night;
+            if (hour < 11)
+                return DayTimes.Morning;
+            return DayTimes.Afternoon;
+        }
+
+        static bool RollRain(MatchSession match)
+        {
+            var key = match != null && match.Fixture != null && !string.IsNullOrEmpty(match.Fixture.Id)
+                ? match.Fixture.Id
+                : (match != null && match.Home != null ? match.Home.Id : "") + (match != null && match.Away != null ? match.Away.Id : "");
+            var hash = 17;
+            for (var i = 0; i < key.Length; i++)
+                hash = hash * 31 + key[i];
+            return (hash & 3) == 0;
         }
 
         public static TeamEntry BuildTeam(MatchSession match, bool home)
@@ -48,6 +78,7 @@ namespace CoachMaster.MatchPlay
                 var entry = PlayerEntry(ordered[i], i);
                 entry.team = team;
                 team.Players[i] = entry;
+                MatchOverall(entry, ordered[i]);
             }
 
             return team;
@@ -91,24 +122,32 @@ namespace CoachMaster.MatchPlay
             var decisions = Skill(player, "Decisão");
             var reflexes = Skill(player, "Reflexos");
             var handling = Skill(player, "Manejo");
-            if (player.HasTrait(PlayerTrait.Rapido))
+            if (player.HasTrait(PlayerTrait.Rapido) || player.HasTrait(PlayerTrait.DribladorRapido))
                 pace = Lift(pace, 8);
-            if (player.HasTrait(PlayerTrait.Driblador) || player.HasTrait(PlayerTrait.DribladorTecnico) || player.HasTrait(PlayerTrait.DribladorRapido))
+            if (player.HasTrait(PlayerTrait.Driblador) || player.HasTrait(PlayerTrait.DribladorTecnico) || player.HasTrait(PlayerTrait.DribladorRapido) || player.HasTrait(PlayerTrait.Flair))
                 dribbling = Lift(dribbling, 8);
-            if (player.HasTrait(PlayerTrait.Visionario) || player.HasTrait(PlayerTrait.CriadorDeJogo))
+            if (player.HasTrait(PlayerTrait.Visionario) || player.HasTrait(PlayerTrait.CriadorDeJogo) || player.HasTrait(PlayerTrait.PasseDePrimeira))
                 passing = Lift(passing, 8);
             if (player.HasTrait(PlayerTrait.PassadorLongo) || player.HasTrait(PlayerTrait.Cruzador) || player.HasTrait(PlayerTrait.LancamentoLongo))
                 crossing = Lift(crossing, 10);
-            if (player.HasTrait(PlayerTrait.Finalizador) || player.HasTrait(PlayerTrait.RemateEmJeito) || player.HasTrait(PlayerTrait.RemateDeLonge))
+            if (player.HasTrait(PlayerTrait.Finalizador) || player.HasTrait(PlayerTrait.RemateEmJeito) || player.HasTrait(PlayerTrait.RemateDeLonge) || player.HasTrait(PlayerTrait.RematadorDeLonge))
                 finishing = Lift(finishing, 8);
-            if (player.HasTrait(PlayerTrait.Marcador))
+            if (player.HasTrait(PlayerTrait.RemateRasteiro) || player.HasTrait(PlayerTrait.RemateDeTrivela) || player.HasTrait(PlayerTrait.Efeito) || player.HasTrait(PlayerTrait.LivrePotente))
+                finishing = Lift(finishing, 4);
+            if (player.HasTrait(PlayerTrait.Marcador) || player.HasTrait(PlayerTrait.CarrinhoArriscado))
                 tackling = Lift(tackling, 8);
-            if (player.HasTrait(PlayerTrait.Cabeceador))
+            if (player.HasTrait(PlayerTrait.Cabeceador) || player.HasTrait(PlayerTrait.Chilenas))
                 strength = Lift(strength, 6);
-            if (player.HasTrait(PlayerTrait.ImuneAPressao))
+            if (player.HasTrait(PlayerTrait.ImuneAPressao) || player.HasTrait(PlayerTrait.Frieza))
                 composure = Lift(composure, 8);
-            if (player.HasTrait(PlayerTrait.Trabalhador))
+            if (player.HasTrait(PlayerTrait.Trabalhador) || player.HasTrait(PlayerTrait.JogadorDeEquipa) || player.HasTrait(PlayerTrait.Lideranca))
                 work = Lift(work, 6);
+            if (player.Position == PlayerPosition.Goalkeeper && player.HasTrait(PlayerTrait.GuardaRedesSaiDaBaliza))
+                positioning = Lift(positioning, 8);
+            if (player.Position == PlayerPosition.Goalkeeper && player.HasTrait(PlayerTrait.GuardaRedesSaiAosCruzamentos))
+                strength = Lift(strength, 6);
+            if (player.Position == PlayerPosition.Goalkeeper && player.HasTrait(PlayerTrait.GuardaRedesDefendeComOsPes))
+                passing = Lift(passing, 8);
 
             entry.topSpeed = pace;
             entry.acceleration = pace;
@@ -126,6 +165,46 @@ namespace CoachMaster.MatchPlay
             entry.reaction = player.Position == PlayerPosition.Goalkeeper ? Mean(reflexes, handling) : decisions;
             entry.ballControl = Mean(dribbling, composure);
             return entry;
+        }
+
+        static void MatchOverall(PlayerEntry entry, Player player)
+        {
+            if (entry == null || player == null || entry.team == null)
+                return;
+            int target = PlayerAttributes.CurrentOverall(player);
+            int current;
+            try
+            {
+                current = entry.Overall;
+            }
+            catch (Exception)
+            {
+                return;
+            }
+
+            if (current < 1 || target < 1 || current == target)
+                return;
+            var scale = target / (float)current;
+            entry.topSpeed = Scale(entry.topSpeed, scale);
+            entry.acceleration = Scale(entry.acceleration, scale);
+            entry.dribbleSpeed = Scale(entry.dribbleSpeed, scale);
+            entry.agility = Scale(entry.agility, scale);
+            entry.strength = Scale(entry.strength, scale);
+            entry.jump = Scale(entry.jump, scale);
+            entry.tackling = Scale(entry.tackling, scale);
+            entry.ballKeeping = Scale(entry.ballKeeping, scale);
+            entry.passing = Scale(entry.passing, scale);
+            entry.longBall = Scale(entry.longBall, scale);
+            entry.shooting = Scale(entry.shooting, scale);
+            entry.shootPower = Scale(entry.shootPower, scale);
+            entry.positioning = Scale(entry.positioning, scale);
+            entry.reaction = Scale(entry.reaction, scale);
+            entry.ballControl = Scale(entry.ballControl, scale);
+        }
+
+        static int Scale(int value, float scale)
+        {
+            return Mathf.Clamp(Mathf.RoundToInt(value * scale), 5, 99);
         }
 
         static string ShortName(string fullName)
@@ -236,18 +315,50 @@ namespace CoachMaster.MatchPlay
             }
         }
 
+        public static void PushLiveTactics(MatchSession match)
+        {
+            if (match == null)
+                return;
+            var home = Tactic(match.HomeTactics);
+            var away = Tactic(match.AwayTactics);
+            CareerTacticLock.Home = home;
+            CareerTacticLock.Away = away;
+            var current = MatchManager.Current;
+            if (current == null)
+                return;
+            ApplyLive(current.GameTeam1, home);
+            ApplyLive(current.GameTeam2, away);
+        }
+
+        static void ApplyLive(GameTeam team, TacticPresetTypes tactic)
+        {
+            if (team == null || team.Team == null || team.Team.TacticPresetType == tactic)
+                return;
+            team.Team.TacticPresetType = tactic;
+            EventManager.Trigger(new TeamChangedTactic(team, tactic));
+        }
+
         public static TacticPresetTypes Tactic(TacticalIdentity tactics)
         {
-            var text = ((tactics == null ? "" : tactics.Preset) + " " + (tactics == null ? "" : tactics.Pressing) + " " + (tactics == null ? "" : tactics.AttackIdea) + " " + (tactics == null ? "" : tactics.BuildUp)).ToLowerInvariant();
-            if (text.Contains("contra"))
+            if (tactics == null)
+                return TacticPresetTypes.Balanced;
+            var preset = (tactics.Preset ?? "").ToLowerInvariant();
+            var press = (tactics.Pressing ?? "").ToLowerInvariant();
+            var line = (tactics.DefensiveLine ?? "").ToLowerInvariant();
+            var idea = (tactics.AttackIdea ?? "").ToLowerInvariant();
+            if (preset.Contains("contra") || idea.Contains("contra"))
                 return TacticPresetTypes.CounterAttack;
-            if (text.Contains("ônibus") || text.Contains("onibus") || text.Contains("park"))
+            if (preset.Contains("ônibus") || preset.Contains("onibus") || preset.Contains("park")
+                || (press.Contains("baixa") && line.Contains("baixa")))
                 return TacticPresetTypes.ParkTheBus;
-            if (text.Contains("press") || (text.Contains("alta") && text.Contains("linha")))
+            if (press.Contains("muito alta") || (press.Contains("alta") && !press.Contains("média") && !press.Contains("media"))
+                || line.Contains("muito alta") || preset.Contains("press"))
                 return TacticPresetTypes.HighPressure;
-            if (text.Contains("defens"))
+            if (preset.Contains("alas") || idea.Contains("cruz"))
+                return TacticPresetTypes.Offensive;
+            if ((line.Contains("baixa") && !line.Contains("média") && !line.Contains("media")) || preset.Contains("defens"))
                 return TacticPresetTypes.Defensive;
-            if (text.Contains("ofens") || text.Contains("ataque"))
+            if (preset.Contains("ofens") || idea.Contains("ataque"))
                 return TacticPresetTypes.Offensive;
             return TacticPresetTypes.Balanced;
         }

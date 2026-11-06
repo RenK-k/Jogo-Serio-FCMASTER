@@ -60,6 +60,14 @@ namespace CoachMaster.Career
             if (career.Current != null && career.Current.Kind == MomentKind.Match && !career.Current.Fixture.Played)
                 return;
 
+            SeasonSchedule.NoteInternationals(career);
+            if (SeasonSchedule.DueToClose(career))
+            {
+                SeasonSchedule.ForceClose(career);
+                Begin(career);
+                return;
+            }
+
             if (SeasonSchedule.TryRoll(career))
             {
                 Begin(career);

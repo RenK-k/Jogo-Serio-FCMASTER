@@ -158,14 +158,19 @@ namespace FStudio.MatchEngine.Balls {
             ballVel.y = Mathf.Clamp(ballVel.y, -MAX_VELOCTIY_POW, MAX_VELOCTIY_POW);
             ballVel.z = Mathf.Clamp(ballVel.z, -MAX_VELOCTIY_POW, MAX_VELOCTIY_POW);
 
-            rigidbody.linearVelocity = ballVel;
+            if (rigidbody != null && !rigidbody.isKinematic)
+                rigidbody.linearVelocity = ballVel;
 
-            ballShadow.position = ballPos;
-            // ball shadow power.
+            if (ballShadow != null) {
+                var grounded = ballPos;
+                grounded.y = 0.04f;
+                ballShadow.position = grounded;
+                ballShadow.rotation = Quaternion.Euler(90f, 0f, 0f);
+            }
             float height = ballPos.y;
-            ballPos.y = 0;
             float heightPow = Mathf.Max (0, 0.6f - height);
-            shadowMaterial.SetFloat(BALL_SHADOW_POWER, heightPow);
+            if (shadowMaterial != null)
+                shadowMaterial.SetFloat(BALL_SHADOW_POWER, heightPow);
         }
 
         /// <summary>
@@ -247,7 +252,8 @@ namespace FStudio.MatchEngine.Balls {
 
                 followSpeed = followSpeedCurve.Evaluate(followSpeedProgress) * 1;
 
-                rigidbody.linearVelocity = Vector3.zero;
+                if (!rigidbody.isKinematic)
+                    rigidbody.linearVelocity = Vector3.zero;
 
                 var targetPosition = Vector3.Lerp(
                     holdedPosition,
@@ -358,6 +364,10 @@ namespace FStudio.MatchEngine.Balls {
 
             ApplyError (ref target, longBallSkill + passingSkill);
 
+            var size = MatchManager.Current.SizeOfField;
+            target.x = Mathf.Clamp(target.x, 3f, size.x - 3f);
+            target.z = Mathf.Clamp(target.z, 4f, size.y - 4f);
+
             var pos = transform.position;
             pos.y = 0;
 
@@ -370,6 +380,12 @@ namespace FStudio.MatchEngine.Balls {
 
             requiredVelocity *= EngineSettings.Current.PassPowerDistanceCurve.Evaluate (distance);
             requiredVelocity *= speedMod;
+            var touchline = Mathf.Min(target.z, size.y - target.z);
+            if (touchline < 10f) {
+                var keep = Mathf.Lerp(0.7f, 1f, touchline / 10f);
+                requiredVelocity.x *= keep;
+                requiredVelocity.z *= keep;
+            }
 
             if (!hitter.IsThrowHolder) {
                 EventManager.Trigger(new PlayerPassEvent(hitter, requiredVelocity.magnitude));
@@ -470,6 +486,8 @@ namespace FStudio.MatchEngine.Balls {
             // release ball and hit.
             Release();
 
+            if (rigidbody.isKinematic)
+                rigidbody.isKinematic = false;
             rigidbody.linearVelocity = Vector3.zero;
 
             ClampVelocity(ref velocity);
@@ -532,6 +550,8 @@ namespace FStudio.MatchEngine.Balls {
         public void ResetBall (Vector3 target) {
             Debug.Log("Ball Reset ()");
             target.y = 0.1f;
+            if (rigidbody.isKinematic)
+                rigidbody.isKinematic = false;
             rigidbody.linearVelocity = Vector3.zero;
             rigidbody.angularVelocity = Vector3.zero;
             transform.position = target;

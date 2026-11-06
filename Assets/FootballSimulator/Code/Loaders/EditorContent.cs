@@ -36,6 +36,8 @@ namespace FStudio.Loaders {
                 return false;
             while (!operation.isDone)
                 await Task.Yield();
+            if (mode == LoadSceneMode.Additive)
+                SceneLoader.NoteMatchScene(System.IO.Path.GetFileNameWithoutExtension(path));
             return true;
         }
     }

@@ -32,7 +32,7 @@ namespace FStudio.UI.MatchThemes.TeamPresentation {
                 return kitSelection ? team.AwayKit : team.HomeKit;
             }
 
-            return players.Select((x, y) =>
+            return players.Take(11).Select((x, y) =>
 
                 new TeamSquadMember(x,
 

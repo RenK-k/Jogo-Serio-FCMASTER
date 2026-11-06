@@ -85,8 +85,7 @@ namespace CoachMaster.UI.Scenes
             }
             EnsureFilm(root);
             var intro = Resources.Load<VideoClip>("INTRO");
-            if (intro != null)
-                PlayFilm(intro, true);
+            PlayFilm(intro, true);
             var card = root.Find("MenuCard");
             if (card != null)
                 card.SetAsLastSibling();
@@ -105,6 +104,7 @@ namespace CoachMaster.UI.Scenes
             }
             else
                 go = existing.gameObject;
+            go.SetActive(true);
             go.transform.SetAsFirstSibling();
             var image = go.GetComponent<RawImage>();
             if (image == null)
@@ -659,6 +659,22 @@ namespace CoachMaster.UI.Scenes
             if (overlay != null)
                 Destroy(overlay);
             GameRoot.Instance.Open(SceneNames.CareerHub);
+        }
+
+        public void RefreshAfterDelete()
+        {
+            var root = BroadcastUi.Mount(this);
+            if (root == null || GameRoot.Instance == null)
+                return;
+            if (transform.Find("Design") != null)
+            {
+                BindMenu(root);
+                return;
+            }
+            var resume = root.Find("MenuCard/Continuar");
+            if (resume != null)
+                resume.gameObject.SetActive(HasSavedCareers(GameRoot.Instance.Session));
+            RefreshContinueDetails(root);
         }
 
         public static void LeaveGame()

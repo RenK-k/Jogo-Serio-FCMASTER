@@ -5,6 +5,7 @@ using FStudio.UI;
 using FStudio.UI.Events;
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace FStudio.MatchEngine.UI {
     internal class MatchPausePanel : EventPanel<MatchPauseEvent> {
@@ -80,6 +81,45 @@ namespace FStudio.MatchEngine.UI {
             GameInput.SwitchToUI();
 
             Appear();
+            EnsureSettings();
+        }
+
+        void EnsureSettings() {
+            var existing = transform.Find("CareerSettings");
+            if (existing != null) {
+                var oldIcon = existing.Find("Icon");
+                if (oldIcon != null && oldIcon.GetComponent<Image>() == null)
+                    Destroy(oldIcon.gameObject);
+            } else {
+                var buttonObject = new GameObject("CareerSettings", typeof(RectTransform), typeof(Image), typeof(Button));
+                buttonObject.transform.SetParent(transform, false);
+                var rect = buttonObject.GetComponent<RectTransform>();
+                rect.anchorMin = new Vector2(0.72f, 0.88f);
+                rect.anchorMax = new Vector2(0.8f, 0.97f);
+                rect.offsetMin = Vector2.zero;
+                rect.offsetMax = Vector2.zero;
+                buttonObject.GetComponent<Image>().color = Color.clear;
+                buttonObject.GetComponent<Button>().onClick.AddListener(() => {
+                    var root = CoachMaster.App.GameRoot.Instance;
+                    if (root != null)
+                        root.GetComponent<CoachMaster.UI.AudioSettingsOverlay>()?.Toggle();
+                });
+                existing = buttonObject.transform;
+            }
+            if (existing.Find("Mark") != null)
+                return;
+            var markObject = new GameObject("Mark", typeof(RectTransform), typeof(Image));
+            markObject.transform.SetParent(existing, false);
+            var mark = markObject.GetComponent<Image>();
+            mark.sprite = CoachMaster.UI.Scenes.CareerHubController.SettingsIcon();
+            mark.color = Color.white;
+            mark.preserveAspect = true;
+            mark.raycastTarget = false;
+            var markRect = mark.rectTransform;
+            markRect.anchorMin = new Vector2(0.12f, 0.12f);
+            markRect.anchorMax = new Vector2(0.88f, 0.88f);
+            markRect.offsetMin = Vector2.zero;
+            markRect.offsetMax = Vector2.zero;
         }
 
         public async void LeaveMatch() {

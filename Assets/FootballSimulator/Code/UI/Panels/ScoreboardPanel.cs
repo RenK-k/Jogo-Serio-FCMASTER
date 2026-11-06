@@ -18,6 +18,8 @@ namespace FStudio.UI {
 
         protected override void OnEnable() {
             base.OnEnable();
+            if (canvasGroup != null && !IsActive)
+                canvasGroup.alpha = 0f;
 
             EventManager.Subscribe<GameTimeEvent>(GameTimeUpdate);
             EventManager.Subscribe<GoalScoredEvent>(GoalScored);
@@ -35,6 +37,19 @@ namespace FStudio.UI {
             EventManager.UnSubscribe<GameTimeEvent>(GameTimeUpdate);
             EventManager.UnSubscribe<GoalScoredEvent>(GoalScored);
             EventManager.UnSubscribe<FirstWhistleEvent>(FirstWhistle);
+        }
+
+        public void WriteScore(int home, int away) {
+            homeScore = home;
+            awayScore = away;
+            if (homeScoreText != null) {
+                homeScoreText.text = home.ToString();
+                homeScoreText.color = Color.white;
+            }
+            if (awayScoreText != null) {
+                awayScoreText.text = away.ToString();
+                awayScoreText.color = Color.white;
+            }
         }
 
         private void GoalScored (GoalScoredEvent goalScoredEvent) {

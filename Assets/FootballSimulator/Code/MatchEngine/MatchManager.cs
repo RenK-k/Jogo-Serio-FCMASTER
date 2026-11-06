@@ -240,13 +240,15 @@ namespace FStudio.MatchEngine {
         }
 
         public static void ClearMatchAssets() {
-            if (Current.Referees != null) {
-                foreach (var referee in Current.Referees) {
-                    Destroy(referee.PlayerController.UnityObject);
-                }
-
-                Current.Referees = null;
+            if (Current == null || Current.Referees == null)
+                return;
+            foreach (var referee in Current.Referees) {
+                if (!Alive(referee))
+                    continue;
+                Destroy(referee.PlayerController.UnityObject);
             }
+
+            Current.Referees = null;
         }
 
         /// <summary>
@@ -343,8 +345,7 @@ namespace FStudio.MatchEngine {
 
             await Current.CreateMatch(homeMatchTeam, awayMatchTeam);
 
-            // set default tactic.
-            if (Current.UserTeam != null) {
+            if (Current.UserTeam != null && !CareerTacticLock.Active) {
                 var defaultUserTactic = TacticPresetTypes.Balanced;
                 Current.UserTeam.Team.TacticPresetType = defaultUserTactic;
                 EventManager.Trigger(new TeamChangedTactic(Current.UserTeam, defaultUserTactic));
@@ -607,9 +608,12 @@ namespace FStudio.MatchEngine {
                 }
             }
 
-            if (MatchFlags.HasFlag (MatchStatus.NotPlaying)) {
+            if (MatchFlags.HasFlag(MatchStatus.NotPlaying)) {
                 return;
             }
+
+            if (ball == null)
+                return;
             
             if (!MatchFlags.HasFlag(MatchStatus.Freeze)) {
                 var midPoint = fieldEndX / 2f;
@@ -643,6 +647,8 @@ namespace FStudio.MatchEngine {
 
                         // stop all players.
                         foreach (var player in GameTeam1.GamePlayers.Concat (GameTeam2.GamePlayers).Concat (Referees)) {
+                            if (!Alive(player) || player.PlayerController.Animator == null)
+                                continue;
                             player.PlayerController.Animator.SetFloat(PlayerAnimatorVariable.Horizontal, 0);
                             player.PlayerController.Animator.SetFloat(PlayerAnimatorVariable.Vertical, 0);
                         }
@@ -670,6 +676,8 @@ namespace FStudio.MatchEngine {
                 var allPlayers = gameTeam.GamePlayers.Where(x => !x.IsGK);
 
                 foreach (var player in allPlayers) {
+                    if (!Alive(player))
+                        continue;
                     totalX += player.Position.x;
                 }
 
@@ -751,11 +759,17 @@ namespace FStudio.MatchEngine {
         private void CalculateOffsideLine (float midPointX, float ballPosX, Transform offsideLine, GoalNet goalNet, in PlayerBase[] players) {
             var goalNetX = goalNet.Position.x;
 
-            if (players.Length < 2) {
+            var standing = new System.Collections.Generic.List<PlayerBase>(players.Length);
+            for (var i = 0; i < players.Length; i++) {
+                if (Alive(players[i]))
+                    standing.Add(players[i]);
+            }
+
+            if (standing.Count < 2) {
                 return;
             }
 
-            var lineDecider = players.OrderBy(x => Mathf.Abs(x.Position.x - goalNetX)).Take (2).ElementAt (1);
+            var lineDecider = standing.OrderBy(x => Mathf.Abs(x.Position.x - goalNetX)).ElementAt(1);
 
             var position = offsideLine.position;
             position.x = lineDecider.Position.x;
@@ -797,12 +811,21 @@ namespace FStudio.MatchEngine {
         public void ResetOffsides () {
             void checkTeam(GameTeam gameTeam) {
                 foreach (var player in gameTeam.GamePlayers) {
+                    if (!Alive(player))
+                        continue;
                     player.CaughtInOffside = false;
                 }
             }
 
             checkTeam(GameTeam1);
             checkTeam(GameTeam2);
+        }
+
+        public static bool Alive(Players.PlayerBase player) {
+            if (player == null)
+                return false;
+            var body = player.PlayerController as UnityEngine.Object;
+            return body != null;
         }
 
         /// <summary>

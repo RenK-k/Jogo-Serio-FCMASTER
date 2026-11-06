@@ -34,6 +34,10 @@ namespace FStudio.MatchEngine.UI {
         }
 
         protected override void OnEventCalled(MatchInitializationCompletedEvent eventObject) {
+            if (FStudio.MatchEngine.Tactics.CareerTacticLock.Active) {
+                Disappear();
+                return;
+            }
             Appear();
         }
     }

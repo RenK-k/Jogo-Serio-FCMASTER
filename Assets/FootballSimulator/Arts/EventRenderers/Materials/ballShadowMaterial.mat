@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: ballShadowMaterial
-  m_Shader: {fileID: -6465566751694194690, guid: 96bc1924b76a78b458e7f31b7037d67d, type: 3}
+  m_Shader: {fileID: 4800000, guid: c4e8a1b27d9f4e6a8c0d1e2f3a4b5c6d, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
