@@ -282,6 +282,36 @@ namespace FStudio.MatchEngine {
                 GoalNet goalNet,
                 GoalNet targetGoalNet,
                 in PlayerBase[] opponents) {
+            var mates = GamePlayers;
+            var foes = opponents;
+            var sentOff = false;
+            if (GamePlayers != null)
+            {
+                for (var n = 0; n < GamePlayers.Length; n++)
+                {
+                    if (GamePlayers[n] != null && GamePlayers[n].Dismissed)
+                    {
+                        sentOff = true;
+                        break;
+                    }
+                }
+            }
+            if (!sentOff && opponents != null)
+            {
+                for (var n = 0; n < opponents.Length; n++)
+                {
+                    if (opponents[n] != null && opponents[n].Dismissed)
+                    {
+                        sentOff = true;
+                        break;
+                    }
+                }
+            }
+            if (sentOff)
+            {
+                mates = GamePlayers.Where(x => x != null && !x.Dismissed).ToArray();
+                foes = opponents == null ? opponents : opponents.Where(x => x != null && !x.Dismissed).ToArray();
+            }
 
             #region Input Listeners
             ///control free input listeners. give them a player to manage.
@@ -304,7 +334,7 @@ namespace FStudio.MatchEngine {
             if (m_nextName < time) {
                 m_nextName = time + NAME_TIMER_DELAYER;
 
-                var orderByCloser = GamePlayers.Where(MatchManager.Alive).
+                var orderByCloser = GamePlayers.Where(x => x != null && !x.Dismissed && MatchManager.Alive(x)).
                     OrderBy(x => Vector3.Distance(x.Position, ball.BallPosition (x)));
 
                 var showName = orderByCloser.Take(2);
@@ -323,6 +353,8 @@ namespace FStudio.MatchEngine {
             }
 
             for (int i=0; i < GamePlayers.Length; i++) {
+                if (GamePlayers[i] != null && GamePlayers[i].Dismissed)
+                    continue;
                 if (MatchManager.Alive(GamePlayers[i])) {
 
                     var isInputControlled = IsPlayerInputControlled(GamePlayers[i]);
@@ -347,8 +379,8 @@ namespace FStudio.MatchEngine {
                             ball,
                             goalNet,
                             targetGoalNet,
-                            in GamePlayers,
-                            in opponents);
+                            in mates,
+                            in foes);
                     };
 
                     GamePlayers[i].Behave(
@@ -363,8 +395,8 @@ namespace FStudio.MatchEngine {
                         ball,
                         goalNet,
                         targetGoalNet,
-                        in GamePlayers,
-                        in opponents);
+                        in mates,
+                        in foes);
 
                     if (!GamePlayers[i].PlayerController.IsPhysicsEnabled || GamePlayers[i].ballHitAnimationEvent != BallHitAnimationEvent.None) {
                         continue; // ignore cases.
@@ -429,7 +461,7 @@ namespace FStudio.MatchEngine {
             const int cornerKeyPlayerCount = 5;
 
             // max 9 player.
-            var orderPlayersByHeight = GamePlayers.Where (x=> x!= cornerKicker && !x.IsGK).OrderByDescending (x => x.MatchPlayer.Player.height);
+            var orderPlayersByHeight = GamePlayers.Where (x=> x != null && !x.Dismissed && x!= cornerKicker && !x.IsGK).OrderByDescending (x => x.MatchPlayer.Player.height);
 
             var orderPositionsToGoalNetDistance = 
                 basePositioning.FieldPositions.Where (x=>x.Position != Positions.GK).
@@ -461,9 +493,10 @@ namespace FStudio.MatchEngine {
             }
 
             // reorder GK.
-            var gk = GamePlayers.Where(x => x.IsGK).FirstOrDefault();
+            var gk = GamePlayers.Where(x => x != null && !x.Dismissed && x.IsGK).FirstOrDefault();
             var gkFieldPos = basePositioning.FieldPositions.FirstOrDefault(x => x.Position == Positions.GK);
-            PutPlayerToFieldPosition(gk, gkFieldPos, goalNet, fieldEndX, fieldEndY, ballPosition);
+            if (gk != null)
+                PutPlayerToFieldPosition(gk, gkFieldPos, goalNet, fieldEndX, fieldEndY, ballPosition);
 
             if (cornerKicker != null) {
                 // reorder cornerKicker
@@ -487,7 +520,7 @@ namespace FStudio.MatchEngine {
 
             var orderedBasePositions = KickOffPositioning.Current.FieldPositions.OrderBy(x => x.VerticalPlacement).ToArray();
 
-            var playersWithPositions = GamePlayers.Select(x => (x, FormalPositioning.Current.GetPosition(x.MatchPlayer.Position))).OrderBy(x => x.Item2.VerticalPlacement).ToArray();
+            var playersWithPositions = GamePlayers.Where(x => x != null && !x.Dismissed).Select(x => (x, FormalPositioning.Current.GetPosition(x.MatchPlayer.Position))).OrderBy(x => x.Item2.VerticalPlacement).ToArray();
 
             var ballPosition = Ball.Current.transform.position;
 
@@ -510,7 +543,7 @@ namespace FStudio.MatchEngine {
 
             var orderedBasePositions = KickOffPositioning_Starter.Current.FieldPositions.OrderBy(x => x.VerticalPlacement).ToArray();
 
-            var playersWithPositions = GamePlayers.Select(x => (x, FormalPositioning.Current.GetPosition(x.MatchPlayer.Position))).OrderBy (x=>x.Item2.VerticalPlacement).ToArray();
+            var playersWithPositions = GamePlayers.Where(x => x != null && !x.Dismissed).Select(x => (x, FormalPositioning.Current.GetPosition(x.MatchPlayer.Position))).OrderBy (x=>x.Item2.VerticalPlacement).ToArray();
 
             var ballPosition = Ball.Current.transform.position;
 
@@ -557,15 +590,19 @@ namespace FStudio.MatchEngine {
 
         private void UpdateMarkings(in PlayerBase[] opponents) {
             foreach (var player in GamePlayers) {
+                if (player == null || player.Dismissed)
+                    continue;
                 player.MarkingTarget = null; // reset first.
             }
 
             foreach (var player in opponents) {
+                if (player == null || player.Dismissed)
+                    continue;
                 player.Markers.Clear(); // reset first.
             }
 
-            var markableOpponents = opponents.Where (x=>!x.IsGK && x.PlayerController.IsPhysicsEnabled);
-            var markers = GamePlayers.Where (x=>x.PlayerController.IsPhysicsEnabled);
+            var markableOpponents = opponents.Where (x=> x != null && !x.Dismissed && !x.IsGK && x.PlayerController.IsPhysicsEnabled);
+            var markers = GamePlayers.Where (x=> x != null && !x.Dismissed && x.PlayerController.IsPhysicsEnabled);
 
             var orderedOpponenets = markableOpponents.OrderByDescending(x => x.PlayerFieldProgress);
 

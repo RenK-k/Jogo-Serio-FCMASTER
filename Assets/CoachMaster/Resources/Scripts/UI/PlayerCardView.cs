@@ -125,12 +125,12 @@ namespace CoachMaster.UI
             flag.raycastTarget = false;
             BroadcastUi.Place(flag.rectTransform, 0.34f, 0.058f, 0.66f, 0.258f);
 
-            var grade = PlayerGrade.Of(PlayerAttributes.CurrentOverallAtPosition(player, position));
-            var overall = BroadcastUi.Label(card.transform, "Overall", grade.Code, 16, grade.Tint,
+            var overall = BroadcastUi.Label(card.transform, "Overall",
+                PlayerAttributes.CurrentOverallAtPosition(player, position).ToString(), 13, Color.white,
                 TextAnchor.MiddleRight, FontStyle.Bold);
             overall.resizeTextForBestFit = true;
-            overall.resizeTextMinSize = 10;
-            overall.resizeTextMaxSize = 18;
+            overall.resizeTextMinSize = 8;
+            overall.resizeTextMaxSize = 13;
             overall.horizontalOverflow = HorizontalWrapMode.Overflow;
             overall.verticalOverflow = VerticalWrapMode.Overflow;
             BroadcastUi.Place(overall.rectTransform, 0.66f, 0.058f, 0.88f, 0.258f);

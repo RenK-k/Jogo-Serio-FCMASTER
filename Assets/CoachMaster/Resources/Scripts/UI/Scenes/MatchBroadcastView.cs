@@ -450,10 +450,25 @@ namespace CoachMaster.UI.Scenes
                     var parts = player.FullName.Split(' ');
                     names[i].text = parts.Length == 0 ? player.FullName : parts[parts.Length - 1];
                     var number = marks[i].transform.Find("Num");
+                    var ink = marks[i].color.grayscale >= 0.55f ? new Color(0.08f, 0.08f, 0.1f, 1f) : Color.white;
+                    Text label;
                     if (number == null)
                     {
-                        var label = BroadcastUi.Label(marks[i].rectTransform, "Num", player.SquadNumber.ToString(), 9, Color.black, TextAnchor.MiddleCenter, FontStyle.Bold);
+                        label = BroadcastUi.Label(marks[i].rectTransform, "Num", player.SquadNumber.ToString(), 11, ink, TextAnchor.MiddleCenter, FontStyle.Bold);
                         BroadcastUi.Stretch(label.rectTransform);
+                        var localizer = label.GetComponent<LocalizedText>();
+                        if (localizer != null)
+                            localizer.enabled = false;
+                    }
+                    else
+                        label = number.GetComponent<Text>();
+                    if (label != null)
+                    {
+                        label.text = player.SquadNumber.ToString();
+                        label.color = ink;
+                        label.resizeTextForBestFit = true;
+                        label.resizeTextMinSize = 8;
+                        label.resizeTextMaxSize = 12;
                     }
                 }
             }

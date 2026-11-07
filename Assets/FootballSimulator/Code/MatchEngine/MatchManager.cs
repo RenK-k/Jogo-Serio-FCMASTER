@@ -558,6 +558,8 @@ namespace FStudio.MatchEngine {
             }
             
             foreach (var player in AllPlayers) {
+                if (player == null || player.Dismissed)
+                    continue;
                 player.PlayerController.IsPhysicsEnabled = true;
             }
 
@@ -673,7 +675,7 @@ namespace FStudio.MatchEngine {
             float calculateDensity (GameTeam gameTeam) {
                 float totalX = 0;
 
-                var allPlayers = gameTeam.GamePlayers.Where(x => !x.IsGK);
+                var allPlayers = gameTeam.GamePlayers.Where(x => x != null && !x.Dismissed && !x.IsGK);
 
                 foreach (var player in allPlayers) {
                     if (!Alive(player))
@@ -913,6 +915,8 @@ namespace FStudio.MatchEngine {
                     }
 
                     foreach (var player in team.GamePlayers) {
+                        if (player == null || player.Dismissed)
+                            continue;
                         var tPos = player.GetFieldPosition(
                             ball.HolderPlayer?.GameTeam == player.GameTeam,
                             teamBehaviour,
@@ -940,10 +944,13 @@ namespace FStudio.MatchEngine {
 
                     if (hasTheBall) {
                         // closest one to the ball.
-                        closest = team.GamePlayers.Where(x => !x.MatchPlayer.Position.HasFlag(excludeKickerPosition)).
-                            OrderBy(x => Vector3.Distance(x.Position, position)).First();
+                        closest = team.GamePlayers.Where(x => x != null && !x.Dismissed && !x.MatchPlayer.Position.HasFlag(excludeKickerPosition)).
+                            OrderBy(x => Vector3.Distance(x.Position, position)).FirstOrDefault();
 
                         keepInField(ref position, 0.25f); // clamp ball pos.
+
+                        if (closest == null)
+                            return;
 
                         switch (foulType) {
                             case FoulType.ThrowIn:

@@ -36,6 +36,7 @@ namespace CoachMaster.Career
         public List<AcademyFixture> AcademyFixtures { get; } = new List<AcademyFixture>();
         public List<TransferRecord> TransferHistory { get; } = new List<TransferRecord>();
         public List<CareerTrophy> Trophies { get; } = new List<CareerTrophy>();
+        public List<PlayerHonour> Honours { get; } = new List<PlayerHonour>();
         public long LastGlobalTransferTicks { get; set; }
         public long LastWorldNewsTicks { get; set; }
         public int CompletedSeasons { get; set; }
@@ -148,6 +149,15 @@ namespace CoachMaster.Career
         public string CompetitionId { get; set; }
         public int SeasonStartYear { get; set; }
         public long DateTicks { get; set; }
+        public string Title { get; set; }
+    }
+
+    public sealed class PlayerHonour
+    {
+        public string PlayerId { get; set; }
+        public string Kind { get; set; }
+        public string CompetitionId { get; set; }
+        public int SeasonStartYear { get; set; }
         public string Title { get; set; }
     }
 

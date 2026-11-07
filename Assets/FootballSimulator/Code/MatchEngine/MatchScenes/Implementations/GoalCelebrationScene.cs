@@ -104,12 +104,12 @@ namespace MatchEngine.MatchScenes.Implementations {
 
             // pick closest 3-6.
             celebrators = scorerTeam.GamePlayers.
-                Where(x => x != celebrator).
+                Where(x => x != null && !x.Dismissed && x != celebrator).
                 OrderBy(x => Vector3.Distance(x.Position, celebrationPoint.position)).
                 Take(Random.Range(3, 6));
             //
 
-            var toBeDisabled = scorerTeam.GamePlayers.Where(x => x != celebrator).Except(celebrators).Concat(concedeTeam.GamePlayers);
+            var toBeDisabled = scorerTeam.GamePlayers.Where(x => x != null && !x.Dismissed && x != celebrator).Except(celebrators).Concat(concedeTeam.GamePlayers.Where(x => x != null && !x.Dismissed));
             foreach (var player in toBeDisabled) {
                 player.PlayerController.IsPhysicsEnabled = false;
             }
@@ -200,6 +200,8 @@ namespace MatchEngine.MatchScenes.Implementations {
                 MM.Current.SetGoalColliders(false);
 
                 foreach (var player in scorerTeam.GamePlayers.Concat(concedeTeam.GamePlayers)) {
+                    if (player == null || player.Dismissed)
+                        continue;
                     player.PlayerController.IsPhysicsEnabled = true;
                 }
 

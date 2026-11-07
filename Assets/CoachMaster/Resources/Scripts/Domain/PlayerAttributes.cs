@@ -148,12 +148,12 @@ namespace CoachMaster.Domain
         static float ConditionOverallChange(Player player)
         {
             if (player == null) return 0f;
-            var form = (player.Form - 60) * 0.12f;
+            var form = (player.Form - 60) * 0.07f;
             var morale = (player.Morale - 60) * 0.06f;
             var fitness = (player.Fitness - 80) * 0.035f;
             var fatigue = player.Fatigue * 0.03f;
             var training = ((player.TrainingRating <= 0 ? 70 : player.TrainingRating) - 70) * 0.05f;
-            return UnityEngine.Mathf.Clamp(form + morale + fitness - fatigue + training, -7f, 7f);
+            return UnityEngine.Mathf.Clamp(form + morale + fitness - fatigue + training, -5f, 5f);
         }
 
         public static int CurrentValue(Player player, string key)
@@ -163,7 +163,7 @@ namespace CoachMaster.Domain
 
             var value = player.Attributes.Value(key);
             var training = ((player.TrainingRating <= 0 ? 70 : player.TrainingRating) - 70) / 30f;
-            var form = (player.Form - 60) / 8f;
+            var form = (player.Form - 60) / 12f;
             var morale = (player.Morale - 60) / 12f;
             var physical = (player.Fitness - 80) / 30f - player.Fatigue / 40f;
             float change;

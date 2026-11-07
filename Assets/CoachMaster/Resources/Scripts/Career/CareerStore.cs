@@ -698,6 +698,8 @@ namespace CoachMaster.Career
                 lines.Add("transfer|" + transfer.DateTicks + "|" + transfer.PlayerId + "|" + transfer.FromClubId + "|" + transfer.ToClubId + "|" + transfer.Fee + "|" + transfer.WeeklyWage + "|" + transfer.ContractYears + "|" + transfer.AgeAtTransfer + "|" + transfer.OverallAtTransfer + "|" + Esc(transfer.Type));
             foreach (var trophy in career.Trophies)
                 lines.Add("trophy|" + trophy.ClubId + "|" + trophy.CompetitionId + "|" + trophy.SeasonStartYear + "|" + trophy.DateTicks + "|" + Esc(trophy.Title));
+            foreach (var honour in career.Honours)
+                lines.Add("honour|" + honour.PlayerId + "|" + Esc(honour.Kind) + "|" + Esc(honour.CompetitionId) + "|" + honour.SeasonStartYear + "|" + Esc(honour.Title));
             foreach (var memory in career.Memories)
                 lines.Add("memory|" + memory.WhenTicks + "|" + memory.Importance + "|" + Esc(memory.Kind) + "|" + memory.ClubId + "|" + memory.CompetitionId + "|" + memory.RelatedClubId + "|" + memory.PlayerId + "|" + Esc(memory.Title) + "|" + Esc(memory.Detail) + "|" + memory.Value);
             foreach (var trust in career.ManagerTrust)
@@ -1366,6 +1368,17 @@ namespace CoachMaster.Career
                                 DateTicks = trophyDate, Title = Un(bits[5])
                             });
                         break;
+                    case "honour":
+                        if (bits.Length > 5 && int.TryParse(bits[4], out var honourSeason))
+                            career.Honours.Add(new PlayerHonour
+                            {
+                                PlayerId = bits[1],
+                                Kind = Un(bits[2]),
+                                CompetitionId = Un(bits[3]),
+                                SeasonStartYear = honourSeason,
+                                Title = Un(bits[5])
+                            });
+                        break;
                     case "academy":
                         if (bits.Length > 1 && !string.IsNullOrEmpty(bits[1]))
                             career.AcademyPlayerIds.AddRange(bits[1].Split(','));
@@ -1646,7 +1659,17 @@ namespace CoachMaster.Career
                 }
 
                 if (!exists)
+                {
+                    if (career.World.Clubs.TryGetValue(generatedRow.ClubId ?? "", out var moved)
+                        && moved != null
+                        && !string.IsNullOrEmpty(moved.LeagueId)
+                        && moved.LeagueId != generatedRow.LeagueId
+                        && generatedRow.LeagueId != null
+                        && generatedRow.LeagueId.StartsWith("league:")
+                        && generatedRow.LeagueId != "league:campeoes")
+                        continue;
                     career.Table.Add(new LeagueTableRow { LeagueId = generatedRow.LeagueId, ClubId = generatedRow.ClubId });
+                }
             }
 
             foreach (var generated in generatedFixtures)

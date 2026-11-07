@@ -630,8 +630,11 @@ namespace CoachMaster.UI.Scenes
                 var number = rect.Find("N").GetComponent<Text>();
                 number.color = NumberInk(color);
                 number.resizeTextForBestFit = true;
-                number.resizeTextMinSize = 11;
-                number.resizeTextMaxSize = 18;
+                number.resizeTextMinSize = 9;
+                number.resizeTextMaxSize = 16;
+                number.horizontalOverflow = HorizontalWrapMode.Overflow;
+                number.verticalOverflow = VerticalWrapMode.Overflow;
+                KeepShirtNumber(number);
                 var injury = rect.Find("Injury") == null
                     ? BroadcastUi.Label(rect, "Injury", "+", 15, new Color(0.95f, 0.12f, 0.16f), TextAnchor.MiddleCenter, FontStyle.Bold)
                     : rect.Find("Injury").GetComponent<Text>();
@@ -988,11 +991,14 @@ namespace CoachMaster.UI.Scenes
                 image.sprite = BroadcastUi.Circle;
                 image.color = color;
                 image.raycastTarget = false;
-                var num = BroadcastUi.Label(rect, "N", "", 18, ink, TextAnchor.MiddleCenter, FontStyle.Bold);
+                var num = BroadcastUi.Label(rect, "N", "", 16, ink, TextAnchor.MiddleCenter, FontStyle.Bold);
                 num.resizeTextForBestFit = true;
-                num.resizeTextMinSize = 11;
-                num.resizeTextMaxSize = 18;
+                num.resizeTextMinSize = 9;
+                num.resizeTextMaxSize = 16;
+                num.horizontalOverflow = HorizontalWrapMode.Overflow;
+                num.verticalOverflow = VerticalWrapMode.Overflow;
                 BroadcastUi.Stretch(num.rectTransform);
+                KeepShirtNumber(num);
                 var injury = BroadcastUi.Label(rect, "Injury", "+", 15, new Color(0.95f, 0.12f, 0.16f), TextAnchor.MiddleCenter, FontStyle.Bold);
                 BroadcastUi.Place(injury.rectTransform, 0.62f, 0.62f, 1f, 1f);
                 injury.gameObject.SetActive(false);
@@ -1540,6 +1546,13 @@ namespace CoachMaster.UI.Scenes
             canvas.sortingOrder = 200;
             if (_pause.GetComponent<GraphicRaycaster>() == null)
                 _pause.AddComponent<GraphicRaycaster>();
+        }
+
+        public void PauseAfterEvent()
+        {
+            if (_paused || _match == null || MenuOpen)
+                return;
+            OpenPause();
         }
 
         void OpenPause()
@@ -3526,11 +3539,9 @@ namespace CoachMaster.UI.Scenes
                     var playerId = _match.HomeOnField[i];
                     var slot = Motion(true, i);
                     Move(homeToken, ToPitch(slot), Possess(true) && i == Holder(), Jumping(true, i), Look(true, i));
-                    if (homeToken.PlayerId != playerId)
-                    {
-                        homeToken.PlayerId = playerId;
-                        homeToken.Number.text = Shirt(_match.HomeOnField, i);
-                    }
+                    homeToken.PlayerId = playerId;
+                    homeToken.Number.text = Shirt(_match.HomeOnField, i);
+                    homeToken.Number.transform.SetAsLastSibling();
                     var injured = Injured(playerId);
                     if (homeToken.Injury.gameObject.activeSelf != injured)
                         homeToken.Injury.gameObject.SetActive(injured);
@@ -3542,11 +3553,9 @@ namespace CoachMaster.UI.Scenes
                     var playerId = _match.AwayOnField[i];
                     var slot = Motion(false, i);
                     Move(awayToken, ToPitch(slot), Possess(false) && i == Holder(), Jumping(false, i), Look(false, i));
-                    if (awayToken.PlayerId != playerId)
-                    {
-                        awayToken.PlayerId = playerId;
-                        awayToken.Number.text = Shirt(_match.AwayOnField, i);
-                    }
+                    awayToken.PlayerId = playerId;
+                    awayToken.Number.text = Shirt(_match.AwayOnField, i);
+                    awayToken.Number.transform.SetAsLastSibling();
                     var injured = Injured(playerId);
                     if (awayToken.Injury.gameObject.activeSelf != injured)
                         awayToken.Injury.gameObject.SetActive(injured);
@@ -3617,6 +3626,23 @@ namespace CoachMaster.UI.Scenes
         static Vector2 ToPitch(Vector2 slot)
         {
             return new Vector2(slot.y, slot.x);
+        }
+
+        static void KeepShirtNumber(Text number)
+        {
+            if (number == null)
+                return;
+            var localizer = number.GetComponent<LocalizedText>();
+            if (localizer != null)
+            {
+                localizer.enabled = false;
+                Destroy(localizer);
+            }
+            var outline = number.GetComponent<Outline>();
+            if (outline == null)
+                outline = number.gameObject.AddComponent<Outline>();
+            outline.effectColor = new Color(0f, 0f, 0f, 0.85f);
+            outline.effectDistance = new Vector2(1f, -1f);
         }
 
         static Color NumberInk(Color jerseyColor)

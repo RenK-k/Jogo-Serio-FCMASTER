@@ -208,7 +208,7 @@ namespace FStudio.MatchEngine.Balls {
             PlayerBase closest = null;
             var closestDistance = 1.25f;
             foreach (var player in players) {
-                if (player == null || player.CaughtInOffside)
+                if (player == null || player.CaughtInOffside || player.Dismissed)
                     continue;
                 if (holdBlocker != null && player == LastHolder)
                     continue;

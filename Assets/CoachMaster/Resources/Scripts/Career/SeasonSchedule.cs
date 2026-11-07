@@ -191,6 +191,7 @@ namespace CoachMaster.Career
         {
             if (career == null)
                 return;
+            AlignTables(career);
             foreach (var row in career.Table)
             {
                 row.Played = 0;
@@ -637,6 +638,99 @@ namespace CoachMaster.Career
                 DateTicks = career.Calendar.CurrentDate.Ticks,
                 Title = title
             });
+            if (MajorClubHonour(career, competitionId))
+                GiveSquad(career, clubId, competitionId == "league:campeoes" ? "champions" : "league", competitionId, title);
+        }
+
+        static bool MajorClubHonour(CareerState career, string competitionId)
+        {
+            if (competitionId == "league:campeoes")
+                return true;
+            if (career == null || career.World == null)
+                return false;
+            foreach (var league in career.World.Leagues)
+                if (league.Id == competitionId && league.Tier == LeagueTier.First)
+                    return true;
+            return false;
+        }
+
+        static void GiveHonour(CareerState career, string playerId, string kind, string competitionId, string title)
+        {
+            if (career == null || string.IsNullOrEmpty(playerId) || string.IsNullOrEmpty(kind))
+                return;
+            var year = career.Calendar.CurrentDate.Month >= 7 ? career.Calendar.CurrentDate.Year : career.Calendar.CurrentDate.Year - 1;
+            foreach (var honour in career.Honours)
+                if (honour.PlayerId == playerId && honour.Kind == kind && honour.CompetitionId == competitionId && honour.SeasonStartYear == year)
+                    return;
+            career.Honours.Add(new PlayerHonour
+            {
+                PlayerId = playerId,
+                Kind = kind,
+                CompetitionId = competitionId,
+                SeasonStartYear = year,
+                Title = title
+            });
+        }
+
+        static void GiveSquad(CareerState career, string clubId, string kind, string competitionId, string title)
+        {
+            if (career == null || career.World == null || !career.World.Clubs.TryGetValue(clubId ?? "", out var club) || club.PlayerIds == null)
+                return;
+            foreach (var id in club.PlayerIds)
+                GiveHonour(career, id, kind, competitionId, title);
+        }
+
+        static void CreditNation(CareerState career, string nationality, string kind, string competitionName)
+        {
+            if (career == null || career.World == null || string.IsNullOrEmpty(nationality))
+                return;
+            var squad = new List<Player>();
+            foreach (var player in career.World.Players.Values)
+                if (player != null && player.Nationality == nationality)
+                    squad.Add(player);
+            squad.Sort((a, b) => PlayerAttributes.Overall(b).CompareTo(PlayerAttributes.Overall(a)));
+            if (squad.Count > 23)
+                squad.RemoveRange(23, squad.Count - 23);
+            foreach (var player in squad)
+                GiveHonour(career, player.Id, kind, "nation:" + kind, competitionName);
+        }
+
+        public static void AlignTables(CareerState career)
+        {
+            if (career == null || career.World == null)
+                return;
+            var domestic = new HashSet<string>();
+            foreach (var league in career.World.Leagues)
+            {
+                if (league != null && league.Tier != LeagueTier.Continental && !string.IsNullOrEmpty(league.Id))
+                    domestic.Add(league.Id);
+            }
+            for (var i = career.Table.Count - 1; i >= 0; i--)
+            {
+                var row = career.Table[i];
+                if (row == null || !domestic.Contains(row.LeagueId))
+                    continue;
+                if (!career.World.Clubs.TryGetValue(row.ClubId ?? "", out var club) || club == null)
+                    continue;
+                if (!string.IsNullOrEmpty(club.LeagueId) && club.LeagueId != row.LeagueId)
+                    career.Table.RemoveAt(i);
+            }
+            foreach (var club in career.World.Clubs.Values)
+            {
+                if (club == null || string.IsNullOrEmpty(club.LeagueId) || !domestic.Contains(club.LeagueId))
+                    continue;
+                var found = false;
+                foreach (var row in career.Table)
+                {
+                    if (row != null && row.ClubId == club.Id && row.LeagueId == club.LeagueId)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found)
+                    career.Table.Add(new LeagueTableRow { ClubId = club.Id, LeagueId = club.LeagueId });
+            }
         }
 
         static void PublishAwards(CareerState career)
@@ -696,6 +790,7 @@ namespace CoachMaster.Career
             {
                 Newsroom.Publish(career, "A Gazeta do Relvado", "Bola de Ouro para " + golden.FullName,
                     golden.FullName + ", do " + ClubName(career, golden.ClubId) + ", fecha com média " + average.ToString("0.00") + " e " + goals + " golos. O prémio vai para quem pesou mais na época.");
+                GiveHonour(career, golden.Id, "ball", "award:ball", "Bola de Ouro");
             }
 
             var boot = TopScorer(career);
@@ -706,6 +801,7 @@ namespace CoachMaster.Career
                 var club = player == null ? "" : ClubName(career, player.ClubId);
                 Newsroom.Publish(career, "Diário da Liga", "Bota de Ouro: " + who + " com " + boot.Goals + " golos",
                     who + (string.IsNullOrEmpty(club) ? "" : ", do " + club + ",") + " termina como melhor marcador da época, com " + boot.Goals + " golos.");
+                GiveHonour(career, boot.PlayerId, "boot", "award:boot", "Bota de Ouro");
             }
 
             var moves = PromotionText(career);
@@ -746,6 +842,8 @@ namespace CoachMaster.Career
                 var title = Competition(pair.Key);
                 Newsroom.Publish(career, "Diário da Liga", "Melhor marcador da " + title + ": " + who,
                     who + (string.IsNullOrEmpty(club) ? "" : ", do " + club + ",") + " fecha a " + title + " com " + pair.Value.Goals + " golos.");
+                if (pair.Key == "league:campeoes")
+                    GiveHonour(career, pair.Value.PlayerId, "scorer", pair.Key, "Melhor marcador da Liga dos Campeões");
             }
 
             foreach (var pair in stars)
@@ -778,6 +876,8 @@ namespace CoachMaster.Career
             var runnerGoals = Math.Abs(seed) % 2;
             Newsroom.Publish(career, "Mundo da Bola", winner + " vence o " + name,
                 "Final do " + name + ": " + winner + " " + winnerGoals + "–" + runnerGoals + " " + runner + ". " + winner + " leva o troféu e os internacionais regressam aos clubes para a época nova.");
+            if (name != "Liga das Nações")
+                CreditNation(career, winner, name == "Campeonato do Mundo" ? "world" : "euro", name);
         }
 
         static float Rate(SeasonLine line)

@@ -313,7 +313,7 @@ namespace FStudio.MatchEngine.Input {
                 return;// cannot select another player.
             }
 
-            var possibleTargets = gameTeam.GamePlayers.Where(x => MatchManager.Alive(x) && !x.IsGK && x != ActivePlayer);
+            var possibleTargets = gameTeam.GamePlayers.Where(x => MatchManager.Alive(x) && !x.Dismissed && !x.IsGK && x != ActivePlayer);
 
             if (currentBallHolder != null && currentBallHolder.GameTeam == gameTeam && !currentBallHolder.IsGK) {
                 ActivePlayer = currentBallHolder;
@@ -364,7 +364,7 @@ namespace FStudio.MatchEngine.Input {
         }
 
         public void Update (in float deltaTime) {
-            if (ActivePlayer == null || !MatchManager.Alive(ActivePlayer)) {
+            if (ActivePlayer == null || !MatchManager.Alive(ActivePlayer) || ActivePlayer.Dismissed) {
                 ActivePlayer = null;
                 AssignPlayer();
             }

@@ -36,6 +36,7 @@ namespace CoachMaster.UI.Scenes
         bool _attack;
         bool _stadiumCamera;
         float _dangerUntil;
+        float _lastCardMinute = -20f;
         Camera _cover;
         MatchMinimapGraphic _map;
         float _sampleAt;
@@ -189,6 +190,12 @@ namespace CoachMaster.UI.Scenes
             }
             var who = NameOf(id);
             _match.AddNote(string.IsNullOrEmpty(who) ? "Golo." : "Golo de " + who + ".", "goal", id);
+            if (CoachMaster.UI.SettingsPrefs.PauseOnGoal)
+            {
+                var day = UnityEngine.Object.FindFirstObjectByType<MatchDayController>();
+                if (day != null)
+                    day.PauseAfterEvent();
+            }
         }
 
         void NotePass(PlayerPassEvent pass)
@@ -234,11 +241,48 @@ namespace CoachMaster.UI.Scenes
         public static void LiveFoul(FStudio.MatchEngine.Players.PlayerBase fouler, FStudio.MatchEngine.Players.PlayerBase victim)
         {
             var host = Object.FindAnyObjectByType<SimulatorMatchHost>();
-            if (host == null || host._match == null || victim == null)
+            if (host == null || host._match == null || fouler == null)
                 return;
-            var id = host.SquadId(victim);
-            var who = host.NameOf(host.SquadId(fouler));
+            var id = host.SquadId(fouler);
+            var who = host.NameOf(id);
             host._match.AddNote("Falta de " + who + ".", "foul", id);
+            if (string.IsNullOrEmpty(id) || host._match.SentOffPlayers.Contains(id))
+                return;
+            host._match.Bookings.TryGetValue(id, out var previous);
+            if (previous >= 2)
+                return;
+            var career = GameRoot.Instance != null && GameRoot.Instance.Session != null ? GameRoot.Instance.Session.Career : null;
+            var strict = career == null ? 1f : CoachMaster.UI.SettingsPrefs.RefereeMultiplier(career.RefereeStrictness);
+            var minute = MatchManager.Current != null ? MatchManager.Current.minutes : host._match.Minute;
+            var chance = previous >= 1 || minute - host._lastCardMinute >= 7f ? 0.5f : 0.16f;
+            if (UnityEngine.Random.value > Mathf.Clamp(chance * strict, 0.08f, 0.72f))
+                return;
+            var behind = false;
+            if (victim != null && victim.PlayerController != null)
+            {
+                var approach = fouler.Position - victim.Position;
+                approach.y = 0f;
+                behind = approach.sqrMagnitude > 0.01f && Vector3.Dot(approach.normalized, victim.Rotation * Vector3.forward) > 0.25f;
+            }
+            var red = previous >= 1 || UnityEngine.Random.value < (behind ? 0.18f : 0.04f) * strict;
+            host._lastCardMinute = minute;
+            host._match.Bookings[id] = red ? 2 : 1;
+            if (!red)
+            {
+                host._match.AddNote("Amarelo para " + who + ".", "yellow", id);
+                CoachMaster.UI.GameAudio.YellowCard();
+                return;
+            }
+            host._match.SentOffPlayers.Add(id);
+            host._match.AddNote(previous >= 1 ? "Segundo amarelo para " + who + ". Expulsão." : "Vermelho directo para " + who + ".", "red", id);
+            CoachMaster.UI.GameAudio.RedCard();
+            fouler.SendOff();
+            if (CoachMaster.UI.SettingsPrefs.PauseOnRedCard)
+            {
+                var day = Object.FindFirstObjectByType<MatchDayController>();
+                if (day != null)
+                    day.PauseAfterEvent();
+            }
         }
 
         string SquadId(FStudio.MatchEngine.Players.PlayerBase player)

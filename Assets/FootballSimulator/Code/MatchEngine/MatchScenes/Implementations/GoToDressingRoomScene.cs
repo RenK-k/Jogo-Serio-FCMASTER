@@ -44,6 +44,8 @@ namespace MatchEngine.MatchScenes.Implementations {
             ball.Release();
 
             foreach (var player in allPlayers) {
+                if (player == null || player.Dismissed)
+                    continue;
                 player.PlayerController.IsPhysicsEnabled = true;
 
                 if (!player.MoveTo(in dT, dressingRoomPoint, true, MovementType.Relax)) {

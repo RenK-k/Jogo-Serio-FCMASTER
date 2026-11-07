@@ -14,9 +14,6 @@ namespace CoachMaster.MatchPlay
 {
     public static class SimulatorCareer
     {
-        const string KitPlayers = "Assets/FootballSimulator/Arts/FootballPlayer/PlayerModel/UIKits/KitMask1.png";
-        const string KitCloth = "Assets/FootballSimulator/Arts/FootballPlayer/PlayerModel/Textures/KitSchemas/KitMask1.png";
-
         public static void Prepare(MatchSession match)
         {
             CareerTacticLock.Active = match != null;
@@ -262,13 +259,45 @@ namespace CoachMaster.MatchPlay
             kit.GKColor2 = new Color(0.1f, 0.1f, 0.1f);
             kit.GKTextColor = Color.black;
 #if UNITY_EDITOR
-            var players = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture>(KitPlayers);
-            var cloth = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture>(KitCloth);
+            var mask = KitMaskIndex(club);
+            var players = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture>(
+                "Assets/FootballSimulator/Arts/FootballPlayer/PlayerModel/UIKits/KitMask" + mask + ".png");
+            var cloth = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture>(
+                "Assets/FootballSimulator/Arts/FootballPlayer/PlayerModel/Textures/KitSchemas/KitMask" + mask + ".png");
             kit.PreviewTexture = players;
-            kit.KitMaterial = cloth;
-            kit.GKKitMaterial = cloth;
+            kit.KitMaterial = cloth != null ? cloth : players;
+            kit.GKKitMaterial = cloth != null ? cloth : players;
 #endif
             return kit;
+        }
+
+        static int KitMaskIndex(Club club)
+        {
+            var salt = club == null || string.IsNullOrEmpty(club.Id) ? 0 : club.Id.GetHashCode() & 0x7fffffff;
+            var pattern = club == null ? KitPattern.Solid : club.KitPattern;
+            if (pattern == KitPattern.VerticalStripes)
+            {
+                switch (salt % 7)
+                {
+                    case 0: return 8;
+                    case 1: return 1;
+                    case 2: return 5;
+                    case 3: return 9;
+                    case 4: return 2;
+                    case 5: return 4;
+                    default: return 6;
+                }
+            }
+            switch (pattern)
+            {
+                case KitPattern.Solid: return 8;
+                case KitPattern.HorizontalHoops: return 2;
+                case KitPattern.ChestBand: return 4;
+                case KitPattern.Sash: return 6;
+                case KitPattern.Halves: return 7;
+                case KitPattern.Pinstripe: return 3;
+                default: return salt % 2 == 0 ? 1 : 9;
+            }
         }
 
         static Player[] Order(List<Player> people, Positions[] slots)

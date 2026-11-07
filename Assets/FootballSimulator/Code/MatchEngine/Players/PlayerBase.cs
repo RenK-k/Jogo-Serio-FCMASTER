@@ -169,6 +169,27 @@ namespace FStudio.MatchEngine.Players {
 
         public bool IsGK => MatchPlayer.Position.HasFlag(FStudio.Data.Positions.GK);
 
+        public bool Dismissed { get; private set; }
+
+        public void SendOff() {
+            if (Dismissed || IsGK || PlayerController == null)
+                return;
+            Dismissed = true;
+            if (IsHoldingBall && Ball.Current != null)
+                Ball.Current.Release();
+            PlayerController.IsPhysicsEnabled = false;
+            if (PlayerController.UnityObject != null)
+            {
+                foreach (var col in PlayerController.UnityObject.GetComponentsInChildren<Collider>())
+                    col.enabled = false;
+            }
+            var field = MatchManager.Current != null ? MatchManager.Current.SizeOfField : new Vector2(105f, 68f);
+            var pos = Position;
+            pos.y = 0f;
+            pos.z = pos.z < field.y * 0.5f ? -4f : field.y + 4f;
+            PlayerController.SetInstantPosition(pos);
+        }
+
         [HideInInspector] public Vector3 runForwardBehaviourFinalPosition;
 
         /// <summary>
@@ -1004,6 +1025,8 @@ namespace FStudio.MatchEngine.Players {
                 in PlayerBase [] teammates, 
                 in PlayerBase[] opponents
             ) {
+            if (Dismissed)
+                return;
 
             // check if we are at offside.
             if (targetGoalNet != null) {
